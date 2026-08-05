@@ -1,6 +1,25 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/app_database.dart';
+import '../../features/budget/data/datasource/budget_local_datasource.dart';
+import '../../features/budget/data/datasource/budget_local_datasource_impl.dart';
+import '../../features/budget/data/repository/budget_repository_impl.dart';
+import '../../features/budget/domain/repository/budget_repository.dart';
+import '../../features/budget/domain/services/budget_calculation_service.dart';
+import '../../features/budget/domain/usecases/calculate_daily_allowance_usecase.dart';
+import '../../features/budget/domain/usecases/get_budget_analytics_usecase.dart';
+import '../../features/budget/domain/usecases/get_budget_status_usecase.dart';
+import '../../features/budget/domain/usecases/get_budget_summary_usecase.dart';
+import '../../features/budget/domain/usecases/get_projected_overspending_usecase.dart';
+import '../../features/budget/domain/usecases/get_projected_savings_usecase.dart';
+import '../../features/budget/presentation/bloc/budget_bloc.dart';
+import '../../features/dashboard/data/datasource/dashboard_local_datasource.dart';
+import '../../features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
+import '../../features/dashboard/data/repository/dashboard_repository_impl.dart';
+import '../../features/dashboard/domain/repository/dashboard_repository.dart';
+import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
+import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../../features/onboarding/data/datasource/onboarding_local_datasource.dart';
 import '../../features/onboarding/data/repository/onboarding_repository_impl.dart';
 import '../../features/onboarding/domain/repository/onboarding_repository.dart';
@@ -19,7 +38,12 @@ Future<void> initDependencyInjection() async {
   final database = AppDatabase();
   getIt.registerSingleton<AppDatabase>(database);
 
-  // 3. Onboarding Feature - Datasources
+  // 3. Budget Engine - Core Service
+  getIt.registerLazySingleton<BudgetCalculationService>(
+    () => BudgetCalculationService(),
+  );
+
+  // 4. Onboarding Feature - Datasources
   getIt.registerLazySingleton<OnboardingLocalDataSource>(
     () => OnboardingLocalDataSourceImpl(
       sharedPreferences: getIt<SharedPreferences>(),
@@ -27,14 +51,27 @@ Future<void> initDependencyInjection() async {
     ),
   );
 
-  // 4. Onboarding Feature - Repositories
+  // 5. Budget Feature - Datasources
+  getIt.registerLazySingleton<BudgetLocalDataSource>(
+    () => BudgetLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+
+  // 6. Onboarding Feature - Repositories
   getIt.registerLazySingleton<OnboardingRepository>(
     () => OnboardingRepositoryImpl(
       localDataSource: getIt<OnboardingLocalDataSource>(),
     ),
   );
 
-  // 5. Onboarding Feature - Use Cases
+  // 7. Budget Feature - Repositories
+  getIt.registerLazySingleton<BudgetRepository>(
+    () => BudgetRepositoryImpl(
+      localDataSource: getIt<BudgetLocalDataSource>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  // 8. Onboarding Feature - Use Cases
   getIt.registerLazySingleton<CheckFirstLaunchUseCase>(
     () => CheckFirstLaunchUseCase(getIt<OnboardingRepository>()),
   );
@@ -43,10 +80,90 @@ Future<void> initDependencyInjection() async {
     () => CreateBudgetUseCase(getIt<OnboardingRepository>()),
   );
 
-  // 6. Onboarding Feature - BLoC
+  // 9. Budget Feature - Use Cases
+  getIt.registerLazySingleton<GetBudgetSummaryUseCase>(
+    () => GetBudgetSummaryUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<CalculateDailyAllowanceUseCase>(
+    () => CalculateDailyAllowanceUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetBudgetAnalyticsUseCase>(
+    () => GetBudgetAnalyticsUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetBudgetStatusUseCase>(
+    () => GetBudgetStatusUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetProjectedSavingsUseCase>(
+    () => GetProjectedSavingsUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetProjectedOverspendingUseCase>(
+    () => GetProjectedOverspendingUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  // 10. Onboarding Feature - BLoC
   getIt.registerFactory<OnboardingBloc>(
-    () => OnboardingBloc(
-      createBudgetUseCase: getIt<CreateBudgetUseCase>(),
+    () => OnboardingBloc(createBudgetUseCase: getIt<CreateBudgetUseCase>()),
+  );
+
+  // 11. Budget Feature - BLoC
+  getIt.registerFactory<BudgetBloc>(
+    () => BudgetBloc(
+      getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
+      getBudgetAnalyticsUseCase: getIt<GetBudgetAnalyticsUseCase>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
+  // 12. Dashboard Feature - Datasources
+  getIt.registerLazySingleton<DashboardLocalDataSource>(
+    () => DashboardLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+
+  // 13. Dashboard Feature - Repositories
+  getIt.registerLazySingleton<DashboardRepository>(
+    () => DashboardRepositoryImpl(
+      localDataSource: getIt<DashboardLocalDataSource>(),
+    ),
+  );
+
+  // 14. Dashboard Feature - Use Cases
+  getIt.registerLazySingleton<GetRecentExpensesUseCase>(
+    () => GetRecentExpensesUseCase(repository: getIt<DashboardRepository>()),
+  );
+
+  getIt.registerLazySingleton<GetSmartInsightsUseCase>(
+    () => const GetSmartInsightsUseCase(),
+  );
+
+  // 15. Dashboard Feature - BLoC
+  getIt.registerFactory<DashboardBloc>(
+    () => DashboardBloc(
+      getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
+      getRecentExpensesUseCase: getIt<GetRecentExpensesUseCase>(),
+      getSmartInsightsUseCase: getIt<GetSmartInsightsUseCase>(),
     ),
   );
 }

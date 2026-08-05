@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../di/injection.dart';
+import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import '../../features/dashboard/presentation/pages/dashboard_screen.dart';
 import '../../features/onboarding/domain/usecases/check_first_launch_usecase.dart';
 import '../../features/onboarding/presentation/pages/onboarding_screen.dart';
 
@@ -38,7 +41,10 @@ class AppRouter {
       GoRoute(
         path: dashboardPath,
         name: 'dashboard',
-        builder: (context, state) => const PlaceholderScreen(title: 'Dashboard'),
+        builder: (context, state) => BlocProvider(
+          create: (context) => getIt<DashboardBloc>(),
+          child: const DashboardScreen(),
+        ),
       ),
       GoRoute(
         path: expensesPath,
