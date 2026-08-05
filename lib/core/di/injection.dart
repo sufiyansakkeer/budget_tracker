@@ -30,7 +30,14 @@ import '../../features/expenses/domain/usecases/get_categories_usecase.dart';
 import '../../features/expenses/domain/usecases/get_expense_by_id_usecase.dart';
 import '../../features/expenses/domain/usecases/get_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/update_expense_usecase.dart';
+import '../../features/expenses/domain/usecases/calculate_expense_summary_usecase.dart';
+import '../../features/expenses/domain/usecases/filter_expenses_usecase.dart';
+import '../../features/expenses/domain/usecases/group_expenses_usecase.dart';
+import '../../features/expenses/domain/usecases/page_expenses_usecase.dart';
+import '../../features/expenses/domain/usecases/search_expenses_usecase.dart';
+import '../../features/expenses/domain/usecases/sort_expenses_usecase.dart';
 import '../../features/expenses/presentation/bloc/expense_bloc.dart';
+import '../../features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import '../../features/onboarding/data/datasource/onboarding_local_datasource.dart';
 import '../../features/onboarding/data/repository/onboarding_repository_impl.dart';
 import '../../features/onboarding/domain/repository/onboarding_repository.dart';
@@ -219,6 +226,39 @@ Future<void> initDependencyInjection() async {
       getExpensesUseCase: getIt<GetExpensesUseCase>(),
       getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
       repository: getIt<ExpenseRepository>(),
+    ),
+  );
+
+  // 20. Expense History - Pure use cases
+  getIt.registerLazySingleton<SearchExpensesUseCase>(
+    () => const SearchExpensesUseCase(),
+  );
+  getIt.registerLazySingleton<FilterExpensesUseCase>(
+    () => const FilterExpensesUseCase(),
+  );
+  getIt.registerLazySingleton<SortExpensesUseCase>(
+    () => const SortExpensesUseCase(),
+  );
+  getIt.registerLazySingleton<CalculateExpenseSummaryUseCase>(
+    () => const CalculateExpenseSummaryUseCase(),
+  );
+  getIt.registerLazySingleton<GroupExpensesUseCase>(
+    () => const GroupExpensesUseCase(),
+  );
+  getIt.registerLazySingleton<PageExpensesUseCase>(
+    () => const PageExpensesUseCase(),
+  );
+
+  // 21. Expense History - BLoC
+  getIt.registerFactory<ExpenseHistoryBloc>(
+    () => ExpenseHistoryBloc(
+      getExpensesUseCase: getIt<GetExpensesUseCase>(),
+      getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
+      searchExpensesUseCase: getIt<SearchExpensesUseCase>(),
+      filterExpensesUseCase: getIt<FilterExpensesUseCase>(),
+      sortExpensesUseCase: getIt<SortExpensesUseCase>(),
+      calculateExpenseSummaryUseCase: getIt<CalculateExpenseSummaryUseCase>(),
+      pageExpensesUseCase: getIt<PageExpensesUseCase>(),
     ),
   );
 }

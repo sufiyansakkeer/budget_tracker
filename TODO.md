@@ -1,46 +1,45 @@
-# Phase 5 – Expense Management Module TODO
+# Phase 6 – Expense History & Search Module TODO
 
-## Database
-- [x] Add `time` column to Expenses table + index on date/categoryId (schema v2 migration)
-- [x] Regenerate drift `app_database.g.dart`
+## Domain – New Files
+- [x] Create `domain/entities/expense_history_filter.dart`
+- [x] Create `domain/entities/expense_history_sort.dart`
+- [x] Create `domain/entities/expense_history_summary.dart`
+- [x] Create `domain/entities/expense_group.dart`
+- [x] Create `domain/usecases/search_expenses_usecase.dart`
+- [x] Create `domain/usecases/filter_expenses_usecase.dart`
+- [x] Create `domain/usecases/sort_expenses_usecase.dart`
+- [x] Create `domain/usecases/calculate_expense_summary_usecase.dart`
+- [x] Create `domain/usecases/group_expenses_usecase.dart`
+- [x] Create `domain/usecases/page_expenses_usecase.dart`
 
-## Domain
-- [x] Create `ExpenseEntity`
-- [x] Create `ExpenseCategory` + default categories
-- [x] Create `ExpenseFailure`/`ExpenseResult` typed errors
-- [x] Create `ExpenseRepository` interface
-- [x] Create `ExpenseValidator`
-- [x] Create use cases: Create, Update, Delete, GetById, GetCategories, GetExpenses
+## Presentation – History Module
+- [x] Create `presentation/history/bloc/expense_history_event.dart`
+- [x] Create `presentation/history/bloc/expense_history_state.dart`
+- [x] Create `presentation/history/bloc/expense_history_bloc.dart`
+- [x] Create `presentation/history/widgets/expense_history_item.dart`
+- [x] Create `presentation/history/widgets/expense_group_header.dart`
+- [x] Create `presentation/history/widgets/expense_search_bar.dart`
+- [x] Create `presentation/history/widgets/filter_bottom_sheet.dart`
+- [x] Create `presentation/history/widgets/sort_bottom_sheet.dart`
+- [x] Create `presentation/history/widgets/summary_card.dart`
+- [x] Create `presentation/history/widgets/active_filter_chips.dart`
+- [x] Create `presentation/history/widgets/quick_filter_chips.dart`
+- [x] Create `presentation/history/widgets/expense_history_empty_state.dart`
+- [x] Create `presentation/history/widgets/expense_history_error_widget.dart`
+- [x] Create `presentation/history/widgets/loading_more_indicator.dart`
+- [x] Create `presentation/history/pages/expense_history_screen.dart`
 
-## Data
-- [x] Create `ExpenseModel` + `ExpenseCategoryModel`
-- [x] Create `ExpenseLocalDataSource` + impl
-- [x] Create `ExpenseRepositoryImpl`
-
-## BLoC
-- [x] Create `ExpenseEvent`, `ExpenseState`, `ExpenseBloc`
-- [x] Create `ExpenseRefreshBus` (Budget/Dashboard auto-refresh)
-
-## Presentation
-- [x] Create reusable widgets (Amount, Category, Date, Time, Receipt, Note, Tags, FormActions, DeleteDialog, SummaryCard)
-- [x] Create `ExpenseFormScreen` (add & edit)
-- [x] Create `ExpenseDetailsScreen`
-- [x] Create `ExpensesListScreen`
-
-## Navigation
-- [x] Update GoRouter routes
-
-## DI
-- [x] Register expenses datasource/repository/usecases/bloc in DI
-
-## Receipt
-- [x] Add camera permission to AndroidManifest + iOS Info.plist
+## Integration
+- [x] Update `core/router/app_router.dart` – add `/expenses/history` route
+- [x] Update `core/di/injection.dart` – register history use cases + bloc
+- [x] Update `expenses_list_screen.dart` – history entry point
 
 ## Tests
-- [x] Unit: repository, use cases, validators
-- [x] Widget: add/edit form, category picker, receipt picker, validation
+- [x] Unit tests: search, filter, sort, summary, pagination, grouping
+- [x] `ExpenseHistoryBloc` test
+- [x] Widget tests: history screen, search bar, filter sheet, sort sheet, empty/error states
 
 ## Verification
-- [x] `flutter analyze` passes
-- [x] `flutter test` passes (123 tests)
-- [x] Build passes (`flutter build apk --debug`)
+- [x] `flutter analyze` passes (only 3 pre-existing info lints)
+- [x] `flutter test` passes (163 tests)
+- [x] Summary of completed functionality

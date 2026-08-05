@@ -5,6 +5,8 @@ import '../di/injection.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../../features/dashboard/presentation/pages/dashboard_screen.dart';
 import '../../features/expenses/presentation/bloc/expense_bloc.dart';
+import '../../features/expenses/presentation/history/bloc/expense_history_bloc.dart';
+import '../../features/expenses/presentation/history/pages/expense_history_screen.dart';
 import '../../features/expenses/presentation/pages/expense_details_screen.dart';
 import '../../features/expenses/presentation/pages/expense_form_screen.dart';
 import '../../features/expenses/presentation/pages/expenses_list_screen.dart';
@@ -58,6 +60,17 @@ class AppRouter {
           child: const ExpensesListScreen(),
         ),
         routes: [
+          GoRoute(
+            path: 'history',
+            name: 'expenseHistory',
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider(create: (context) => getIt<ExpenseHistoryBloc>()),
+                BlocProvider(create: (context) => getIt<ExpenseBloc>()),
+              ],
+              child: const ExpenseHistoryScreen(),
+            ),
+          ),
           GoRoute(
             path: 'add',
             name: 'addExpense',

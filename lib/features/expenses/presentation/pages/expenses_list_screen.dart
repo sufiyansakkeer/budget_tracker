@@ -38,7 +38,17 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('All Expenses')),
+      appBar: AppBar(
+        title: const Text('All Expenses'),
+        actions: [
+          IconButton(
+            key: const Key('historyEntryButton'),
+            icon: const Icon(Icons.history),
+            tooltip: 'Expense History',
+            onPressed: () => context.push('/expenses/history'),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/expenses/add'),
         backgroundColor: AppColors.primary,
