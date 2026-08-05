@@ -20,6 +20,17 @@ import '../../features/dashboard/domain/repository/dashboard_repository.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import '../../features/expenses/data/datasource/expense_local_datasource.dart';
+import '../../features/expenses/data/datasource/expense_local_datasource_impl.dart';
+import '../../features/expenses/data/repository/expense_repository_impl.dart';
+import '../../features/expenses/domain/repository/expense_repository.dart';
+import '../../features/expenses/domain/usecases/create_expense_usecase.dart';
+import '../../features/expenses/domain/usecases/delete_expense_usecase.dart';
+import '../../features/expenses/domain/usecases/get_categories_usecase.dart';
+import '../../features/expenses/domain/usecases/get_expense_by_id_usecase.dart';
+import '../../features/expenses/domain/usecases/get_expenses_usecase.dart';
+import '../../features/expenses/domain/usecases/update_expense_usecase.dart';
+import '../../features/expenses/presentation/bloc/expense_bloc.dart';
 import '../../features/onboarding/data/datasource/onboarding_local_datasource.dart';
 import '../../features/onboarding/data/repository/onboarding_repository_impl.dart';
 import '../../features/onboarding/domain/repository/onboarding_repository.dart';
@@ -164,6 +175,50 @@ Future<void> initDependencyInjection() async {
       getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
       getRecentExpensesUseCase: getIt<GetRecentExpensesUseCase>(),
       getSmartInsightsUseCase: getIt<GetSmartInsightsUseCase>(),
+    ),
+  );
+
+  // 16. Expense Feature - Datasources
+  getIt.registerLazySingleton<ExpenseLocalDataSource>(
+    () => ExpenseLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+
+  // 17. Expense Feature - Repositories
+  getIt.registerLazySingleton<ExpenseRepository>(
+    () =>
+        ExpenseRepositoryImpl(localDataSource: getIt<ExpenseLocalDataSource>()),
+  );
+
+  // 18. Expense Feature - Use Cases
+  getIt.registerLazySingleton<CreateExpenseUseCase>(
+    () => CreateExpenseUseCase(repository: getIt<ExpenseRepository>()),
+  );
+  getIt.registerLazySingleton<UpdateExpenseUseCase>(
+    () => UpdateExpenseUseCase(repository: getIt<ExpenseRepository>()),
+  );
+  getIt.registerLazySingleton<DeleteExpenseUseCase>(
+    () => DeleteExpenseUseCase(repository: getIt<ExpenseRepository>()),
+  );
+  getIt.registerLazySingleton<GetExpenseByIdUseCase>(
+    () => GetExpenseByIdUseCase(repository: getIt<ExpenseRepository>()),
+  );
+  getIt.registerLazySingleton<GetExpensesUseCase>(
+    () => GetExpensesUseCase(repository: getIt<ExpenseRepository>()),
+  );
+  getIt.registerLazySingleton<GetCategoriesUseCase>(
+    () => GetCategoriesUseCase(repository: getIt<ExpenseRepository>()),
+  );
+
+  // 19. Expense Feature - BLoC
+  getIt.registerFactory<ExpenseBloc>(
+    () => ExpenseBloc(
+      createExpenseUseCase: getIt<CreateExpenseUseCase>(),
+      updateExpenseUseCase: getIt<UpdateExpenseUseCase>(),
+      deleteExpenseUseCase: getIt<DeleteExpenseUseCase>(),
+      getExpenseByIdUseCase: getIt<GetExpenseByIdUseCase>(),
+      getExpensesUseCase: getIt<GetExpensesUseCase>(),
+      getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
+      repository: getIt<ExpenseRepository>(),
     ),
   );
 }

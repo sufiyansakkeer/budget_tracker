@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../budget/domain/entities/budget_error.dart';
 import '../../../budget/domain/usecases/get_budget_summary_usecase.dart';
+import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
 import 'dashboard_event.dart';
@@ -19,6 +22,21 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   }) : super(const DashboardInitial()) {
     on<DashboardLoadData>(_onLoadData);
     on<DashboardRefresh>(_onRefresh);
+
+    // Auto-refresh when expenses change (created, updated, or deleted).
+    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+      if (!isClosed) {
+        add(const DashboardRefresh());
+      }
+    });
+  }
+
+  StreamSubscription<void>? _refreshSubscription;
+
+  @override
+  Future<void> close() {
+    _refreshSubscription?.cancel();
+    return super.close();
   }
 
   Future<void> _onLoadData(

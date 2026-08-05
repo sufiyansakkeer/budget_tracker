@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/budget_error.dart';
 import '../../domain/usecases/get_budget_analytics_usecase.dart';
 import '../../domain/usecases/get_budget_summary_usecase.dart';
@@ -20,6 +23,21 @@ class BudgetBloc extends Bloc<BudgetEvent, BudgetState> {
     on<BudgetLoadSummaryEvent>(_onLoadSummary);
     on<BudgetRefreshEvent>(_onRefresh);
     on<BudgetRecalculateEvent>(_onRecalculate);
+
+    // Recalculate budget when expenses change so the engine stays in sync.
+    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+      if (!isClosed) {
+        add(const BudgetRecalculateEvent());
+      }
+    });
+  }
+
+  StreamSubscription<void>? _refreshSubscription;
+
+  @override
+  Future<void> close() {
+    _refreshSubscription?.cancel();
+    return super.close();
   }
 
   Future<void> _onLoadSummary(

@@ -31,12 +31,15 @@ class Categories extends Table {
 }
 
 // 3. Expenses Table
+@TableIndex(name: 'index_expenses_date', columns: {#date})
+@TableIndex(name: 'index_expenses_category', columns: {#categoryId})
 class Expenses extends Table {
   TextColumn get id => text()();
   RealColumn get amount => real()();
   TextColumn get categoryId => text().references(Categories, #id)();
   TextColumn get note => text().nullable()();
   DateTimeColumn get date => dateTime()();
+  DateTimeColumn get time => dateTime().withDefault(currentDateAndTime)();
   TextColumn get receiptImagePath => text().nullable()();
   TextColumn get tags => text().nullable()(); // JSON string or comma-separated
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -81,12 +84,35 @@ class SavingsGoals extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [Budgets, Categories, Expenses, Settings, RecurringExpenses, SavingsGoals])
+@DriftDatabase(
+  tables: [
+    Budgets,
+    Categories,
+    Expenses,
+    Settings,
+    RecurringExpenses,
+    SavingsGoals,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (m) async {
+        await m.createAll();
+      },
+      onUpgrade: (m, from, to) async {
+        if (from < 2) {
+          await m.addColumn(expenses, expenses.time);
+        }
+      },
+    );
+  }
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'smart_budget_tracker_db');
