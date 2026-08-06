@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../di/injection.dart';
@@ -14,6 +13,8 @@ import '../../features/onboarding/domain/usecases/check_first_launch_usecase.dar
 import '../../features/onboarding/presentation/pages/onboarding_screen.dart';
 import '../../features/reports/presentation/bloc/reports_bloc.dart';
 import '../../features/reports/presentation/pages/reports_screen.dart';
+import '../../features/settings/presentation/bloc/settings_bloc.dart';
+import '../../features/settings/presentation/pages/settings_screen.dart';
 
 class AppRouter {
   AppRouter._();
@@ -112,26 +113,11 @@ class AppRouter {
       GoRoute(
         path: settingsPath,
         name: 'settings',
-        builder: (context, state) => const PlaceholderScreen(title: 'Settings'),
+        builder: (context, state) => BlocProvider(
+          create: (context) => getIt<SettingsBloc>(),
+          child: const SettingsScreen(),
+        ),
       ),
     ],
   );
-}
-
-class PlaceholderScreen extends StatelessWidget {
-  final String title;
-  const PlaceholderScreen({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Text(
-          '$title Feature Placeholder',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-      ),
-    );
-  }
 }

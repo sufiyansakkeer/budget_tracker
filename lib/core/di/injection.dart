@@ -1,6 +1,32 @@
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../features/settings/data/datasource/settings_local_datasource.dart';
+import '../../features/settings/data/datasource/settings_local_datasource_impl.dart';
+import '../../features/settings/data/repository/settings_repository_impl.dart';
+import '../../features/settings/domain/repository/settings_repository.dart';
+import '../../features/settings/domain/services/backup_service.dart';
+import '../../features/settings/domain/services/biometric_service.dart';
+import '../../features/settings/domain/services/export_service.dart';
+import '../../features/settings/domain/services/import_service.dart';
+import '../../features/settings/domain/services/notification_service.dart';
+import '../../features/settings/domain/usecases/backup_data_usecase.dart';
+import '../../features/settings/domain/usecases/export_data_usecase.dart';
+import '../../features/settings/domain/usecases/import_data_usecase.dart';
+import '../../features/settings/domain/usecases/load_settings_usecase.dart';
+import '../../features/settings/domain/usecases/reset_budget_usecase.dart';
+import '../../features/settings/domain/usecases/restore_data_usecase.dart';
+import '../../features/settings/domain/usecases/schedule_notifications_usecase.dart';
+import '../../features/settings/domain/usecases/update_biometric_usecase.dart';
+import '../../features/settings/domain/usecases/update_currency_usecase.dart';
+import '../../features/settings/domain/usecases/update_notification_settings_usecase.dart';
+import '../../features/settings/domain/usecases/update_theme_usecase.dart';
+import '../../features/settings/presentation/bloc/settings_bloc.dart';
 import '../database/app_database.dart';
+import '../theme/theme_provider.dart';
+import '../currency/currency_provider.dart';
+import '../notifications/notification_initializer.dart';
+import '../biometric/biometric_initializer.dart';
 import '../../features/budget/data/datasource/budget_local_datasource.dart';
 import '../../features/budget/data/datasource/budget_local_datasource_impl.dart';
 import '../../features/budget/data/repository/budget_repository_impl.dart';
@@ -65,6 +91,22 @@ Future<void> initDependencyInjection() async {
   // 3. Budget Engine - Core Service
   getIt.registerLazySingleton<BudgetCalculationService>(
     () => BudgetCalculationService(),
+  );
+
+  // 3.5 Theme Provider
+  getIt.registerLazySingleton<ThemeProvider>(() => ThemeProvider());
+
+  // 3.6 Currency Provider
+  getIt.registerLazySingleton<CurrencyProvider>(() => CurrencyProvider());
+
+  // 3.7 Notification Initializer
+  getIt.registerLazySingleton<NotificationInitializer>(
+    () => NotificationInitializer(),
+  );
+
+  // 3.8 Biometric Initializer
+  getIt.registerLazySingleton<BiometricInitializer>(
+    () => BiometricInitializer(),
   );
 
   // 4. Onboarding Feature - Datasources
@@ -297,6 +339,97 @@ Future<void> initDependencyInjection() async {
     () => ReportsBloc(
       getReportDataUseCase: getIt<GetReportDataUseCase>(),
       insightGenerator: getIt<ReportInsightGenerator>(),
+    ),
+  );
+
+  // ============================================================
+  //  Phase 8 – Settings, Notifications, Security & Data Management
+  // ============================================================
+
+  // 26. Settings Feature – Datasources
+  getIt.registerLazySingleton<SettingsLocalDataSource>(
+    () => SettingsLocalDataSourceImpl(
+      database: getIt<AppDatabase>(),
+      sharedPreferences: getIt<SharedPreferences>(),
+    ),
+  );
+
+  // 27. Settings Feature – Repositories
+  getIt.registerLazySingleton<SettingsRepository>(
+    () => SettingsRepositoryImpl(
+      localDataSource: getIt<SettingsLocalDataSource>(),
+    ),
+  );
+
+  // 28. Settings Feature – Services
+  getIt.registerLazySingleton<NotificationService>(
+    () => NotificationService(plugin: FlutterLocalNotificationsPlugin()),
+  );
+  getIt.registerLazySingleton<BiometricService>(() => BiometricService());
+  getIt.registerLazySingleton<ExportService>(
+    () => ExportService(database: getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<BackupService>(
+    () => BackupService(database: getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<ImportService>(
+    () => ImportService(database: getIt<AppDatabase>()),
+  );
+
+  // 29. Settings Feature – Use Cases
+  getIt.registerLazySingleton<LoadSettingsUseCase>(
+    () => LoadSettingsUseCase(repository: getIt<SettingsRepository>()),
+  );
+  getIt.registerLazySingleton<UpdateThemeUseCase>(
+    () => UpdateThemeUseCase(repository: getIt<SettingsRepository>()),
+  );
+  getIt.registerLazySingleton<UpdateCurrencyUseCase>(
+    () => UpdateCurrencyUseCase(repository: getIt<SettingsRepository>()),
+  );
+  getIt.registerLazySingleton<UpdateNotificationSettingsUseCase>(
+    () => UpdateNotificationSettingsUseCase(
+      repository: getIt<SettingsRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<UpdateBiometricUseCase>(
+    () => UpdateBiometricUseCase(repository: getIt<SettingsRepository>()),
+  );
+  getIt.registerLazySingleton<ExportDataUseCase>(
+    () => ExportDataUseCase(exportService: getIt<ExportService>()),
+  );
+  getIt.registerLazySingleton<ImportDataUseCase>(
+    () => ImportDataUseCase(importService: getIt<ImportService>()),
+  );
+  getIt.registerLazySingleton<BackupDataUseCase>(
+    () => BackupDataUseCase(backupService: getIt<BackupService>()),
+  );
+  getIt.registerLazySingleton<RestoreDataUseCase>(
+    () => RestoreDataUseCase(backupService: getIt<BackupService>()),
+  );
+  getIt.registerLazySingleton<ResetBudgetUseCase>(
+    () => ResetBudgetUseCase(database: getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<ScheduleNotificationsUseCase>(
+    () => ScheduleNotificationsUseCase(
+      notificationService: getIt<NotificationService>(),
+    ),
+  );
+
+  // 30. Settings Feature – BLoC
+  getIt.registerFactory<SettingsBloc>(
+    () => SettingsBloc(
+      loadSettingsUseCase: getIt<LoadSettingsUseCase>(),
+      updateThemeUseCase: getIt<UpdateThemeUseCase>(),
+      updateCurrencyUseCase: getIt<UpdateCurrencyUseCase>(),
+      updateNotificationSettingsUseCase:
+          getIt<UpdateNotificationSettingsUseCase>(),
+      updateBiometricUseCase: getIt<UpdateBiometricUseCase>(),
+      exportDataUseCase: getIt<ExportDataUseCase>(),
+      importDataUseCase: getIt<ImportDataUseCase>(),
+      backupDataUseCase: getIt<BackupDataUseCase>(),
+      restoreDataUseCase: getIt<RestoreDataUseCase>(),
+      resetBudgetUseCase: getIt<ResetBudgetUseCase>(),
+      scheduleNotificationsUseCase: getIt<ScheduleNotificationsUseCase>(),
     ),
   );
 }
