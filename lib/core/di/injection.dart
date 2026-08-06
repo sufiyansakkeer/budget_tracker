@@ -44,6 +44,12 @@ import '../../features/onboarding/domain/repository/onboarding_repository.dart';
 import '../../features/onboarding/domain/usecases/check_first_launch_usecase.dart';
 import '../../features/onboarding/domain/usecases/create_budget_usecase.dart';
 import '../../features/onboarding/presentation/bloc/onboarding_bloc.dart';
+import '../../features/reports/data/repository/reports_repository_impl.dart';
+import '../../features/reports/domain/repository/reports_repository.dart';
+import '../../features/reports/domain/services/analytics_service.dart';
+import '../../features/reports/domain/services/report_insight_generator.dart';
+import '../../features/reports/domain/usecases/get_report_data_usecase.dart';
+import '../../features/reports/presentation/bloc/reports_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -259,6 +265,38 @@ Future<void> initDependencyInjection() async {
       sortExpensesUseCase: getIt<SortExpensesUseCase>(),
       calculateExpenseSummaryUseCase: getIt<CalculateExpenseSummaryUseCase>(),
       pageExpensesUseCase: getIt<PageExpensesUseCase>(),
+    ),
+  );
+
+  // 22. Reports Feature - Repository
+  getIt.registerLazySingleton<ReportsRepository>(
+    () => ReportsRepositoryImpl(
+      getExpensesUseCase: getIt<GetExpensesUseCase>(),
+      getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
+      filterExpensesUseCase: getIt<FilterExpensesUseCase>(),
+      budgetRepository: getIt<BudgetRepository>(),
+    ),
+  );
+
+  // 23. Reports Feature - Services
+  getIt.registerLazySingleton<AnalyticsService>(() => const AnalyticsService());
+  getIt.registerLazySingleton<ReportInsightGenerator>(
+    () => const ReportInsightGenerator(),
+  );
+
+  // 24. Reports Feature - Use Case
+  getIt.registerLazySingleton<GetReportDataUseCase>(
+    () => GetReportDataUseCase(
+      repository: getIt<ReportsRepository>(),
+      analyticsService: getIt<AnalyticsService>(),
+    ),
+  );
+
+  // 25. Reports Feature - BLoC
+  getIt.registerFactory<ReportsBloc>(
+    () => ReportsBloc(
+      getReportDataUseCase: getIt<GetReportDataUseCase>(),
+      insightGenerator: getIt<ReportInsightGenerator>(),
     ),
   );
 }

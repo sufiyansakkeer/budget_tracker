@@ -12,6 +12,8 @@ import '../../features/expenses/presentation/pages/expense_form_screen.dart';
 import '../../features/expenses/presentation/pages/expenses_list_screen.dart';
 import '../../features/onboarding/domain/usecases/check_first_launch_usecase.dart';
 import '../../features/onboarding/presentation/pages/onboarding_screen.dart';
+import '../../features/reports/presentation/bloc/reports_bloc.dart';
+import '../../features/reports/presentation/pages/reports_screen.dart';
 
 class AppRouter {
   AppRouter._();
@@ -102,7 +104,10 @@ class AppRouter {
       GoRoute(
         path: reportsPath,
         name: 'reports',
-        builder: (context, state) => const PlaceholderScreen(title: 'Reports'),
+        builder: (context, state) => BlocProvider(
+          create: (context) => getIt<ReportsBloc>(),
+          child: const ReportsScreen(),
+        ),
       ),
       GoRoute(
         path: settingsPath,
