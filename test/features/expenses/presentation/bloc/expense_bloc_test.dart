@@ -1,4 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
+import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
+import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart';
+import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_entity.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_failure.dart';
@@ -12,6 +17,88 @@ import 'package:budget_tracker/features/expenses/domain/usecases/get_expenses_us
 import 'package:budget_tracker/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:budget_tracker/features/expenses/presentation/bloc/expense_event.dart';
 import 'package:budget_tracker/features/expenses/presentation/bloc/expense_state.dart';
+
+class FakeBudgetRepository implements BudgetRepository {
+  String? activeId = 'budget-1';
+
+  @override
+  Future<BudgetEntity?> getActiveBudget() async => null;
+
+  @override
+  Future<String?> getActiveBudgetId() async => activeId;
+
+  @override
+  Future<void> setActiveBudgetId(String budgetId) async {
+    activeId = budgetId;
+  }
+
+  @override
+  Future<BudgetEntity?> getBudgetById(String id) async => null;
+
+  @override
+  Future<List<BudgetEntity>> getAllBudgets({
+    BudgetQueryOptions? options,
+  }) async => [];
+
+  @override
+  Future<BudgetEntity> createBudget(BudgetEntity budget) async => budget;
+
+  @override
+  Future<BudgetEntity> updateBudget(BudgetEntity budget) async => budget;
+
+  @override
+  Future<void> deleteBudget(String id) async {}
+
+  @override
+  Future<BudgetEntity> setBudgetArchived(
+    String id, {
+    required bool archived,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<BudgetEntity> duplicateBudget(
+    String id, {
+    required String newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MonthlyStatisticsEntity> getBudgetStatistics(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<double> getTodaySpending(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async {
+    return 0;
+  }
+
+  @override
+  Future<int> getRemainingDays(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async {
+    return 1;
+  }
+
+  @override
+  Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async {
+    throw UnimplementedError();
+  }
+}
 
 class FakeExpenseRepository implements ExpenseRepository {
   final Map<String, ExpenseEntity> store = {};
@@ -35,7 +122,11 @@ class FakeExpenseRepository implements ExpenseRepository {
   Future<ExpenseEntity?> getExpenseById(String id) async => store[id];
 
   @override
-  Future<List<ExpenseEntity>> getExpenses({int? month, int? year}) async {
+  Future<List<ExpenseEntity>> getExpenses({
+    String? budgetId,
+    int? month,
+    int? year,
+  }) async {
     return store.values.toList();
   }
 
@@ -106,10 +197,15 @@ class FakeGetAllUseCase implements GetExpensesUseCase {
 
   @override
   Future<ExpenseResult<List<ExpenseEntity>>> call({
+    String? budgetId,
     int? month,
     int? year,
   }) async {
-    final expenses = await repository.getExpenses(month: month, year: year);
+    final expenses = await repository.getExpenses(
+      budgetId: budgetId,
+      month: month,
+      year: year,
+    );
     return ExpenseSuccess(expenses);
   }
 }
@@ -130,6 +226,7 @@ ExpenseEntity expenseEntity(String id) {
   final now = DateTime(2026, 8, 5);
   return ExpenseEntity(
     id: id,
+    budgetId: 'budget-1',
     amount: 100.0,
     categoryId: 'food',
     date: now,
@@ -148,6 +245,7 @@ ExpenseBloc buildBloc(ExpenseRepository repository) {
     getExpensesUseCase: FakeGetAllUseCase(repository),
     getCategoriesUseCase: FakeGetCategoriesUseCase(repository),
     repository: repository,
+    budgetRepository: FakeBudgetRepository(),
   );
 }
 

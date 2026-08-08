@@ -27,7 +27,7 @@ class BarChartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceVariant, width: 1),
+        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +64,7 @@ class BarChartCard extends StatelessWidget {
                       getTooltipColor: (_) => theme.colorScheme.surface,
                       getTooltipItem: (group, _, rod, __) {
                         return BarTooltipItem(
-                          '${NumberFormat.currency(symbol: currency, decimalDigits: 0).format(rod.toY)}',
+                          NumberFormat.currency(symbol: currency, decimalDigits: 0).format(rod.toY),
                           TextStyle(
                             color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
@@ -77,7 +77,7 @@ class BarChartCard extends StatelessWidget {
                     show: true,
                     drawVerticalLine: false,
                     getDrawingHorizontalLine: (_) => FlLine(
-                      color: theme.colorScheme.surfaceVariant,
+                      color: theme.colorScheme.surfaceContainerHighest,
                       strokeWidth: 1,
                     ),
                   ),

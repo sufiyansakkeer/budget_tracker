@@ -146,7 +146,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/expenses/add'),
+        onPressed: () => context.push('/app/expenses/add'),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add),
         label: const Text('Add Expense'),
@@ -208,7 +208,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         hasAnyExpenses: state.allExpenses.isNotEmpty,
         hasSearchQuery: state.query.isNotEmpty,
         hasActiveFilters: state.filter.isActive,
-        onAddFirst: () => context.push('/expenses/add'),
+        onAddFirst: () => context.push('/app/expenses/add'),
         onClearFilters: () => context.read<ExpenseHistoryBloc>().add(
           const ExpenseHistoryClearFilters(),
         ),
@@ -292,7 +292,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               child: ExpenseHistoryItem(
                 expense: expense,
                 category: category,
-                onTap: () => context.push('/expenses/${expense.id}'),
+                onTap: () => context.push('/app/expenses/${expense.id}'),
               ),
             ),
           );

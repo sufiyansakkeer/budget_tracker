@@ -43,7 +43,8 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
   @override
   Widget build(BuildContext themeContext) {
     final theme = Theme.of(context);
-    final isValid = widget.errorMessage == null && _controller.text.trim().isNotEmpty;
+    final isValid =
+        widget.errorMessage == null && _controller.text.trim().isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -58,14 +59,14 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'What is your monthly budget?',
+            'What is your budget amount?',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Set your total budget for the month to help track spending limits.',
+            'Set the total amount for this budget period.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
             ),
@@ -111,9 +112,13 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
                     child: TextField(
                       key: const Key('monthlyBudgetTextField'),
                       controller: _controller,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d{0,2}'),
+                        ),
                       ],
                       autofocus: true,
                       style: theme.textTheme.headlineMedium?.copyWith(
@@ -141,7 +146,11 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: AppColors.dangerRed, size: 18),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: AppColors.dangerRed,
+                  size: 18,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(

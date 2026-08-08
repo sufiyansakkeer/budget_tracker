@@ -11,7 +11,11 @@ abstract class ExpenseLocalDataSource {
 
   Future<ExpenseEntity?> getExpenseById(String id);
 
-  Future<List<ExpenseEntity>> getExpenses({int? month, int? year});
+  Future<List<ExpenseEntity>> getExpenses({
+    String? budgetId,
+    int? month,
+    int? year,
+  });
 
   Future<List<ExpenseCategory>> getCategories();
 

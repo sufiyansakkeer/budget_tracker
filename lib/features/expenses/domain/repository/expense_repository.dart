@@ -15,8 +15,12 @@ abstract class ExpenseRepository {
   /// Returns an expense by id, or null if not found.
   Future<ExpenseEntity?> getExpenseById(String id);
 
-  /// Returns all expenses, optionally filtered by month/year.
-  Future<List<ExpenseEntity>> getExpenses({int? month, int? year});
+  /// Returns all expenses, optionally filtered by budget and/or month/year.
+  Future<List<ExpenseEntity>> getExpenses({
+    String? budgetId,
+    int? month,
+    int? year,
+  });
 
   /// Returns all available categories.
   Future<List<ExpenseCategory>> getCategories();

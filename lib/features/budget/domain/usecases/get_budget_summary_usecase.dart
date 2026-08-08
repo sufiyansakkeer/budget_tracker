@@ -14,8 +14,12 @@ class GetBudgetSummaryUseCase {
     required this.calculationService,
   });
 
-  Future<BudgetResult<BudgetSummaryEntity>> call({DateTime? referenceDate}) async {
+  Future<BudgetResult<BudgetSummaryEntity>> call({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
     final contextResult = await repository.getCalculationContext(
+      budgetId,
       referenceDate: referenceDate,
     );
 
@@ -25,12 +29,14 @@ class GetBudgetSummaryUseCase {
     };
   }
 
-  BudgetResult<BudgetSummaryEntity> _buildSummary(BudgetCalculationContext context) {
+  BudgetResult<BudgetSummaryEntity> _buildSummary(
+    BudgetCalculationContext context,
+  ) {
     if (context.budget.monthlyAmount <= 0) {
       return const BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidBudget,
-          message: 'Monthly budget must be greater than zero',
+          message: 'Budget amount must be greater than zero',
         ),
       );
     }
@@ -41,8 +47,8 @@ class GetBudgetSummaryUseCase {
         totalSpent: context.statistics.totalSpent,
         todaySpending: context.statistics.todaySpending,
         referenceDate: context.referenceDate,
-        budgetMonth: context.budget.month,
-        budgetYear: context.budget.year,
+        startDate: context.budget.startDate,
+        endDate: context.budget.endDate,
       );
 
       final summary = calculationService.buildSummary(
@@ -55,7 +61,8 @@ class GetBudgetSummaryUseCase {
       return BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidDate,
-          message: e.message?.toString() ?? 'Invalid date for budget calculation',
+          message:
+              e.message?.toString() ?? 'Invalid date for budget calculation',
         ),
       );
     }

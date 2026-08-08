@@ -25,6 +25,15 @@ class OnboardingPageChangedEvent extends OnboardingEvent {
   List<Object?> get props => [pageIndex];
 }
 
+class OnboardingBudgetNameChangedEvent extends OnboardingEvent {
+  final String name;
+
+  const OnboardingBudgetNameChangedEvent(this.name);
+
+  @override
+  List<Object?> get props => [name];
+}
+
 class OnboardingBudgetInputChangedEvent extends OnboardingEvent {
   final String budgetInput;
 
@@ -45,6 +54,24 @@ class OnboardingCurrencySelectedEvent extends OnboardingEvent {
 
   @override
   List<Object?> get props => [code, symbol];
+}
+
+class OnboardingStartDateChangedEvent extends OnboardingEvent {
+  final DateTime date;
+
+  const OnboardingStartDateChangedEvent(this.date);
+
+  @override
+  List<Object?> get props => [date];
+}
+
+class OnboardingEndDateChangedEvent extends OnboardingEvent {
+  final DateTime date;
+
+  const OnboardingEndDateChangedEvent(this.date);
+
+  @override
+  List<Object?> get props => [date];
 }
 
 class OnboardingSubmittedEvent extends OnboardingEvent {

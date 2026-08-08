@@ -29,12 +29,14 @@ void main() {
         .insert(
           BudgetsCompanion.insert(
             id: 'budget-1',
+            name: 'Personal',
             monthlyAmount: 50000,
             remainingAmount: 40000,
             currency: 'INR',
-            month: 1,
-            year: 2024,
+            startDate: DateTime(2024, 1, 1),
+            endDate: DateTime(2024, 1, 31),
             createdAt: Value(now),
+            updatedAt: Value(now),
           ),
         );
 
@@ -54,6 +56,7 @@ void main() {
         .insert(
           ExpensesCompanion.insert(
             id: 'exp-1',
+            budgetId: 'budget-1',
             amount: 1000,
             categoryId: 'food',
             note: Value('Lunch'),
@@ -123,12 +126,15 @@ void main() {
           'budgets': [
             {
               'id': 'restored-budget',
+              'name': 'Trip',
               'monthlyAmount': 1000,
               'remainingAmount': 900,
               'currency': 'USD',
-              'month': 2,
-              'year': 2024,
+              'startDate': DateTime(2024, 2, 1).toIso8601String(),
+              'endDate': DateTime(2024, 2, 29).toIso8601String(),
+              'isArchived': false,
               'createdAt': DateTime(2024, 2, 1).toIso8601String(),
+              'updatedAt': DateTime(2024, 2, 1).toIso8601String(),
             },
           ],
           'categories': [

@@ -25,6 +25,7 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
       database.expenses,
     )..where((e) => e.id.equals(expense.id))).write(
       ExpensesCompanion(
+        budgetId: Value(expense.budgetId),
         amount: Value(expense.amount),
         categoryId: Value(expense.categoryId),
         note: Value(expense.note),
@@ -54,8 +55,16 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
   }
 
   @override
-  Future<List<ExpenseEntity>> getExpenses({int? month, int? year}) async {
+  Future<List<ExpenseEntity>> getExpenses({
+    String? budgetId,
+    int? month,
+    int? year,
+  }) async {
     final query = database.select(database.expenses);
+
+    if (budgetId != null) {
+      query.where((e) => e.budgetId.equals(budgetId));
+    }
 
     if (month != null && year != null) {
       final start = DateTime(year, month, 1);

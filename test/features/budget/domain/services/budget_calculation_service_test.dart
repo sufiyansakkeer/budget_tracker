@@ -6,72 +6,102 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late BudgetCalculationService service;
+  final start = DateTime(2026, 8, 1);
+  final end = DateTime(2026, 8, 31);
 
   setUp(() {
     service = BudgetCalculationService();
   });
 
-  group('daysInMonth', () {
-    test('returns 31 for August', () {
-      expect(service.daysInMonth(8, 2026), 31);
+  group('daysInPeriod', () {
+    test('returns 31 for a 1-31 Aug period', () {
+      expect(service.daysInPeriod(startDate: start, endDate: end), 31);
     });
 
-    test('returns 30 for April', () {
-      expect(service.daysInMonth(4, 2026), 30);
+    test('returns 30 for a 30-day period', () {
+      expect(
+        service.daysInPeriod(
+          startDate: DateTime(2026, 4, 1),
+          endDate: DateTime(2026, 4, 30),
+        ),
+        30,
+      );
     });
 
-    test('returns 28 for February non-leap year', () {
-      expect(service.daysInMonth(2, 2025), 28);
+    test('returns 1 for a single-day period', () {
+      expect(
+        service.daysInPeriod(
+          startDate: DateTime(2026, 8, 1),
+          endDate: DateTime(2026, 8, 1),
+        ),
+        1,
+      );
     });
 
-    test('returns 29 for February leap year', () {
-      expect(service.daysInMonth(2, 2024), 29);
+    test('returns 7 for a 7-day budget', () {
+      expect(
+        service.daysInPeriod(
+          startDate: DateTime(2026, 8, 10),
+          endDate: DateTime(2026, 8, 16),
+        ),
+        7,
+      );
+    });
+
+    test('throws when end date is before start date', () {
+      expect(
+        () => service.daysInPeriod(
+          startDate: DateTime(2026, 8, 10),
+          endDate: DateTime(2026, 8, 9),
+        ),
+        throwsArgumentError,
+      );
     });
   });
 
   group('calculateRemainingDays', () {
-    test('returns 22 when today is 10th in 31-day month', () {
+    test('returns 22 when today is 10th in 31-day period', () {
       final days = service.calculateRemainingDays(
         referenceDate: DateTime(2026, 8, 10),
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
       expect(days, 22);
     });
 
-    test('returns 1 on last day of month', () {
+    test('returns 1 on last day of period', () {
       final days = service.calculateRemainingDays(
         referenceDate: DateTime(2026, 8, 31),
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
       expect(days, 1);
     });
 
-    test('returns 1 on last day of February leap year', () {
-      final days = service.calculateRemainingDays(
-        referenceDate: DateTime(2024, 2, 29),
-        budgetMonth: 2,
-        budgetYear: 2024,
-      );
-      expect(days, 1);
-    });
-
-    test('returns correct days for 30-day month', () {
+    test('returns correct days for a 30-day period', () {
       final days = service.calculateRemainingDays(
         referenceDate: DateTime(2026, 4, 15),
-        budgetMonth: 4,
-        budgetYear: 2026,
+        startDate: DateTime(2026, 4, 1),
+        endDate: DateTime(2026, 4, 30),
       );
       expect(days, 16); // 30 - 15 + 1
     });
 
-    test('throws when reference date is outside budget month', () {
+    test('supports short multi-day budgets (10 Aug - 25 Aug)', () {
+      final days = service.calculateRemainingDays(
+        referenceDate: DateTime(2026, 8, 15),
+        startDate: DateTime(2026, 8, 10),
+        endDate: DateTime(2026, 8, 25),
+      );
+      expect(days, 11); // 25 - 15 + 1
+    });
+
+    test('throws when reference date is outside budget period', () {
       expect(
         () => service.calculateRemainingDays(
           referenceDate: DateTime(2026, 9, 1),
-          budgetMonth: 8,
-          budgetYear: 2026,
+          startDate: start,
+          endDate: end,
         ),
         throwsArgumentError,
       );
@@ -79,32 +109,37 @@ void main() {
   });
 
   group('calculateDaysPassed', () {
-    test('returns day of month including today', () {
+    test('returns day index including start day', () {
       expect(
         service.calculateDaysPassed(
           referenceDate: DateTime(2026, 8, 10),
-          budgetMonth: 8,
-          budgetYear: 2026,
+          startDate: start,
+          endDate: end,
         ),
         10,
+      );
+    });
+
+    test('returns 1 on the start day', () {
+      expect(
+        service.calculateDaysPassed(
+          referenceDate: DateTime(2026, 8, 1),
+          startDate: start,
+          endDate: end,
+        ),
+        1,
       );
     });
   });
 
   group('calculateDailyAllowance', () {
-    test(
-      'matches spec example: 30000 budget on 10 Aug with 21 remaining days',
-      () {
-        // Prompt example uses 21 remaining days (different month interpretation)
-        // With our rule (include today): 31-10+1=22 → 30000/22 ≈ 1363.64
-        // Prompt says 21 days → 30000/21 ≈ 1428.57
-        final allowance = service.calculateDailyAllowance(
-          remainingBudget: 30000,
-          remainingDays: 21,
-        );
-        expect(allowance, closeTo(1428.57, 0.01));
-      },
-    );
+    test('20000 over 11 remaining days ≈ 1818.18', () {
+      final allowance = service.calculateDailyAllowance(
+        remainingBudget: 20000,
+        remainingDays: 11,
+      );
+      expect(allowance, closeTo(1818.18, 0.01));
+    });
 
     test('recalculates after spending: 29200 / 21', () {
       final allowance = service.calculateDailyAllowance(
@@ -179,22 +214,30 @@ void main() {
   });
 
   group('prediction engine', () {
-    test('projects 27000 for 9000 spent in 10 days over 30-day month', () {
+    test('projects 27000 for 9000 spent in 10 days over 30-day period', () {
       final average = service.calculateAverageDailySpending(
         totalSpent: 9000,
         daysPassed: 10,
       );
-      final projected = service.calculateExpectedMonthEndSpending(
+      final projected = service.calculateExpectedPeriodEndSpending(
         averageDailySpending: average,
-        daysInMonth: 30,
+        daysInPeriod: 30,
       );
       expect(projected, 27000);
+    });
+
+    test('projects 20000 for 1000/day over a 20-day budget', () {
+      final projected = service.calculateExpectedPeriodEndSpending(
+        averageDailySpending: 1000,
+        daysInPeriod: 20,
+      );
+      expect(projected, 20000);
     });
 
     test('returns projected savings when under budget', () {
       final savings = service.calculateProjectedSavings(
         monthlyAmount: 30000,
-        expectedMonthEndSpending: 27000,
+        expectedPeriodEndSpending: 27000,
       );
       expect(savings, 3000);
     });
@@ -202,7 +245,7 @@ void main() {
     test('returns projected overspending when over budget', () {
       final overspending = service.calculateProjectedOverspending(
         monthlyAmount: 30000,
-        expectedMonthEndSpending: 35000,
+        expectedPeriodEndSpending: 35000,
       );
       expect(overspending, 5000);
     });
@@ -211,7 +254,7 @@ void main() {
       expect(
         service.calculateProjectedSavings(
           monthlyAmount: 30000,
-          expectedMonthEndSpending: 30000,
+          expectedPeriodEndSpending: 30000,
         ),
         0,
       );
@@ -276,8 +319,8 @@ void main() {
         totalSpent: 0,
         todaySpending: 0,
         referenceDate: _aug10,
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
 
       final summary = service.buildSummary(input, currency: 'INR');
@@ -300,8 +343,8 @@ void main() {
         totalSpent: 32000,
         todaySpending: 2000,
         referenceDate: _aug10,
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
 
       final summary = service.buildSummary(input, currency: 'INR');
@@ -317,8 +360,8 @@ void main() {
         totalSpent: 800,
         todaySpending: 300,
         referenceDate: _aug10,
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
 
       final summary = service.buildSummary(input, currency: 'INR');
@@ -334,8 +377,8 @@ void main() {
         totalSpent: 0,
         todaySpending: 0,
         referenceDate: _aug10,
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
 
       final first = service.buildSummary(input, currency: 'INR');
@@ -349,8 +392,8 @@ void main() {
         totalSpent: 0,
         todaySpending: 0,
         referenceDate: _aug10,
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
 
       final first = service.buildSummary(input, currency: 'INR');
@@ -368,8 +411,8 @@ void main() {
         totalSpent: 9000,
         todaySpending: 500,
         referenceDate: _aug10,
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
 
       final analytics = service.buildAnalytics(input);
@@ -391,8 +434,8 @@ void main() {
         totalSpent: 900,
         todaySpending: 900,
         referenceDate: DateTime(2026, 8, 10),
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
       final summaryDay1 = service.buildSummary(day1, currency: 'INR');
 
@@ -402,8 +445,8 @@ void main() {
         totalSpent: 900,
         todaySpending: 0,
         referenceDate: DateTime(2026, 8, 11),
-        budgetMonth: 8,
-        budgetYear: 2026,
+        startDate: start,
+        endDate: end,
       );
       service.clearCache();
       final summaryDay2 = service.buildSummary(day2, currency: 'INR');

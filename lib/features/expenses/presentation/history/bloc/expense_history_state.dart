@@ -55,6 +55,12 @@ class ExpenseHistoryState extends Equatable {
   /// Whether more pages are available.
   final bool hasMore;
 
+  /// The active budget id the history is scoped to (null = no active budget).
+  final String? budgetId;
+
+  /// Display name of the active budget the history is scoped to.
+  final String? budgetName;
+
   final String? errorMessage;
 
   const ExpenseHistoryState({
@@ -70,6 +76,8 @@ class ExpenseHistoryState extends Equatable {
     this.summary = ExpenseHistorySummary.empty,
     this.loadedCount = 0,
     this.hasMore = false,
+    this.budgetId,
+    this.budgetName,
     this.errorMessage,
   });
 
@@ -89,6 +97,8 @@ class ExpenseHistoryState extends Equatable {
     ExpenseHistorySummary? summary,
     int? loadedCount,
     bool? hasMore,
+    String? budgetId,
+    String? budgetName,
     String? errorMessage,
     bool clearError = false,
   }) {
@@ -105,6 +115,8 @@ class ExpenseHistoryState extends Equatable {
       summary: summary ?? this.summary,
       loadedCount: loadedCount ?? this.loadedCount,
       hasMore: hasMore ?? this.hasMore,
+      budgetId: budgetId ?? this.budgetId,
+      budgetName: budgetName ?? this.budgetName,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
@@ -123,6 +135,8 @@ class ExpenseHistoryState extends Equatable {
     summary,
     loadedCount,
     hasMore,
+    budgetId,
+    budgetName,
     errorMessage,
   ];
 }

@@ -14,8 +14,12 @@ class GetBudgetAnalyticsUseCase {
     required this.calculationService,
   });
 
-  Future<BudgetResult<BudgetAnalyticsEntity>> call({DateTime? referenceDate}) async {
+  Future<BudgetResult<BudgetAnalyticsEntity>> call({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
     final contextResult = await repository.getCalculationContext(
+      budgetId,
       referenceDate: referenceDate,
     );
 
@@ -25,12 +29,14 @@ class GetBudgetAnalyticsUseCase {
     };
   }
 
-  BudgetResult<BudgetAnalyticsEntity> _buildAnalytics(BudgetCalculationContext context) {
+  BudgetResult<BudgetAnalyticsEntity> _buildAnalytics(
+    BudgetCalculationContext context,
+  ) {
     if (context.budget.monthlyAmount <= 0) {
       return const BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidBudget,
-          message: 'Monthly budget must be greater than zero',
+          message: 'Budget amount must be greater than zero',
         ),
       );
     }
@@ -41,8 +47,8 @@ class GetBudgetAnalyticsUseCase {
         totalSpent: context.statistics.totalSpent,
         todaySpending: context.statistics.todaySpending,
         referenceDate: context.referenceDate,
-        budgetMonth: context.budget.month,
-        budgetYear: context.budget.year,
+        startDate: context.budget.startDate,
+        endDate: context.budget.endDate,
       );
 
       final analytics = calculationService.buildAnalytics(input);

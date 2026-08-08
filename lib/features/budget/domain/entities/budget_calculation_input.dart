@@ -10,8 +10,8 @@ class BudgetCalculationInput extends Equatable {
   final double totalSpent;
   final double todaySpending;
   final DateTime referenceDate;
-  final int budgetMonth;
-  final int budgetYear;
+  final DateTime startDate;
+  final DateTime endDate;
   final BudgetThresholds thresholds;
 
   const BudgetCalculationInput({
@@ -19,19 +19,19 @@ class BudgetCalculationInput extends Equatable {
     required this.totalSpent,
     required this.todaySpending,
     required this.referenceDate,
-    required this.budgetMonth,
-    required this.budgetYear,
+    required this.startDate,
+    required this.endDate,
     this.thresholds = const BudgetThresholds(),
   });
 
   @override
   List<Object?> get props => [
-        monthlyAmount,
-        totalSpent,
-        todaySpending,
-        referenceDate,
-        budgetMonth,
-        budgetYear,
-        thresholds,
-      ];
+    monthlyAmount,
+    totalSpent,
+    todaySpending,
+    referenceDate,
+    startDate,
+    endDate,
+    thresholds,
+  ];
 }

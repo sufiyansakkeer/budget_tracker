@@ -26,7 +26,11 @@ class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {
   Future<ExpenseEntity?> getExpenseById(String id) async => store[id];
 
   @override
-  Future<List<ExpenseEntity>> getExpenses({int? month, int? year}) async {
+  Future<List<ExpenseEntity>> getExpenses({
+    String? budgetId,
+    int? month,
+    int? year,
+  }) async {
     return store.values.toList();
   }
 
@@ -41,6 +45,7 @@ ExpenseEntity expenseEntity(String id) {
   final now = DateTime(2026, 8, 5);
   return ExpenseEntity(
     id: id,
+    budgetId: 'budget-1',
     amount: 100.0,
     categoryId: 'food',
     date: now,

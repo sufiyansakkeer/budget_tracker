@@ -6,14 +6,14 @@ import '../../../../core/constants/app_spacing.dart';
 
 class DashboardHeader extends StatelessWidget {
   final String currency;
-  final int month;
-  final int year;
+  final DateTime startDate;
+  final DateTime endDate;
 
   const DashboardHeader({
     super.key,
     required this.currency,
-    required this.month,
-    required this.year,
+    required this.startDate,
+    required this.endDate,
   });
 
   @override
@@ -30,7 +30,9 @@ class DashboardHeader extends StatelessWidget {
       greeting = 'Good Evening';
     }
 
-    final monthName = DateFormat('MMMM').format(DateTime(year, month));
+    final rangeText =
+        '${DateFormat('d MMM').format(startDate)} – '
+        '${DateFormat('d MMM yyyy').format(endDate)}';
 
     return Container(
       width: double.infinity,
@@ -48,9 +50,9 @@ class DashboardHeader extends StatelessWidget {
               Text(
                 greeting,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -73,17 +75,17 @@ class DashboardHeader extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            monthName,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+            'Budget Period',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.8),
+            ),
           ),
           Text(
-            '$year',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.8),
-                ),
+            rangeText,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

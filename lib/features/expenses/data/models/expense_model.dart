@@ -31,6 +31,7 @@ class ExpenseModel {
   static ExpenseEntity toEntity(Expense row) {
     return ExpenseEntity(
       id: row.id,
+      budgetId: row.budgetId,
       amount: row.amount,
       categoryId: row.categoryId,
       note: row.note,
@@ -46,6 +47,7 @@ class ExpenseModel {
   static ExpensesCompanion toCompanion(ExpenseEntity entity) {
     return ExpensesCompanion.insert(
       id: entity.id,
+      budgetId: entity.budgetId,
       amount: entity.amount,
       categoryId: entity.categoryId,
       note: Value(entity.note),

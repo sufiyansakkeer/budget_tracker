@@ -11,10 +11,12 @@ class DashboardRepositoryImpl implements DashboardRepository {
   Future<List<RecentExpenseEntity>> getRecentExpenses({
     int limit = 5,
     DateTime? referenceDate,
+    String? budgetId,
   }) {
     return localDataSource.getRecentExpenses(
       limit: limit,
       referenceDate: referenceDate,
+      budgetId: budgetId,
     );
   }
 }

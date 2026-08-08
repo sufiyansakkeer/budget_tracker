@@ -2,12 +2,15 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../../budget/domain/repository/budget_repository.dart';
 import '../entities/app_settings.dart';
 import '../entities/notification_settings.dart';
 
 /// Manages local notification scheduling for reminders, summaries and alerts.
 ///
 /// Uses [flutter_local_notifications] with timezone-aware daily scheduling.
+/// Notification bodies are budget-aware: they reference the currently active
+/// budget so users always know which budget a notification belongs to.
 class NotificationService {
   static const int _morningReminderId = 1001;
   static const int _eveningSummaryId = 1002;
@@ -15,10 +18,14 @@ class NotificationService {
   static const int _noExpenseReminderId = 1004;
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final BudgetRepository? _budgetRepository;
   bool _initialized = false;
 
-  NotificationService({FlutterLocalNotificationsPlugin? plugin})
-    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+  NotificationService({
+    FlutterLocalNotificationsPlugin? plugin,
+    BudgetRepository? budgetRepository,
+  }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+       _budgetRepository = budgetRepository;
 
   /// Initializes the plugin and requests notification permissions.
   Future<bool> initialize() async {
@@ -57,18 +64,24 @@ class NotificationService {
   }
 
   /// Schedules all daily notifications based on [settings].
+  ///
+  /// Notification bodies are budget-aware: they reference the currently active
+  /// budget so the user always knows which budget a reminder belongs to.
   Future<void> scheduleAll(AppSettings settings) async {
     await initialize();
     await cancelAll();
     if (!settings.notifications.notificationsEnabled) return;
 
+    final budgetName = await _activeBudgetName();
     final notifications = settings.notifications;
 
     if (notifications.morningReminderEnabled) {
       await _scheduleDaily(
         id: _morningReminderId,
         title: "Today's Safe Spending",
-        body: 'Check your daily budget allowance.',
+        body: budgetName == null
+            ? 'Check your daily budget allowance.'
+            : '$budgetName — Check your daily budget allowance.',
         time: notifications.morningReminderTime,
         settings: settings,
       );
@@ -78,7 +91,9 @@ class NotificationService {
       await _scheduleDaily(
         id: _eveningSummaryId,
         title: 'Evening Summary',
-        body: 'Review how much you spent today.',
+        body: budgetName == null
+            ? 'Review how much you spent today.'
+            : '$budgetName — Review how much you spent today.',
         time: notifications.eveningSummaryTime,
         settings: settings,
       );
@@ -88,7 +103,9 @@ class NotificationService {
       await _scheduleDaily(
         id: _overspendingAlertId,
         title: 'Budget Alert',
-        body: 'You exceeded today\'s allowance.',
+        body: budgetName == null
+            ? "You exceeded today's allowance."
+            : "$budgetName — You exceeded today's allowance.",
         time: notifications.eveningSummaryTime,
         settings: settings,
       );
@@ -99,10 +116,24 @@ class NotificationService {
       await _scheduleDaily(
         id: _noExpenseReminderId,
         title: 'Daily Reminder',
-        body: "You haven't recorded any expenses today.",
+        body: budgetName == null
+            ? "You haven't recorded any expenses today."
+            : "$budgetName — You haven't recorded any expenses today.",
         time: notifications.morningReminderTime,
         settings: settings,
       );
+    }
+  }
+
+  /// Resolves the name of the currently active budget for notification bodies.
+  Future<String?> _activeBudgetName() async {
+    try {
+      final repo = _budgetRepository;
+      if (repo == null) return null;
+      final budget = await repo.getActiveBudget();
+      return budget?.name;
+    } catch (_) {
+      return null;
     }
   }
 

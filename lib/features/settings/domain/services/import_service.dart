@@ -51,11 +51,13 @@ class ImportService {
 
       final tags = columns.length > 4 ? columns[4].trim() : '';
 
+      final budgetId = await _findOrCreateDefaultBudgetId();
       await _database
           .into(_database.expenses)
           .insert(
             ExpensesCompanion.insert(
               id: const Uuid().v4(),
+              budgetId: budgetId,
               amount: amount,
               categoryId: categoryId,
               note: Value(note?.isNotEmpty == true ? note : null),
@@ -117,6 +119,46 @@ class ImportService {
         0;
   }
 
+  /// Returns the id of an existing budget, creating a default one if none exists.
+  ///
+  /// This is used to assign imported expenses to a budget when the import does
+  /// not specify one.
+  String? _cachedDefaultBudgetId;
+
+  Future<String> _findOrCreateDefaultBudgetId() async {
+    if (_cachedDefaultBudgetId != null) return _cachedDefaultBudgetId!;
+
+    final existing = await (_database.select(
+      _database.budgets,
+    )..limit(1)).getSingleOrNull();
+    if (existing != null) {
+      _cachedDefaultBudgetId = existing.id;
+      return _cachedDefaultBudgetId!;
+    }
+
+    // Create a default budget spanning the current month.
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, 1);
+    final end = DateTime(now.year, now.month + 1, 0);
+    final id = const Uuid().v4();
+    await _database
+        .into(_database.budgets)
+        .insert(
+          BudgetsCompanion.insert(
+            id: id,
+            name: 'Personal Budget',
+            monthlyAmount: 0,
+            remainingAmount: 0,
+            currency: 'INR',
+            startDate: start,
+            endDate: end,
+            updatedAt: Value(now),
+          ),
+        );
+    _cachedDefaultBudgetId = id;
+    return id;
+  }
+
   /// Inserts or updates data from an import payload, avoiding full replacement
   /// so the user can selectively import.
   Future<void> _upsertAll(Map<String, Object?> data) async {
@@ -129,12 +171,18 @@ class ImportService {
             .insert(
               BudgetsCompanion.insert(
                 id: map['id'] as String,
+                name: (map['name'] as String?) ?? 'Personal Budget',
                 monthlyAmount: (map['monthlyAmount'] as num).toDouble(),
                 remainingAmount: (map['remainingAmount'] as num).toDouble(),
                 currency: map['currency'] as String,
-                month: (map['month'] as num).toInt(),
-                year: (map['year'] as num).toInt(),
+                startDate: DateTime.parse(map['startDate'] as String),
+                endDate: DateTime.parse(map['endDate'] as String),
+                isArchived: Value((map['isArchived'] as bool?) ?? false),
+                color: Value(map['color'] as String?),
+                icon: Value(map['icon'] as String?),
+                notes: Value(map['notes'] as String?),
                 createdAt: Value(DateTime.parse(map['createdAt'] as String)),
+                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
               ),
               mode: InsertMode.insertOrReplace,
             );
@@ -161,11 +209,15 @@ class ImportService {
       for (final item in expenses) {
         final map = item as Map;
         final tags = (map['tags'] as List?) ?? const [];
+        final mappedBudgetId =
+            (map['budgetId'] as String?) ??
+            (await _findOrCreateDefaultBudgetId());
         await _database
             .into(_database.expenses)
             .insert(
               ExpensesCompanion.insert(
                 id: (map['id'] as String?) ?? const Uuid().v4(),
+                budgetId: mappedBudgetId,
                 amount: (map['amount'] as num).toDouble(),
                 categoryId: map['categoryId'] as String,
                 note: Value(map['note'] as String?),

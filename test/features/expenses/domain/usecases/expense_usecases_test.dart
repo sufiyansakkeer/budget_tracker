@@ -36,7 +36,11 @@ class FakeExpenseRepository implements ExpenseRepository {
   Future<ExpenseEntity?> getExpenseById(String id) async => store[id];
 
   @override
-  Future<List<ExpenseEntity>> getExpenses({int? month, int? year}) async {
+  Future<List<ExpenseEntity>> getExpenses({
+    String? budgetId,
+    int? month,
+    int? year,
+  }) async {
     if (throwOnWrite) throw Exception('db failure');
     return store.values.toList();
   }
@@ -47,12 +51,14 @@ class FakeExpenseRepository implements ExpenseRepository {
 
 ExpenseEntity validExpense({
   String id = 'exp-1',
+  String budgetId = 'budget-1',
   double amount = 50.0,
   String categoryId = 'food',
 }) {
   final now = DateTime(2026, 8, 5);
   return ExpenseEntity(
     id: id,
+    budgetId: budgetId,
     amount: amount,
     categoryId: categoryId,
     date: now,

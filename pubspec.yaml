@@ -90,6 +90,10 @@ dev_dependencies:
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
+  flutter_local_notifications_platform_interface: any
+  local_auth_android: any
+  local_auth_darwin: any
+  local_auth_windows: any
 flutter:
 
   # The following line ensures that the Material Icons font is

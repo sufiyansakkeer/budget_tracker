@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 /// Immutable expense entity used across the app.
 class ExpenseEntity extends Equatable {
   final String id;
+  final String budgetId;
   final double amount;
   final String categoryId;
   final String? note;
@@ -15,6 +16,7 @@ class ExpenseEntity extends Equatable {
 
   const ExpenseEntity({
     required this.id,
+    required this.budgetId,
     required this.amount,
     required this.categoryId,
     this.note,
@@ -28,6 +30,7 @@ class ExpenseEntity extends Equatable {
 
   ExpenseEntity copyWith({
     String? id,
+    String? budgetId,
     double? amount,
     String? categoryId,
     String? note,
@@ -42,6 +45,7 @@ class ExpenseEntity extends Equatable {
   }) {
     return ExpenseEntity(
       id: id ?? this.id,
+      budgetId: budgetId ?? this.budgetId,
       amount: amount ?? this.amount,
       categoryId: categoryId ?? this.categoryId,
       note: clearNote ? null : (note ?? this.note),
@@ -59,6 +63,7 @@ class ExpenseEntity extends Equatable {
   @override
   List<Object?> get props => [
     id,
+    budgetId,
     amount,
     categoryId,
     note,

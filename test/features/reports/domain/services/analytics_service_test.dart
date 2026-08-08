@@ -15,6 +15,7 @@ ExpenseEntity expense({
   final d = date ?? DateTime(2026, 8, 5);
   return ExpenseEntity(
     id: id,
+    budgetId: 'budget-1',
     amount: amount,
     categoryId: categoryId,
     date: d,

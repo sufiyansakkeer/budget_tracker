@@ -7,6 +7,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/di/injection.dart';
+import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../bloc/expense_bloc.dart';
@@ -26,12 +29,27 @@ class ExpenseDetailsScreen extends StatefulWidget {
 }
 
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
+  late final ManageBudgetUseCase _manageBudget = getIt<ManageBudgetUseCase>();
+  List<BudgetEntity> _budgets = const [];
+  BudgetEntity? _expenseBudget;
+
   @override
   void initState() {
     super.initState();
     context.read<ExpenseBloc>().add(ExpenseLoadById(widget.expenseId));
     if (context.read<ExpenseBloc>().state.categories.isEmpty) {
       context.read<ExpenseBloc>().add(const ExpenseLoadCategories());
+    }
+    _loadBudgets();
+  }
+
+  Future<void> _loadBudgets() async {
+    try {
+      final budgets = await _manageBudget.getAll();
+      if (!mounted) return;
+      setState(() => _budgets = budgets);
+    } catch (_) {
+      // Ignore; budgets omitted from details if unavailable.
     }
   }
 
@@ -48,6 +66,119 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     }
   }
 
+  void _resolveExpenseBudget(ExpenseEntity expense) {
+    for (final budget in _budgets) {
+      if (budget.id == expense.budgetId) {
+        _expenseBudget = budget;
+        return;
+      }
+    }
+    _expenseBudget = null;
+  }
+
+  Future<void> _moveToAnotherBudget(ExpenseEntity expense) async {
+    final candidates = _budgets.where((b) => b.id != expense.budgetId).toList();
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No other budgets available to move to'),
+          ),
+        );
+      return;
+    }
+
+    final selected = await showModalBottomSheet<BudgetEntity>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Text(
+                    'Move to Budget',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: candidates.map((budget) {
+                      return ListTile(
+                        leading: const Icon(Icons.account_balance_wallet),
+                        title: Text(budget.name),
+                        subtitle: Text(_formatPeriod(budget)),
+                        onTap: () => Navigator.of(context).pop(budget),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null || !mounted) return;
+
+    // Validate expense date falls within the destination budget period.
+    final expenseDay = DateTime(
+      expense.date.year,
+      expense.date.month,
+      expense.date.day,
+    );
+    final start = DateTime(
+      selected.startDate.year,
+      selected.startDate.month,
+      selected.startDate.day,
+    );
+    final end = DateTime(
+      selected.endDate.year,
+      selected.endDate.month,
+      selected.endDate.day,
+    );
+
+    if (expenseDay.isBefore(start) || expenseDay.isAfter(end)) {
+      final dateStr = DateFormat('MMM d, yyyy').format(expense.date);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'This expense date ($dateStr) is outside the selected budget period '
+              '(${DateFormat('MMM d').format(start)} – '
+              '${DateFormat('MMM d, yyyy').format(end)}).',
+            ),
+            backgroundColor: AppColors.warningOrange,
+          ),
+        );
+      return;
+    }
+
+    final updated = expense.copyWith(
+      budgetId: selected.id,
+      updatedAt: DateTime.now(),
+    );
+    context.read<ExpenseBloc>().add(ExpenseUpdate(updated));
+  }
+
+  String _formatPeriod(BudgetEntity budget) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    String d(DateTime x) => '${two(x.day)}/${two(x.month)}/${x.year}';
+    return '${d(budget.startDate)} → ${d(budget.endDate)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,7 +193,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 key: const Key('editExpenseButton'),
                 icon: const Icon(Icons.edit_outlined),
                 tooltip: 'Edit expense',
-                onPressed: () => context.push('/expenses/edit/${expense.id}'),
+                onPressed: () =>
+                    context.push('/app/expenses/edit/${expense.id}'),
               );
             },
           ),
@@ -120,6 +252,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         ? CategoryVisuals.iconFor(category.icon)
         : Icons.help_outline;
     final categoryName = category?.name ?? 'Unknown';
+    _resolveExpenseBudget(expense);
+    final budgetName = _expenseBudget?.name ?? 'Unknown';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -154,7 +288,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   NumberFormat.currency(
-                    symbol: '₹',
+                    symbol: _expenseBudget?.currency ?? '₹',
                     decimalDigits: 2,
                   ).format(expense.amount),
                   style: theme.textTheme.headlineMedium?.copyWith(
@@ -191,6 +325,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                     Icons.category_outlined,
                     'Category',
                     categoryName,
+                  ),
+                  _infoRow(
+                    theme,
+                    Icons.account_balance_wallet_outlined,
+                    'Budget',
+                    budgetName,
                   ),
                   if (expense.note != null && expense.note!.isNotEmpty)
                     _infoRow(theme, Icons.notes, 'Note', expense.note!),
@@ -260,10 +400,26 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             const SizedBox(height: AppSpacing.lg),
           ],
 
+          // Move to another budget
+          if (_budgets.any((b) => b.id != expense.budgetId)) ...[
+            OutlinedButton.icon(
+              key: const Key('moveExpenseBudgetButton'),
+              onPressed: () => _moveToAnotherBudget(expense),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+              ),
+              icon: const Icon(Icons.swap_horiz),
+              label: const Text('Move to another budget'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
           // Delete button
           OutlinedButton.icon(
             key: const Key('deleteExpenseButton'),
-            onPressed: () => _confirmDelete(expense, '₹'),
+            onPressed: () =>
+                _confirmDelete(expense, _expenseBudget?.currency ?? '₹'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.dangerRed,
               side: const BorderSide(color: AppColors.dangerRed),

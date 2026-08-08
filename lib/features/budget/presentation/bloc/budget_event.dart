@@ -21,3 +21,13 @@ class BudgetRefreshEvent extends BudgetEvent {
 class BudgetRecalculateEvent extends BudgetEvent {
   const BudgetRecalculateEvent();
 }
+
+/// Switches the active budget to [budgetId] and recalculates.
+class BudgetSwitchEvent extends BudgetEvent {
+  final String budgetId;
+
+  const BudgetSwitchEvent(this.budgetId);
+
+  @override
+  List<Object?> get props => [budgetId];
+}

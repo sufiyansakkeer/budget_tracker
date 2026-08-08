@@ -132,12 +132,18 @@ class BackupService {
           .map(
             (b) => {
               'id': b.id,
+              'name': b.name,
               'monthlyAmount': b.monthlyAmount,
               'remainingAmount': b.remainingAmount,
               'currency': b.currency,
-              'month': b.month,
-              'year': b.year,
+              'startDate': b.startDate.toIso8601String(),
+              'endDate': b.endDate.toIso8601String(),
+              'isArchived': b.isArchived,
+              'color': b.color,
+              'icon': b.icon,
+              'notes': b.notes,
               'createdAt': b.createdAt.toIso8601String(),
+              'updatedAt': b.updatedAt.toIso8601String(),
             },
           )
           .toList(),
@@ -156,6 +162,7 @@ class BackupService {
           .map(
             (e) => {
               'id': e.id,
+              'budgetId': e.budgetId,
               'amount': e.amount,
               'categoryId': e.categoryId,
               'note': e.note,
@@ -188,12 +195,18 @@ class BackupService {
             .insert(
               BudgetsCompanion.insert(
                 id: map['id'] as String,
+                name: (map['name'] as String?) ?? 'Personal Budget',
                 monthlyAmount: (map['monthlyAmount'] as num).toDouble(),
                 remainingAmount: (map['remainingAmount'] as num).toDouble(),
                 currency: map['currency'] as String,
-                month: (map['month'] as num).toInt(),
-                year: (map['year'] as num).toInt(),
+                startDate: DateTime.parse(map['startDate'] as String),
+                endDate: DateTime.parse(map['endDate'] as String),
+                isArchived: Value((map['isArchived'] as bool?) ?? false),
+                color: Value(map['color'] as String?),
+                icon: Value(map['icon'] as String?),
+                notes: Value(map['notes'] as String?),
                 createdAt: Value(DateTime.parse(map['createdAt'] as String)),
+                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
               ),
             );
       }
@@ -223,6 +236,7 @@ class BackupService {
             .insert(
               ExpensesCompanion.insert(
                 id: map['id'] as String,
+                budgetId: (map['budgetId'] as String?) ?? '',
                 amount: (map['amount'] as num).toDouble(),
                 categoryId: map['categoryId'] as String,
                 note: Value(map['note'] as String?),

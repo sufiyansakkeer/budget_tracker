@@ -12,8 +12,12 @@ class CalculateDailyAllowanceUseCase {
     required this.calculationService,
   });
 
-  Future<BudgetResult<double>> call({DateTime? referenceDate}) async {
+  Future<BudgetResult<double>> call({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
     final contextResult = await repository.getCalculationContext(
+      budgetId,
       referenceDate: referenceDate,
     );
 
@@ -28,7 +32,7 @@ class CalculateDailyAllowanceUseCase {
       return const BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidBudget,
-          message: 'Monthly budget must be greater than zero',
+          message: 'Budget amount must be greater than zero',
         ),
       );
     }
@@ -40,8 +44,8 @@ class CalculateDailyAllowanceUseCase {
       );
       final remainingDays = calculationService.calculateRemainingDays(
         referenceDate: context.referenceDate,
-        budgetMonth: context.budget.month,
-        budgetYear: context.budget.year,
+        startDate: context.budget.startDate,
+        endDate: context.budget.endDate,
       );
 
       final allowance = calculationService.calculateDailyAllowance(

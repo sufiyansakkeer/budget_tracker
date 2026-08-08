@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../budget/presentation/bloc/budget_bloc.dart';
 import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/report_failure.dart';
 import '../../domain/services/report_insight_generator.dart';
@@ -17,6 +18,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
   final ReportInsightGenerator insightGenerator;
 
   StreamSubscription<void>? _refreshSubscription;
+  StreamSubscription<void>? _budgetSwitchSubscription;
 
   ReportsBloc({
     required this.getReportDataUseCase,
@@ -33,11 +35,20 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
         add(const ReportsRefresh());
       }
     });
+
+    // Reload when the active budget is switched so reports are scoped to the
+    // newly active budget.
+    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+      if (!isClosed) {
+        add(const ReportsRefresh());
+      }
+    });
   }
 
   @override
   Future<void> close() {
     _refreshSubscription?.cancel();
+    _budgetSwitchSubscription?.cancel();
     return super.close();
   }
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../di/injection.dart' as di;
-import '../../features/settings/domain/entities/app_settings.dart';
 import '../../features/settings/domain/entities/settings_failure.dart';
 import '../../features/settings/domain/usecases/load_settings_usecase.dart';
 
@@ -22,7 +21,7 @@ class CurrencyProvider extends ChangeNotifier {
     try {
       final result = await _loadSettingsUseCase();
       if (result case SettingsSuccess(:final data)) {
-        final settings = data as AppSettings;
+        final settings = data;
         _currencyCode = settings.currencyCode;
         _currencySymbol = settings.currencySymbol;
         notifyListeners();

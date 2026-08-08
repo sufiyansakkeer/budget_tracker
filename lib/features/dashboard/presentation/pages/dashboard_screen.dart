@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../budget/domain/entities/budget_status.dart';
+import '../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
 import '../bloc/dashboard_bloc.dart';
@@ -62,7 +63,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          context.push('/expenses/add');
+          context.push('/app/expenses/add');
         },
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add),
@@ -86,10 +87,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const ActiveBudgetSelector(),
+            const SizedBox(height: AppSpacing.md),
             DashboardHeader(
               currency: summary.currency,
-              month: summary.budgetMonth,
-              year: summary.budgetYear,
+              startDate: summary.startDate,
+              endDate: summary.endDate,
             ),
             const SizedBox(height: AppSpacing.lg),
 
@@ -172,8 +175,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   isPositive: summary.expectedOverspending <= 0,
                 ),
                 AnalyticsCard(
-                  title: 'Month-End Projection',
-                  value: summary.expectedMonthEndSpending,
+                  title: 'Period-End Projection',
+                  value: summary.expectedPeriodEndSpending,
                   currency: summary.currency,
                   icon: Icons.bar_chart,
                 ),
@@ -196,7 +199,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               trailing: state.recentExpenses.isNotEmpty
                   ? TextButton(
                       onPressed: () {
-                        context.push('/expenses');
+                        context.push('/app/expenses');
                       },
                       child: const Text('View All'),
                     )
@@ -207,7 +210,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               EmptyDashboardState(
                 type: EmptyStateType.noExpenses,
                 onAction: () {
-                  context.push('/expenses/add');
+                  context.push('/app/expenses/add');
                 },
               )
             else
@@ -288,7 +291,7 @@ class _AnalyticsGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: AppSpacing.md,
       crossAxisSpacing: AppSpacing.md,
-      childAspectRatio: isWide ? 3.2 : 2.5,
+      childAspectRatio: isWide ? 3.2 : 2.3,
       children: children,
     );
   }
@@ -306,22 +309,22 @@ class _QuickActionsGrid extends StatelessWidget {
       (
         icon: Icons.add,
         label: 'Add Expense',
-        onTap: () => context.push('/expenses/add'),
+        onTap: () => context.push('/app/expenses/add'),
       ),
       (
         icon: Icons.history,
         label: 'History',
-        onTap: () => context.push('/expenses'),
+        onTap: () => context.push('/app/expenses'),
       ),
       (
         icon: Icons.bar_chart,
         label: 'Reports',
-        onTap: () => context.push('/reports'),
+        onTap: () => context.push('/app/reports'),
       ),
       (
         icon: Icons.settings,
         label: 'Settings',
-        onTap: () => context.push('/settings'),
+        onTap: () => context.push('/app/more'),
       ),
     ];
 

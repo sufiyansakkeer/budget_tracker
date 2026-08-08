@@ -1,5 +1,6 @@
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../domain/entities/budget_error.dart';
+import '../../domain/entities/budget_filter.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/services/budget_calculation_service.dart';
@@ -15,85 +16,121 @@ class BudgetRepositoryImpl implements BudgetRepository {
   });
 
   @override
-  Future<BudgetEntity?> getCurrentBudget() {
-    final now = DateTime.now();
-    return localDataSource.getBudgetForMonth(month: now.month, year: now.year);
+  Future<BudgetEntity?> getActiveBudget() async {
+    final activeId = await localDataSource.getActiveBudgetId();
+    if (activeId == null) return null;
+    return localDataSource.getBudgetById(activeId);
   }
 
   @override
-  Future<MonthlyStatisticsEntity> getMonthlyStatistics({
-    required int month,
-    required int year,
+  Future<String?> getActiveBudgetId() {
+    return localDataSource.getActiveBudgetId();
+  }
+
+  @override
+  Future<void> setActiveBudgetId(String budgetId) {
+    return localDataSource.setActiveBudgetId(budgetId);
+  }
+
+  @override
+  Future<BudgetEntity?> getBudgetById(String id) {
+    return localDataSource.getBudgetById(id);
+  }
+
+  @override
+  Future<List<BudgetEntity>> getAllBudgets({BudgetQueryOptions? options}) {
+    return localDataSource.getAllBudgets(options: options);
+  }
+
+  @override
+  Future<BudgetEntity> createBudget(BudgetEntity budget) {
+    return localDataSource.createBudget(budget);
+  }
+
+  @override
+  Future<BudgetEntity> updateBudget(BudgetEntity budget) {
+    return localDataSource.updateBudget(budget);
+  }
+
+  @override
+  Future<void> deleteBudget(String id) {
+    return localDataSource.deleteBudget(id);
+  }
+
+  @override
+  Future<BudgetEntity> setBudgetArchived(String id, {required bool archived}) {
+    return localDataSource.setBudgetArchived(id, archived: archived);
+  }
+
+  @override
+  Future<BudgetEntity> duplicateBudget(
+    String id, {
+    required String newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    return localDataSource.duplicateBudget(
+      id,
+      newName: newName,
+      startDate: startDate,
+      endDate: endDate,
+    );
+  }
+
+  @override
+  Future<MonthlyStatisticsEntity> getBudgetStatistics(
+    String budgetId, {
     DateTime? referenceDate,
   }) {
     final date = referenceDate ?? DateTime.now();
-    return localDataSource.getMonthlyStatistics(
-      month: month,
-      year: year,
-      referenceDate: date,
+    return localDataSource.getBudgetStatistics(budgetId, referenceDate: date);
+  }
+
+  @override
+  Future<double> getTodaySpending(String budgetId, {DateTime? referenceDate}) {
+    return localDataSource.getTodaySpending(
+      budgetId,
+      referenceDate: referenceDate,
     );
   }
 
   @override
-  Future<double> getTodaySpending({DateTime? referenceDate}) async {
-    final now = referenceDate ?? DateTime.now();
-    final stats = await getMonthlyStatistics(
-      month: now.month,
-      year: now.year,
-      referenceDate: now,
+  Future<int> getRemainingDays(String budgetId, {DateTime? referenceDate}) {
+    return localDataSource.getRemainingDays(
+      budgetId,
+      referenceDate: referenceDate,
     );
-    return stats.todaySpending;
   }
 
   @override
-  Future<int> getRemainingDays({DateTime? referenceDate}) async {
-    final budget = await getCurrentBudget();
-    if (budget == null) return 1;
-
-    final date = referenceDate ?? DateTime.now();
-    try {
-      return calculationService.calculateRemainingDays(
-        referenceDate: date,
-        budgetMonth: budget.month,
-        budgetYear: budget.year,
-      );
-    } on ArgumentError {
-      return 1;
-    }
-  }
-
-  @override
-  Future<BudgetResult<BudgetCalculationContext>> getCalculationContext({
+  Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
+    String budgetId, {
     DateTime? referenceDate,
   }) async {
-    final budget = await getCurrentBudget();
+    final budget = await localDataSource.getBudgetById(budgetId);
     if (budget == null) {
       return const BudgetError(
         BudgetFailure(
           type: BudgetErrorType.notFound,
-          message: 'No budget found for the current month',
+          message: 'Budget not found',
         ),
       );
     }
 
     final date = referenceDate ?? DateTime.now();
 
-    if (date.month != budget.month || date.year != budget.year) {
+    if (date.isBefore(budget.startDate) || date.isAfter(budget.endDate)) {
       return BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidDate,
           message:
-              'Reference date does not match current budget period '
-              '(${budget.month}/${budget.year})',
+              'Reference date does not match budget period '
+              '(${budget.startDate} to ${budget.endDate})',
         ),
       );
     }
 
-    final statistics = await getMonthlyStatistics(
-      month: budget.month,
-      year: budget.year,
-      referenceDate: date,
-    );
+    final statistics = await getBudgetStatistics(budgetId, referenceDate: date);
 
     return BudgetSuccess(
       BudgetCalculationContext(

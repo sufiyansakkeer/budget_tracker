@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../entities/settings_failure.dart';
@@ -8,36 +9,56 @@ import '../entities/settings_failure.dart';
 /// reset the current month's expenses.
 class ResetMonthUseCase {
   final AppDatabase _database;
+  final SharedPreferences _sharedPreferences;
 
-  ResetMonthUseCase({required AppDatabase database}) : _database = database;
+  static const String _activeBudgetIdKey = 'active_budget_id';
 
-  /// Archives the current month's data by keeping it in the database and
-  /// creating a fresh budget for the next month (or the current month if no
-  /// budget exists yet).
+  ResetMonthUseCase({
+    required AppDatabase database,
+    required SharedPreferences sharedPreferences,
+  }) : _database = database,
+       _sharedPreferences = sharedPreferences;
+
+  /// Archives the current active budget and creates a fresh default budget
+  /// starting today with a custom date range (not bound to a calendar month).
   ///
   /// Returns the new budget id.
   Future<SettingsResult<String>> resetCurrentMonth() async {
     final now = DateTime.now();
-    final next = DateTime(
-      now.month == 12 ? now.year + 1 : now.year,
-      now.month == 12 ? 1 : now.month + 1,
-      1,
-    );
+    final start = DateTime(now.year, now.month, now.day);
+    final end = start.add(const Duration(days: 30));
 
     try {
+      // Archive the current active budget, if any.
+      final activeId = _sharedPreferences.getString(_activeBudgetIdKey);
+      if (activeId != null) {
+        await (_database.update(
+          _database.budgets,
+        )..where((b) => b.id.equals(activeId))).write(
+          BudgetsCompanion(
+            isArchived: const Value(true),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+      }
+
       final id = const Uuid().v4();
       await _database
           .into(_database.budgets)
           .insert(
             BudgetsCompanion.insert(
               id: id,
+              name: 'New Budget',
               monthlyAmount: 0,
               remainingAmount: 0,
               currency: 'INR',
-              month: next.month,
-              year: next.year,
+              startDate: start,
+              endDate: end,
+              createdAt: Value(now),
+              updatedAt: Value(now),
             ),
           );
+      await _sharedPreferences.setString(_activeBudgetIdKey, id);
       return SettingsSuccess(id);
     } catch (e) {
       return SettingsError(
@@ -49,39 +70,56 @@ class ResetMonthUseCase {
     }
   }
 
-  /// Resets the current month's expenses by archiving them and creating a fresh
-  /// expense tracking for the next month.
-  ///
-  /// Returns the number of archived expenses.
+  /// Resets the active budget's expenses by moving them to a fresh budget
+  /// period. Returns the number of expenses moved.
   Future<SettingsResult<int>> resetCurrentMonthExpenses() async {
-    final now = DateTime.now();
-    final next = DateTime(
-      now.month == 12 ? now.year + 1 : now.year,
-      now.month == 12 ? 1 : now.month + 1,
-      1,
-    );
+    final activeId = _sharedPreferences.getString(_activeBudgetIdKey);
+    if (activeId == null) {
+      return SettingsSuccess(0);
+    }
 
     try {
-      // Get all expenses for the current month
-      final currentMonthExpenses = await (_database.select(_database.expenses)
-            ..where((e) => e.date.month.equals(now.month) & e.date.year.equals(now.year)))
-            .get();
+      // Get all expenses for the active budget.
+      final budgetExpenses = await (_database.select(
+        _database.expenses,
+      )..where((e) => e.budgetId.equals(activeId))).get();
 
-      final archivedCount = currentMonthExpenses.length;
+      final count = budgetExpenses.length;
 
-      // Update expense dates to next month
-      for (final expense in currentMonthExpenses) {
-        await (_database.update(_database.expenses)
-              ..where((e) => e.id.equals(expense.id)))
-            .write(
-              ExpensesCompanion(
-                date: Value(next),
-                updatedAt: Value(DateTime.now()),
-              ),
-            );
+      // Create a fresh budget starting today and move the expenses there.
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day);
+      final end = start.add(const Duration(days: 30));
+      final newId = const Uuid().v4();
+      await _database
+          .into(_database.budgets)
+          .insert(
+            BudgetsCompanion.insert(
+              id: newId,
+              name: 'Monthly Budget',
+              monthlyAmount: 0,
+              remainingAmount: 0,
+              currency: 'INR',
+              startDate: start,
+              endDate: end,
+              createdAt: Value(now),
+              updatedAt: Value(now),
+            ),
+          );
+
+      for (final expense in budgetExpenses) {
+        await (_database.update(
+          _database.expenses,
+        )..where((e) => e.id.equals(expense.id))).write(
+          ExpensesCompanion(
+            budgetId: Value(newId),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
       }
 
-      return SettingsSuccess(archivedCount);
+      await _sharedPreferences.setString(_activeBudgetIdKey, newId);
+      return SettingsSuccess(count);
     } catch (e) {
       return SettingsError(
         SettingsFailure(

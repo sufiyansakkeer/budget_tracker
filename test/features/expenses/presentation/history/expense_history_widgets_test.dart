@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
 import 'package:budget_tracker/core/theme/app_theme.dart';
+import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
+import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart';
+import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_entity.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_group.dart';
@@ -35,6 +40,7 @@ ExpenseEntity expense({
   final now = date ?? DateTime(2026, 8, 5);
   return ExpenseEntity(
     id: id,
+    budgetId: 'budget-1',
     amount: amount,
     categoryId: categoryId,
     note: note,
@@ -59,10 +65,85 @@ class FakeHistoryRepository implements ExpenseRepository {
   @override
   Future<ExpenseEntity?> getExpenseById(String id) async => null;
   @override
-  Future<List<ExpenseEntity>> getExpenses({int? month, int? year}) async =>
-      expenses;
+  Future<List<ExpenseEntity>> getExpenses({
+    String? budgetId,
+    int? month,
+    int? year,
+  }) async => expenses;
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
+}
+
+class FakeBudgetRepository implements BudgetRepository {
+  final BudgetEntity? budget;
+  FakeBudgetRepository({this.budget});
+
+  @override
+  Future<BudgetEntity?> getActiveBudget() async => budget;
+  @override
+  Future<String?> getActiveBudgetId() async => budget?.id;
+  @override
+  Future<void> setActiveBudgetId(String budgetId) async {}
+  @override
+  Future<BudgetEntity?> getBudgetById(String id) async => budget;
+  @override
+  Future<List<BudgetEntity>> getAllBudgets({
+    BudgetQueryOptions? options,
+  }) async => budget == null ? [] : [budget!];
+  @override
+  Future<BudgetEntity> createBudget(BudgetEntity budget) async => budget;
+  @override
+  Future<BudgetEntity> updateBudget(BudgetEntity budget) async => budget;
+  @override
+  Future<void> deleteBudget(String id) async {}
+  @override
+  Future<BudgetEntity> setBudgetArchived(
+    String id, {
+    required bool archived,
+  }) async => budget ?? (throw StateError('No budget'));
+  @override
+  Future<BudgetEntity> duplicateBudget(
+    String id, {
+    required String newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async => budget ?? (throw StateError('No budget'));
+  @override
+  Future<MonthlyStatisticsEntity> getBudgetStatistics(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => MonthlyStatisticsEntity.empty;
+  @override
+  Future<double> getTodaySpending(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 0;
+  @override
+  Future<int> getRemainingDays(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 1;
+  @override
+  Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async {
+    if (budget == null || budgetId != budget!.id) {
+      return BudgetError(
+        BudgetFailure(
+          type: BudgetErrorType.notFound,
+          message: 'Budget not found',
+        ),
+      );
+    }
+    return BudgetSuccess(
+      BudgetCalculationContext(
+        budget: budget!,
+        statistics: MonthlyStatisticsEntity.empty,
+        referenceDate: referenceDate ?? DateTime.now(),
+      ),
+    );
+  }
 }
 
 ExpenseHistoryBloc buildBloc(ExpenseRepository repository) {
@@ -74,6 +155,19 @@ ExpenseHistoryBloc buildBloc(ExpenseRepository repository) {
     sortExpensesUseCase: const SortExpensesUseCase(),
     calculateExpenseSummaryUseCase: const CalculateExpenseSummaryUseCase(),
     pageExpensesUseCase: const PageExpensesUseCase(pageSize: 20),
+    budgetRepository: FakeBudgetRepository(
+      budget: BudgetEntity(
+        id: 'budget-1',
+        name: 'Personal',
+        monthlyAmount: 30000,
+        remainingAmount: 30000,
+        currency: 'INR',
+        startDate: DateTime(2026, 8, 1),
+        endDate: DateTime(2026, 8, 31),
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      ),
+    ),
   );
 }
 

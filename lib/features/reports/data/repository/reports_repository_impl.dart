@@ -86,7 +86,8 @@ class ReportsRepositoryImpl implements ReportsRepository {
   Future<List<ExpenseEntity>> getFilteredExpenses(
     ExpenseHistoryFilter filter,
   ) async {
-    final result = await getExpensesUseCase();
+    final activeId = await budgetRepository.getActiveBudgetId();
+    final result = await getExpensesUseCase(budgetId: activeId);
     if (result case ExpenseError(:final failure)) {
       throw Exception(failure.message);
     }
@@ -105,16 +106,16 @@ class ReportsRepositoryImpl implements ReportsRepository {
 
   @override
   Future<BudgetEntity?> getCurrentBudget() {
-    return budgetRepository.getCurrentBudget();
+    return budgetRepository.getActiveBudget();
   }
 
   @override
   Future<double> getCurrentMonthSpent() async {
-    final now = DateTime.now();
-    final stats = await budgetRepository.getMonthlyStatistics(
-      month: now.month,
-      year: now.year,
-      referenceDate: now,
+    final activeId = await budgetRepository.getActiveBudgetId();
+    if (activeId == null) return 0;
+    final stats = await budgetRepository.getBudgetStatistics(
+      activeId,
+      referenceDate: DateTime.now(),
     );
     return stats.totalSpent;
   }

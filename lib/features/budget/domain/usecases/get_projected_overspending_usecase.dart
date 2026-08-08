@@ -12,8 +12,12 @@ class GetProjectedOverspendingUseCase {
     required this.calculationService,
   });
 
-  Future<BudgetResult<double>> call({DateTime? referenceDate}) async {
+  Future<BudgetResult<double>> call({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
     final contextResult = await repository.getCalculationContext(
+      budgetId,
       referenceDate: referenceDate,
     );
 
@@ -28,7 +32,7 @@ class GetProjectedOverspendingUseCase {
       return const BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidBudget,
-          message: 'Monthly budget must be greater than zero',
+          message: 'Budget amount must be greater than zero',
         ),
       );
     }
@@ -36,25 +40,25 @@ class GetProjectedOverspendingUseCase {
     try {
       final daysPassed = calculationService.calculateDaysPassed(
         referenceDate: context.referenceDate,
-        budgetMonth: context.budget.month,
-        budgetYear: context.budget.year,
+        startDate: context.budget.startDate,
+        endDate: context.budget.endDate,
       );
       final averageDaily = calculationService.calculateAverageDailySpending(
         totalSpent: context.statistics.totalSpent,
         daysPassed: daysPassed,
       );
-      final monthDays = calculationService.daysInMonth(
-        context.budget.month,
-        context.budget.year,
+      final periodDays = calculationService.daysInPeriod(
+        startDate: context.budget.startDate,
+        endDate: context.budget.endDate,
       );
-      final projected = calculationService.calculateExpectedMonthEndSpending(
+      final projected = calculationService.calculateExpectedPeriodEndSpending(
         averageDailySpending: averageDaily,
-        daysInMonth: monthDays,
+        daysInPeriod: periodDays,
       );
 
       final overspending = calculationService.calculateProjectedOverspending(
         monthlyAmount: context.budget.monthlyAmount,
-        expectedMonthEndSpending: projected,
+        expectedPeriodEndSpending: projected,
       );
 
       return BudgetSuccess(overspending);
@@ -62,7 +66,9 @@ class GetProjectedOverspendingUseCase {
       return BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidDate,
-          message: e.message?.toString() ?? 'Invalid date for overspending projection',
+          message:
+              e.message?.toString() ??
+              'Invalid date for overspending projection',
         ),
       );
     }

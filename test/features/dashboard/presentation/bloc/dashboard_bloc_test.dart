@@ -1,5 +1,6 @@
 import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
 import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
+import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart';
 import 'package:budget_tracker/features/budget/domain/entities/budget_status.dart';
 import 'package:budget_tracker/features/budget/domain/entities/budget_summary_entity.dart';
 import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
@@ -35,6 +36,7 @@ class MockGetBudgetSummaryUseCase implements GetBudgetSummaryUseCase {
 
   @override
   Future<BudgetResult<BudgetSummaryEntity>> call({
+    required String budgetId,
     DateTime? referenceDate,
   }) async {
     if (resultToReturn != null) {
@@ -46,25 +48,72 @@ class MockGetBudgetSummaryUseCase implements GetBudgetSummaryUseCase {
 
 class MockBudgetRepository implements BudgetRepository {
   @override
-  Future<BudgetEntity?> getCurrentBudget() async => null;
+  Future<BudgetEntity?> getActiveBudget() async => null;
 
   @override
-  Future<MonthlyStatisticsEntity> getMonthlyStatistics({
-    required int month,
-    required int year,
+  Future<String?> getActiveBudgetId() async => 'active-budget';
+
+  @override
+  Future<void> setActiveBudgetId(String budgetId) async {}
+
+  @override
+  Future<BudgetEntity?> getBudgetById(String id) async => null;
+
+  @override
+  Future<List<BudgetEntity>> getAllBudgets({
+    BudgetQueryOptions? options,
+  }) async => [];
+
+  @override
+  Future<BudgetEntity> createBudget(BudgetEntity budget) async => budget;
+
+  @override
+  Future<BudgetEntity> updateBudget(BudgetEntity budget) async => budget;
+
+  @override
+  Future<void> deleteBudget(String id) async {}
+
+  @override
+  Future<BudgetEntity> setBudgetArchived(
+    String id, {
+    required bool archived,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<BudgetEntity> duplicateBudget(
+    String id, {
+    required String newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MonthlyStatisticsEntity> getBudgetStatistics(
+    String budgetId, {
     DateTime? referenceDate,
   }) async {
     return MonthlyStatisticsEntity.empty;
   }
 
   @override
-  Future<double> getTodaySpending({DateTime? referenceDate}) async => 0;
+  Future<double> getTodaySpending(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 0;
 
   @override
-  Future<int> getRemainingDays({DateTime? referenceDate}) async => 1;
+  Future<int> getRemainingDays(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 1;
 
   @override
-  Future<BudgetResult<BudgetCalculationContext>> getCalculationContext({
+  Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
+    String budgetId, {
     DateTime? referenceDate,
   }) async {
     return const BudgetError(
@@ -85,6 +134,7 @@ class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {
   Future<List<RecentExpenseEntity>> call({
     int limit = 5,
     DateTime? referenceDate,
+    String? budgetId,
   }) async {
     if (expensesToReturn != null) {
       return expensesToReturn!;
@@ -98,12 +148,13 @@ class MockDashboardRepository implements DashboardRepository {
   Future<List<RecentExpenseEntity>> getRecentExpenses({
     int limit = 5,
     DateTime? referenceDate,
+    String? budgetId,
   }) async {
     return [];
   }
 }
 
-const tBudgetSummary = BudgetSummaryEntity(
+final tBudgetSummary = BudgetSummaryEntity(
   monthlyAmount: 30000,
   remainingBudget: 21500,
   totalSpent: 8500,
@@ -115,14 +166,14 @@ const tBudgetSummary = BudgetSummaryEntity(
   spendingPercentage: 28.0,
   remainingPercentage: 72.0,
   averageDailySpending: 472,
-  expectedMonthEndSpending: 18500,
+  expectedPeriodEndSpending: 18500,
   expectedSavings: 11500,
   expectedOverspending: 0,
   todayOverspending: 0,
   status: BudgetStatus.underBudget,
   currency: '₹',
-  budgetMonth: 8,
-  budgetYear: 2026,
+  startDate: DateTime(2026, 8, 1),
+  endDate: DateTime(2026, 8, 31),
 );
 
 final tRecentExpenses = [
@@ -145,7 +196,7 @@ void main() {
 
   setUp(() {
     mockGetBudgetSummaryUseCase = MockGetBudgetSummaryUseCase(
-      resultToReturn: const BudgetSuccess(tBudgetSummary),
+      resultToReturn: BudgetSuccess(tBudgetSummary),
     );
     mockGetRecentExpensesUseCase = MockGetRecentExpensesUseCase(
       expensesToReturn: tRecentExpenses,
@@ -154,6 +205,7 @@ void main() {
       getBudgetSummaryUseCase: mockGetBudgetSummaryUseCase,
       getRecentExpensesUseCase: mockGetRecentExpensesUseCase,
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+      budgetRepository: MockBudgetRepository(),
     );
   });
 
@@ -170,12 +222,13 @@ void main() {
     () async {
       final bloc = DashboardBloc(
         getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
-          resultToReturn: const BudgetSuccess(tBudgetSummary),
+          resultToReturn: BudgetSuccess(tBudgetSummary),
         ),
         getRecentExpensesUseCase: MockGetRecentExpensesUseCase(
           expensesToReturn: tRecentExpenses,
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        budgetRepository: MockBudgetRepository(),
       );
 
       final expected = [
@@ -187,10 +240,11 @@ void main() {
         ),
       ];
 
-      expectLater(bloc.stream, emitsInOrder(expected));
+      final future = expectLater(bloc.stream, emitsInOrder(expected));
 
       bloc.add(const DashboardLoadData());
 
+      await future;
       await bloc.close();
     },
   );
@@ -209,9 +263,10 @@ void main() {
         ),
         getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        budgetRepository: MockBudgetRepository(),
       );
 
-      final expected = [const DashboardLoading(), const DashboardEmpty()];
+      final expected = const [DashboardLoading(), DashboardEmpty()];
 
       expectLater(bloc.stream, emitsInOrder(expected));
 
@@ -233,11 +288,12 @@ void main() {
       ),
       getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+      budgetRepository: MockBudgetRepository(),
     );
 
-    final expected = [
-      const DashboardLoading(),
-      const DashboardError(message: 'Invalid date'),
+    final expected = const [
+      DashboardLoading(),
+      DashboardError(message: 'Invalid date'),
     ];
 
     expectLater(bloc.stream, emitsInOrder(expected));
@@ -252,27 +308,29 @@ void main() {
     () async {
       final bloc = DashboardBloc(
         getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
-          resultToReturn: const BudgetSuccess(tBudgetSummary),
+          resultToReturn: BudgetSuccess(tBudgetSummary),
         ),
         getRecentExpensesUseCase: MockGetRecentExpensesUseCase(
           expensesToReturn: const [],
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        budgetRepository: MockBudgetRepository(),
       );
 
       final expected = [
         const DashboardLoading(),
-        const DashboardLoaded(
+        DashboardLoaded(
           budgetSummary: tBudgetSummary,
-          recentExpenses: [],
-          insights: [],
+          recentExpenses: const [],
+          insights: const [],
         ),
       ];
 
-      expectLater(bloc.stream, emitsInOrder(expected));
+      final future = expectLater(bloc.stream, emitsInOrder(expected));
 
       bloc.add(const DashboardLoadData());
 
+      await future;
       await bloc.close();
     },
   );

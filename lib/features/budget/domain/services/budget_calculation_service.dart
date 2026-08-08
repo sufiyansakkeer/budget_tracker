@@ -20,36 +20,48 @@ class BudgetCalculationService {
     _cachedAnalytics = null;
   }
 
-  /// Returns the number of days in [month] for [year], accounting for leap years.
-  int daysInMonth(int month, int year) {
-    _validateMonthYear(month, year);
-    return DateTime(year, month + 1, 0).day;
+  /// Returns the total number of days in the budget period (inclusive).
+  int daysInPeriod({required DateTime startDate, required DateTime endDate}) {
+    _validateDateRange(startDate, endDate);
+    return endDate.difference(startDate).inDays + 1;
   }
 
-  /// Days elapsed in the budget month including [referenceDate].
+  /// Days elapsed in the budget period including [referenceDate].
   ///
-  /// Example: reference date 10 August → 10 days passed.
+  /// Example: budget 10 Aug → 25 Aug, reference date 15 Aug → 6 days passed.
   int calculateDaysPassed({
     required DateTime referenceDate,
-    required int budgetMonth,
-    required int budgetYear,
+    required DateTime startDate,
+    required DateTime endDate,
   }) {
-    _validateReferenceDate(referenceDate, budgetMonth, budgetYear);
-    return referenceDate.day;
+    _validateReferenceDate(referenceDate, startDate, endDate);
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final ref = DateTime(
+      referenceDate.year,
+      referenceDate.month,
+      referenceDate.day,
+    );
+    final diff = ref.difference(start).inDays;
+    return diff < 0 ? 0 : diff + 1;
   }
 
-  /// Remaining days in the budget month including today.
+  /// Remaining days in the budget period including today.
   ///
   /// Always returns at least 1 to prevent division by zero.
-  /// Example: 10 August in a 31-day month → 22 remaining days.
+  /// Example: budget 10 Aug → 25 Aug, reference date 15 Aug → 11 remaining days.
   int calculateRemainingDays({
     required DateTime referenceDate,
-    required int budgetMonth,
-    required int budgetYear,
+    required DateTime startDate,
+    required DateTime endDate,
   }) {
-    _validateReferenceDate(referenceDate, budgetMonth, budgetYear);
-    final totalDays = daysInMonth(budgetMonth, budgetYear);
-    final remaining = totalDays - referenceDate.day + 1;
+    _validateReferenceDate(referenceDate, startDate, endDate);
+    final end = DateTime(endDate.year, endDate.month, endDate.day);
+    final ref = DateTime(
+      referenceDate.year,
+      referenceDate.month,
+      referenceDate.day,
+    );
+    final remaining = end.difference(ref).inDays + 1;
     return remaining < 1 ? 1 : remaining;
   }
 
@@ -108,34 +120,34 @@ class BudgetCalculationService {
     return totalSpent / safeDays;
   }
 
-  /// Projected total spending at month-end based on current daily average.
-  double calculateExpectedMonthEndSpending({
+  /// Projected total spending at budget-period end based on current daily average.
+  double calculateExpectedPeriodEndSpending({
     required double averageDailySpending,
-    required int daysInMonth,
+    required int daysInPeriod,
   }) {
-    return averageDailySpending * daysInMonth;
+    return averageDailySpending * daysInPeriod;
   }
 
-  /// Projected savings when month-end spending stays under budget.
+  /// Projected savings when period-end spending stays under budget.
   ///
   /// Returns 0 when projected spending meets or exceeds the budget.
   double calculateProjectedSavings({
     required double monthlyAmount,
-    required double expectedMonthEndSpending,
+    required double expectedPeriodEndSpending,
   }) {
-    if (expectedMonthEndSpending >= monthlyAmount) return 0;
-    return monthlyAmount - expectedMonthEndSpending;
+    if (expectedPeriodEndSpending >= monthlyAmount) return 0;
+    return monthlyAmount - expectedPeriodEndSpending;
   }
 
-  /// Projected overspending when month-end spending exceeds budget.
+  /// Projected overspending when period-end spending exceeds budget.
   ///
   /// Returns 0 when projected spending stays within budget.
   double calculateProjectedOverspending({
     required double monthlyAmount,
-    required double expectedMonthEndSpending,
+    required double expectedPeriodEndSpending,
   }) {
-    if (expectedMonthEndSpending <= monthlyAmount) return 0;
-    return expectedMonthEndSpending - monthlyAmount;
+    if (expectedPeriodEndSpending <= monthlyAmount) return 0;
+    return expectedPeriodEndSpending - monthlyAmount;
   }
 
   /// Amount spent over today's daily allowance.
@@ -176,13 +188,13 @@ class BudgetCalculationService {
     );
     final daysPassed = calculateDaysPassed(
       referenceDate: input.referenceDate,
-      budgetMonth: input.budgetMonth,
-      budgetYear: input.budgetYear,
+      startDate: input.startDate,
+      endDate: input.endDate,
     );
     final remainingDays = calculateRemainingDays(
       referenceDate: input.referenceDate,
-      budgetMonth: input.budgetMonth,
-      budgetYear: input.budgetYear,
+      startDate: input.startDate,
+      endDate: input.endDate,
     );
     final dailySafeSpending = calculateDailyAllowance(
       remainingBudget: remainingBudget,
@@ -204,18 +216,21 @@ class BudgetCalculationService {
       totalSpent: input.totalSpent,
       daysPassed: daysPassed,
     );
-    final monthDays = daysInMonth(input.budgetMonth, input.budgetYear);
-    final expectedMonthEndSpending = calculateExpectedMonthEndSpending(
+    final periodDays = daysInPeriod(
+      startDate: input.startDate,
+      endDate: input.endDate,
+    );
+    final expectedPeriodEndSpending = calculateExpectedPeriodEndSpending(
       averageDailySpending: averageDailySpending,
-      daysInMonth: monthDays,
+      daysInPeriod: periodDays,
     );
     final expectedSavings = calculateProjectedSavings(
       monthlyAmount: input.monthlyAmount,
-      expectedMonthEndSpending: expectedMonthEndSpending,
+      expectedPeriodEndSpending: expectedPeriodEndSpending,
     );
     final expectedOverspending = calculateProjectedOverspending(
       monthlyAmount: input.monthlyAmount,
-      expectedMonthEndSpending: expectedMonthEndSpending,
+      expectedPeriodEndSpending: expectedPeriodEndSpending,
     );
     final todayOverspending = calculateTodayOverspending(
       todaySpending: input.todaySpending,
@@ -238,14 +253,14 @@ class BudgetCalculationService {
       spendingPercentage: spendingPercentage,
       remainingPercentage: remainingPercentage,
       averageDailySpending: averageDailySpending,
-      expectedMonthEndSpending: expectedMonthEndSpending,
+      expectedPeriodEndSpending: expectedPeriodEndSpending,
       expectedSavings: expectedSavings,
       expectedOverspending: expectedOverspending,
       todayOverspending: todayOverspending,
       status: status,
       currency: currency,
-      budgetMonth: input.budgetMonth,
-      budgetYear: input.budgetYear,
+      startDate: input.startDate,
+      endDate: input.endDate,
     );
 
     _cachedInput = input;
@@ -265,13 +280,13 @@ class BudgetCalculationService {
     );
     final daysPassed = calculateDaysPassed(
       referenceDate: input.referenceDate,
-      budgetMonth: input.budgetMonth,
-      budgetYear: input.budgetYear,
+      startDate: input.startDate,
+      endDate: input.endDate,
     );
     final daysRemaining = calculateRemainingDays(
       referenceDate: input.referenceDate,
-      budgetMonth: input.budgetMonth,
-      budgetYear: input.budgetYear,
+      startDate: input.startDate,
+      endDate: input.endDate,
     );
     final dailySafeSpending = calculateDailyAllowance(
       remainingBudget: remainingBudget,
@@ -289,19 +304,23 @@ class BudgetCalculationService {
       totalSpent: input.totalSpent,
       daysPassed: daysPassed,
     );
-    final monthDays = daysInMonth(input.budgetMonth, input.budgetYear);
-    final expectedMonthEndSpending = calculateExpectedMonthEndSpending(
-      averageDailySpending: averageDailySpending,
-      daysInMonth: monthDays,
+    final periodDays = daysInPeriod(
+      startDate: input.startDate,
+      endDate: input.endDate,
     );
-    final projectedRemainingBalance = input.monthlyAmount - expectedMonthEndSpending;
+    final expectedPeriodEndSpending = calculateExpectedPeriodEndSpending(
+      averageDailySpending: averageDailySpending,
+      daysInPeriod: periodDays,
+    );
+    final projectedRemainingBalance =
+        input.monthlyAmount - expectedPeriodEndSpending;
     final projectedSavings = calculateProjectedSavings(
       monthlyAmount: input.monthlyAmount,
-      expectedMonthEndSpending: expectedMonthEndSpending,
+      expectedPeriodEndSpending: expectedPeriodEndSpending,
     );
     final projectedOverspending = calculateProjectedOverspending(
       monthlyAmount: input.monthlyAmount,
-      expectedMonthEndSpending: expectedMonthEndSpending,
+      expectedPeriodEndSpending: expectedPeriodEndSpending,
     );
     final utilization = calculateBudgetUtilization(
       totalSpent: input.totalSpent,
@@ -319,7 +338,7 @@ class BudgetCalculationService {
       spendingPercentage: spendingPercentage,
       remainingPercentage: remainingPercentage,
       averageDailySpending: averageDailySpending,
-      expectedMonthEndSpending: expectedMonthEndSpending,
+      expectedMonthEndSpending: expectedPeriodEndSpending,
       projectedRemainingBalance: projectedRemainingBalance,
       projectedSavings: projectedSavings,
       projectedOverspending: projectedOverspending,
@@ -334,25 +353,33 @@ class BudgetCalculationService {
     return analytics;
   }
 
-  void _validateMonthYear(int month, int year) {
-    if (month < 1 || month > 12) {
-      throw ArgumentError.value(month, 'month', 'Month must be between 1 and 12');
-    }
-    if (year < 1) {
-      throw ArgumentError.value(year, 'year', 'Year must be positive');
+  void _validateDateRange(DateTime startDate, DateTime endDate) {
+    if (endDate.isBefore(startDate)) {
+      throw ArgumentError(
+        'End date ${endDate.toIso8601String()} '
+        'must be on or after start date ${startDate.toIso8601String()}',
+      );
     }
   }
 
   void _validateReferenceDate(
     DateTime referenceDate,
-    int budgetMonth,
-    int budgetYear,
+    DateTime startDate,
+    DateTime endDate,
   ) {
-    _validateMonthYear(budgetMonth, budgetYear);
-    if (referenceDate.month != budgetMonth || referenceDate.year != budgetYear) {
+    _validateDateRange(startDate, endDate);
+    final ref = DateTime(
+      referenceDate.year,
+      referenceDate.month,
+      referenceDate.day,
+    );
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day);
+    if (ref.isBefore(start) || ref.isAfter(end)) {
       throw ArgumentError(
         'Reference date ${referenceDate.toIso8601String()} '
-        'does not fall within budget period $budgetMonth/$budgetYear',
+        'does not fall within budget period '
+        '${startDate.toIso8601String()} – ${endDate.toIso8601String()}',
       );
     }
   }

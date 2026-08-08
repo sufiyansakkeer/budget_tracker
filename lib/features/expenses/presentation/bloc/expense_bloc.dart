@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../budget/domain/repository/budget_repository.dart';
+import '../../../budget/presentation/bloc/budget_bloc.dart';
+import '../../domain/entities/expense_entity.dart';
 import '../../domain/entities/expense_failure.dart';
 import '../../domain/repository/expense_repository.dart';
 import '../../domain/usecases/create_expense_usecase.dart';
@@ -20,6 +25,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   final GetExpensesUseCase getExpensesUseCase;
   final GetCategoriesUseCase getCategoriesUseCase;
   final ExpenseRepository repository;
+  final BudgetRepository budgetRepository;
 
   ExpenseBloc({
     required this.createExpenseUseCase,
@@ -29,6 +35,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     required this.getExpensesUseCase,
     required this.getCategoriesUseCase,
     required this.repository,
+    required this.budgetRepository,
   }) : super(const ExpenseState()) {
     on<ExpenseLoadCategories>(_onLoadCategories);
     on<ExpenseLoadById>(_onLoadById);
@@ -37,6 +44,22 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     on<ExpenseUpdate>(_onUpdate);
     on<ExpenseDelete>(_onDelete);
     on<ExpenseClearMessage>(_onClearMessage);
+
+    // Reload the expenses list when the active budget is switched so the list
+    // only shows expenses belonging to the newly active budget.
+    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+      if (!isClosed) {
+        add(const ExpenseLoadAll());
+      }
+    });
+  }
+
+  StreamSubscription<void>? _budgetSwitchSubscription;
+
+  @override
+  Future<void> close() {
+    _budgetSwitchSubscription?.cancel();
+    return super.close();
   }
 
   Future<void> _onLoadCategories(
@@ -54,6 +77,29 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     }
   }
 
+  Future<String?> _resolveActiveBudgetId() async {
+    try {
+      return await budgetRepository.getActiveBudgetId();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Resolves the effective budget id for an expense during creation.
+  /// Prefers the expense's own budgetId; otherwise uses the active budget id
+  /// (from state, or resolved from the repository).
+  Future<ExpenseEntity> _ensureBudgetId(ExpenseEntity expense) async {
+    if (expense.budgetId.isNotEmpty) return expense;
+
+    var id = state.activeBudgetId;
+    if (id == null || id.isEmpty) {
+      id = await _resolveActiveBudgetId();
+    }
+    if (id == null || id.isEmpty) return expense;
+
+    return expense.copyWith(budgetId: id);
+  }
+
   Future<void> _onLoadById(
     ExpenseLoadById event,
     Emitter<ExpenseState> emit,
@@ -63,7 +109,13 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     final result = await getExpenseByIdUseCase(event.id);
     switch (result) {
       case ExpenseSuccess(:final data):
-        emit(state.copyWith(status: ExpenseBlocStatus.loaded, expense: data));
+        emit(
+          state.copyWith(
+            status: ExpenseBlocStatus.loaded,
+            expense: data,
+            activeBudgetId: data.budgetId,
+          ),
+        );
       case ExpenseError(:final failure):
         emit(
           state.copyWith(
@@ -80,10 +132,22 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   ) async {
     emit(state.copyWith(status: ExpenseBlocStatus.loading));
 
-    final result = await getExpensesUseCase();
+    // Scope the expenses list to the active budget.
+    var budgetId = state.activeBudgetId;
+    if (budgetId == null || budgetId.isEmpty) {
+      budgetId = await _resolveActiveBudgetId();
+    }
+
+    final result = await getExpensesUseCase(budgetId: budgetId);
     switch (result) {
       case ExpenseSuccess(:final data):
-        emit(state.copyWith(status: ExpenseBlocStatus.loaded, expenses: data));
+        emit(
+          state.copyWith(
+            status: ExpenseBlocStatus.loaded,
+            expenses: data,
+            activeBudgetId: budgetId,
+          ),
+        );
       case ExpenseError(:final failure):
         emit(
           state.copyWith(
@@ -100,7 +164,8 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   ) async {
     emit(state.copyWith(status: ExpenseBlocStatus.creating));
 
-    final result = await createExpenseUseCase(event.expense);
+    final expense = await _ensureBudgetId(event.expense);
+    final result = await createExpenseUseCase(expense);
     switch (result) {
       case ExpenseSuccess():
         ExpenseRefreshBus.instance.notifyChanged();

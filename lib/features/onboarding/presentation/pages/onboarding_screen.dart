@@ -8,9 +8,11 @@ import '../../../../core/router/app_router.dart';
 import '../bloc/onboarding_bloc.dart';
 import '../bloc/onboarding_event.dart';
 import '../bloc/onboarding_state.dart';
-import '../widgets/welcome_step_widget.dart';
+import '../widgets/budget_date_step_widget.dart';
+import '../widgets/budget_name_step_widget.dart';
 import '../widgets/budget_step_widget.dart';
 import '../widgets/currency_step_widget.dart';
+import '../widgets/welcome_step_widget.dart';
 import '../widgets/confirmation_step_widget.dart';
 
 class OnboardingScreen extends StatelessWidget {
@@ -22,8 +24,9 @@ class OnboardingScreen extends StatelessWidget {
     final countryCode = locale?.countryCode;
 
     return BlocProvider<OnboardingBloc>(
-      create: (context) => getIt<OnboardingBloc>()
-        ..add(OnboardingInitEvent(localeCountryCode: countryCode)),
+      create: (context) =>
+          getIt<OnboardingBloc>()
+            ..add(OnboardingInitEvent(localeCountryCode: countryCode)),
       child: const _OnboardingView(),
     );
   }
@@ -38,6 +41,7 @@ class _OnboardingView extends StatefulWidget {
 
 class _OnboardingViewState extends State<_OnboardingView> {
   final PageController _pageController = PageController();
+  static const int _totalSteps = 7;
 
   @override
   void dispose() {
@@ -64,8 +68,9 @@ class _OnboardingViewState extends State<_OnboardingView> {
     return BlocConsumer<OnboardingBloc, OnboardingState>(
       listener: (context, state) {
         if (state.status == OnboardingStatus.success) {
-          context.go(AppRouter.dashboardPath);
-        } else if (state.status == OnboardingStatus.failure && state.errorMessage != null) {
+          context.go(AppRouter.homePath);
+        } else if (state.status == OnboardingStatus.failure &&
+            state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.errorMessage!),
@@ -77,7 +82,7 @@ class _OnboardingViewState extends State<_OnboardingView> {
       },
       builder: (context, state) {
         final bloc = context.read<OnboardingBloc>();
-        final progress = (state.currentPageIndex + 1) / 4;
+        final progress = (state.currentPageIndex + 1) / _totalSteps;
 
         return Scaffold(
           body: SafeArea(
@@ -86,7 +91,9 @@ class _OnboardingViewState extends State<_OnboardingView> {
                 const SizedBox(height: AppSpacing.sm),
                 // Animated Progress Indicator
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -95,14 +102,18 @@ class _OnboardingViewState extends State<_OnboardingView> {
                           child: LinearProgressIndicator(
                             value: progress,
                             minHeight: 6,
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                            backgroundColor: AppColors.primary.withValues(
+                              alpha: 0.12,
+                            ),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppColors.primary,
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Text(
-                        '${state.currentPageIndex + 1}/4',
+                        '${state.currentPageIndex + 1}/$_totalSteps',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -121,11 +132,19 @@ class _OnboardingViewState extends State<_OnboardingView> {
                       bloc.add(OnboardingPageChangedEvent(index));
                     },
                     children: [
-                      // Screen 1: Welcome
-                      WelcomeStepWidget(
+                      // Step 1: Welcome
+                      WelcomeStepWidget(onContinue: _nextPage),
+                      // Step 2: Budget Name
+                      BudgetNameStepWidget(
+                        initialValue: state.budgetNameInput,
+                        errorMessage: state.nameValidationError,
+                        onChanged: (val) {
+                          bloc.add(OnboardingBudgetNameChangedEvent(val));
+                        },
                         onContinue: _nextPage,
+                        onBack: _previousPage,
                       ),
-                      // Screen 2: Monthly Budget
+                      // Step 3: Budget Amount
                       BudgetStepWidget(
                         initialValue: state.monthlyBudgetInput,
                         currencySymbol: state.selectedCurrency.symbol,
@@ -136,19 +155,47 @@ class _OnboardingViewState extends State<_OnboardingView> {
                         onContinue: _nextPage,
                         onBack: _previousPage,
                       ),
-                      // Screen 3: Currency Selection
+                      // Step 4: Currency Selection
                       CurrencyStepWidget(
                         selectedCurrency: state.selectedCurrency,
                         onSelected: (curr) {
-                          bloc.add(OnboardingCurrencySelectedEvent(
-                            code: curr.code,
-                            symbol: curr.symbol,
-                          ));
+                          bloc.add(
+                            OnboardingCurrencySelectedEvent(
+                              code: curr.code,
+                              symbol: curr.symbol,
+                            ),
+                          );
                         },
                         onContinue: _nextPage,
                         onBack: _previousPage,
                       ),
-                      // Screen 4: Confirmation
+                      // Step 5: Start Date
+                      BudgetDateStepWidget(
+                        title: 'When does your budget start?',
+                        subtitle:
+                            'Your budget begins on this date. Defaults to today.',
+                        date: state.startDate,
+                        errorMessage: state.dateValidationError,
+                        onDateChanged: (d) {
+                          bloc.add(OnboardingStartDateChangedEvent(d));
+                        },
+                        onContinue: _nextPage,
+                        onBack: _previousPage,
+                      ),
+                      // Step 6: End Date
+                      BudgetDateStepWidget(
+                        title: 'When does your budget end?',
+                        subtitle:
+                            'Budgets can span days, weeks, months or a year.',
+                        date: state.endDate,
+                        errorMessage: state.dateValidationError,
+                        onDateChanged: (d) {
+                          bloc.add(OnboardingEndDateChangedEvent(d));
+                        },
+                        onContinue: _nextPage,
+                        onBack: _previousPage,
+                      ),
+                      // Step 7: Confirmation
                       ConfirmationStepWidget(
                         state: state,
                         onCreateBudget: () {

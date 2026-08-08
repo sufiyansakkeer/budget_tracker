@@ -38,6 +38,7 @@ import '../../features/budget/domain/usecases/get_budget_status_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import '../../features/budget/domain/usecases/get_projected_overspending_usecase.dart';
 import '../../features/budget/domain/usecases/get_projected_savings_usecase.dart';
+import '../../features/budget/domain/usecases/manage_budget_usecase.dart';
 import '../../features/budget/presentation/bloc/budget_bloc.dart';
 import '../../features/dashboard/data/datasource/dashboard_local_datasource.dart';
 import '../../features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
@@ -119,7 +120,10 @@ Future<void> initDependencyInjection() async {
 
   // 5. Budget Feature - Datasources
   getIt.registerLazySingleton<BudgetLocalDataSource>(
-    () => BudgetLocalDataSourceImpl(database: getIt<AppDatabase>()),
+    () => BudgetLocalDataSourceImpl(
+      database: getIt<AppDatabase>(),
+      sharedPreferences: getIt<SharedPreferences>(),
+    ),
   );
 
   // 6. Onboarding Feature - Repositories
@@ -189,9 +193,16 @@ Future<void> initDependencyInjection() async {
     ),
   );
 
+  getIt.registerLazySingleton<ManageBudgetUseCase>(
+    () => ManageBudgetUseCase(repository: getIt<BudgetRepository>()),
+  );
+
   // 10. Onboarding Feature - BLoC
   getIt.registerFactory<OnboardingBloc>(
-    () => OnboardingBloc(createBudgetUseCase: getIt<CreateBudgetUseCase>()),
+    () => OnboardingBloc(
+      createBudgetUseCase: getIt<CreateBudgetUseCase>(),
+      budgetRepository: getIt<BudgetRepository>(),
+    ),
   );
 
   // 11. Budget Feature - BLoC
@@ -200,6 +211,7 @@ Future<void> initDependencyInjection() async {
       getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
       getBudgetAnalyticsUseCase: getIt<GetBudgetAnalyticsUseCase>(),
       calculationService: getIt<BudgetCalculationService>(),
+      budgetRepository: getIt<BudgetRepository>(),
     ),
   );
 
@@ -230,6 +242,7 @@ Future<void> initDependencyInjection() async {
       getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
       getRecentExpensesUseCase: getIt<GetRecentExpensesUseCase>(),
       getSmartInsightsUseCase: getIt<GetSmartInsightsUseCase>(),
+      budgetRepository: getIt<BudgetRepository>(),
     ),
   );
 
@@ -274,6 +287,7 @@ Future<void> initDependencyInjection() async {
       getExpensesUseCase: getIt<GetExpensesUseCase>(),
       getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
       repository: getIt<ExpenseRepository>(),
+      budgetRepository: getIt<BudgetRepository>(),
     ),
   );
 
@@ -307,6 +321,7 @@ Future<void> initDependencyInjection() async {
       sortExpensesUseCase: getIt<SortExpensesUseCase>(),
       calculateExpenseSummaryUseCase: getIt<CalculateExpenseSummaryUseCase>(),
       pageExpensesUseCase: getIt<PageExpensesUseCase>(),
+      budgetRepository: getIt<BudgetRepository>(),
     ),
   );
 
@@ -363,7 +378,10 @@ Future<void> initDependencyInjection() async {
 
   // 28. Settings Feature – Services
   getIt.registerLazySingleton<NotificationService>(
-    () => NotificationService(plugin: FlutterLocalNotificationsPlugin()),
+    () => NotificationService(
+      plugin: FlutterLocalNotificationsPlugin(),
+      budgetRepository: getIt<BudgetRepository>(),
+    ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
   getIt.registerLazySingleton<ExportService>(
@@ -407,7 +425,10 @@ Future<void> initDependencyInjection() async {
     () => RestoreDataUseCase(backupService: getIt<BackupService>()),
   );
   getIt.registerLazySingleton<ResetBudgetUseCase>(
-    () => ResetBudgetUseCase(database: getIt<AppDatabase>()),
+    () => ResetBudgetUseCase(
+      database: getIt<AppDatabase>(),
+      sharedPreferences: getIt<SharedPreferences>(),
+    ),
   );
   getIt.registerLazySingleton<ScheduleNotificationsUseCase>(
     () => ScheduleNotificationsUseCase(

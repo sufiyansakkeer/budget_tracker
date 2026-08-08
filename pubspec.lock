@@ -431,7 +431,7 @@ packages:
     source: hosted
     version: "5.0.0"
   flutter_local_notifications_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: flutter_local_notifications_platform_interface
       sha256: "6c5b83c86bf819cdb177a9247a3722067dd8cc6313827ce7c77a4b238a26fd52"
@@ -689,7 +689,7 @@ packages:
     source: hosted
     version: "2.3.0"
   local_auth_android:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: local_auth_android
       sha256: "48924f4a8b3cc45994ad5993e2e232d3b00788a305c1bf1c7db32cef281ce9a3"
@@ -697,7 +697,7 @@ packages:
     source: hosted
     version: "1.0.52"
   local_auth_darwin:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: local_auth_darwin
       sha256: "0e9706a8543a4a2eee60346294d6a633dd7c3ee60fae6b752570457c4ff32055"
@@ -713,7 +713,7 @@ packages:
     source: hosted
     version: "1.1.0"
   local_auth_windows:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: local_auth_windows
       sha256: bc4e66a29b0fdf751aafbec923b5bed7ad6ed3614875d8151afe2578520b2ab5

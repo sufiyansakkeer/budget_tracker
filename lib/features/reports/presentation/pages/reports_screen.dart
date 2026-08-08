@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../../expenses/presentation/history/widgets/filter_bottom_sheet.dart';
 import '../../domain/entities/report_period.dart';
 import '../../domain/usecases/export_csv_usecase.dart';
@@ -132,11 +133,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (data.isEmpty) {
       return Column(
         children: [
+          const Padding(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: ActiveBudgetSelector(),
+          ),
           PeriodSelector(selected: state.period, onSelected: _onPeriodSelected),
           const SizedBox(height: AppSpacing.md),
           Expanded(
             child: EmptyReportsState(
-              onAddExpense: () => context.push('/expenses/add'),
+              onAddExpense: () => context.push('/app/expenses/add'),
             ),
           ),
         ],
@@ -156,6 +161,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const ActiveBudgetSelector(),
+            const SizedBox(height: AppSpacing.md),
             PeriodSelector(
               selected: state.period,
               onSelected: _onPeriodSelected,

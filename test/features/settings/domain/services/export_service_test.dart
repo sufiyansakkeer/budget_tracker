@@ -22,6 +22,21 @@ void main() {
   Future<void> seedExpense() async {
     final now = DateTime(2024, 1, 10, 12, 0);
     await database
+        .into(database.budgets)
+        .insert(
+          BudgetsCompanion.insert(
+            id: 'budget-1',
+            name: 'Personal',
+            monthlyAmount: 50000,
+            remainingAmount: 40000,
+            currency: 'INR',
+            startDate: DateTime(2024, 1, 1),
+            endDate: DateTime(2024, 1, 31),
+            createdAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
+    await database
         .into(database.categories)
         .insert(
           CategoriesCompanion.insert(
@@ -36,6 +51,7 @@ void main() {
         .insert(
           ExpensesCompanion.insert(
             id: 'exp-1',
+            budgetId: 'budget-1',
             amount: 100.0,
             categoryId: 'food',
             note: const Value('Lunch'),

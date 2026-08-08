@@ -5,6 +5,9 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/di/injection.dart';
+import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/validators/expense_validator.dart';
 import '../bloc/expense_bloc.dart';
@@ -20,6 +23,10 @@ import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
 
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense.
+///
+/// The form is budget-aware: it shows a budget picker (defaulting to the
+/// active budget), uses the selected budget's currency, and validates that the
+/// expense date falls within the selected budget's period.
 class ExpenseFormScreen extends StatefulWidget {
   final String? expenseId;
 
@@ -30,6 +37,7 @@ class ExpenseFormScreen extends StatefulWidget {
 }
 
 class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
+  late final ManageBudgetUseCase _manageBudget = getIt<ManageBudgetUseCase>();
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
@@ -38,9 +46,16 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   String? _selectedCategoryId;
   String? _amountError;
   String? _categoryError;
+  String? _dateError;
   DateTime? _date;
   TimeOfDay? _time;
   String? _receiptPath;
+
+  List<BudgetEntity> _budgets = [];
+  String? _selectedBudgetId;
+  String? _budgetCurrencyCode = 'INR';
+  String? _budgetError;
+  bool _loadingBudgets = true;
 
   bool get _isEditing => widget.expenseId != null;
 
@@ -48,8 +63,57 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   void initState() {
     super.initState();
     context.read<ExpenseBloc>().add(const ExpenseLoadCategories());
+    _loadBudgets();
     if (_isEditing) {
       context.read<ExpenseBloc>().add(ExpenseLoadById(widget.expenseId!));
+    }
+  }
+
+  Future<void> _loadBudgets() async {
+    final budgets = await _manageBudget.getAll();
+    final activeId = await _manageBudget.activeBudgetId();
+    if (!mounted) return;
+    setState(() {
+      _budgets = budgets.where((b) => !b.isArchived).toList();
+      _selectedBudgetId ??= activeId;
+      _loadingBudgets = false;
+    });
+    _applyBudgetCurrency();
+  }
+
+  void _applyBudgetCurrency() {
+    final budget = _selectedBudget();
+    if (budget != null) {
+      setState(() => _budgetCurrencyCode = budget.currency);
+    }
+  }
+
+  BudgetEntity? _selectedBudget() {
+    if (_selectedBudgetId == null) return null;
+    for (final b in _budgets) {
+      if (b.id == _selectedBudgetId) return b;
+    }
+    return null;
+  }
+
+  String _currencySymbol() {
+    switch (_budgetCurrencyCode) {
+      case 'INR':
+        return '₹';
+      case 'USD':
+        return '\$';
+      case 'EUR':
+        return '€';
+      case 'GBP':
+        return '£';
+      case 'JPY':
+        return '¥';
+      case 'AED':
+        return 'د.إ';
+      case 'SAR':
+        return 'ر.س';
+      default:
+        return '₹';
     }
   }
 
@@ -68,6 +132,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     _time = TimeOfDay(hour: expense.time.hour, minute: expense.time.minute);
     _receiptPath = expense.receiptImagePath;
     _tags = List.of(expense.tags);
+    _selectedBudgetId = expense.budgetId;
   }
 
   void _onAmountChanged(String value) {
@@ -83,6 +148,44 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     });
   }
 
+  void _onBudgetChanged(String? budgetId) {
+    setState(() {
+      _selectedBudgetId = budgetId;
+      _budgetError = null;
+      _dateError = null;
+    });
+    _applyBudgetCurrency();
+  }
+
+  void _onDateChanged(DateTime? date) {
+    setState(() {
+      _date = date;
+      _dateError = null;
+    });
+  }
+
+  String? _validateDateInBudget(DateTime? date) {
+    if (date == null) return null;
+    final budget = _selectedBudget();
+    if (budget == null) return null;
+
+    final day = DateTime(date.year, date.month, date.day);
+    final start = DateTime(
+      budget.startDate.year,
+      budget.startDate.month,
+      budget.startDate.day,
+    );
+    final end = DateTime(
+      budget.endDate.year,
+      budget.endDate.month,
+      budget.endDate.day,
+    );
+    if (day.isBefore(start) || day.isAfter(end)) {
+      return 'This expense date is outside the selected budget period.';
+    }
+    return null;
+  }
+
   void _save() {
     FocusManager.instance.primaryFocus?.unfocus();
 
@@ -90,15 +193,24 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final categoryError = _selectedCategoryId == null
         ? 'Please select a category'
         : null;
-    final dateError = ExpenseValidator.validateDate(_date);
+    final futureDateError = ExpenseValidator.validateDate(_date);
+    final inBudgetError = _validateDateInBudget(_date);
+    final budgetError = _selectedBudgetId == null
+        ? 'Please select a budget'
+        : null;
 
     setState(() {
       _amountError = amountError;
       _categoryError = categoryError;
+      _dateError = futureDateError ?? inBudgetError;
+      _budgetError = budgetError;
     });
 
     if (!_formKey.currentState!.validate()) return;
-    if (_amountError != null || _categoryError != null || dateError != null) {
+    if (_amountError != null ||
+        _categoryError != null ||
+        _dateError != null ||
+        _budgetError != null) {
       return;
     }
 
@@ -116,6 +228,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
     final expense = ExpenseEntity(
       id: _isEditing ? widget.expenseId! : const Uuid().v4(),
+      budgetId: _selectedBudgetId!,
       amount: amount,
       categoryId: _selectedCategoryId!,
       note: _noteController.text.trim().isEmpty
@@ -191,6 +304,18 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                     onChanged: _onAmountChanged,
                   ),
                   const SizedBox(height: AppSpacing.lg),
+                  _buildBudgetPicker(),
+                  if (_budgetError != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      _budgetError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
                   CategoryPicker(
                     categories: state.categories,
                     selectedCategoryId: _selectedCategoryId,
@@ -208,6 +333,16 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                   ],
                   const SizedBox(height: AppSpacing.lg),
                   _buildDateTimeRow(),
+                  if (_dateError != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      _dateError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   ExpenseNoteField(controller: _noteController),
                   const SizedBox(height: AppSpacing.md),
@@ -237,13 +372,52 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     );
   }
 
+  Widget _buildBudgetPicker() {
+    if (_loadingBudgets) {
+      return const LinearProgressIndicator();
+    }
+    if (_budgets.isEmpty) {
+      return Text(
+        'No budgets available. Create a budget first.',
+        style: TextStyle(color: Theme.of(context).colorScheme.error),
+      );
+    }
+    return DropdownButtonFormField<String>(
+      value: _selectedBudgetId,
+      decoration: const InputDecoration(
+        labelText: 'Budget',
+        prefixIcon: Icon(Icons.account_balance_wallet),
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      ),
+      items: _budgets
+          .map(
+            (b) => DropdownMenuItem(
+              value: b.id,
+              child: Text(
+                '${b.name} (${_fmtRange(b.startDate, b.endDate)})',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: _onBudgetChanged,
+    );
+  }
+
+  String _fmtRange(DateTime start, DateTime end) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    String d(DateTime x) => '${two(x.day)}/${two(x.month)}';
+    return '${d(start)} → ${d(end)}';
+  }
+
   Widget _buildDateTimeRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 600;
         final datePicker = ExpenseDatePicker(
           date: _date,
-          onChanged: (d) => setState(() => _date = d),
+          onChanged: _onDateChanged,
         );
         final timePicker = ExpenseTimePicker(
           time: _time,
@@ -268,11 +442,5 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         );
       },
     );
-  }
-
-  String _currencySymbol() {
-    // A default symbol is used; the real symbol comes from the budget.
-    // In the future this could be read from the budget entity.
-    return '₹';
   }
 }

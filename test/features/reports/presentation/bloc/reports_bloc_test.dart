@@ -61,6 +61,7 @@ ReportData buildData(ReportPeriod period) {
   final now = DateTime(2026, 8, 5);
   final expense = ExpenseEntity(
     id: '1',
+    budgetId: 'budget-1',
     amount: 100,
     categoryId: 'food',
     date: now,

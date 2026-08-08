@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../di/injection.dart' as di;
-import '../../features/settings/domain/entities/app_settings.dart';
 import '../../features/settings/domain/entities/settings_failure.dart';
 import '../../features/settings/domain/services/biometric_service.dart';
 import '../../features/settings/domain/usecases/load_settings_usecase.dart';
@@ -32,7 +31,7 @@ class BiometricInitializer {
       // Load settings to check if biometric is enabled
       final result = await _loadSettingsUseCase();
       if (result case SettingsSuccess(:final data)) {
-        final settings = data as AppSettings;
+        final settings = data;
         if (!settings.biometricEnabled) {
           debugPrint('Biometric lock is disabled');
           return true; // Continue without authentication

@@ -32,7 +32,7 @@ class PieChartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceVariant, width: 1),
+        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

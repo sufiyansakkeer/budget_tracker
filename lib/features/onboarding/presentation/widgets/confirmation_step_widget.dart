@@ -15,43 +15,39 @@ class ConfirmationStepWidget extends StatelessWidget {
     required this.onBack,
   });
 
-  String _getMonthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
-    ];
-    if (month >= 1 && month <= 12) {
-      return months[month - 1];
-    }
-    return '';
-  }
-
   String _formatAmount(double? amount) {
     if (amount == null) return '0';
     final isInteger = amount % 1 == 0;
     if (isInteger) {
       return amount.toInt().toString().replaceAllMapped(
-            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-            (Match m) => '${m[1]},',
-          );
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]},',
+      );
     }
     return amount.toStringAsFixed(2);
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final monthName = _getMonthName(state.month);
     final isSubmitting = state.status == OnboardingStatus.loading;
 
     return Padding(
@@ -67,14 +63,14 @@ class ConfirmationStepWidget extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Confirm Your Details',
+            'Confirm Your Budget',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Review your budget configuration before creating your budget record.',
+            'Review your budget configuration before creating it.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
             ),
@@ -90,19 +86,33 @@ class ConfirmationStepWidget extends StatelessWidget {
               child: Column(
                 children: [
                   _SummaryRow(
-                    label: 'Monthly Budget',
-                    value: '${state.selectedCurrency.symbol}${_formatAmount(state.parsedBudget)}',
+                    label: 'Budget Name',
+                    value: state.budgetNameInput.trim().isEmpty
+                        ? 'Personal'
+                        : state.budgetNameInput.trim(),
+                  ),
+                  const Divider(height: AppSpacing.xl),
+                  _SummaryRow(
+                    label: 'Budget Amount',
+                    value:
+                        '${state.selectedCurrency.symbol}${_formatAmount(state.parsedBudget)}',
                     isPrimary: true,
                   ),
                   const Divider(height: AppSpacing.xl),
                   _SummaryRow(
-                    label: 'Month',
-                    value: '$monthName ${state.year}',
+                    label: 'Currency',
+                    value:
+                        '${state.selectedCurrency.code} (${state.selectedCurrency.symbol})',
                   ),
                   const Divider(height: AppSpacing.xl),
                   _SummaryRow(
-                    label: 'Currency',
-                    value: '${state.selectedCurrency.code} (${state.selectedCurrency.symbol})',
+                    label: 'Start Date',
+                    value: _formatDate(state.startDate),
+                  ),
+                  const Divider(height: AppSpacing.xl),
+                  _SummaryRow(
+                    label: 'End Date',
+                    value: _formatDate(state.endDate),
                   ),
                 ],
               ),
@@ -132,7 +142,10 @@ class ConfirmationStepWidget extends StatelessWidget {
                     )
                   : const Text(
                       'Create Budget',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
             ),
           ),

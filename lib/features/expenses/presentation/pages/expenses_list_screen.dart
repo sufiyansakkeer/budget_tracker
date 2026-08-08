@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../domain/entities/expense_category.dart';
 import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
@@ -45,12 +46,12 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
             key: const Key('historyEntryButton'),
             icon: const Icon(Icons.history),
             tooltip: 'Expense History',
-            onPressed: () => context.push('/expenses/history'),
+            onPressed: () => context.push('/app/expenses'),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/expenses/add'),
+        onPressed: () => context.push('/app/expenses/add'),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add),
         label: const Text('Add Expense'),
@@ -84,25 +85,29 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
             onRefresh: () async {
               context.read<ExpenseBloc>().add(const ExpenseLoadAll());
             },
-            child: ListView.builder(
+            child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: state.expenses.length,
-              itemBuilder: (context, index) {
-                final expense = state.expenses[index];
-                final category = _findCategory(
-                  state.categories,
-                  expense.categoryId,
-                );
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: ExpenseSummaryCard(
-                    expense: expense,
-                    category: category,
-                    onTap: () => context.push('/expenses/${expense.id}'),
-                  ),
-                );
-              },
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(bottom: AppSpacing.md),
+                  child: ActiveBudgetSelector(),
+                ),
+                ...state.expenses.map((expense) {
+                  final category = _findCategory(
+                    state.categories,
+                    expense.categoryId,
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: ExpenseSummaryCard(
+                      expense: expense,
+                      category: category,
+                      onTap: () => context.push('/app/expenses/${expense.id}'),
+                    ),
+                  );
+                }),
+              ],
             ),
           );
         },

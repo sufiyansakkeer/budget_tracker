@@ -12,6 +12,8 @@ import '../../../domain/usecases/get_expenses_usecase.dart';
 import '../../../domain/usecases/page_expenses_usecase.dart';
 import '../../../domain/usecases/search_expenses_usecase.dart';
 import '../../../domain/usecases/sort_expenses_usecase.dart';
+import '../../../../budget/domain/repository/budget_repository.dart';
+import '../../../../budget/presentation/bloc/budget_bloc.dart';
 import '../../bloc/expense_refresh_bus.dart';
 import 'expense_history_event.dart';
 import 'expense_history_state.dart';
@@ -30,12 +32,14 @@ class ExpenseHistoryBloc
   final SortExpensesUseCase sortExpensesUseCase;
   final CalculateExpenseSummaryUseCase calculateExpenseSummaryUseCase;
   final PageExpensesUseCase pageExpensesUseCase;
+  final BudgetRepository budgetRepository;
 
   /// Debounce window for search input.
   static const Duration searchDebounce = Duration(milliseconds: 300);
 
   Timer? _searchTimer;
   StreamSubscription<void>? _refreshSubscription;
+  StreamSubscription<void>? _budgetSwitchSubscription;
 
   ExpenseHistoryBloc({
     required this.getExpensesUseCase,
@@ -45,6 +49,7 @@ class ExpenseHistoryBloc
     required this.sortExpensesUseCase,
     required this.calculateExpenseSummaryUseCase,
     required this.pageExpensesUseCase,
+    required this.budgetRepository,
   }) : super(const ExpenseHistoryState()) {
     on<ExpenseHistoryLoad>(_onLoad);
     on<ExpenseHistoryRefresh>(_onRefresh);
@@ -61,12 +66,21 @@ class ExpenseHistoryBloc
         add(const ExpenseHistoryRefresh());
       }
     });
+
+    // Reload when the active budget is switched so the history only shows
+    // expenses belonging to the newly active budget.
+    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+      if (!isClosed) {
+        add(const ExpenseHistoryRefresh());
+      }
+    });
   }
 
   @override
   Future<void> close() {
     _searchTimer?.cancel();
     _refreshSubscription?.cancel();
+    _budgetSwitchSubscription?.cancel();
     return super.close();
   }
 
@@ -162,7 +176,15 @@ class ExpenseHistoryBloc
       emit(state.copyWith(status: ExpenseHistoryStatus.refreshing));
     }
 
-    final expensesResult = await getExpensesUseCase();
+    // Resolve the active budget so history is scoped to that budget only.
+    final activeBudgetId = await budgetRepository.getActiveBudgetId();
+    final activeBudget = activeBudgetId == null
+        ? null
+        : await budgetRepository.getBudgetById(activeBudgetId);
+    final budgetId = activeBudget?.id;
+    final budgetName = activeBudget?.name;
+
+    final expensesResult = await getExpensesUseCase(budgetId: budgetId);
     final categoriesResult = await getCategoriesUseCase();
 
     List<ExpenseEntity> expenses = const [];
@@ -198,6 +220,8 @@ class ExpenseHistoryBloc
         status: ExpenseHistoryStatus.loaded,
         allExpenses: expenses,
         categories: categories,
+        budgetId: budgetId,
+        budgetName: budgetName,
       ),
     );
 

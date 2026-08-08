@@ -39,7 +39,7 @@ class ExportPdfUseCase {
 
   pw.Document _buildDocument(ReportData data) {
     final currency = data.currentBudget?.currency ?? '₹';
-    final money = (double v) =>
+    money(double v) =>
         NumberFormat.currency(symbol: currency, decimalDigits: 0).format(v);
 
     final theme = pw.ThemeData.withFont(
@@ -126,7 +126,7 @@ class ExportPdfUseCase {
           for (final insight in _insights(data))
             pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 4),
-              child: pw.Text('• ${insight}'),
+              child: pw.Text('• $insight'),
             ),
         ],
       ),

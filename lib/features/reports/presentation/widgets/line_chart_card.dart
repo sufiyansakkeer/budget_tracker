@@ -55,7 +55,7 @@ class _LineChartCardState extends State<LineChartCard> {
                       getTooltipItems: (spots) => spots
                           .map(
                             (spot) => LineTooltipItem(
-                              '${NumberFormat.currency(symbol: widget.currency, decimalDigits: 0).format(spot.y)}',
+                              NumberFormat.currency(symbol: widget.currency, decimalDigits: 0).format(spot.y),
                               TextStyle(
                                 color: theme.colorScheme.onSurface,
                                 fontWeight: FontWeight.bold,
@@ -77,7 +77,7 @@ class _LineChartCardState extends State<LineChartCard> {
                     show: true,
                     drawVerticalLine: false,
                     getDrawingHorizontalLine: (_) => FlLine(
-                      color: theme.colorScheme.surfaceVariant,
+                      color: theme.colorScheme.surfaceContainerHighest,
                       strokeWidth: 1,
                     ),
                   ),
@@ -180,7 +180,7 @@ class _ChartCardContainer extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceVariant, width: 1),
+        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
       ),
       child: child,
     );

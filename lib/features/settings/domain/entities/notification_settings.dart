@@ -9,8 +9,9 @@ class NotificationTime extends Equatable {
 
   /// Parses a "HH:mm" string.
   static NotificationTime fromString(String? value) {
-    if (value == null || value.isEmpty)
+    if (value == null || value.isEmpty) {
       return const NotificationTime(hour: 9, minute: 0);
+    }
     final parts = value.split(':');
     if (parts.length != 2) return const NotificationTime(hour: 9, minute: 0);
     final hour = int.tryParse(parts[0]) ?? 9;

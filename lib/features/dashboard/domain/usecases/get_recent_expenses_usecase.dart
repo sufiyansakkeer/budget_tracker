@@ -10,10 +10,12 @@ class GetRecentExpensesUseCase {
   Future<List<RecentExpenseEntity>> call({
     int limit = 5,
     DateTime? referenceDate,
+    String? budgetId,
   }) {
     return repository.getRecentExpenses(
       limit: limit,
       referenceDate: referenceDate,
+      budgetId: budgetId,
     );
   }
 }

@@ -28,7 +28,7 @@ class QuickActionButton extends StatelessWidget {
           color: theme.cardTheme.color,
           borderRadius: AppSpacing.borderRadiusLg,
           border: Border.all(
-            color: theme.colorScheme.surfaceVariant,
+            color: theme.colorScheme.surfaceContainerHighest,
             width: 1,
           ),
         ),

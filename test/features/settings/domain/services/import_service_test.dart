@@ -77,12 +77,15 @@ void main() {
           'budgets': [
             {
               'id': 'budget-x',
+              'name': 'Personal',
               'monthlyAmount': 5000,
               'remainingAmount': 4000,
               'currency': 'INR',
-              'month': 1,
-              'year': 2024,
+              'startDate': DateTime(2024, 1, 1).toIso8601String(),
+              'endDate': DateTime(2024, 1, 31).toIso8601String(),
+              'isArchived': false,
               'createdAt': DateTime(2024, 1, 1).toIso8601String(),
+              'updatedAt': DateTime(2024, 1, 1).toIso8601String(),
             },
           ],
           'categories': [

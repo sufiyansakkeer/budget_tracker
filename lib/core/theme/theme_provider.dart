@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../di/injection.dart' as di;
-import '../../features/settings/domain/entities/app_settings.dart';
 import '../../features/settings/domain/entities/settings_failure.dart';
 import '../../features/settings/domain/entities/theme_mode_entity.dart';
 import '../../features/settings/domain/usecases/load_settings_usecase.dart';
@@ -24,7 +23,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       final result = await _loadSettingsUseCase();
       if (result case SettingsSuccess(:final data)) {
-        _themeMode = (data as AppSettings).themeMode;
+        _themeMode = (data).themeMode;
         notifyListeners();
       }
     } catch (e) {

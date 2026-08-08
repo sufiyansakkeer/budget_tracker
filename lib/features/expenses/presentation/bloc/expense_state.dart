@@ -19,6 +19,7 @@ class ExpenseState extends Equatable {
   final List<ExpenseCategory> categories;
   final ExpenseEntity? expense;
   final List<ExpenseEntity> expenses;
+  final String? activeBudgetId;
   final String? message;
 
   const ExpenseState({
@@ -26,6 +27,7 @@ class ExpenseState extends Equatable {
     this.categories = const [],
     this.expense,
     this.expenses = const [],
+    this.activeBudgetId,
     this.message,
   });
 
@@ -40,6 +42,7 @@ class ExpenseState extends Equatable {
     ExpenseEntity? expense,
     bool clearExpense = false,
     List<ExpenseEntity>? expenses,
+    String? activeBudgetId,
     String? message,
     bool clearMessage = false,
   }) {
@@ -48,10 +51,18 @@ class ExpenseState extends Equatable {
       categories: categories ?? this.categories,
       expense: clearExpense ? null : (expense ?? this.expense),
       expenses: expenses ?? this.expenses,
+      activeBudgetId: activeBudgetId ?? this.activeBudgetId,
       message: clearMessage ? null : (message ?? this.message),
     );
   }
 
   @override
-  List<Object?> get props => [status, categories, expense, expenses, message];
+  List<Object?> get props => [
+    status,
+    categories,
+    expense,
+    expenses,
+    activeBudgetId,
+    message,
+  ];
 }

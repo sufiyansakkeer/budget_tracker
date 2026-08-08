@@ -13,8 +13,12 @@ class GetBudgetStatusUseCase {
     required this.calculationService,
   });
 
-  Future<BudgetResult<BudgetStatus>> call({DateTime? referenceDate}) async {
+  Future<BudgetResult<BudgetStatus>> call({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
     final contextResult = await repository.getCalculationContext(
+      budgetId,
       referenceDate: referenceDate,
     );
 
@@ -24,12 +28,14 @@ class GetBudgetStatusUseCase {
     };
   }
 
-  BudgetResult<BudgetStatus> _calculateStatus(BudgetCalculationContext context) {
+  BudgetResult<BudgetStatus> _calculateStatus(
+    BudgetCalculationContext context,
+  ) {
     if (context.budget.monthlyAmount <= 0) {
       return const BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidBudget,
-          message: 'Monthly budget must be greater than zero',
+          message: 'Budget amount must be greater than zero',
         ),
       );
     }
@@ -49,7 +55,8 @@ class GetBudgetStatusUseCase {
       return BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidDate,
-          message: e.message?.toString() ?? 'Invalid date for status calculation',
+          message:
+              e.message?.toString() ?? 'Invalid date for status calculation',
         ),
       );
     }

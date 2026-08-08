@@ -56,7 +56,7 @@ class _ThemeOptionTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected
               ? theme.colorScheme.primary.withValues(alpha: 0.12)
-              : theme.colorScheme.surfaceVariant.withValues(alpha: 0.4),
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
           borderRadius: AppSpacing.borderRadiusMd,
           border: Border.all(
             color: selected

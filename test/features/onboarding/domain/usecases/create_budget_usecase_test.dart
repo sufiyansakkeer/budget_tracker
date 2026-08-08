@@ -34,20 +34,25 @@ void main() {
 
   final tBudget = BudgetEntity(
     id: 'test-uuid-123',
+    name: 'Personal',
     monthlyAmount: 30000.0,
     remainingAmount: 30000.0,
     currency: 'INR',
-    month: 8,
-    year: 2026,
+    startDate: DateTime(2026, 8, 1),
+    endDate: DateTime(2026, 8, 31),
     createdAt: DateTime(2026, 8, 4),
+    updatedAt: DateTime(2026, 8, 4),
   );
 
-  test('should create initial budget and mark first launch completed in repository', () async {
-    // act
-    await useCase(tBudget);
+  test(
+    'should create initial budget and mark first launch completed in repository',
+    () async {
+      // act
+      await useCase(tBudget);
 
-    // assert
-    expect(repository.createdBudget, equals(tBudget));
-    expect(repository.isFirstLaunch, isFalse);
-  });
+      // assert
+      expect(repository.createdBudget, equals(tBudget));
+      expect(repository.isFirstLaunch, isFalse);
+    },
+  );
 }

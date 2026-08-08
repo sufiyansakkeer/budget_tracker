@@ -24,9 +24,9 @@ abstract class ReportsRepository {
   /// Loads all categories.
   Future<List<ExpenseCategory>> getCategories();
 
-  /// Returns the current month's budget, if one exists.
+  /// Returns the active budget, if one exists.
   Future<BudgetEntity?> getCurrentBudget();
 
-  /// Returns the total spending for the current month.
+  /// Returns the total spending for the active budget.
   Future<double> getCurrentMonthSpent();
 }
