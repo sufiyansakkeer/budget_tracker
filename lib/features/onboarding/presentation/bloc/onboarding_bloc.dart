@@ -28,11 +28,11 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     required this.createBudgetUseCase,
     required this.budgetRepository,
   }) : super(
-          OnboardingState(
-            startDate: DateTime.now(),
-            endDate: DateTime.now().add(const Duration(days: 30)),
-          ),
-        ) {
+         OnboardingState(
+           startDate: DateTime.now(),
+           endDate: DateTime.now().add(const Duration(days: 30)),
+         ),
+       ) {
     on<OnboardingInitEvent>(_onInit);
     on<OnboardingPageChangedEvent>(_onPageChanged);
     on<OnboardingBudgetNameChangedEvent>(_onBudgetNameChanged);
@@ -102,7 +102,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     emit(
       state.copyWith(
         budgetNameInput: event.name,
-        nameValidationError: null,
+        clearNameValidationError: true,
       ),
     );
   }
@@ -116,7 +116,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           monthlyBudgetInput: input,
-          parsedBudget: null,
+          clearParsedBudget: true,
           budgetValidationError: 'Budget amount cannot be empty',
         ),
       );
@@ -128,7 +128,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           monthlyBudgetInput: input,
-          parsedBudget: null,
+          clearParsedBudget: true,
           budgetValidationError: 'Please enter a valid number',
         ),
       );
@@ -139,7 +139,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           monthlyBudgetInput: input,
-          parsedBudget: null,
+          clearParsedBudget: true,
           budgetValidationError: 'Budget must be greater than zero',
         ),
       );
@@ -151,7 +151,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           monthlyBudgetInput: input,
-          parsedBudget: null,
+          clearParsedBudget: true,
           budgetValidationError:
               'Budget cannot have more than 2 decimal places',
         ),
@@ -163,7 +163,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       state.copyWith(
         monthlyBudgetInput: input,
         parsedBudget: doubleValue,
-        budgetValidationError: null,
+        clearBudgetValidationError: true,
       ),
     );
   }
@@ -195,7 +195,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       state.copyWith(
         startDate: newStart,
         endDate: newEnd,
-        dateValidationError: null,
+        clearDateValidationError: true,
       ),
     );
   }
@@ -214,12 +214,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       );
       return;
     }
-    emit(
-      state.copyWith(
-        endDate: newEnd,
-        dateValidationError: null,
-      ),
-    );
+    emit(state.copyWith(endDate: newEnd, clearDateValidationError: true));
   }
 
   Future<void> _onSubmitted(
@@ -230,7 +225,8 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           status: OnboardingStatus.failure,
-          errorMessage: state.budgetValidationError ??
+          errorMessage:
+              state.budgetValidationError ??
               state.nameValidationError ??
               state.dateValidationError ??
               'Please complete all budget details',
@@ -239,9 +235,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       return;
     }
 
-    emit(
-      state.copyWith(status: OnboardingStatus.loading, errorMessage: null),
-    );
+    emit(state.copyWith(status: OnboardingStatus.loading, errorMessage: null));
 
     try {
       final now = DateTime.now();

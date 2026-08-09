@@ -68,6 +68,7 @@ class OnboardingState extends Equatable {
     String? budgetNameInput,
     String? monthlyBudgetInput,
     double? parsedBudget,
+    bool clearParsedBudget = false,
     String? budgetValidationError,
     bool clearBudgetValidationError = false,
     String? nameValidationError,
@@ -85,7 +86,9 @@ class OnboardingState extends Equatable {
       currentPageIndex: currentPageIndex ?? this.currentPageIndex,
       budgetNameInput: budgetNameInput ?? this.budgetNameInput,
       monthlyBudgetInput: monthlyBudgetInput ?? this.monthlyBudgetInput,
-      parsedBudget: parsedBudget ?? this.parsedBudget,
+      parsedBudget: clearParsedBudget
+          ? null
+          : (parsedBudget ?? this.parsedBudget),
       budgetValidationError: clearBudgetValidationError
           ? null
           : (budgetValidationError ?? this.budgetValidationError),
