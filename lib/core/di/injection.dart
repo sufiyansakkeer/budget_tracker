@@ -20,10 +20,10 @@ import '../../features/settings/domain/usecases/schedule_notifications_usecase.d
 import '../../features/settings/domain/usecases/update_biometric_usecase.dart';
 import '../../features/settings/domain/usecases/update_currency_usecase.dart';
 import '../../features/settings/domain/usecases/update_notification_settings_usecase.dart';
-import '../../features/settings/domain/usecases/update_theme_usecase.dart';
+import '../../features/settings/domain/repository/theme_repository.dart';
 import '../../features/settings/presentation/bloc/settings_bloc.dart';
+import '../../features/settings/presentation/bloc/theme/theme_bloc.dart';
 import '../database/app_database.dart';
-import '../theme/theme_provider.dart';
 import '../currency/currency_provider.dart';
 import '../notifications/notification_initializer.dart';
 import '../biometric/biometric_initializer.dart';
@@ -94,8 +94,13 @@ Future<void> initDependencyInjection() async {
     () => BudgetCalculationService(),
   );
 
-  // 3.5 Theme Provider
-  getIt.registerLazySingleton<ThemeProvider>(() => ThemeProvider());
+  // 3.5 Theme Repository + BLoC
+  getIt.registerLazySingleton<ThemeRepository>(
+    () => ThemeRepository(settingsRepository: getIt<SettingsRepository>()),
+  );
+  getIt.registerLazySingleton<ThemeBloc>(
+    () => ThemeBloc(themeRepository: getIt<ThemeRepository>()),
+  );
 
   // 3.6 Currency Provider
   getIt.registerLazySingleton<CurrencyProvider>(() => CurrencyProvider());
@@ -398,9 +403,6 @@ Future<void> initDependencyInjection() async {
   getIt.registerLazySingleton<LoadSettingsUseCase>(
     () => LoadSettingsUseCase(repository: getIt<SettingsRepository>()),
   );
-  getIt.registerLazySingleton<UpdateThemeUseCase>(
-    () => UpdateThemeUseCase(repository: getIt<SettingsRepository>()),
-  );
   getIt.registerLazySingleton<UpdateCurrencyUseCase>(
     () => UpdateCurrencyUseCase(repository: getIt<SettingsRepository>()),
   );
@@ -440,7 +442,6 @@ Future<void> initDependencyInjection() async {
   getIt.registerFactory<SettingsBloc>(
     () => SettingsBloc(
       loadSettingsUseCase: getIt<LoadSettingsUseCase>(),
-      updateThemeUseCase: getIt<UpdateThemeUseCase>(),
       updateCurrencyUseCase: getIt<UpdateCurrencyUseCase>(),
       updateNotificationSettingsUseCase:
           getIt<UpdateNotificationSettingsUseCase>(),

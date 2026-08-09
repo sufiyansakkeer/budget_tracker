@@ -11,7 +11,6 @@ import '../../domain/usecases/schedule_notifications_usecase.dart';
 import '../../domain/usecases/update_biometric_usecase.dart';
 import '../../domain/usecases/update_currency_usecase.dart';
 import '../../domain/usecases/update_notification_settings_usecase.dart';
-import '../../domain/usecases/update_theme_usecase.dart';
 import 'settings_event.dart';
 import 'settings_state.dart';
 
@@ -19,7 +18,6 @@ import 'settings_state.dart';
 /// operations (export, import, backup, restore, reset).
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   final LoadSettingsUseCase loadSettingsUseCase;
-  final UpdateThemeUseCase updateThemeUseCase;
   final UpdateCurrencyUseCase updateCurrencyUseCase;
   final UpdateNotificationSettingsUseCase updateNotificationSettingsUseCase;
   final UpdateBiometricUseCase updateBiometricUseCase;
@@ -32,7 +30,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
 
   SettingsBloc({
     required this.loadSettingsUseCase,
-    required this.updateThemeUseCase,
     required this.updateCurrencyUseCase,
     required this.updateNotificationSettingsUseCase,
     required this.updateBiometricUseCase,
@@ -44,7 +41,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     required this.scheduleNotificationsUseCase,
   }) : super(const SettingsState()) {
     on<SettingsLoadEvent>(_onLoadSettings);
-    on<SettingsUpdateThemeEvent>(_onUpdateTheme);
     on<SettingsUpdateCurrencyEvent>(_onUpdateCurrency);
     on<SettingsUpdateNotificationsEvent>(_onUpdateNotifications);
     on<SettingsUpdateBiometricEvent>(_onUpdateBiometric);
@@ -85,26 +81,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
             errorMessage: failure.message,
           ),
         );
-    }
-  }
-
-  Future<void> _onUpdateTheme(
-    SettingsUpdateThemeEvent event,
-    Emitter<SettingsState> emit,
-  ) async {
-    emit(state.copyWith(isBusy: true));
-    final result = await updateThemeUseCase(event.mode);
-    switch (result) {
-      case SettingsSuccess():
-        emit(
-          state.copyWith(
-            settings: state.settings.copyWith(themeMode: event.mode),
-            isBusy: false,
-            clearError: true,
-          ),
-        );
-      case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
     }
   }
 

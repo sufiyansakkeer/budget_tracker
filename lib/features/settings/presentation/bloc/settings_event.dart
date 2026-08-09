@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/notification_settings.dart';
-import '../../domain/entities/theme_mode_entity.dart';
 
 /// Base class for all settings events.
 abstract class SettingsEvent extends Equatable {
@@ -14,16 +13,6 @@ abstract class SettingsEvent extends Equatable {
 /// Loads the persisted settings into the state.
 class SettingsLoadEvent extends SettingsEvent {
   const SettingsLoadEvent();
-}
-
-/// Updates the theme mode.
-class SettingsUpdateThemeEvent extends SettingsEvent {
-  final AppThemeMode mode;
-
-  const SettingsUpdateThemeEvent(this.mode);
-
-  @override
-  List<Object?> get props => [mode];
 }
 
 /// Updates the application currency.

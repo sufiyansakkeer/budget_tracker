@@ -69,8 +69,10 @@ class _BiometricGateScreenState extends State<BiometricGateScreen> {
       return widget.child;
     }
 
-    return Scaffold(
-      body: Center(
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -119,6 +121,7 @@ class _BiometricGateScreenState extends State<BiometricGateScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }

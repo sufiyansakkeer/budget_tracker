@@ -1,58 +1,21 @@
-# UI/UX Overhaul – Smart Budget Tracker
+# Theme Management Migration: Provider → BLoC
 
-## Status Legend
-- [x] done
-- [ ] pending
+## Status: COMPLETE ✅
 
-## Design System Foundation
-- [x] Centralize semantic colors in `lib/core/constants/app_colors.dart`
-- [x] Add spacing scale (incl. `smd`) in `lib/core/constants/app_spacing.dart`
-- [x] Rewrite Material 3 theme in `lib/core/theme/app_theme.dart` (light + dark, typography, radii, components)
-- [x] Create reusable design-system components in `lib/core/widgets/`
-  - [x] `app_card.dart` (AppCard)
-  - [x] `app_section_header.dart` (SectionHeader)
-  - [x] `money_text.dart` (MoneyText)
-  - [x] `status_chip.dart` (StatusChip)
-  - [x] `app_progress.dart` (AppProgress)
-  - [x] `empty_state.dart` (EmptyState)
-  - [x] `loading_skeleton.dart` (SkeletonBox, DashboardSkeleton, ExpenseListSkeleton)
-  - [x] `primary_button.dart` (PrimaryButton)
-  - [x] `app_bottom_sheet.dart` (AppBottomSheet)
-  - [x] `confirmation_dialog.dart` (ConfirmationDialog)
-  - [x] `app_header.dart` (AppHeader)
+## TODO Steps
 
-## App Shell
-- [x] Refine NavigationBar in `lib/core/router/app_shell.dart` (safe-area, height, indicator)
+- [x] 1. Create `ThemeRepository` (domain/repository)
+- [x] 2. Create `ThemeEvent`, `ThemeState`, `ThemeBloc`
+- [x] 3. Register `ThemeRepository` + `ThemeBloc` in DI; remove `ThemeProvider`
+- [x] 4. Remove theme handling from `SettingsBloc` / `SettingsEvent`
+- [x] 5. Rewrite `main.dart` to use `BlocProvider<ThemeBloc>` + `BlocBuilder`
+- [x] 6. Update `SettingsScreen` theme selector to use `ThemeBloc`
+- [x] 7. Delete `lib/core/theme/theme_provider.dart`
+- [x] 8. Add `ThemeBloc` tests
+- [x] 9. Add theme propagation widget test
+- [x] 10. Run `flutter analyze` and `flutter test`
 
-## Dashboard
-- [x] Rewrite `dashboard_screen.dart` (Hero → Overview → Today's Spending → Timeline → Recent → Insights)
-- [x] Replace gradient header with hero card + budget overview
-- [x] Add skeleton loading state
-- [x] Create `budget_hero_card.dart`, `today_spending_card.dart`
-- [x] Update dashboard widgets to use design-system components
+## Validation
 
-## Expenses
-- [x] Restyle expense history items with `AppCard`
-- [x] Refine search bar + summary + empty/error/skeleton states
-
-## Add / Edit Expense
-- [x] Large autofocus amount field
-- [x] Visual category grid
-- [x] Improved budget picker + date/time + actions
-
-## Budgets
-- [x] Redesign budget list cards (progress + active indicator)
-- [x] Clean up budget form (date-range summary, grouping)
-- [x] Budget list empty/error states use design-system components
-
-## Reports
-- [x] Consolidate overview into hero + utilization
-- [x] Refine period selector + cards
-
-## Settings
-- [x] Settings already structured with grouped `SettingsSection` + reusable `SettingsTile` components
-
-## Verification
-- [x] `flutter analyze` — clean (5 pre-existing issues in files not modified: budget_details_screen, settings_screen)
-- [x] `flutter test` — all tests for modified files pass. Remaining pre-existing failures (notification/biometric/onboarding/settings_tile) are in unmodified files and required platform channels not present in the pure-Dart test harness or reference pre-existing app/test mismatches.
-- [x] Build application — `flutter build apk --debug` succeeded ✓
+- `flutter analyze`: 0 errors (only 5 pre-existing warnings/info unrelated to theme migration)
+- `flutter test test/features/settings/presentation/bloc/theme/`: 6 passed (5 bloc + 1 widget propagation)

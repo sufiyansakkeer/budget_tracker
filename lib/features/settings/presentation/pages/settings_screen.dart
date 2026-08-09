@@ -12,6 +12,8 @@ import '../../domain/services/biometric_service.dart';
 import '../bloc/settings_bloc.dart';
 import '../bloc/settings_event.dart';
 import '../bloc/settings_state.dart';
+import '../bloc/theme/theme_bloc.dart';
+import '../bloc/theme/theme_event.dart';
 import '../widgets/about_card.dart';
 import '../widgets/biometric_tile.dart';
 import '../widgets/currency_selector.dart';
@@ -180,9 +182,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                 child: ThemeSelector(
-                  selectedMode: settings.themeMode,
+                  selectedMode: context.watch<ThemeBloc>().state.mode,
                   onChanged: (AppThemeMode mode) {
-                    bloc.add(SettingsUpdateThemeEvent(mode));
+                    context.read<ThemeBloc>().add(ThemeChanged(mode));
                   },
                 ),
               ),
