@@ -4,8 +4,8 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/expense_category.dart';
 import 'category_visuals.dart';
 
-/// Modern category selector showing icon, name, and color.
-/// Highlights the selected category.
+/// Modern visual category selector showing icon, name, and color.
+/// Highlights the selected category with a filled, tinted chip.
 class CategoryPicker extends StatelessWidget {
   final List<ExpenseCategory> categories;
   final String? selectedCategoryId;
@@ -52,20 +52,24 @@ class CategoryPicker extends StatelessWidget {
                 avatar: Icon(
                   CategoryVisuals.iconFor(category.icon),
                   size: 18,
-                  color: color,
+                  color: isSelected
+                      ? color
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
                 label: Text(category.name),
-                selectedColor: color.withValues(alpha: 0.2),
+                selectedColor: color.withValues(alpha: 0.18),
                 backgroundColor: theme.colorScheme.surfaceContainerHighest
                     .withValues(alpha: 0.3),
                 showCheckmark: false,
+                side: BorderSide(
+                  color: isSelected
+                      ? color.withValues(alpha: 0.8)
+                      : Colors.transparent,
+                  width: 1.5,
+                ),
                 labelStyle: TextStyle(
                   color: isSelected ? color : theme.colorScheme.onSurface,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                ),
-                side: BorderSide(
-                  color: isSelected ? color : Colors.transparent,
-                  width: 1.5,
                 ),
               );
             }).toList(),

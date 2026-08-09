@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/widgets/app_header.dart';
+import '../../../../../core/widgets/confirmation_dialog.dart';
+import '../../../../../core/widgets/loading_skeleton.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_group.dart';
@@ -92,112 +95,123 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
 
   Future<bool> _confirmDelete(ExpenseEntity expense) async {
     final expenseBloc = context.read<ExpenseBloc>();
-    final confirmed = await showDialog<bool>(
+    final confirmed = await ConfirmationDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete expense?'),
-        content: Text(
+      title: 'Delete expense?',
+      message:
           'This will permanently remove the expense of ₹${expense.amount}. '
           'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            key: const Key('confirmHistoryDelete'),
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.dangerRed),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
+      icon: Icons.delete_rounded,
+      isDestructive: true,
     );
-    if (confirmed == true && mounted) {
+    if (confirmed && mounted) {
       // Trigger the existing delete flow via the CRUD ExpenseBloc.
       // The ExpenseRefreshBus automatically refreshes history, dashboard, and
       // budget engine.
       expenseBloc.add(ExpenseDelete(expense.id));
     }
-    return confirmed ?? false;
+    return confirmed;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Expense History'),
-        actions: [
-          IconButton(
-            key: const Key('sortButton'),
-            icon: const Icon(Icons.sort),
-            tooltip: 'Sort expenses',
-            onPressed: () =>
-                _openSortSheet(context.read<ExpenseHistoryBloc>().state),
-          ),
-          IconButton(
-            key: const Key('filterButton'),
-            icon: const Icon(Icons.filter_list),
-            tooltip: 'Filter expenses',
-            onPressed: () =>
-                _openFilterSheet(context.read<ExpenseHistoryBloc>().state),
-          ),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: AppHeader(
+                      title: 'Expenses',
+                      subtitle: 'Track & manage your spending',
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('filterButton'),
+                    icon: const Icon(Icons.filter_list_rounded),
+                    tooltip: 'Filter expenses',
+                    onPressed: () => _openFilterSheet(
+                      context.read<ExpenseHistoryBloc>().state,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('sortButton'),
+                    icon: const Icon(Icons.sort_rounded),
+                    tooltip: 'Sort expenses',
+                    onPressed: () => _openSortSheet(
+                      context.read<ExpenseHistoryBloc>().state,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: BlocBuilder<ExpenseHistoryBloc, ExpenseHistoryState>(
+                builder: (context, state) {
+                  if (state.status == ExpenseHistoryStatus.loading &&
+                      state.allExpenses.isEmpty) {
+                    return const ExpenseListSkeleton();
+                  }
+
+                  if (state.status == ExpenseHistoryStatus.error &&
+                      state.allExpenses.isEmpty) {
+                    return ExpenseHistoryErrorWidget(
+                      message: state.errorMessage ?? 'Unable to load expenses',
+                      onRetry: () => context.read<ExpenseHistoryBloc>().add(
+                        const ExpenseHistoryRefresh(),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      ExpenseSearchBar(
+                        controller: _searchController,
+                        onChanged: (query) => context
+                            .read<ExpenseHistoryBloc>()
+                            .add(ExpenseHistorySearchChanged(query)),
+                        onClear: () => context.read<ExpenseHistoryBloc>().add(
+                          const ExpenseHistorySearchChanged(''),
+                        ),
+                      ),
+                      QuickFilterChips(
+                        current: state.filter,
+                        onSelected: (filter) => context
+                            .read<ExpenseHistoryBloc>()
+                            .add(ExpenseHistoryFilterChanged(filter)),
+                      ),
+                      ActiveFilterChips(
+                        filter: state.filter,
+                        categories: state.categories,
+                        onChanged: (filter) => context
+                            .read<ExpenseHistoryBloc>()
+                            .add(ExpenseHistoryFilterChanged(filter)),
+                      ),
+                      SummaryCard(summary: state.summary),
+                      Expanded(child: _buildResults(context, state)),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/app/expenses/add'),
         backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded),
         label: const Text('Add Expense'),
         tooltip: 'Add a new expense',
-      ),
-      body: BlocBuilder<ExpenseHistoryBloc, ExpenseHistoryState>(
-        builder: (context, state) {
-          if (state.status == ExpenseHistoryStatus.loading &&
-              state.allExpenses.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (state.status == ExpenseHistoryStatus.error &&
-              state.allExpenses.isEmpty) {
-            return ExpenseHistoryErrorWidget(
-              message: state.errorMessage ?? 'Unable to load expenses',
-              onRetry: () => context.read<ExpenseHistoryBloc>().add(
-                const ExpenseHistoryRefresh(),
-              ),
-            );
-          }
-
-          return Column(
-            children: [
-              ExpenseSearchBar(
-                controller: _searchController,
-                onChanged: (query) => context.read<ExpenseHistoryBloc>().add(
-                  ExpenseHistorySearchChanged(query),
-                ),
-                onClear: () => context.read<ExpenseHistoryBloc>().add(
-                  const ExpenseHistorySearchChanged(''),
-                ),
-              ),
-              QuickFilterChips(
-                current: state.filter,
-                onSelected: (filter) => context.read<ExpenseHistoryBloc>().add(
-                  ExpenseHistoryFilterChanged(filter),
-                ),
-              ),
-              ActiveFilterChips(
-                filter: state.filter,
-                categories: state.categories,
-                onChanged: (filter) => context.read<ExpenseHistoryBloc>().add(
-                  ExpenseHistoryFilterChanged(filter),
-                ),
-              ),
-              SummaryCard(summary: state.summary),
-              Expanded(child: _buildResults(context, state)),
-            ],
-          );
-        },
       ),
     );
   }
@@ -278,16 +292,16 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                   color: AppColors.primary,
                   borderRadius: AppSpacing.borderRadiusLg,
                 ),
-                child: const Icon(Icons.edit, color: Colors.white),
+                child: const Icon(Icons.edit_rounded, color: Colors.white),
               ),
               secondaryBackground: Container(
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: AppColors.dangerRed,
+                  color: AppColors.error,
                   borderRadius: AppSpacing.borderRadiusLg,
                 ),
-                child: const Icon(Icons.delete, color: Colors.white),
+                child: const Icon(Icons.delete_rounded, color: Colors.white),
               ),
               child: ExpenseHistoryItem(
                 expense: expense,

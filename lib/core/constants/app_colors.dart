@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 
+/// Semantic color tokens for the Smart Budget Tracker.
+///
+/// These are the single source of truth for statuses, surfaces, text and
+/// category colors. Widgets should reference these tokens (or the theme
+/// `ColorScheme`) rather than hard-coding hex values.
 class AppColors {
   AppColors._();
 
-  // Primary & Gradient Accent Palette (Modern Emerald & Teal Theme)
+  // ---------------------------------------------------------------------------
+  // Brand / Primary palette (Modern Emerald & Teal)
+  // ---------------------------------------------------------------------------
   static const Color primary = Color(0xFF0F766E); // Teal 700
   static const Color primaryLight = Color(0xFF14B8A6); // Teal 500
   static const Color primaryDark = Color(0xFF115E59); // Teal 800
@@ -11,30 +18,53 @@ class AppColors {
   static const Color secondaryLight = Color(0xFF818CF8);
   static const Color accent = Color(0xFFF59E0B); // Amber Accent
 
-  // Safe Spending Status Indicators
-  static const Color safeGreen = Color(0xFF10B981);
-  static const Color warningOrange = Color(0xFFF97316);
-  static const Color dangerRed = Color(0xFFEF4444);
+  // ---------------------------------------------------------------------------
+  // Semantic status colors
+  // ---------------------------------------------------------------------------
+  static const Color error = Color(0xFFEF4444);
+  static const Color success = Color(0xFF10B981);
+  static const Color warning = Color(0xFFF97316);
+  static const Color safeGreen = success;
+  static const Color warningOrange = warning;
+  static const Color dangerRed = error;
 
+  // ---------------------------------------------------------------------------
   // Background & Surfaces (Light)
+  // ---------------------------------------------------------------------------
   static const Color backgroundLight = Color(0xFFF8FAFC);
   static const Color surfaceLight = Color(0xFFFFFFFF);
-  static const Color surfaceVariantLight = Color(0xFFF1F5F9);
+  static const Color surfaceContainerLight = Color(0xFFF1F5F9);
+  static const Color surfaceContainerHighLight = Color(0xFFE2E8F0);
   static const Color cardLight = Color(0xFFFFFFFF);
 
-  // Background & Surfaces (Dark)
-  static const Color backgroundDark = Color(0xFF0F172A);
-  static const Color surfaceDark = Color(0xFF1E293B);
-  static const Color surfaceVariantDark = Color(0xFF334155);
-  static const Color cardDark = Color(0xFF1E293B);
+  // ---------------------------------------------------------------------------
+  // Background & Surfaces (Dark) — intentional hierarchy, not inverted light
+  // ---------------------------------------------------------------------------
+  static const Color backgroundDark = Color(0xFF0B1220);
+  static const Color surfaceDark = Color(0xFF111A2E);
+  static const Color surfaceContainerDark = Color(0xFF1B2740);
+  static const Color surfaceContainerHighDark = Color(0xFF24324F);
+  static const Color cardDark = Color(0xFF151F36);
 
-  // Text Colors
+  // ---------------------------------------------------------------------------
+  // Text colors
+  // ---------------------------------------------------------------------------
   static const Color textPrimaryLight = Color(0xFF0F172A);
   static const Color textSecondaryLight = Color(0xFF64748B);
   static const Color textPrimaryDark = Color(0xFFF8FAFC);
   static const Color textSecondaryDark = Color(0xFF94A3B8);
 
-  // Category Colors
+  // ---------------------------------------------------------------------------
+  // Dividers / outlines
+  // ---------------------------------------------------------------------------
+  static const Color dividerLight = Color(0xFFE2E8F0);
+  static const Color dividerDark = Color(0xFF2A3A5C);
+  static const Color outlineLight = Color(0xFFCBD5E1);
+  static const Color outlineDark = Color(0xFF334155);
+
+  // ---------------------------------------------------------------------------
+  // Category colors
+  // ---------------------------------------------------------------------------
   static const Color catFood = Color(0xFFFF6B6B);
   static const Color catFuel = Color(0xFFFF9F43);
   static const Color catShopping = Color(0xFFFECA57);
@@ -48,7 +78,9 @@ class AppColors {
   static const Color catBills = Color(0xFFEE5253);
   static const Color catOthers = Color(0xFF8395A7);
 
-  // Gradient definitions
+  // ---------------------------------------------------------------------------
+  // Gradients (kept minimal and intentional)
+  // ---------------------------------------------------------------------------
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
     begin: Alignment.topLeft,

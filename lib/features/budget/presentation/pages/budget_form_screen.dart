@@ -7,9 +7,16 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/widgets/primary_button.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 
 /// Create or edit a budget.
+///
+/// Fields are grouped into labelled sections for an easier, less dense layout,
+/// and the date range shows a live duration summary.
 class BudgetFormScreen extends StatefulWidget {
   /// When [budgetId] is provided, this screen edits that budget; otherwise it
   /// creates a new one.
@@ -183,119 +190,217 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     }
   }
 
+  int get _dayCount => _endDate.difference(_startDate).inDays + 1;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(_isEditing ? 'Edit Budget' : 'New Budget')),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
-              TextFormField(
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Budget Name',
-                  hintText: 'e.g. Personal, Vacation, Wedding',
-                  prefixIcon: Icon(Icons.account_balance_wallet),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Budget name cannot be empty.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _amountController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'Budget Amount',
-                        prefixIcon: Icon(Icons.currency_rupee),
-                      ),
-                      validator: (value) {
-                        final amount = double.tryParse(value ?? '');
-                        if (amount == null || amount <= 0) {
-                          return 'Enter an amount greater than zero.';
-                        }
-                        return null;
-                      },
+        child: _loading
+            ? const _BudgetFormSkeleton()
+            : Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  children: [
+                    AppHeader(
+                      title: _isEditing ? 'Edit Budget' : 'New Budget',
+                      subtitle: _isEditing
+                          ? 'Update your budget details'
+                          : 'Set up a new budget in a few steps',
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  DropdownButton<String>(
-                    value: _currency,
-                    onChanged: (value) {
-                      if (value != null) setState(() => _currency = value);
-                    },
-                    items: const [
-                      DropdownMenuItem(value: '₹', child: Text('₹')),
-                      DropdownMenuItem(value: '\$', child: Text('\$')),
-                      DropdownMenuItem(value: '€', child: Text('€')),
-                      DropdownMenuItem(value: '£', child: Text('£')),
-                      DropdownMenuItem(value: '¥', child: Text('¥')),
+                    const SizedBox(height: AppSpacing.lg),
+                    _FormSection(
+                      title: 'General',
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Budget Name',
+                            hintText: 'e.g. Personal, Vacation, Wedding',
+                            prefixIcon: Icon(
+                              Icons.account_balance_wallet_rounded,
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Budget name cannot be empty.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _amountController,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[0-9.]'),
+                                  ),
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Budget Amount',
+                                  prefixIcon: Icon(
+                                    Icons.currency_rupee_rounded,
+                                  ),
+                                ),
+                                validator: (value) {
+                                  final amount = double.tryParse(value ?? '');
+                                  if (amount == null || amount <= 0) {
+                                    return 'Enter an amount greater than zero.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            DropdownButton<String>(
+                              value: _currency,
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => _currency = value);
+                                }
+                              },
+                              items: const [
+                                DropdownMenuItem(value: '₹', child: Text('₹')),
+                                DropdownMenuItem(
+                                  value: '\$',
+                                  child: Text('\$'),
+                                ),
+                                DropdownMenuItem(value: '€', child: Text('€')),
+                                DropdownMenuItem(value: '£', child: Text('£')),
+                                DropdownMenuItem(value: '¥', child: Text('¥')),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _FormSection(
+                      title: 'Date Range',
+                      children: [
+                        _DateRangePicker(
+                          startDate: _startDate,
+                          endDate: _endDate,
+                          onPickStart: () => _pickDate(isStart: true),
+                          onPickEnd: () => _pickDate(isStart: false),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          '$_dayCount days',
+                          key: const Key('budgetDaysSummary'),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _FormSection(
+                      title: 'Style',
+                      children: [
+                        _IconAndColorPicker(
+                          selectedIcon: _icon,
+                          selectedColor: _color,
+                          onIconSelected: (icon) =>
+                              setState(() => _icon = icon),
+                          onColorSelected: (color) =>
+                              setState(() => _color = color),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _FormSection(
+                      title: 'Notes',
+                      children: [
+                        TextFormField(
+                          controller: _notesController,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Notes (optional)',
+                            prefixIcon: Icon(Icons.notes_rounded),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        _error!,
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
                     ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _DateRangePicker(
-                startDate: _startDate,
-                endDate: _endDate,
-                onPickStart: () => _pickDate(isStart: true),
-                onPickEnd: () => _pickDate(isStart: false),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _IconAndColorPicker(
-                selectedIcon: _icon,
-                selectedColor: _color,
-                onIconSelected: (icon) => setState(() => _icon = icon),
-                onColorSelected: (color) => setState(() => _color = color),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextFormField(
-                controller: _notesController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Notes (optional)',
-                  prefixIcon: Icon(Icons.notes),
+                    const SizedBox(height: AppSpacing.lg),
+                    PrimaryButton(
+                      onPressed: _saving ? null : _save,
+                      isLoading: _saving,
+                      label: _isEditing ? 'Save Changes' : 'Create Budget',
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                  ],
                 ),
               ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-              ],
-              const SizedBox(height: AppSpacing.lg),
-              FilledButton(
-                onPressed: _saving ? null : _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(_isEditing ? 'Save Changes' : 'Create Budget'),
-              ),
-            ],
+      ),
+    );
+  }
+}
+
+class _FormSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _FormSection({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.primary,
           ),
         ),
-      ),
+        const SizedBox(height: AppSpacing.sm),
+        AppCard(child: Column(children: children)),
+      ],
+    );
+  }
+}
+
+class _BudgetFormSkeleton extends StatelessWidget {
+  const _BudgetFormSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      children: const [
+        SkeletonBox(width: 180, height: 24),
+        SizedBox(height: AppSpacing.lg),
+        SkeletonBox(width: double.infinity, height: 72),
+        SizedBox(height: AppSpacing.lg),
+        SkeletonBox(width: double.infinity, height: 120),
+        SizedBox(height: AppSpacing.lg),
+        SkeletonBox(width: double.infinity, height: 140),
+        SizedBox(height: AppSpacing.lg),
+        SkeletonBox(width: double.infinity, height: 96),
+      ],
     );
   }
 }
@@ -320,26 +425,39 @@ class _DateRangePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _DateField(
-            label: 'Start',
-            value: _fmt(startDate),
-            onTap: onPickStart,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        const Icon(Icons.arrow_forward),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _DateField(
-            label: 'End',
-            value: _fmt(endDate),
-            onTap: onPickEnd,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final start = _DateField(
+          label: 'Start',
+          value: _fmt(startDate),
+          onTap: onPickStart,
+        );
+        final end = _DateField(
+          label: 'End',
+          value: _fmt(endDate),
+          onTap: onPickEnd,
+        );
+
+        if (constraints.maxWidth >= 420) {
+          return Row(
+            children: [
+              Expanded(child: start),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                child: Icon(Icons.arrow_forward_rounded),
+              ),
+              Expanded(child: end),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            start,
+            const SizedBox(height: AppSpacing.sm),
+            end,
+          ],
+        );
+      },
     );
   }
 }
@@ -363,7 +481,7 @@ class _DateField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: const Icon(Icons.event),
+          prefixIcon: const Icon(Icons.event_rounded),
         ),
         child: Text(value),
       ),
@@ -406,21 +524,21 @@ class _IconAndColorPicker extends StatelessWidget {
   IconData _iconFor(String name) {
     switch (name) {
       case 'personal':
-        return Icons.person;
+        return Icons.person_rounded;
       case 'family':
-        return Icons.family_restroom;
+        return Icons.family_restroom_rounded;
       case 'vacation':
-        return Icons.beach_access;
+        return Icons.beach_access_rounded;
       case 'wedding':
-        return Icons.favorite;
+        return Icons.favorite_rounded;
       case 'business':
-        return Icons.business_center;
+        return Icons.business_center_rounded;
       case 'travel':
-        return Icons.flight_takeoff;
+        return Icons.flight_takeoff_rounded;
       case 'home':
-        return Icons.home;
+        return Icons.home_rounded;
       default:
-        return Icons.account_balance_wallet;
+        return Icons.account_balance_wallet_rounded;
     }
   }
 

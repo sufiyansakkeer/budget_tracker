@@ -1,20 +1,58 @@
-# Phase 9 Fix – Multi-Budget System + Complete UI Integration + Bottom Navigation
+# UI/UX Overhaul – Smart Budget Tracker
 
-## Development Steps
+## Status Legend
+- [x] done
+- [ ] pending
 
-- [x] 1. Create AppShell with Material 3 NavigationBar (5 tabs)
-- [x] 2. Rewrite GoRouter with StatefulShellRoute preserving per-tab stacks
-- [x] 3. Update all existing navigation call sites to new `/app/...` routes
-- [x] 4. Refactor Onboarding to 7 steps (Name, Amount, Currency, Start Date, End Date, Confirmation) creating a custom-date budget
-- [x] 5. Make Onboarding set the created budget as active and navigate to `/app/home`
-- [x] 6. Add active-budget selector to Dashboard header
-- [x] 7. Fix DashboardLocalDataSourceImpl.getRecentExpenses to scope by budget period (not calendar month)
-- [x] 8. Make Expense form budget-aware (budget picker, currency, date-in-period validation)
-- [x] 9. Set expense.budgetId from selected budget; never create without budget
-- [x] 10. Scope Expense History & Expenses list to active budget (history done; list pending)
-- [x] 11. Show Budget in Expense Details + add "Move to another budget"
-- [x] 12. Add budget switcher to Reports + refresh on budget switch
-- [x] 13. Fix single-budget assumptions (reset_budget, reset_month, onboarding)
-- [x] 14. Make Notifications budget-aware
-- [ ] 15. Add/update tests for multi-budget, budget scoping, date validation, navigation
-- [ ] 16. Run `flutter analyze`, `flutter test`, `flutter build` and fix issues
+## Design System Foundation
+- [x] Centralize semantic colors in `lib/core/constants/app_colors.dart`
+- [x] Add spacing scale (incl. `smd`) in `lib/core/constants/app_spacing.dart`
+- [x] Rewrite Material 3 theme in `lib/core/theme/app_theme.dart` (light + dark, typography, radii, components)
+- [x] Create reusable design-system components in `lib/core/widgets/`
+  - [x] `app_card.dart` (AppCard)
+  - [x] `app_section_header.dart` (SectionHeader)
+  - [x] `money_text.dart` (MoneyText)
+  - [x] `status_chip.dart` (StatusChip)
+  - [x] `app_progress.dart` (AppProgress)
+  - [x] `empty_state.dart` (EmptyState)
+  - [x] `loading_skeleton.dart` (SkeletonBox, DashboardSkeleton, ExpenseListSkeleton)
+  - [x] `primary_button.dart` (PrimaryButton)
+  - [x] `app_bottom_sheet.dart` (AppBottomSheet)
+  - [x] `confirmation_dialog.dart` (ConfirmationDialog)
+  - [x] `app_header.dart` (AppHeader)
+
+## App Shell
+- [x] Refine NavigationBar in `lib/core/router/app_shell.dart` (safe-area, height, indicator)
+
+## Dashboard
+- [x] Rewrite `dashboard_screen.dart` (Hero → Overview → Today's Spending → Timeline → Recent → Insights)
+- [x] Replace gradient header with hero card + budget overview
+- [x] Add skeleton loading state
+- [x] Create `budget_hero_card.dart`, `today_spending_card.dart`
+- [x] Update dashboard widgets to use design-system components
+
+## Expenses
+- [x] Restyle expense history items with `AppCard`
+- [x] Refine search bar + summary + empty/error/skeleton states
+
+## Add / Edit Expense
+- [x] Large autofocus amount field
+- [x] Visual category grid
+- [x] Improved budget picker + date/time + actions
+
+## Budgets
+- [x] Redesign budget list cards (progress + active indicator)
+- [x] Clean up budget form (date-range summary, grouping)
+- [x] Budget list empty/error states use design-system components
+
+## Reports
+- [x] Consolidate overview into hero + utilization
+- [x] Refine period selector + cards
+
+## Settings
+- [x] Settings already structured with grouped `SettingsSection` + reusable `SettingsTile` components
+
+## Verification
+- [x] `flutter analyze` — clean (5 pre-existing issues in files not modified: budget_details_screen, settings_screen)
+- [x] `flutter test` — all tests for modified files pass. Remaining pre-existing failures (notification/biometric/onboarding/settings_tile) are in unmodified files and required platform channels not present in the pure-Dart test harness or reference pre-existing app/test mismatches.
+- [x] Build application — `flutter build apk --debug` succeeded ✓

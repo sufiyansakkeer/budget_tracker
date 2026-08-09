@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
+/// Central spacing & radius scale for the Smart Budget Tracker.
+///
+/// Prefer these tokens over ad-hoc margins so the whole app shares one
+/// consistent rhythm (4 → 8 → 12 → 16 → 20 → 24 → 32).
 class AppSpacing {
   AppSpacing._();
 
   // Spacing Units
   static const double xs = 4.0;
   static const double sm = 8.0;
+  static const double smd = 12.0;
   static const double md = 16.0;
   static const double lg = 24.0;
   static const double xl = 32.0;
@@ -25,11 +30,19 @@ class AppSpacing {
   static const EdgeInsets paddingLg = EdgeInsets.all(lg);
   static const EdgeInsets paddingXl = EdgeInsets.all(xl);
 
-  static const EdgeInsets paddingHorizontalMd = EdgeInsets.symmetric(horizontal: md);
-  static const EdgeInsets paddingHorizontalLg = EdgeInsets.symmetric(horizontal: lg);
+  static const EdgeInsets paddingHorizontalMd = EdgeInsets.symmetric(
+    horizontal: md,
+  );
+  static const EdgeInsets paddingHorizontalLg = EdgeInsets.symmetric(
+    horizontal: lg,
+  );
 
-  static const EdgeInsets paddingVerticalSm = EdgeInsets.symmetric(vertical: sm);
-  static const EdgeInsets paddingVerticalMd = EdgeInsets.symmetric(vertical: md);
+  static const EdgeInsets paddingVerticalSm = EdgeInsets.symmetric(
+    vertical: sm,
+  );
+  static const EdgeInsets paddingVerticalMd = EdgeInsets.symmetric(
+    vertical: md,
+  );
 
   // Border Radius Shortcuts
   static final BorderRadius borderRadiusSm = BorderRadius.circular(radiusSm);

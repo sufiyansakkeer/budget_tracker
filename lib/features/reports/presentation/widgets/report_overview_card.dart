@@ -3,79 +3,120 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../domain/entities/report_overview.dart';
 
-/// Highlights a single overview metric in a compact card.
-class ReportOverviewCard extends StatelessWidget {
-  final String title;
-  final double amount;
+/// A prominent hero card showing the report's total spending, with a compact
+/// set of supporting metrics below.
+class ReportHeroCard extends StatelessWidget {
+  final ReportOverview overview;
   final String currency;
-  final IconData icon;
-  final Color color;
 
-  const ReportOverviewCard({
+  const ReportHeroCard({
     super.key,
-    required this.title,
-    required this.amount,
+    required this.overview,
     required this.currency,
-    required this.icon,
-    this.color = AppColors.primary,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Semantics(
-      label:
-          '$title: ${NumberFormat.currency(symbol: currency, decimalDigits: 0).format(amount)}',
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: theme.cardTheme.color,
-          borderRadius: AppSpacing.borderRadiusLg,
-          border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: AppSpacing.borderRadiusSm,
-              ),
-              child: Icon(icon, color: color, size: 20),
+    final totalSpending = NumberFormat.currency(
+      symbol: currency,
+      decimalDigits: 0,
+    ).format(overview.totalSpending);
+
+    return AppCard(
+      color: AppColors.primary,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Total Spending',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            totalSpending,
+            style: theme.textTheme.displaySmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              NumberFormat.currency(
-                symbol: currency,
-                decimalDigits: 0,
-              ).format(amount),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            '${overview.totalTransactions} transactions',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.9),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// A responsive grid of overview cards for the report.
+/// A concise metric tile used in the compact report overview grid.
+class _OverviewMetric extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _OverviewMetric({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A consolidated overview layout for the report screen: a total-spending hero
+/// plus a compact grid of the remaining metrics transaction, avg daily, avg
+/// per-transaction, highest, and lowest.
 class ReportOverviewGrid extends StatelessWidget {
   final ReportOverview overview;
   final String currency;
@@ -89,59 +130,51 @@ class ReportOverviewGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= 600;
-    final cards = [
-      ReportOverviewCard(
-        title: 'Total Spending',
-        amount: overview.totalSpending,
-        currency: currency,
-        icon: Icons.account_balance_wallet,
-        color: AppColors.primary,
-      ),
-      ReportOverviewCard(
-        title: 'Transactions',
-        amount: overview.totalTransactions.toDouble(),
-        currency: '',
-        icon: Icons.receipt_long,
-        color: AppColors.secondary,
-      ),
-      ReportOverviewCard(
+
+    String fmt(double v) =>
+        NumberFormat.currency(symbol: currency, decimalDigits: 0).format(v);
+
+    final metrics = [
+      _OverviewMetric(
         title: 'Avg Daily',
-        amount: overview.averageDailySpending,
-        currency: currency,
-        icon: Icons.show_chart,
+        value: fmt(overview.averageDailySpending),
+        icon: Icons.show_chart_rounded,
         color: AppColors.safeGreen,
       ),
-      ReportOverviewCard(
+      _OverviewMetric(
         title: 'Avg / Txn',
-        amount: overview.averageTransactionAmount,
-        currency: currency,
-        icon: Icons.trending_up,
+        value: fmt(overview.averageTransactionAmount),
+        icon: Icons.trending_up_rounded,
         color: AppColors.warningOrange,
       ),
-      ReportOverviewCard(
+      _OverviewMetric(
         title: 'Highest',
-        amount: overview.highestExpense,
-        currency: currency,
-        icon: Icons.arrow_upward,
+        value: fmt(overview.highestExpense),
+        icon: Icons.arrow_upward_rounded,
         color: AppColors.dangerRed,
       ),
-      ReportOverviewCard(
+      _OverviewMetric(
         title: 'Lowest',
-        amount: overview.lowestExpense,
-        currency: currency,
-        icon: Icons.arrow_downward,
+        value: fmt(overview.lowestExpense),
+        icon: Icons.arrow_downward_rounded,
         color: AppColors.safeGreen,
       ),
-    ];
+    ].where((m) => m.value.isNotEmpty);
 
-    return GridView.count(
-      crossAxisCount: isWide ? 3 : 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: AppSpacing.md,
-      crossAxisSpacing: AppSpacing.md,
-      childAspectRatio: isWide ? 1.8 : 1.4,
-      children: cards,
+    return Column(
+      children: [
+        ReportHeroCard(overview: overview, currency: currency),
+        const SizedBox(height: AppSpacing.md),
+        GridView.count(
+          crossAxisCount: isWide ? 4 : 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: AppSpacing.md,
+          crossAxisSpacing: AppSpacing.md,
+          childAspectRatio: isWide ? 2.2 : 1.9,
+          children: metrics.toList(),
+        ),
+      ],
     );
   }
 }

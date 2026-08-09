@@ -386,9 +386,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       value: _selectedBudgetId,
       decoration: const InputDecoration(
         labelText: 'Budget',
-        prefixIcon: Icon(Icons.account_balance_wallet),
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        prefixIcon: Icon(Icons.account_balance_wallet_rounded),
       ),
       items: _budgets
           .map(

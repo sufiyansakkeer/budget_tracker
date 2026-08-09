@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_history_summary.dart';
 
 /// Summary card showing statistics for the currently visible results.
@@ -16,65 +17,75 @@ class SummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final currency = NumberFormat.currency(symbol: '', decimalDigits: 0);
 
-    return Card(
+    return AppCard(
       margin: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.insights, color: AppColors.primary, size: 20),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  'Summary',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: AppSpacing.borderRadiusSm,
                 ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                _summaryItem(
-                  theme,
-                  label: 'Total Expenses',
-                  value: '${summary.totalExpenses}',
+                child: const Icon(
+                  Icons.insights_rounded,
+                  color: AppColors.primary,
+                  size: 18,
                 ),
-                _summaryItem(
-                  theme,
-                  label: 'Total Amount',
-                  value: currency.format(summary.totalAmount),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Summary',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                _summaryItem(
-                  theme,
-                  label: 'Average',
-                  value: currency.format(summary.averageExpense),
-                ),
-                _summaryItem(
-                  theme,
-                  label: 'Highest',
-                  value: currency.format(summary.highestExpense),
-                ),
-                _summaryItem(
-                  theme,
-                  label: 'Lowest',
-                  value: currency.format(summary.lowestExpense),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              _summaryItem(
+                theme,
+                label: 'Total Expenses',
+                value: '${summary.totalExpenses}',
+              ),
+              _summaryItem(
+                theme,
+                label: 'Total Amount',
+                value: currency.format(summary.totalAmount),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              _summaryItem(
+                theme,
+                label: 'Average',
+                value: currency.format(summary.averageExpense),
+              ),
+              _summaryItem(
+                theme,
+                label: 'Highest',
+                value: currency.format(summary.highestExpense),
+              ),
+              _summaryItem(
+                theme,
+                label: 'Lowest',
+                value: currency.format(summary.lowestExpense),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

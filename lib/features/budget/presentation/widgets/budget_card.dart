@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_progress.dart';
 
 /// A card summarizing a single budget in the list screen.
+///
+/// Shows the budget's remaining amount prominently, together with its amount,
+/// period, utilization progress, and an active indicator.
 class BudgetCard extends StatelessWidget {
   final BudgetEntity budget;
   final bool isActive;
@@ -22,83 +28,100 @@ class BudgetCard extends StatelessWidget {
     final theme = Theme.of(context);
     final accentColor = _accentColor(theme.brightness);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: isActive ? accentColor : Colors.transparent,
-          width: 2,
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: AppSpacing.borderRadiusLg,
+        border: isActive ? Border.all(color: accentColor, width: 1.5) : null,
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+      child: AppCard(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            children: [
-              _BudgetIcon(budget: budget, accentColor: accentColor),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            budget.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _BudgetIcon(budget: budget, accentColor: accentColor),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              budget.name,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (budget.isArchived) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            _StatusTag(
+                              label: 'Archived',
+                              color: theme.disabledColor,
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        _formatPeriod(budget),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
                           ),
                         ),
-                        if (budget.isArchived)
-                          _StatusTag(
-                            label: 'Archived',
-                            color: theme.disabledColor,
-                          ),
-                        if (isActive)
-                          _StatusTag(label: 'Active', color: accentColor),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      _formatPeriod(budget),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.hintColor,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                if (isActive) _ActiveBadge(color: accentColor),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Remaining',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _formatAmount(budget.monthlyAmount),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '${budget.totalDays} days',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.hintColor,
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              NumberFormat.currency(
+                symbol: budget.currency,
+                decimalDigits: 0,
+              ).format(budget.remainingAmount),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              '${NumberFormat.currency(symbol: budget.currency, decimalDigits: 0).format(budget.monthlyAmount)} '
+              '• ${budget.totalDays} days',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AppProgress(value: _utilization(budget)),
+          ],
         ),
       ),
     );
+  }
+
+  double _utilization(BudgetEntity budget) {
+    if (budget.monthlyAmount <= 0) return 0;
+    final used = budget.monthlyAmount - budget.remainingAmount;
+    return (used / budget.monthlyAmount).clamp(0.0, 1.0);
   }
 
   Color _accentColor(Brightness brightness) {
@@ -112,10 +135,6 @@ class BudgetCard extends StatelessWidget {
     String d(DateTime x) => '${two(x.day)}/${two(x.month)}/${x.year}';
 
     return '${d(budget.startDate)} → ${d(budget.endDate)}';
-  }
-
-  String _formatAmount(double amount) {
-    return amount.toStringAsFixed(0);
   }
 }
 
@@ -132,10 +151,14 @@ class _BudgetIcon extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: color ?? accentColor,
-        borderRadius: BorderRadius.circular(12),
+        color: (color ?? accentColor).withValues(alpha: 0.15),
+        borderRadius: AppSpacing.borderRadiusMd,
       ),
-      child: Icon(_iconFromString(budget.icon), color: Colors.white, size: 24),
+      child: Icon(
+        _iconFromString(budget.icon),
+        color: color ?? accentColor,
+        size: 24,
+      ),
     );
   }
 
@@ -149,22 +172,56 @@ class _BudgetIcon extends StatelessWidget {
   IconData _iconFromString(String? icon) {
     switch (icon) {
       case 'vacation':
-        return Icons.beach_access;
+        return Icons.beach_access_rounded;
       case 'wedding':
-        return Icons.favorite;
+        return Icons.favorite_rounded;
       case 'business':
-        return Icons.business_center;
+        return Icons.business_center_rounded;
       case 'personal':
-        return Icons.person;
+        return Icons.person_rounded;
       case 'family':
-        return Icons.family_restroom;
+        return Icons.family_restroom_rounded;
       case 'travel':
-        return Icons.flight_takeoff;
+        return Icons.flight_takeoff_rounded;
       case 'home':
-        return Icons.home;
+        return Icons.home_rounded;
       default:
-        return Icons.account_balance_wallet;
+        return Icons.account_balance_wallet_rounded;
     }
+  }
+}
+
+class _ActiveBadge extends StatelessWidget {
+  final Color color;
+
+  const _ActiveBadge({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: AppSpacing.borderRadiusSm,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle_rounded, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            'Active',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -178,10 +235,13 @@ class _StatusTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(left: AppSpacing.xs),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppSpacing.borderRadiusSm,
       ),
       child: Text(
         label,

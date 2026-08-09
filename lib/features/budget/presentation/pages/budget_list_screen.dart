@@ -5,6 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../widgets/budget_card.dart';
 
@@ -81,39 +82,18 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!),
-            const SizedBox(height: AppSpacing.md),
-            ElevatedButton(onPressed: _load, child: const Text('Retry')),
-          ],
-        ),
-      );
+      return ErrorState(message: _error!, onRetry: _load);
     }
 
     final budgets = _budgets ?? const <BudgetEntity>[];
     if (budgets.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.account_balance_wallet,
-              size: 56,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const Text('No budgets yet. Create your first budget!'),
-            const SizedBox(height: AppSpacing.md),
-            ElevatedButton.icon(
-              onPressed: () => context.push('/app/budgets/create'),
-              icon: const Icon(Icons.add),
-              label: const Text('Create Budget'),
-            ),
-          ],
-        ),
+      return EmptyState(
+        icon: Icons.account_balance_wallet_rounded,
+        title: 'No budgets yet',
+        message: 'Create your first budget to start tracking your spending.',
+        actionLabel: 'Create Budget',
+        actionIcon: Icons.add_rounded,
+        onAction: () => context.push('/app/budgets/create'),
       );
     }
 
