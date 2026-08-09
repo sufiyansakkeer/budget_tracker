@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:budget_tracker/core/di/injection.dart';
+import 'package:budget_tracker/core/biometric/app_lock_bloc.dart';
+import 'package:budget_tracker/core/biometric/app_lock_event.dart';
 import 'package:budget_tracker/main.dart';
 
 void main() {
@@ -20,6 +22,20 @@ void main() {
       const MaterialApp(home: Scaffold(body: SmartBudgetApp())),
     );
     // Dashboard screens may contain infinite animations, so avoid pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(SmartBudgetApp), findsOneWidget);
+  });
+
+  testWidgets('App reveals content when lock is unlocked', (
+    WidgetTester tester,
+  ) async {
+    final bloc = getIt<AppLockBloc>();
+    // Force-unlock so the gate is not shown.
+    bloc.add(const AppAuthenticated());
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SmartBudgetApp())),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(SmartBudgetApp), findsOneWidget);

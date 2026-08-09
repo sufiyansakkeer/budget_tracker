@@ -1,21 +1,31 @@
-# Theme Management Migration: Provider → BLoC
+# Biometric Unlock Flow Fix - Task Tracking
 
-## Status: COMPLETE ✅
+## Objective
+Fix the app being stuck on the biometric/fingerprint lock screen after successful
+authentication. The app must transition `LOCKED → UNLOCKED` and reveal the existing
+application content without restart, without navigating to `/dashboard`, and without
+introducing a fixed delay.
 
-## TODO Steps
+## Root Cause
+`BiometricGateScreen` held the lock state in a local boolean `_isAuthenticated` and
+re-fired `_checkAndAuthenticate()` on every `resumed` lifecycle event. Dismissing the
+native biometric prompt triggers a `resumed` event, which caused an endless
+re-lock/re-prompt loop -> the app appeared stuck on the fingerprint screen. There was
+no single authoritative lock BLoC, no concurrency guard, and no way to distinguish a
+real background->foreground transition from the biometric prompt's dismissal.
 
-- [x] 1. Create `ThemeRepository` (domain/repository)
-- [x] 2. Create `ThemeEvent`, `ThemeState`, `ThemeBloc`
-- [x] 3. Register `ThemeRepository` + `ThemeBloc` in DI; remove `ThemeProvider`
-- [x] 4. Remove theme handling from `SettingsBloc` / `SettingsEvent`
-- [x] 5. Rewrite `main.dart` to use `BlocProvider<ThemeBloc>` + `BlocBuilder`
-- [x] 6. Update `SettingsScreen` theme selector to use `ThemeBloc`
-- [x] 7. Delete `lib/core/theme/theme_provider.dart`
-- [x] 8. Add `ThemeBloc` tests
-- [x] 9. Add theme propagation widget test
-- [x] 10. Run `flutter analyze` and `flutter test`
-
-## Validation
-
-- `flutter analyze`: 0 errors (only 5 pre-existing warnings/info unrelated to theme migration)
-- `flutter test test/features/settings/presentation/bloc/theme/`: 6 passed (5 bloc + 1 widget propagation)
+## Steps
+- [x] 1. Create `app_lock_state.dart` (AppLockStatus enum + AppLockState Equatable).
+- [x] 2. Create `app_lock_event.dart` (AppStartLockCheck, AppUnlockRequested,
+      AppAuthenticated, AppAuthFailed, AppLockRequested, AppLocked).
+- [x] 3. Create `app_lock_bloc.dart` with the lock state machine, concurrency guard,
+      lifecycle-aware re-lock, and debug logging.
+- [x] 4. Add `authenticateNow()` to `BiometricInitializer`.
+- [x] 5. Register `AppLockBloc` in `injection.dart`.
+- [x] 6. Refactor `BiometricGateScreen` into a presentational widget driven by the BLoC.
+- [x] 7. Refactor `main.dart` to provide `AppLockBloc` and render gate vs app content.
+- [x] 8. Add `app_lock_bloc_test.dart`.
+- [x] 9. Update `widget_test.dart`.
+- [x] 10. Run `flutter analyze` and fix issues.
+- [x] 11. Run `flutter test`.
+- [x] 12. Run `flutter build debug`.

@@ -1,65 +1,46 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/services/biometric_service.dart';
-
 /// A settings tile for enabling/disabling the biometric lock.
 ///
-/// Checks device support before toggling and shows a clear error when
-/// biometrics are unavailable.
-class BiometricTile extends StatefulWidget {
+/// This widget is a pure view driven by the BLoC. It does NOT perform
+/// authentication or availability checks itself — it only reflects the state
+/// provided from the outside and dispatches a change request upward.
+///
+/// The switch value is controlled by [enabled] (the source of truth), the tile
+/// is disabled while [isBusy] (e.g. during authentication), and a friendly
+/// status [message] is shown as the subtitle when provided.
+class BiometricTile extends StatelessWidget {
   final bool enabled;
-  final BiometricService biometricService;
+  final bool isBusy;
+  final String? message;
   final ValueChanged<bool> onChanged;
 
   const BiometricTile({
     super.key,
     required this.enabled,
-    required this.biometricService,
+    this.isBusy = false,
+    this.message,
     required this.onChanged,
   });
 
   @override
-  State<BiometricTile> createState() => _BiometricTileState();
-}
-
-class _BiometricTileState extends State<BiometricTile> {
-  bool _checking = false;
-
-  Future<void> _toggle(bool value) async {
-    if (value) {
-      setState(() => _checking = true);
-      final available = await widget.biometricService.canUseBiometrics();
-      setState(() => _checking = false);
-      if (!available) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Biometrics are not available on this device, or no '
-                'fingerprint/Face ID is registered.',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-      // Require a successful authentication before enabling.
-      final ok = await widget.biometricService.authenticate(
-        reason: 'Confirm to enable biometric lock',
-      );
-      if (!ok) return;
-    }
-    widget.onChanged(value);
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final subtitle = isBusy
+        ? 'Authenticating...'
+        : (message ?? 'Use fingerprint or Face ID to unlock the app');
+
     return SwitchListTile(
       title: const Text('Biometric Lock'),
-      subtitle: const Text('Use fingerprint or Face ID to unlock the app'),
-      secondary: const Icon(Icons.fingerprint),
-      value: widget.enabled,
-      onChanged: _checking ? null : _toggle,
+      subtitle: Text(subtitle),
+      secondary: isBusy
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.fingerprint),
+      value: enabled,
+      onChanged: isBusy ? null : onChanged,
       dense: true,
       activeColor: Theme.of(context).colorScheme.primary,
     );

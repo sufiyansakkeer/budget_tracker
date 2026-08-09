@@ -8,7 +8,6 @@ import '../../../../core/di/injection.dart' as di;
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/theme_mode_entity.dart';
-import '../../domain/services/biometric_service.dart';
 import '../bloc/settings_bloc.dart';
 import '../bloc/settings_event.dart';
 import '../bloc/settings_state.dart';
@@ -282,7 +281,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               BiometricTile(
                 enabled: settings.biometricEnabled,
-                biometricService: BiometricService(),
+                isBusy: state.isBiometricBusy,
+                message: state.biometricMessage,
                 onChanged: (v) => bloc.add(SettingsUpdateBiometricEvent(v)),
               ),
             ],

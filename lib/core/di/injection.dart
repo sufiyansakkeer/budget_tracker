@@ -27,6 +27,7 @@ import '../database/app_database.dart';
 import '../currency/currency_provider.dart';
 import '../notifications/notification_initializer.dart';
 import '../biometric/biometric_initializer.dart';
+import '../biometric/app_lock_bloc.dart';
 import '../../features/budget/data/datasource/budget_local_datasource.dart';
 import '../../features/budget/data/datasource/budget_local_datasource_impl.dart';
 import '../../features/budget/data/repository/budget_repository_impl.dart';
@@ -113,6 +114,11 @@ Future<void> initDependencyInjection() async {
   // 3.8 Biometric Initializer
   getIt.registerLazySingleton<BiometricInitializer>(
     () => BiometricInitializer(),
+  );
+
+  // 3.9 App Lock BLoC - authoritative application lock state
+  getIt.registerLazySingleton<AppLockBloc>(
+    () => AppLockBloc(biometricInitializer: getIt<BiometricInitializer>()),
   );
 
   // 4. Onboarding Feature - Datasources
@@ -446,6 +452,7 @@ Future<void> initDependencyInjection() async {
       updateNotificationSettingsUseCase:
           getIt<UpdateNotificationSettingsUseCase>(),
       updateBiometricUseCase: getIt<UpdateBiometricUseCase>(),
+      biometricService: getIt<BiometricService>(),
       exportDataUseCase: getIt<ExportDataUseCase>(),
       importDataUseCase: getIt<ImportDataUseCase>(),
       backupDataUseCase: getIt<BackupDataUseCase>(),

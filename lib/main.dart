@@ -7,6 +7,7 @@ import 'core/notifications/notification_initializer.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/biometric/biometric_gate_screen.dart';
+import 'core/biometric/app_lock_bloc.dart';
 import 'features/settings/presentation/bloc/theme/theme_bloc.dart';
 import 'features/settings/presentation/bloc/theme/theme_state.dart';
 
@@ -54,8 +55,8 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
   Widget build(BuildContext context) {
     final app = MultiProvider(
       providers: [ChangeNotifierProvider.value(value: _currencyProvider)],
-      child: MultiBlocProvider(
-        providers: [BlocProvider<ThemeBloc>.value(value: _themeBloc)],
+      child: BlocProvider<ThemeBloc>.value(
+        value: _themeBloc,
         child: BlocBuilder<ThemeBloc, ThemeState>(
           builder: (context, state) {
             return MaterialApp.router(
@@ -71,7 +72,12 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
       ),
     );
 
-    // Wrap with biometric gate for authentication
-    return BiometricGateScreen(child: app);
+    // Wrap the whole app (including the lock gate) with the AppLockBloc so the
+    // gate can listen to the authoritative lock state. When unlocked, the gate
+    // reveals the [app] content above.
+    return BlocProvider<AppLockBloc>.value(
+      value: di.getIt<AppLockBloc>(),
+      child: BiometricGateScreen(child: app),
+    );
   }
 }

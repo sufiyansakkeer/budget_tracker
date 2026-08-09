@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/settings_failure.dart';
+import '../../domain/services/biometric_service.dart';
 import '../../domain/usecases/backup_data_usecase.dart';
 import '../../domain/usecases/export_data_usecase.dart';
 import '../../domain/usecases/import_data_usecase.dart';
@@ -21,6 +23,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   final UpdateCurrencyUseCase updateCurrencyUseCase;
   final UpdateNotificationSettingsUseCase updateNotificationSettingsUseCase;
   final UpdateBiometricUseCase updateBiometricUseCase;
+  final BiometricService biometricService;
   final ExportDataUseCase exportDataUseCase;
   final ImportDataUseCase importDataUseCase;
   final BackupDataUseCase backupDataUseCase;
@@ -33,6 +36,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     required this.updateCurrencyUseCase,
     required this.updateNotificationSettingsUseCase,
     required this.updateBiometricUseCase,
+    required this.biometricService,
     required this.exportDataUseCase,
     required this.importDataUseCase,
     required this.backupDataUseCase,
@@ -74,6 +78,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
             clearError: true,
           ),
         );
+        // Asynchronously check biometric availability so the Settings UI can
+        // show a friendly "not available / not enrolled" message.
+        await _checkBiometricAvailability(emit);
       case SettingsError(:final failure):
         emit(
           state.copyWith(
@@ -81,6 +88,30 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
             errorMessage: failure.message,
           ),
         );
+    }
+  }
+
+  /// Refreshes the friendly biometric availability message shown in the UI.
+  Future<void> _checkBiometricAvailability(Emitter<SettingsState> emit) async {
+    final availability = await biometricService.getAvailability();
+    if (!availability.isDeviceSupported) {
+      emit(
+        state.copyWith(
+          biometricMessage:
+              'Biometric authentication isn\'t available on '
+              'this device.',
+        ),
+      );
+    } else if (!availability.hasBiometrics) {
+      emit(
+        state.copyWith(
+          biometricMessage:
+              'Please set up fingerprint or Face ID on your '
+              'device first.',
+        ),
+      );
+    } else {
+      emit(state.copyWith(clearBiometricMessage: true));
     }
   }
 
@@ -146,19 +177,72 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     SettingsUpdateBiometricEvent event,
     Emitter<SettingsState> emit,
   ) async {
-    emit(state.copyWith(isBusy: true));
+    // Prevent rapid/duplicate toggles while an authentication is in flight.
+    if (state.isBiometricBusy) return;
+
+    emit(state.copyWith(isBiometricBusy: true, clearBiometricMessage: true));
+
+    // 1. Check device support / enrolled biometrics.
+    final availability = await biometricService.getAvailability();
+    if (!availability.isDeviceSupported) {
+      emit(
+        state.copyWith(
+          isBiometricBusy: false,
+          biometricMessage:
+              'Biometric authentication isn\'t available on this device.',
+        ),
+      );
+      return;
+    }
+    if (!availability.hasBiometrics) {
+      emit(
+        state.copyWith(
+          isBiometricBusy: false,
+          biometricMessage:
+              'Please set up fingerprint or Face ID on your '
+              'device first.',
+        ),
+      );
+      return;
+    }
+
+    // 2. Authenticate before enabling OR disabling the security feature.
+    debugPrint(
+      '[Biometric] Toggle requested: ${event.enabled ? "enable" : "disable"}',
+    );
+    final authenticated = await biometricService.authenticate(
+      reason: event.enabled
+          ? 'Confirm to enable biometric lock'
+          : 'Confirm to disable biometric lock',
+    );
+    if (!authenticated) {
+      // Cancelled or failed — keep the toggle unchanged. Surface the failure
+      // so the user knows authentication did not succeed.
+      debugPrint('[Biometric] Authentication not successful; toggle unchanged');
+      emit(
+        state.copyWith(
+          isBiometricBusy: false,
+          biometricMessage: 'Authentication not completed. Toggle unchanged.',
+        ),
+      );
+      return;
+    }
+
+    // 3. Persist the preference only after a successful authentication.
     final result = await updateBiometricUseCase(event.enabled);
     switch (result) {
       case SettingsSuccess():
         emit(
           state.copyWith(
             settings: state.settings.copyWith(biometricEnabled: event.enabled),
-            isBusy: false,
+            isBiometricBusy: false,
             clearError: true,
           ),
         );
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        emit(
+          state.copyWith(isBiometricBusy: false, errorMessage: failure.message),
+        );
     }
   }
 
