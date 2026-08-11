@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_progress.dart';
@@ -92,10 +92,11 @@ class BudgetCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              NumberFormat.currency(
-                symbol: budget.currency,
+              CurrencyFormatter.format(
+                budget.remainingAmount,
+                code: budget.currency,
                 decimalDigits: 0,
-              ).format(budget.remainingAmount),
+              ),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: theme.colorScheme.primary,
@@ -103,7 +104,7 @@ class BudgetCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              '${NumberFormat.currency(symbol: budget.currency, decimalDigits: 0).format(budget.monthlyAmount)} '
+              '${CurrencyFormatter.format(budget.monthlyAmount, code: budget.currency, decimalDigits: 0)} '
               '• ${budget.totalDays} days',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),

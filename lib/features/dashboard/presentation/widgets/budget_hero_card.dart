@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_progress.dart';
 import '../../../budget/domain/entities/budget_status.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
@@ -107,10 +107,7 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
             builder: (context, _) {
               final animated = summary.dailySafeSpending * _controller.value;
               return Text(
-                NumberFormat.currency(
-                  symbol: currency,
-                  decimalDigits: 0,
-                ).format(animated),
+                CurrencyFormatter.format(animated, code: currency),
                 style: theme.textTheme.displaySmall?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -257,10 +254,7 @@ class _Metric extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              NumberFormat.currency(
-                symbol: currency,
-                decimalDigits: 0,
-              ).format(amount),
+              CurrencyFormatter.format(amount, code: currency),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: color,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 class BudgetProgressCard extends StatefulWidget {
   final double budgetUtilization;
@@ -96,13 +96,13 @@ class _BudgetProgressCardState extends State<BudgetProgressCard>
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Spent: ${NumberFormat.currency(symbol: widget.currency, decimalDigits: 0).format(widget.totalSpent)}',
+                  'Spent: ${CurrencyFormatter.format(widget.totalSpent, code: widget.currency, decimalDigits: 0)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 Text(
-                  'Remaining: ${NumberFormat.currency(symbol: widget.currency, decimalDigits: 0).format(widget.remainingBudget)}',
+                  'Remaining: ${CurrencyFormatter.format(widget.remainingBudget, code: widget.currency, decimalDigits: 0)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),

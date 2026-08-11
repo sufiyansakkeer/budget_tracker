@@ -129,7 +129,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     trailing: state.recentExpenses.isNotEmpty
                         ? TextButton(
                             onPressed: () {
-                              context.push('/app/expenses');
+                              // Switch to the existing Expenses tab (single
+                              // source of truth) instead of pushing a clone.
+                              context.go('/app/expenses');
                             },
                             child: const Text('View All'),
                           )

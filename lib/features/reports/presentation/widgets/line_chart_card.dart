@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -55,7 +56,11 @@ class _LineChartCardState extends State<LineChartCard> {
                       getTooltipItems: (spots) => spots
                           .map(
                             (spot) => LineTooltipItem(
-                              NumberFormat.currency(symbol: widget.currency, decimalDigits: 0).format(spot.y),
+                              CurrencyFormatter.format(
+                                spot.y,
+                                code: widget.currency,
+                                decimalDigits: 0,
+                              ),
                               TextStyle(
                                 color: theme.colorScheme.onSurface,
                                 fontWeight: FontWeight.bold,
@@ -180,7 +185,10 @@ class _ChartCardContainer extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
+        border: Border.all(
+          color: theme.colorScheme.surfaceContainerHighest,
+          width: 1,
+        ),
       ),
       child: child,
     );

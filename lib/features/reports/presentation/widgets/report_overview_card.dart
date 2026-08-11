@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -21,10 +21,11 @@ class ReportHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final totalSpending = NumberFormat.currency(
-      symbol: currency,
+    final totalSpending = CurrencyFormatter.format(
+      overview.totalSpending,
+      code: currency,
       decimalDigits: 0,
-    ).format(overview.totalSpending);
+    );
 
     return AppCard(
       color: AppColors.primary,
@@ -132,7 +133,7 @@ class ReportOverviewGrid extends StatelessWidget {
     final isWide = MediaQuery.sizeOf(context).width >= 600;
 
     String fmt(double v) =>
-        NumberFormat.currency(symbol: currency, decimalDigits: 0).format(v);
+        CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
 
     final metrics = [
       _OverviewMetric(

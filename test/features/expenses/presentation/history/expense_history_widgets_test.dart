@@ -201,7 +201,7 @@ void main() {
 
       expect(find.text('Food'), findsOneWidget);
       expect(find.text('Pizza'), findsOneWidget);
-      expect(find.text('250'), findsOneWidget);
+      expect(find.text('₹250'), findsOneWidget);
     });
   });
 

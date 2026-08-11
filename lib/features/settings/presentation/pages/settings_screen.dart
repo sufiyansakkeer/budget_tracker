@@ -82,6 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _pickAndRestore(BuildContext context, SettingsBloc bloc) async {
     final path = await _pickFile(json: true);
     if (path == null) return;
+    if (!context.mounted) return;
 
     final confirm = await ResetConfirmationDialog.show(
       context,
@@ -104,6 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) async {
     final path = await _pickFile(json: json);
     if (path == null) return;
+    if (!context.mounted) return;
 
     final confirm = await ResetConfirmationDialog.show(
       context,

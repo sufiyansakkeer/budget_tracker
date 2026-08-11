@@ -1,5 +1,5 @@
-import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -28,7 +28,10 @@ class TimeAnalyticsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
+        border: Border.all(
+          color: theme.colorScheme.surfaceContainerHighest,
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,10 +70,11 @@ class TimeAnalyticsCard extends StatelessWidget {
               Expanded(
                 child: _TimeMetric(
                   label: 'Weekday Spending',
-                  value: NumberFormat.currency(
-                    symbol: currency,
+                  value: CurrencyFormatter.format(
+                    analytics.weekdaySpending,
+                    code: currency,
                     decimalDigits: 0,
-                  ).format(analytics.weekdaySpending),
+                  ),
                   icon: Icons.work,
                   color: AppColors.primary,
                 ),
@@ -79,10 +83,11 @@ class TimeAnalyticsCard extends StatelessWidget {
               Expanded(
                 child: _TimeMetric(
                   label: 'Weekend Spending',
-                  value: NumberFormat.currency(
-                    symbol: currency,
+                  value: CurrencyFormatter.format(
+                    analytics.weekendSpending,
+                    code: currency,
                     decimalDigits: 0,
-                  ).format(analytics.weekendSpending),
+                  ),
                   icon: Icons.weekend,
                   color: AppColors.secondary,
                 ),

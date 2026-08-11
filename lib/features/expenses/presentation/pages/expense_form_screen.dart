@@ -63,6 +63,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   void initState() {
     super.initState();
     context.read<ExpenseBloc>().add(const ExpenseLoadCategories());
+    // Initialize the default date/time defaults only for new expenses. The
+    // values are captured once by the BLoC and kept in state.
+    if (!_isEditing) {
+      context.read<ExpenseBloc>().add(const ExpenseInitialize());
+    }
     _loadBudgets();
     if (_isEditing) {
       context.read<ExpenseBloc>().add(ExpenseLoadById(widget.expenseId!));
@@ -280,6 +285,19 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               _isEditing &&
               _amountController.text.isEmpty) {
             _populateFromExpense(state.expense!);
+          }
+
+          // Apply the BLoC-provided default date/time for new expenses.
+          if (!_isEditing && _date == null) {
+            if (state.initialDate != null) {
+              _date = state.initialDate;
+            }
+            if (state.initialTime != null && _time == null) {
+              _time = TimeOfDay(
+                hour: state.initialTime!.hour,
+                minute: state.initialTime!.minute,
+              );
+            }
           }
         },
         builder: (context, state) {

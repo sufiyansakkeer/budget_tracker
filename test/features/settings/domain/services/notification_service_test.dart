@@ -56,7 +56,7 @@ void main() {
       });
 
       test('should request permission on iOS', () async {
-        final mockIOS = MockIOSFlutterLocalNotificationsPlugin();
+        final mockIOS = FakeIOSFlutterLocalNotificationsPlugin();
         when(
           mockPlugin
               .resolvePlatformSpecificImplementation<
@@ -64,16 +64,14 @@ void main() {
               >(),
         ).thenReturn(mockIOS);
         when(mockPlugin.initialize(any)).thenAnswer((_) async => true);
-        when(
-          mockIOS.requestPermissions(alert: true, badge: true, sound: true),
-        ).thenAnswer((_) async => true);
 
         final result = await notificationService.requestPermission();
 
         expect(result, true);
-        verify(
-          mockIOS.requestPermissions(alert: true, badge: true, sound: true),
-        ).called(1);
+        expect(mockIOS.requestPermissionsCallCount, 1);
+        expect(mockIOS.requestedAlert, true);
+        expect(mockIOS.requestedBadge, true);
+        expect(mockIOS.requestedSound, true);
       });
     });
 
@@ -93,7 +91,7 @@ void main() {
               'uiLocalNotificationDateInterpretation',
             ),
           ),
-        ).thenAnswer((_) async => true);
+        ).thenAnswer((_) async {});
 
         final settings = AppSettings(
           notifications: const NotificationSettings(
@@ -160,6 +158,9 @@ void main() {
           notifications: const NotificationSettings(
             notificationsEnabled: true,
             morningReminderEnabled: true,
+            eveningSummaryEnabled: false,
+            overspendingAlertsEnabled: false,
+            noExpenseReminderEnabled: false,
             morningReminderTime: NotificationTime(hour: 23, minute: 0),
             quietHoursEnabled: true,
             quietHoursStart: NotificationTime(hour: 22, minute: 0),
@@ -210,6 +211,27 @@ void main() {
   });
 }
 
-// Mock for iOS-specific implementation
-class MockIOSFlutterLocalNotificationsPlugin extends Mock
-    implements IOSFlutterLocalNotificationsPlugin {}
+// Fake for iOS-specific implementation. Mockito cannot safely stub this
+// platform-interface method without a generated mock.
+class FakeIOSFlutterLocalNotificationsPlugin extends Fake
+    implements IOSFlutterLocalNotificationsPlugin {
+  int requestPermissionsCallCount = 0;
+  bool? requestedAlert;
+  bool? requestedBadge;
+  bool? requestedSound;
+
+  @override
+  Future<bool?> requestPermissions({
+    bool alert = false,
+    bool badge = false,
+    bool sound = false,
+    bool critical = false,
+    bool provisional = false,
+  }) async {
+    requestPermissionsCallCount += 1;
+    requestedAlert = alert;
+    requestedBadge = badge;
+    requestedSound = sound;
+    return true;
+  }
+}

@@ -1,6 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -32,7 +32,10 @@ class PieChartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
+        border: Border.all(
+          color: theme.colorScheme.surfaceContainerHighest,
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,7 +82,7 @@ class PieChartCard extends StatelessWidget {
           if (!empty) ...[
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Total: ${NumberFormat.currency(symbol: currency, decimalDigits: 0).format(total)}',
+              'Total: ${CurrencyFormatter.format(total, code: currency, decimalDigits: 0)}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

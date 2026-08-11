@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
@@ -114,10 +115,7 @@ class ExpenseHistoryItem extends StatelessWidget {
 
           // Amount
           Text(
-            NumberFormat.currency(
-              symbol: '',
-              decimalDigits: 0,
-            ).format(expense.amount),
+            CurrencyFormatter.format(expense.amount, decimalDigits: 0),
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.onSurface,

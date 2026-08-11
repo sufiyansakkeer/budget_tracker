@@ -95,16 +95,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: const SettingsTile(
-              icon: Icons.settings,
-              title: 'Test Title',
-            ),
+            body: const SettingsTile(icon: Icons.settings, title: 'Test Title'),
           ),
         ),
       );
 
-      // Should not have InkWell when onTap is null
-      expect(find.byType(InkWell), findsNothing);
+      final tile = tester.widget<ListTile>(find.byType(ListTile));
+      expect(tile.onTap, isNull);
     });
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_progress.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
 import '../../../budget/domain/entities/budget_status.dart';
@@ -27,18 +28,20 @@ class TodaySpendingCard extends StatelessWidget {
     final (title, subtitle, icon) = isOver
         ? (
             "You've exceeded today's allowance",
-            NumberFormat.currency(
-              symbol: currency,
+            CurrencyFormatter.format(
+              summary.todayOverspending,
+              code: currency,
               decimalDigits: 0,
-            ).format(summary.todayOverspending),
+            ),
             Icons.error_rounded,
           )
         : (
             'You can safely spend today',
-            NumberFormat.currency(
-              symbol: currency,
+            CurrencyFormatter.format(
+              allowance - spent,
+              code: currency,
               decimalDigits: 0,
-            ).format(allowance - spent),
+            ),
             Icons.check_circle_rounded,
           );
 
@@ -96,10 +99,11 @@ class TodaySpendingCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                NumberFormat.currency(
-                  symbol: currency,
+                CurrencyFormatter.format(
+                  spent,
+                  code: currency,
                   decimalDigits: 0,
-                ).format(spent),
+                ),
                 style: theme.textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: statusColor,
@@ -107,7 +111,7 @@ class TodaySpendingCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                '/ ${NumberFormat.currency(symbol: currency, decimalDigits: 0).format(allowance)}',
+                '/ ${CurrencyFormatter.format(allowance, code: currency, decimalDigits: 0)}',
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),

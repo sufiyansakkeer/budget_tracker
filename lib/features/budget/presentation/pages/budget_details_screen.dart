@@ -168,6 +168,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
         actions: [
           if (_budget != null)
             PopupMenuButton<String>(
+              enabled: !_busy,
               onSelected: (value) {
                 switch (value) {
                   case 'edit':
@@ -218,7 +219,6 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     final budget = _budget!;
     final today = DateTime.now();
     final remaining = budget.daysRemaining(today);
-    final elapsed = budget.daysElapsed(today);
     final spent = _stats.totalSpent;
     final utilization = budget.monthlyAmount <= 0
         ? 0.0
@@ -341,7 +341,6 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     int remaining,
   ) {
     final remainingBudget = budget.monthlyAmount - spent;
-    final dailySafe = remaining > 0 ? remainingBudget / remaining : 0.0;
 
     return Row(
       children: [
@@ -435,12 +434,12 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                 _ActionButton(
                   icon: Icons.history,
                   label: 'View Expenses',
-                  onPressed: () => context.push('/app/expenses'),
+                  onPressed: () => context.go('/app/expenses'),
                 ),
                 _ActionButton(
                   icon: Icons.bar_chart,
                   label: 'Reports',
-                  onPressed: () => context.push('/app/reports'),
+                  onPressed: () => context.go('/app/reports'),
                 ),
               ],
             ),

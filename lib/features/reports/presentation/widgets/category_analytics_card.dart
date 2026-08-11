@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
@@ -27,7 +27,10 @@ class CategoryAnalyticsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
+        border: Border.all(
+          color: theme.colorScheme.surfaceContainerHighest,
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,13 +111,13 @@ class _CategoryRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Total: ${NumberFormat.currency(symbol: currency, decimalDigits: 0).format(analytics.totalAmount)} · ${analytics.transactionCount} txns',
+              'Total: ${CurrencyFormatter.format(analytics.totalAmount, code: currency, decimalDigits: 0)} · ${analytics.transactionCount} txns',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
             Text(
-              'Avg: ${NumberFormat.currency(symbol: currency, decimalDigits: 0).format(analytics.averageTransaction)}',
+              'Avg: ${CurrencyFormatter.format(analytics.averageTransaction, code: currency, decimalDigits: 0)}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),

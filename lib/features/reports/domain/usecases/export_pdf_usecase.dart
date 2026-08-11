@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../entities/report_data.dart';
 import '../entities/report_failure.dart';
@@ -40,7 +40,7 @@ class ExportPdfUseCase {
   pw.Document _buildDocument(ReportData data) {
     final currency = data.currentBudget?.currency ?? '₹';
     money(double v) =>
-        NumberFormat.currency(symbol: currency, decimalDigits: 0).format(v);
+        CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
 
     final theme = pw.ThemeData.withFont(
       base: pw.Font.helvetica(),

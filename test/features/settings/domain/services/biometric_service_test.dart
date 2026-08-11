@@ -18,25 +18,28 @@ void main() {
 
   group('BiometricService', () {
     group('getAvailability', () {
-      test('should return availability when device supports biometrics', () async {
-        when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
-        when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
-        when(mockAuth.getAvailableBiometrics())
-            .thenAnswer((_) async => [BiometricType.fingerprint]);
+      test(
+        'should return availability when device supports biometrics',
+        () async {
+          when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
+          when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
+          when(
+            mockAuth.getAvailableBiometrics(),
+          ).thenAnswer((_) async => [BiometricType.fingerprint]);
 
-        final availability = await biometricService.getAvailability();
+          final availability = await biometricService.getAvailability();
 
-        expect(availability.isDeviceSupported, true);
-        expect(availability.canCheckBiometrics, true);
-        expect(availability.availableTypes, [BiometricType.fingerprint]);
-        expect(availability.hasBiometrics, true);
-      });
+          expect(availability.isDeviceSupported, true);
+          expect(availability.canCheckBiometrics, true);
+          expect(availability.availableTypes, [BiometricType.fingerprint]);
+          expect(availability.hasBiometrics, true);
+        },
+      );
 
       test('should return no biometrics when none available', () async {
         when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
         when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
-        when(mockAuth.getAvailableBiometrics())
-            .thenAnswer((_) async => []);
+        when(mockAuth.getAvailableBiometrics()).thenAnswer((_) async => []);
 
         final availability = await biometricService.getAvailability();
 
@@ -59,30 +62,36 @@ void main() {
     });
 
     group('canUseBiometrics', () {
-      test('should return true when device supports and has biometrics', () async {
-        when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
-        when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
-        when(mockAuth.getAvailableBiometrics())
-            .thenAnswer((_) async => [BiometricType.face]);
+      test(
+        'should return true when device supports and has biometrics',
+        () async {
+          when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
+          when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
+          when(
+            mockAuth.getAvailableBiometrics(),
+          ).thenAnswer((_) async => [BiometricType.face]);
 
-        final result = await biometricService.canUseBiometrics();
+          final result = await biometricService.canUseBiometrics();
 
-        expect(result, true);
-      });
+          expect(result, true);
+        },
+      );
 
-      test('should return false when device does not support biometrics', () async {
-        when(mockAuth.isDeviceSupported()).thenAnswer((_) async => false);
+      test(
+        'should return false when device does not support biometrics',
+        () async {
+          when(mockAuth.isDeviceSupported()).thenAnswer((_) async => false);
 
-        final result = await biometricService.canUseBiometrics();
+          final result = await biometricService.canUseBiometrics();
 
-        expect(result, false);
-      });
+          expect(result, false);
+        },
+      );
 
       test('should return false when no biometrics available', () async {
         when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
         when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
-        when(mockAuth.getAvailableBiometrics())
-            .thenAnswer((_) async => []);
+        when(mockAuth.getAvailableBiometrics()).thenAnswer((_) async => []);
 
         final result = await biometricService.canUseBiometrics();
 
@@ -92,27 +101,33 @@ void main() {
 
     group('authenticate', () {
       test('should return true on successful authentication', () async {
-        when(mockAuth.authenticate(
-                localizedReason: anyNamed('localizedReason'),
-                options: anyNamed('options')))
-            .thenAnswer((_) async => true);
+        when(
+          mockAuth.authenticate(
+            localizedReason: anyNamed('localizedReason'),
+            options: anyNamed('options'),
+          ),
+        ).thenAnswer((_) async => true);
 
         final result = await biometricService.authenticate(
           reason: 'Test Authentication',
         );
 
         expect(result, true);
-        verify(mockAuth.authenticate(
-                localizedReason: 'Test Authentication',
-                options: anyNamed('options')))
-            .called(1);
+        verify(
+          mockAuth.authenticate(
+            localizedReason: 'Test Authentication',
+            options: anyNamed('options'),
+          ),
+        ).called(1);
       });
 
       test('should return false on failed authentication', () async {
-        when(mockAuth.authenticate(
-                localizedReason: anyNamed('localizedReason'),
-                options: anyNamed('options')))
-            .thenAnswer((_) async => false);
+        when(
+          mockAuth.authenticate(
+            localizedReason: anyNamed('localizedReason'),
+            options: anyNamed('options'),
+          ),
+        ).thenAnswer((_) async => false);
 
         final result = await biometricService.authenticate();
 
@@ -120,10 +135,12 @@ void main() {
       });
 
       test('should return false on cancellation', () async {
-        when(mockAuth.authenticate(
-                localizedReason: anyNamed('localizedReason'),
-                options: anyNamed('options')))
-            .thenThrow(Exception('User cancelled'));
+        when(
+          mockAuth.authenticate(
+            localizedReason: anyNamed('localizedReason'),
+            options: anyNamed('options'),
+          ),
+        ).thenThrow(Exception('User cancelled'));
 
         final result = await biometricService.authenticate();
 
@@ -131,37 +148,49 @@ void main() {
       });
 
       test('should use default reason when not provided', () async {
-        when(mockAuth.authenticate(
-                localizedReason: anyNamed('localizedReason'),
-                options: anyNamed('options')))
-            .thenAnswer((_) async => true);
+        when(
+          mockAuth.authenticate(
+            localizedReason: anyNamed('localizedReason'),
+            options: anyNamed('options'),
+          ),
+        ).thenAnswer((_) async => true);
 
         await biometricService.authenticate();
 
-        verify(mockAuth.authenticate(
-                localizedReason: 'Unlock Budget Tracker',
-                options: anyNamed('options')))
-            .called(1);
+        verify(
+          mockAuth.authenticate(
+            localizedReason: 'Unlock Budget Tracker',
+            options: anyNamed('options'),
+          ),
+        ).called(1);
       });
 
       test('should respect useErrorDialogs parameter', () async {
-        when(mockAuth.authenticate(
-                localizedReason: anyNamed('localizedReason'),
-                options: anyNamed('options')))
-            .thenAnswer((_) async => true);
+        when(
+          mockAuth.authenticate(
+            localizedReason: anyNamed('localizedReason'),
+            options: anyNamed('options'),
+          ),
+        ).thenAnswer((_) async => true);
 
         await biometricService.authenticate(
           reason: 'Test',
           useErrorDialogs: false,
         );
 
-        verify(mockAuth.authenticate(
-                localizedReason: 'Test',
-                options: argThat(
-                  isA<AuthenticationOptions>()
-                      .having((o) => o.useErrorDialogs, 'useErrorDialogs', false),
-                )))
-            .called(1);
+        verify(
+          mockAuth.authenticate(
+            localizedReason: 'Test',
+            options: argThat(
+              isA<AuthenticationOptions>().having(
+                (o) => o.useErrorDialogs,
+                'useErrorDialogs',
+                false,
+              ),
+              named: 'options',
+            ),
+          ),
+        ).called(1);
       });
     });
   });

@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -27,7 +28,10 @@ class BarChartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: theme.colorScheme.surfaceContainerHighest, width: 1),
+        border: Border.all(
+          color: theme.colorScheme.surfaceContainerHighest,
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +68,11 @@ class BarChartCard extends StatelessWidget {
                       getTooltipColor: (_) => theme.colorScheme.surface,
                       getTooltipItem: (group, _, rod, __) {
                         return BarTooltipItem(
-                          NumberFormat.currency(symbol: currency, decimalDigits: 0).format(rod.toY),
+                          CurrencyFormatter.format(
+                            rod.toY,
+                            code: currency,
+                            decimalDigits: 0,
+                          ),
                           TextStyle(
                             color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,

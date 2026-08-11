@@ -22,6 +22,12 @@ class ExpenseState extends Equatable {
   final String? activeBudgetId;
   final String? message;
 
+  /// Default date captured once when the Add Expense form is initialized.
+  final DateTime? initialDate;
+
+  /// Default time captured once when the Add Expense form is initialized.
+  final DateTime? initialTime;
+
   const ExpenseState({
     this.status = ExpenseBlocStatus.initial,
     this.categories = const [],
@@ -29,6 +35,8 @@ class ExpenseState extends Equatable {
     this.expenses = const [],
     this.activeBudgetId,
     this.message,
+    this.initialDate,
+    this.initialTime,
   });
 
   bool get isBusy =>
@@ -45,6 +53,8 @@ class ExpenseState extends Equatable {
     String? activeBudgetId,
     String? message,
     bool clearMessage = false,
+    DateTime? initialDate,
+    DateTime? initialTime,
   }) {
     return ExpenseState(
       status: status ?? this.status,
@@ -53,6 +63,8 @@ class ExpenseState extends Equatable {
       expenses: expenses ?? this.expenses,
       activeBudgetId: activeBudgetId ?? this.activeBudgetId,
       message: clearMessage ? null : (message ?? this.message),
+      initialDate: initialDate ?? this.initialDate,
+      initialTime: initialTime ?? this.initialTime,
     );
   }
 
@@ -64,5 +76,7 @@ class ExpenseState extends Equatable {
     expenses,
     activeBudgetId,
     message,
+    initialDate,
+    initialTime,
   ];
 }

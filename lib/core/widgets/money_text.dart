@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../constants/app_colors.dart';
+import '../currency/currency_formatter.dart';
 
 /// Formats a money value with strong visual hierarchy.
 ///
@@ -31,11 +31,17 @@ class MoneyText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final symbol = showSymbol ? currency : '';
-    final formatted = NumberFormat.currency(
-      symbol: symbol,
-      decimalDigits: decimalDigits,
-    ).format(amount);
+    final formatted = showSymbol
+        ? CurrencyFormatter.format(
+            amount,
+            code: currency,
+            decimalDigits: decimalDigits,
+          )
+        : CurrencyFormatter.format(
+            amount,
+            code: '',
+            decimalDigits: decimalDigits,
+          );
     final textColor = color ?? theme.colorScheme.onSurface;
 
     final Column content = Column(

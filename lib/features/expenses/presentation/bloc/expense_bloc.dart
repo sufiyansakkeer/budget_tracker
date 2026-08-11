@@ -38,6 +38,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     required this.budgetRepository,
   }) : super(const ExpenseState()) {
     on<ExpenseLoadCategories>(_onLoadCategories);
+    on<ExpenseInitialize>(_onInitialize);
     on<ExpenseLoadById>(_onLoadById);
     on<ExpenseLoadAll>(_onLoadAll);
     on<ExpenseCreate>(_onCreate);
@@ -75,6 +76,20 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
       case ExpenseError(:final failure):
         emit(state.copyWith(message: failure.message));
     }
+  }
+
+  /// Captures the current date/time once (from a single [DateTime.now()] call)
+  /// and stores them in state as the Add Expense form's defaults. This avoids
+  /// separate `now()` calls that could straddle midnight.
+  Future<void> _onInitialize(
+    ExpenseInitialize event,
+    Emitter<ExpenseState> emit,
+  ) async {
+    if (state.initialDate != null && state.initialTime != null) return;
+
+    final now = DateTime.now();
+    final date = DateTime(now.year, now.month, now.day);
+    emit(state.copyWith(initialDate: date, initialTime: now));
   }
 
   Future<String?> _resolveActiveBudgetId() async {

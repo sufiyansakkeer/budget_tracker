@@ -14,6 +14,13 @@ class ExpenseLoadCategories extends ExpenseEvent {
   const ExpenseLoadCategories();
 }
 
+/// Initializes the Add Expense form's default date/time (captured once from
+/// the device clock). The values are stored in the BLoC state so the form can
+/// display pre-filled defaults that the user may still edit.
+class ExpenseInitialize extends ExpenseEvent {
+  const ExpenseInitialize();
+}
+
 /// Loads a single expense by id (for edit/details).
 class ExpenseLoadById extends ExpenseEvent {
   final String id;

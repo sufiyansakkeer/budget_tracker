@@ -27,65 +27,78 @@ void main() {
     );
   }
 
-  testWidgets('Monthly Budget Screen renders prompt, currency symbol, and input field', (tester) async {
-    await tester.pumpWidget(
-      createWidgetUnderTest(
-        initialValue: '',
-        currencySymbol: '₹',
-        errorMessage: 'Monthly budget cannot be empty',
-        onChanged: (_) {},
-        onContinue: () {},
-        onBack: () {},
-      ),
-    );
+  testWidgets(
+    'Monthly Budget Screen renders prompt, currency symbol, and input field',
+    (tester) async {
+      await tester.pumpWidget(
+        createWidgetUnderTest(
+          initialValue: '',
+          currencySymbol: '₹',
+          errorMessage: 'Monthly budget cannot be empty',
+          onChanged: (_) {},
+          onContinue: () {},
+          onBack: () {},
+        ),
+      );
 
-    expect(find.text('What is your monthly budget?'), findsOneWidget);
-    expect(find.text('₹'), findsOneWidget);
-    expect(find.text('Monthly budget cannot be empty'), findsOneWidget);
-  });
+      expect(find.text('What is your budget amount?'), findsOneWidget);
+      expect(find.text('₹'), findsOneWidget);
+      expect(find.text('Monthly budget cannot be empty'), findsOneWidget);
+    },
+  );
 
-  testWidgets('Monthly Budget Screen enables continue button when input is valid without error', (tester) async {
-    bool continuePressed = false;
+  testWidgets(
+    'Monthly Budget Screen enables continue button when input is valid without error',
+    (tester) async {
+      bool continuePressed = false;
 
-    await tester.pumpWidget(
-      createWidgetUnderTest(
-        initialValue: '30000',
-        currencySymbol: '₹',
-        errorMessage: null,
-        onChanged: (_) {},
-        onContinue: () {
-          continuePressed = true;
-        },
-        onBack: () {},
-      ),
-    );
+      await tester.pumpWidget(
+        createWidgetUnderTest(
+          initialValue: '30000',
+          currencySymbol: '₹',
+          errorMessage: null,
+          onChanged: (_) {},
+          onContinue: () {
+            continuePressed = true;
+          },
+          onBack: () {},
+        ),
+      );
 
-    final continueButtonFinder = find.byKey(const Key('budgetStepContinueButton'));
-    expect(continueButtonFinder, findsOneWidget);
+      final continueButtonFinder = find.byKey(
+        const Key('budgetStepContinueButton'),
+      );
+      expect(continueButtonFinder, findsOneWidget);
 
-    final button = tester.widget<ElevatedButton>(continueButtonFinder);
-    expect(button.enabled, isTrue);
+      final button = tester.widget<ElevatedButton>(continueButtonFinder);
+      expect(button.enabled, isTrue);
 
-    await tester.tap(continueButtonFinder);
-    await tester.pump();
+      await tester.tap(continueButtonFinder);
+      await tester.pump();
 
-    expect(continuePressed, isTrue);
-  });
+      expect(continuePressed, isTrue);
+    },
+  );
 
-  testWidgets('Monthly Budget Screen disables continue button when error is present', (tester) async {
-    await tester.pumpWidget(
-      createWidgetUnderTest(
-        initialValue: '-500',
-        currencySymbol: '₹',
-        errorMessage: 'Budget must be greater than zero',
-        onChanged: (_) {},
-        onContinue: () {},
-        onBack: () {},
-      ),
-    );
+  testWidgets(
+    'Monthly Budget Screen disables continue button when error is present',
+    (tester) async {
+      await tester.pumpWidget(
+        createWidgetUnderTest(
+          initialValue: '-500',
+          currencySymbol: '₹',
+          errorMessage: 'Budget must be greater than zero',
+          onChanged: (_) {},
+          onContinue: () {},
+          onBack: () {},
+        ),
+      );
 
-    final continueButtonFinder = find.byKey(const Key('budgetStepContinueButton'));
-    final button = tester.widget<ElevatedButton>(continueButtonFinder);
-    expect(button.enabled, isFalse);
-  });
+      final continueButtonFinder = find.byKey(
+        const Key('budgetStepContinueButton'),
+      );
+      final button = tester.widget<ElevatedButton>(continueButtonFinder);
+      expect(button.enabled, isFalse);
+    },
+  );
 }

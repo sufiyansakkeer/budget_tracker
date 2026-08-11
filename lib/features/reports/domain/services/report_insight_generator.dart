@@ -1,4 +1,4 @@
-import 'package:intl/intl.dart';
+import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 import '../entities/report_data.dart';
@@ -166,10 +166,7 @@ class ReportInsightGenerator {
 
   String _money(double amount, ReportData data) {
     final currency = data.currentBudget?.currency ?? '₹';
-    return NumberFormat.currency(
-      symbol: currency,
-      decimalDigits: 0,
-    ).format(amount);
+    return CurrencyFormatter.format(amount, code: currency, decimalDigits: 0);
   }
 
   List<String> _weekdayNames() {

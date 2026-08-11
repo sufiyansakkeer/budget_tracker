@@ -82,8 +82,13 @@ class ResetBudgetUseCase {
     }
   }
 
-  /// Archives the active budget and creates a fresh default budget. Returns
+  /// Archives the active budget and creates a fresh budget period. Returns
   /// the new budget id.
+  ///
+  /// The operation is atomic (a single [transaction]) and preserves the
+  /// previous budget's amount/currency so the dashboard never sees a budget
+  /// with a zero amount, which previously caused duplicate/empty budgets and
+  /// a "Something went wrong" error. Exactly ONE new budget is created.
   Future<SettingsResult<String>> resetCurrentMonth() async {
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day);
@@ -91,36 +96,41 @@ class ResetBudgetUseCase {
 
     try {
       final existing = await _activeBudgetRow();
-      if (existing != null) {
-        await (_database.update(
-          _database.budgets,
-        )..where((b) => b.id.equals(existing.id))).write(
-          BudgetsCompanion(
-            isArchived: const Value(true),
-            updatedAt: Value(DateTime.now()),
-          ),
-        );
-      }
+      final newId = const Uuid().v4();
 
-      final id = const Uuid().v4();
-      await _database
-          .into(_database.budgets)
-          .insert(
-            BudgetsCompanion.insert(
-              id: id,
-              name: 'Personal Budget',
-              monthlyAmount: 0,
-              remainingAmount: 0,
-              currency: 'INR',
-              startDate: start,
-              endDate: end,
-              createdAt: Value(now),
+      await _database.transaction(() async {
+        if (existing != null) {
+          await (_database.update(
+            _database.budgets,
+          )..where((b) => b.id.equals(existing.id))).write(
+            BudgetsCompanion(
+              isArchived: const Value(true),
               updatedAt: Value(now),
             ),
           );
-      // Persist the newly created budget as active.
-      await _sharedPreferences.setString(_activeBudgetIdKey, id);
-      return SettingsSuccess(id);
+        }
+
+        await _database
+            .into(_database.budgets)
+            .insert(
+              BudgetsCompanion.insert(
+                id: newId,
+                name: 'Personal Budget',
+                // Preserve the previous amount so the new period is valid.
+                monthlyAmount: existing?.monthlyAmount ?? 0,
+                remainingAmount: existing?.monthlyAmount ?? 0,
+                currency: existing?.currency ?? 'INR',
+                startDate: start,
+                endDate: end,
+                createdAt: Value(now),
+                updatedAt: Value(now),
+              ),
+            );
+      });
+
+      // Persist the newly created budget as active (only after success).
+      await _sharedPreferences.setString(_activeBudgetIdKey, newId);
+      return SettingsSuccess(newId);
     } catch (e) {
       return SettingsError(
         SettingsFailure(

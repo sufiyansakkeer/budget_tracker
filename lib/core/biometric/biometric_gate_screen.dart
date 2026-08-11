@@ -76,56 +76,69 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
           message = 'Authenticate to continue';
         }
 
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          home: Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isAuthenticating ? Icons.fingerprint : Icons.fingerprint,
-                      size: 80,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Budget Tracker',
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      message,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        // While the app is locked, intercept the system back button so the
+        // user cannot navigate away from the biometric gate and bypass
+        // authentication. They must authenticate (or tap Re-authenticate).
+        return PopScope(
+          canPop: false,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        isAuthenticating
+                            ? Icons.fingerprint
+                            : Icons.fingerprint,
+                        size: 80,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                    ),
-                    const SizedBox(height: 32),
-                    if (isAuthenticating)
-                      const CircularProgressIndicator()
-                    else if (state.errorMessage != null) ...[
+                      const SizedBox(height: 24),
                       Text(
-                        state.errorMessage!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                        'Budget Tracker',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        message,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          context.read<AppLockBloc>().add(
-                            const AppUnlockRequested(),
-                          );
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
-                      ),
+                      const SizedBox(height: 32),
+                      if (isAuthenticating)
+                        const CircularProgressIndicator()
+                      else ...[
+                        if (state.errorMessage != null) ...[
+                          Text(
+                            state.errorMessage!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        // Always-available re-authentication action so the user
+                        // can retry even after dismissing the native biometric
+                        // prompt (e.g. pressing the device back button).
+                        FilledButton.icon(
+                          onPressed: () {
+                            context.read<AppLockBloc>().add(
+                              const AppUnlockRequested(),
+                            );
+                          },
+                          icon: const Icon(Icons.fingerprint),
+                          label: const Text('Re-authenticate'),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
