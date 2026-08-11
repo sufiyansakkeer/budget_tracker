@@ -101,6 +101,9 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async {
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> updateBudgetRemainingAmount(String budgetId) async {}
 }
 
 void main() {

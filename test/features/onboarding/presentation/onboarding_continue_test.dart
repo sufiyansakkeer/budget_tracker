@@ -104,6 +104,9 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async {
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> updateBudgetRemainingAmount(String budgetId) async {}
 }
 
 /// Mimics the real OnboardingScreen wiring: reads BLoC state and passes the

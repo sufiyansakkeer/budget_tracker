@@ -26,9 +26,9 @@ class GetBudgetListSummaryUseCase {
         );
       }
 
-      // Filter to non-archived budgets (include all, regardless of date range)
+      // Filter to active budgets (not archived and currently within date range)
       final activeBudgets = budgets.where((budget) {
-        return !budget.isArchived;
+        return budget.isActive;
       }).toList();
 
       if (activeBudgets.isEmpty) {
@@ -41,20 +41,8 @@ class GetBudgetListSummaryUseCase {
         );
       }
 
-      // Validate all active budgets use the same currency
+      // Fallback to the first active budget's currency for combined display
       final firstCurrency = activeBudgets.first.currency;
-      final allSameCurrency = activeBudgets.every(
-        (b) => b.currency == firstCurrency,
-      );
-
-      if (!allSameCurrency) {
-        return const BudgetError(
-          BudgetFailure(
-            type: BudgetErrorType.invalidBudget,
-            message: 'Cannot combine budgets with different currencies',
-          ),
-        );
-      }
 
       // Sum remaining amounts
       final totalRemaining = activeBudgets.fold<double>(

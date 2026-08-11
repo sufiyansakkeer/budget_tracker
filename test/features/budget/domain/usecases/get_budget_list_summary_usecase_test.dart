@@ -185,7 +185,7 @@ void main() {
       expect(summary.activeBudgetCount, 1);
     });
 
-    test('returns error when budgets have different currencies', () async {
+    test('combines budgets with different currencies using first active currency fallback', () async {
       final budget1 = BudgetEntity(
         id: '1',
         name: 'INR Budget',
@@ -218,10 +218,11 @@ void main() {
 
       final result = await useCase();
 
-      expect(result, isA<BudgetError<BudgetListSummaryEntity>>());
-      final error = (result as BudgetError).failure;
-      expect(error.type, BudgetErrorType.invalidBudget);
-      expect(error.message, contains('different currencies'));
+      expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
+      final data = (result as BudgetSuccess).data;
+      expect(data.totalRemaining, 5500);
+      expect(data.activeBudgetCount, 2);
+      expect(data.currency, 'INR');
     });
 
     test('handles negative remaining amounts (overspent budgets)', () async {

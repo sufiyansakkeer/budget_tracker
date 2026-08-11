@@ -193,7 +193,7 @@ class BudgetCard extends StatelessWidget {
   double _utilization(BudgetEntity budget) {
     if (budget.monthlyAmount <= 0) return 0;
     final used = budget.monthlyAmount - budget.remainingAmount;
-    return (used / budget.monthlyAmount).clamp(0.0, 1.0);
+    return used / budget.monthlyAmount;
   }
 
   Color _accentColor(Brightness brightness) {

@@ -144,6 +144,9 @@ class FakeBudgetRepository implements BudgetRepository {
       ),
     );
   }
+
+  @override
+  Future<void> updateBudgetRemainingAmount(String budgetId) async {}
 }
 
 ExpenseHistoryBloc buildBloc(ExpenseRepository repository) {

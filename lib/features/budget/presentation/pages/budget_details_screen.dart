@@ -222,7 +222,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     final spent = _stats.totalSpent;
     final utilization = budget.monthlyAmount <= 0
         ? 0.0
-        : (spent / budget.monthlyAmount).clamp(0.0, 1.0);
+        : spent / budget.monthlyAmount;
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),

@@ -23,26 +23,8 @@ class TodaySpendingCard extends StatelessWidget {
 
     final dayRatio = allowance > 0 ? (spent / allowance).clamp(0.0, 1.0) : 0.0;
     final statusColor = _statusColor(isOver);
-
-    final (title, subtitle, icon) = isOver
-        ? (
-            "You've exceeded today's allowance",
-            CurrencyFormatter.format(
-              summary.todayOverspending,
-              code: currency,
-              decimalDigits: 0,
-            ),
-            Icons.error_rounded,
-          )
-        : (
-            'You can safely spend today',
-            CurrencyFormatter.format(
-              allowance - spent,
-              code: currency,
-              decimalDigits: 0,
-            ),
-            Icons.check_circle_rounded,
-          );
+    final statusLabel = isOver ? 'Exceeded' : 'On Track';
+    final statusIcon = isOver ? Icons.error_rounded : Icons.check_circle_rounded;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -60,7 +42,7 @@ class TodaySpendingCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Today's Spending",
+                "Today's Safe Spending",
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -77,10 +59,10 @@ class TodaySpendingCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(icon, size: 14, color: statusColor),
+                    Icon(statusIcon, size: 14, color: statusColor),
                     const SizedBox(width: 4),
                     Text(
-                      _statusLabel(isOver),
+                      statusLabel,
                       style: TextStyle(
                         color: statusColor,
                         fontSize: 12,
@@ -93,61 +75,67 @@ class TodaySpendingCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                CurrencyFormatter.format(
-                  spent,
-                  code: currency,
-                  decimalDigits: 0,
-                ),
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: statusColor,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '/ ${CurrencyFormatter.format(allowance, code: currency, decimalDigits: 0)}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
+          Text(
+            CurrencyFormatter.format(
+              allowance,
+              code: currency,
+              decimalDigits: 0,
+            ),
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: statusColor,
+            ),
           ),
           const SizedBox(height: 12),
           AppProgress(value: dayRatio, showLabel: false),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(icon, size: 16, color: statusColor),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  isOver
-                      ? '$subtitle over today\'s allowance'
-                      : '$subtitle remaining today',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(height: 16),
+          if (!isOver) ...[
+            _infoRow(
+              theme,
+              '${CurrencyFormatter.format(allowance, code: currency, decimalDigits: 0)} safe limit',
+            ),
+            const SizedBox(height: 4),
+            _infoRow(
+              theme,
+              '${CurrencyFormatter.format(spent, code: currency, decimalDigits: 0)} spent',
+            ),
+            const SizedBox(height: 4),
+            _infoRow(
+              theme,
+              '${CurrencyFormatter.format(allowance - spent, code: currency, decimalDigits: 0)} remaining',
+              isBold: true,
+              color: statusColor,
+            ),
+          ] else ...[
+            _infoRow(
+              theme,
+              '${CurrencyFormatter.format(spent, code: currency, decimalDigits: 0)} spent',
+            ),
+            const SizedBox(height: 4),
+            _infoRow(
+              theme,
+              '${CurrencyFormatter.format(summary.todayOverspending, code: currency, decimalDigits: 0)} over your safe limit',
+              isBold: true,
+              color: statusColor,
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _infoRow(ThemeData theme, String text, {bool isBold = false, Color? color}) {
+    return Text(
+      text,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+        color: color ?? theme.colorScheme.onSurface.withValues(alpha: 0.7),
       ),
     );
   }
 
   Color _statusColor(bool isOver) {
     return isOver ? AppColors.error : AppColors.success;
-  }
-
-  String _statusLabel(bool isOver) {
-    return isOver ? 'Exceeded' : 'On track';
   }
 }
 
