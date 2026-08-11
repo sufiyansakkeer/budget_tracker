@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,8 +8,14 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
+import '../../domain/entities/budget_error.dart';
+import '../../domain/entities/budget_list_summary_entity.dart';
+import '../../domain/usecases/get_budget_list_summary_usecase.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
+import '../bloc/budget_bloc.dart';
 import '../widgets/budget_card.dart';
+import '../widgets/budget_list_summary_card.dart';
 
 /// Lists all budgets and allows opening/editing/archiving/deleting them.
 class BudgetListScreen extends StatefulWidget {
@@ -19,15 +27,39 @@ class BudgetListScreen extends StatefulWidget {
 
 class _BudgetListScreenState extends State<BudgetListScreen> {
   late final ManageBudgetUseCase _manageBudget = getIt<ManageBudgetUseCase>();
+  late final GetBudgetListSummaryUseCase _getSummaryUseCase =
+      getIt<GetBudgetListSummaryUseCase>();
   List<BudgetEntity>? _budgets;
+  BudgetListSummaryEntity? _summary;
   String? _activeBudgetId;
   bool _loading = true;
   String? _error;
+  StreamSubscription<void>? _refreshSubscription;
+  StreamSubscription<void>? _budgetSwitchSubscription;
 
   @override
   void initState() {
     super.initState();
     _load();
+
+    // Auto-refresh when expenses change
+    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+      if (!mounted) return;
+      _load();
+    });
+
+    // Auto-refresh when budgets change
+    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+      if (!mounted) return;
+      _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshSubscription?.cancel();
+    _budgetSwitchSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -38,10 +70,19 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     try {
       final budgets = await _manageBudget.getAll();
       final activeId = await _manageBudget.activeBudgetId();
+      final summaryResult = await _getSummaryUseCase();
+
       if (!mounted) return;
+
+      BudgetListSummaryEntity? summary;
+      if (summaryResult case BudgetSuccess(:final data)) {
+        summary = data;
+      }
+
       setState(() {
         _budgets = budgets;
         _activeBudgetId = activeId;
+        _summary = summary;
         _loading = false;
       });
     } catch (e) {
@@ -101,15 +142,19 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
-        children: budgets
-            .map(
-              (budget) => BudgetCard(
-                budget: budget,
-                isActive: budget.id == _activeBudgetId,
-                onTap: () => context.push('/app/budgets/${budget.id}'),
-              ),
-            )
-            .toList(),
+        children: [
+          if (_summary != null && _summary!.activeBudgetCount > 0) ...[
+            BudgetListSummaryCard(summary: _summary!),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          ...budgets.map(
+            (budget) => BudgetCard(
+              budget: budget,
+              isActive: budget.id == _activeBudgetId,
+              onTap: () => context.push('/app/budgets/${budget.id}'),
+            ),
+          ),
+        ],
       ),
     );
   }

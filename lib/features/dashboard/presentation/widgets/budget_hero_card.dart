@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_progress.dart';
-import '../../../budget/domain/entities/budget_status.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
 
 /// The primary hero card on the dashboard. Highlights "today's safe spending"
@@ -50,9 +49,9 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
     final theme = Theme.of(context);
     final summary = widget.summary;
     final currency = summary.currency;
-    final status = summary.status;
+    final isOver = summary.todayOverspending > 0;
 
-    final (statusLabel, statusIcon) = _statusInfo(status);
+    final (statusLabel, statusIcon) = _statusInfo(isOver);
 
     return Container(
       width: double.infinity,
@@ -158,15 +157,10 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
     );
   }
 
-  (String, IconData) _statusInfo(BudgetStatus status) {
-    switch (status) {
-      case BudgetStatus.underBudget:
-        return ('On track', Icons.check_circle_rounded);
-      case BudgetStatus.nearLimit:
-        return ('Near limit', Icons.warning_amber_rounded);
-      case BudgetStatus.overBudget:
-        return ('Over budget', Icons.error_rounded);
-    }
+  (String, IconData) _statusInfo(bool isOver) {
+    return isOver
+        ? ('Exceeded', Icons.error_rounded)
+        : ('On track', Icons.check_circle_rounded);
   }
 }
 

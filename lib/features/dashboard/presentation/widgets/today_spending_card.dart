@@ -5,7 +5,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_progress.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
-import '../../../budget/domain/entities/budget_status.dart';
 
 /// Displays today's spending against the daily safe-spending allowance with a
 /// semantic status (on track / near limit / over).
@@ -23,7 +22,7 @@ class TodaySpendingCard extends StatelessWidget {
     final isOver = summary.todayOverspending > 0;
 
     final dayRatio = allowance > 0 ? (spent / allowance).clamp(0.0, 1.0) : 0.0;
-    final statusColor = _statusColor(summary.status);
+    final statusColor = _statusColor(isOver);
 
     final (title, subtitle, icon) = isOver
         ? (
@@ -81,7 +80,7 @@ class TodaySpendingCard extends StatelessWidget {
                     Icon(icon, size: 14, color: statusColor),
                     const SizedBox(width: 4),
                     Text(
-                      _statusLabel(summary.status),
+                      _statusLabel(isOver),
                       style: TextStyle(
                         color: statusColor,
                         fontSize: 12,
@@ -143,26 +142,12 @@ class TodaySpendingCard extends StatelessWidget {
     );
   }
 
-  Color _statusColor(BudgetStatus status) {
-    switch (status) {
-      case BudgetStatus.underBudget:
-        return AppColors.success;
-      case BudgetStatus.nearLimit:
-        return AppColors.warning;
-      case BudgetStatus.overBudget:
-        return AppColors.error;
-    }
+  Color _statusColor(bool isOver) {
+    return isOver ? AppColors.error : AppColors.success;
   }
 
-  String _statusLabel(BudgetStatus status) {
-    switch (status) {
-      case BudgetStatus.underBudget:
-        return 'On track';
-      case BudgetStatus.nearLimit:
-        return 'Near limit';
-      case BudgetStatus.overBudget:
-        return 'Overspent';
-    }
+  String _statusLabel(bool isOver) {
+    return isOver ? 'Exceeded' : 'On track';
   }
 }
 

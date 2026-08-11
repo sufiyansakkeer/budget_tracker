@@ -59,6 +59,9 @@ abstract class BudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   });
+
+  /// Updates the budget's remaining amount based on current spending.
+  Future<void> updateBudgetRemainingAmount(String budgetId);
 }
 
 /// Bundled raw data used by use cases before invoking [BudgetCalculationService].

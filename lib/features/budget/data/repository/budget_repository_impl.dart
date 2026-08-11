@@ -140,4 +140,19 @@ class BudgetRepositoryImpl implements BudgetRepository {
       ),
     );
   }
+
+  @override
+  Future<void> updateBudgetRemainingAmount(String budgetId) async {
+    final budget = await localDataSource.getBudgetById(budgetId);
+    if (budget == null) return;
+
+    final statistics = await getBudgetStatistics(budgetId);
+    final newRemaining = calculationService.calculateRemainingBudget(
+      monthlyAmount: budget.monthlyAmount,
+      totalSpent: statistics.totalSpent,
+    );
+
+    final updatedBudget = budget.copyWith(remainingAmount: newRemaining);
+    await localDataSource.updateBudget(updatedBudget);
+  }
 }

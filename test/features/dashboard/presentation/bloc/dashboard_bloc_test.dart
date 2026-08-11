@@ -120,6 +120,9 @@ class MockBudgetRepository implements BudgetRepository {
       BudgetFailure(type: BudgetErrorType.notFound, message: 'No budget found'),
     );
   }
+
+  @override
+  Future<void> updateBudgetRemainingAmount(String budgetId) async {}
 }
 
 class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {

@@ -1,3 +1,4 @@
+import '../../../budget/domain/repository/budget_repository.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/repository/expense_repository.dart';
@@ -5,22 +6,32 @@ import '../datasource/expense_local_datasource.dart';
 
 class ExpenseRepositoryImpl implements ExpenseRepository {
   final ExpenseLocalDataSource localDataSource;
+  final BudgetRepository budgetRepository;
 
-  ExpenseRepositoryImpl({required this.localDataSource});
+  ExpenseRepositoryImpl({
+    required this.localDataSource,
+    required this.budgetRepository,
+  });
 
   @override
-  Future<void> createExpense(ExpenseEntity expense) {
-    return localDataSource.createExpense(expense);
+  Future<void> createExpense(ExpenseEntity expense) async {
+    await localDataSource.createExpense(expense);
+    await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
   }
 
   @override
-  Future<void> updateExpense(ExpenseEntity expense) {
-    return localDataSource.updateExpense(expense);
+  Future<void> updateExpense(ExpenseEntity expense) async {
+    await localDataSource.updateExpense(expense);
+    await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
   }
 
   @override
-  Future<void> deleteExpense(String id) {
-    return localDataSource.deleteExpense(id);
+  Future<void> deleteExpense(String id) async {
+    final expense = await localDataSource.getExpenseById(id);
+    if (expense != null) {
+      await localDataSource.deleteExpense(id);
+      await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+    }
   }
 
   @override

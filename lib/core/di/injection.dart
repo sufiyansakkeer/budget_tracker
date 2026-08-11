@@ -35,6 +35,7 @@ import '../../features/budget/domain/repository/budget_repository.dart';
 import '../../features/budget/domain/services/budget_calculation_service.dart';
 import '../../features/budget/domain/usecases/calculate_daily_allowance_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_analytics_usecase.dart';
+import '../../features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_status_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import '../../features/budget/domain/usecases/get_projected_overspending_usecase.dart';
@@ -208,6 +209,10 @@ Future<void> initDependencyInjection() async {
     () => ManageBudgetUseCase(repository: getIt<BudgetRepository>()),
   );
 
+  getIt.registerLazySingleton<GetBudgetListSummaryUseCase>(
+    () => GetBudgetListSummaryUseCase(repository: getIt<BudgetRepository>()),
+  );
+
   // 10. Onboarding Feature - BLoC
   getIt.registerFactory<OnboardingBloc>(
     () => OnboardingBloc(
@@ -264,8 +269,10 @@ Future<void> initDependencyInjection() async {
 
   // 17. Expense Feature - Repositories
   getIt.registerLazySingleton<ExpenseRepository>(
-    () =>
-        ExpenseRepositoryImpl(localDataSource: getIt<ExpenseLocalDataSource>()),
+    () => ExpenseRepositoryImpl(
+      localDataSource: getIt<ExpenseLocalDataSource>(),
+      budgetRepository: getIt<BudgetRepository>(),
+    ),
   );
 
   // 18. Expense Feature - Use Cases

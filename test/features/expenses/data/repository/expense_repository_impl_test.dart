@@ -1,8 +1,101 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
+import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
+import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
 import 'package:budget_tracker/features/expenses/data/datasource/expense_local_datasource.dart';
 import 'package:budget_tracker/features/expenses/data/repository/expense_repository_impl.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
 import 'package:budget_tracker/features/expenses/domain/entities/expense_entity.dart';
+
+class MockBudgetRepository implements BudgetRepository {
+  @override
+  Future<BudgetEntity?> getActiveBudget() async => null;
+
+  @override
+  Future<String?> getActiveBudgetId() async => null;
+
+  @override
+  Future<void> setActiveBudgetId(String budgetId) async {}
+
+  @override
+  Future<BudgetEntity?> getBudgetById(String id) async => null;
+
+  @override
+  Future<List<BudgetEntity>> getAllBudgets({options}) async => [];
+
+  @override
+  Future<BudgetEntity> createBudget(BudgetEntity budget) async => budget;
+
+  @override
+  Future<BudgetEntity> updateBudget(BudgetEntity budget) async => budget;
+
+  @override
+  Future<void> deleteBudget(String id) async {}
+
+  @override
+  Future<BudgetEntity> setBudgetArchived(
+    String id, {
+    required bool archived,
+  }) async => BudgetEntity(
+    id: id,
+    name: 'Test',
+    monthlyAmount: 1000,
+    remainingAmount: 1000,
+    currency: 'INR',
+    startDate: DateTime.now(),
+    endDate: DateTime.now().add(const Duration(days: 30)),
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+  );
+
+  @override
+  Future<BudgetEntity> duplicateBudget(
+    String id, {
+    required String newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async => BudgetEntity(
+    id: id,
+    name: newName,
+    monthlyAmount: 1000,
+    remainingAmount: 1000,
+    currency: 'INR',
+    startDate: startDate ?? DateTime.now(),
+    endDate: endDate ?? DateTime.now().add(const Duration(days: 30)),
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+  );
+
+  @override
+  Future<MonthlyStatisticsEntity> getBudgetStatistics(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => MonthlyStatisticsEntity.empty;
+
+  @override
+  Future<double> getTodaySpending(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 0;
+
+  @override
+  Future<int> getRemainingDays(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 30;
+
+  @override
+  Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => const BudgetError(
+    BudgetFailure(type: BudgetErrorType.notFound, message: 'Not found'),
+  );
+
+  @override
+  Future<void> updateBudgetRemainingAmount(String budgetId) async {}
+}
 
 class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {
   final Map<String, ExpenseEntity> store = {};
@@ -57,11 +150,16 @@ ExpenseEntity expenseEntity(String id) {
 
 void main() {
   late FakeExpenseLocalDataSource dataSource;
+  late MockBudgetRepository budgetRepository;
   late ExpenseRepositoryImpl repository;
 
   setUp(() {
     dataSource = FakeExpenseLocalDataSource();
-    repository = ExpenseRepositoryImpl(localDataSource: dataSource);
+    budgetRepository = MockBudgetRepository();
+    repository = ExpenseRepositoryImpl(
+      localDataSource: dataSource,
+      budgetRepository: budgetRepository,
+    );
   });
 
   test('createExpense delegates to data source and stores record', () async {
