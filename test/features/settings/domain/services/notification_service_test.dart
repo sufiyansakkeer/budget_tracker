@@ -2,45 +2,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_summary_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_status.dart';
+
 import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
 import 'package:budget_tracker/features/budget/domain/services/budget_calculation_service.dart';
 import 'package:budget_tracker/features/settings/domain/entities/app_settings.dart';
 import 'package:budget_tracker/features/settings/domain/entities/notification_settings.dart';
+
 import 'package:budget_tracker/features/settings/domain/services/notification_service.dart';
 
 @GenerateMocks([FlutterLocalNotificationsPlugin, BudgetRepository])
 import 'notification_service_test.mocks.dart';
-
-BudgetSummaryEntity _sampleSummary({
-  double dailySafeSpending = 1320,
-  double todaySpending = 980,
-  double todayOverspending = 0,
-}) {
-  return BudgetSummaryEntity(
-    monthlyAmount: 50000,
-    remainingBudget: 30000,
-    totalSpent: 20000,
-    todaySpending: todaySpending,
-    remainingDays: 20,
-    daysPassed: 10,
-    dailySafeSpending: dailySafeSpending,
-    budgetUtilization: 0.4,
-    spendingPercentage: 40,
-    remainingPercentage: 60,
-    averageDailySpending: 2000,
-    expectedPeriodEndSpending: 40000,
-    expectedSavings: 10000,
-    expectedOverspending: 0,
-    todayOverspending: todayOverspending,
-    status: BudgetStatus.underBudget,
-    currency: 'INR',
-    startDate: DateTime(2026, 8, 1),
-    endDate: DateTime(2026, 8, 31),
-  );
-}
 
 void main() {
   late NotificationService notificationService;
@@ -138,38 +109,43 @@ void main() {
         ).thenAnswer((_) async {});
       });
 
-      test('should schedule enabled notifications with formatted amounts', () async {
-        when(mockBudgetRepository.getActiveBudget()).thenAnswer((_) async => null);
+      test(
+        'should schedule enabled notifications with formatted amounts',
+        () async {
+          when(
+            mockBudgetRepository.getActiveBudget(),
+          ).thenAnswer((_) async => null);
 
-        final settings = AppSettings(
-          notifications: const NotificationSettings(
-            notificationsEnabled: true,
-            morningReminderEnabled: true,
-            eveningSummaryEnabled: true,
-            overspendingAlertsEnabled: true,
-            dailyRemindersEnabled: true,
-            noExpenseReminderEnabled: true,
-          ),
-        );
-
-        await notificationService.scheduleAll(settings);
-
-        verify(mockPlugin.cancelAll()).called(1);
-        verify(
-          mockPlugin.zonedSchedule(
-            NotificationService.morningReminderId,
-            "Today's spending limit",
-            'Check your daily budget allowance.',
-            any,
-            any,
-            androidScheduleMode: anyNamed('androidScheduleMode'),
-            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
-            uiLocalNotificationDateInterpretation: anyNamed(
-              'uiLocalNotificationDateInterpretation',
+          final settings = AppSettings(
+            notifications: const NotificationSettings(
+              notificationsEnabled: true,
+              morningReminderEnabled: true,
+              eveningSummaryEnabled: true,
+              overspendingAlertsEnabled: true,
+              dailyRemindersEnabled: true,
+              noExpenseReminderEnabled: true,
             ),
-          ),
-        ).called(1);
-      });
+          );
+
+          await notificationService.scheduleAll(settings);
+
+          verify(mockPlugin.cancelAll()).called(1);
+          verify(
+            mockPlugin.zonedSchedule(
+              NotificationService.morningReminderId,
+              "Today's spending limit",
+              'Check your daily budget allowance.',
+              any,
+              any,
+              androidScheduleMode: anyNamed('androidScheduleMode'),
+              matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+              uiLocalNotificationDateInterpretation: anyNamed(
+                'uiLocalNotificationDateInterpretation',
+              ),
+            ),
+          ).called(1);
+        },
+      );
 
       test('should not schedule when notifications disabled', () async {
         final settings = AppSettings(

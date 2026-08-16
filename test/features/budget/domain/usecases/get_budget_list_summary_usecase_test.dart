@@ -4,7 +4,7 @@ import 'package:mockito/mockito.dart';
 
 import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
 import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart';
+
 import 'package:budget_tracker/features/budget/domain/entities/budget_list_summary_entity.dart';
 import 'package:budget_tracker/features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
 import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
@@ -27,9 +27,9 @@ void main() {
     final endDate = DateTime(2026, 8, 31);
 
     test('returns empty summary when no budgets exist', () async {
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => []);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => []);
 
       final result = await useCase();
 
@@ -54,9 +54,9 @@ void main() {
         updatedAt: now,
       );
 
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => [archivedBudget]);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => [archivedBudget]);
 
       final result = await useCase();
 
@@ -80,9 +80,9 @@ void main() {
         updatedAt: now,
       );
 
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => [budget]);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => [budget]);
 
       final result = await useCase();
 
@@ -133,9 +133,9 @@ void main() {
         updatedAt: now,
       );
 
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => [budget1, budget2, budget3]);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => [budget1, budget2, budget3]);
 
       final result = await useCase();
 
@@ -173,9 +173,9 @@ void main() {
         updatedAt: now,
       );
 
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => [activeBudget, expiredBudget]);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => [activeBudget, expiredBudget]);
 
       final result = await useCase();
 
@@ -185,45 +185,48 @@ void main() {
       expect(summary.activeBudgetCount, 1);
     });
 
-    test('combines budgets with different currencies using first active currency fallback', () async {
-      final budget1 = BudgetEntity(
-        id: '1',
-        name: 'INR Budget',
-        monthlyAmount: 10000,
-        remainingAmount: 5000,
-        currency: 'INR',
-        startDate: startDate,
-        endDate: endDate,
-        isArchived: false,
-        createdAt: now,
-        updatedAt: now,
-      );
+    test(
+      'combines budgets with different currencies using first active currency fallback',
+      () async {
+        final budget1 = BudgetEntity(
+          id: '1',
+          name: 'INR Budget',
+          monthlyAmount: 10000,
+          remainingAmount: 5000,
+          currency: 'INR',
+          startDate: startDate,
+          endDate: endDate,
+          isArchived: false,
+          createdAt: now,
+          updatedAt: now,
+        );
 
-      final budget2 = BudgetEntity(
-        id: '2',
-        name: 'USD Budget',
-        monthlyAmount: 1000,
-        remainingAmount: 500,
-        currency: 'USD',
-        startDate: startDate,
-        endDate: endDate,
-        isArchived: false,
-        createdAt: now,
-        updatedAt: now,
-      );
+        final budget2 = BudgetEntity(
+          id: '2',
+          name: 'USD Budget',
+          monthlyAmount: 1000,
+          remainingAmount: 500,
+          currency: 'USD',
+          startDate: startDate,
+          endDate: endDate,
+          isArchived: false,
+          createdAt: now,
+          updatedAt: now,
+        );
 
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => [budget1, budget2]);
+        when(
+          mockRepository.getAllBudgets(options: anyNamed('options')),
+        ).thenAnswer((_) async => [budget1, budget2]);
 
-      final result = await useCase();
+        final result = await useCase();
 
-      expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
-      final data = (result as BudgetSuccess).data;
-      expect(data.totalRemaining, 5500);
-      expect(data.activeBudgetCount, 2);
-      expect(data.currency, 'INR');
-    });
+        expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
+        final data = (result as BudgetSuccess).data;
+        expect(data.totalRemaining, 5500);
+        expect(data.activeBudgetCount, 2);
+        expect(data.currency, 'INR');
+      },
+    );
 
     test('handles negative remaining amounts (overspent budgets)', () async {
       final budget1 = BudgetEntity(
@@ -252,9 +255,9 @@ void main() {
         updatedAt: now,
       );
 
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => [budget1, budget2]);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => [budget1, budget2]);
 
       final result = await useCase();
 
@@ -278,9 +281,9 @@ void main() {
         updatedAt: now,
       );
 
-      when(mockRepository.getAllBudgets(
-        options: anyNamed('options'),
-      )).thenAnswer((_) async => [budget]);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => [budget]);
 
       final result = await useCase();
 

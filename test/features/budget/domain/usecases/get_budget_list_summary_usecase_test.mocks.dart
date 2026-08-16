@@ -256,4 +256,13 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
                 ),
           )
           as _i5.Future<_i7.BudgetResult<_i4.BudgetCalculationContext>>);
+
+  @override
+  _i5.Future<void> updateBudgetRemainingAmount(String? budgetId) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateBudgetRemainingAmount, [budgetId]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 }

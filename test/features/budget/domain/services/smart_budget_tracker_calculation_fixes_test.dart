@@ -1,8 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
 import 'package:budget_tracker/features/budget/domain/entities/budget_calculation_input.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_list_summary_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_status.dart';
+
 import 'package:budget_tracker/features/budget/domain/services/budget_calculation_service.dart';
 
 void main() {
@@ -84,7 +83,10 @@ void main() {
         startDate: DateTime(2026, 8, 1),
         endDate: DateTime(2026, 8, 31),
       );
-      final summaryNormal = calculationService.buildSummary(inputNormal, currency: '₹');
+      final summaryNormal = calculationService.buildSummary(
+        inputNormal,
+        currency: '₹',
+      );
       expect(summaryNormal.budgetUtilization, 0.60);
       expect(summaryNormal.budgetUtilization.clamp(0.0, 1.0), 0.60);
 
@@ -97,7 +99,10 @@ void main() {
         startDate: DateTime(2026, 8, 1),
         endDate: DateTime(2026, 8, 31),
       );
-      final summaryOverrun = calculationService.buildSummary(inputOverrun, currency: '₹');
+      final summaryOverrun = calculationService.buildSummary(
+        inputOverrun,
+        currency: '₹',
+      );
       expect(summaryOverrun.budgetUtilization, 1.20);
       expect(summaryOverrun.budgetUtilization.clamp(0.0, 1.0), 1.0);
     });

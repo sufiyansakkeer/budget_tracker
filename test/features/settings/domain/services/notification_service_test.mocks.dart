@@ -3,23 +3,33 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i3;
+import 'dart:async' as _i5;
 
+import 'package:budget_tracker/core/domain/entities/budget_entity.dart' as _i2;
+import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart'
+    as _i15;
+import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart'
+    as _i14;
+import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart'
+    as _i3;
+import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart'
+    as _i13;
 import 'package:flutter_local_notifications/src/flutter_local_notifications_plugin.dart'
-    as _i2;
-import 'package:flutter_local_notifications/src/initialization_settings.dart'
     as _i4;
-import 'package:flutter_local_notifications/src/notification_details.dart'
+import 'package:flutter_local_notifications/src/initialization_settings.dart'
     as _i6;
-import 'package:flutter_local_notifications/src/platform_specifics/android/schedule_mode.dart'
-    as _i9;
-import 'package:flutter_local_notifications/src/platform_specifics/ios/enums.dart'
+import 'package:flutter_local_notifications/src/notification_details.dart'
     as _i8;
-import 'package:flutter_local_notifications/src/types.dart' as _i10;
+import 'package:flutter_local_notifications/src/platform_specifics/android/schedule_mode.dart'
+    as _i11;
+import 'package:flutter_local_notifications/src/platform_specifics/ios/enums.dart'
+    as _i10;
+import 'package:flutter_local_notifications/src/types.dart' as _i12;
 import 'package:flutter_local_notifications_platform_interface/flutter_local_notifications_platform_interface.dart'
-    as _i5;
+    as _i7;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:timezone/timezone.dart' as _i7;
+import 'package:mockito/src/dummies.dart' as _i16;
+import 'package:timezone/timezone.dart' as _i9;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -35,21 +45,32 @@ import 'package:timezone/timezone.dart' as _i7;
 // ignore_for_file: camel_case_types
 // ignore_for_file: subtype_of_sealed_class
 
+class _FakeBudgetEntity_0 extends _i1.SmartFake implements _i2.BudgetEntity {
+  _FakeBudgetEntity_0(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
+class _FakeMonthlyStatisticsEntity_1 extends _i1.SmartFake
+    implements _i3.MonthlyStatisticsEntity {
+  _FakeMonthlyStatisticsEntity_1(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
 /// A class which mocks [FlutterLocalNotificationsPlugin].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockFlutterLocalNotificationsPlugin extends _i1.Mock
-    implements _i2.FlutterLocalNotificationsPlugin {
+    implements _i4.FlutterLocalNotificationsPlugin {
   MockFlutterLocalNotificationsPlugin() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  _i3.Future<bool?> initialize(
-    _i4.InitializationSettings? initializationSettings, {
-    _i5.DidReceiveNotificationResponseCallback?
+  _i5.Future<bool?> initialize(
+    _i6.InitializationSettings? initializationSettings, {
+    _i7.DidReceiveNotificationResponseCallback?
     onDidReceiveNotificationResponse,
-    _i5.DidReceiveBackgroundNotificationResponseCallback?
+    _i7.DidReceiveBackgroundNotificationResponseCallback?
     onDidReceiveBackgroundNotificationResponse,
   }) =>
       (super.noSuchMethod(
@@ -63,25 +84,25 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
                     onDidReceiveBackgroundNotificationResponse,
               },
             ),
-            returnValue: _i3.Future<bool?>.value(),
+            returnValue: _i5.Future<bool?>.value(),
           )
-          as _i3.Future<bool?>);
+          as _i5.Future<bool?>);
 
   @override
-  _i3.Future<_i5.NotificationAppLaunchDetails?>
+  _i5.Future<_i7.NotificationAppLaunchDetails?>
   getNotificationAppLaunchDetails() =>
       (super.noSuchMethod(
             Invocation.method(#getNotificationAppLaunchDetails, []),
-            returnValue: _i3.Future<_i5.NotificationAppLaunchDetails?>.value(),
+            returnValue: _i5.Future<_i7.NotificationAppLaunchDetails?>.value(),
           )
-          as _i3.Future<_i5.NotificationAppLaunchDetails?>);
+          as _i5.Future<_i7.NotificationAppLaunchDetails?>);
 
   @override
-  _i3.Future<void> show(
+  _i5.Future<void> show(
     int? id,
     String? title,
     String? body,
-    _i6.NotificationDetails? notificationDetails, {
+    _i8.NotificationDetails? notificationDetails, {
     String? payload,
   }) =>
       (super.noSuchMethod(
@@ -90,41 +111,41 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
               [id, title, body, notificationDetails],
               {#payload: payload},
             ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<void> cancel(int? id, {String? tag}) =>
+  _i5.Future<void> cancel(int? id, {String? tag}) =>
       (super.noSuchMethod(
             Invocation.method(#cancel, [id], {#tag: tag}),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<void> cancelAll() =>
+  _i5.Future<void> cancelAll() =>
       (super.noSuchMethod(
             Invocation.method(#cancelAll, []),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<void> zonedSchedule(
+  _i5.Future<void> zonedSchedule(
     int? id,
     String? title,
     String? body,
-    _i7.TZDateTime? scheduledDate,
-    _i6.NotificationDetails? notificationDetails, {
-    required _i8.UILocalNotificationDateInterpretation?
+    _i9.TZDateTime? scheduledDate,
+    _i8.NotificationDetails? notificationDetails, {
+    required _i10.UILocalNotificationDateInterpretation?
     uiLocalNotificationDateInterpretation,
-    required _i9.AndroidScheduleMode? androidScheduleMode,
+    required _i11.AndroidScheduleMode? androidScheduleMode,
     String? payload,
-    _i10.DateTimeComponents? matchDateTimeComponents,
+    _i12.DateTimeComponents? matchDateTimeComponents,
   }) =>
       (super.noSuchMethod(
             Invocation.method(
@@ -138,19 +159,19 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
                 #matchDateTimeComponents: matchDateTimeComponents,
               },
             ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<void> periodicallyShow(
+  _i5.Future<void> periodicallyShow(
     int? id,
     String? title,
     String? body,
-    _i5.RepeatInterval? repeatInterval,
-    _i6.NotificationDetails? notificationDetails, {
-    required _i9.AndroidScheduleMode? androidScheduleMode,
+    _i7.RepeatInterval? repeatInterval,
+    _i8.NotificationDetails? notificationDetails, {
+    required _i11.AndroidScheduleMode? androidScheduleMode,
     String? payload,
   }) =>
       (super.noSuchMethod(
@@ -159,20 +180,20 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
               [id, title, body, repeatInterval, notificationDetails],
               {#androidScheduleMode: androidScheduleMode, #payload: payload},
             ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<void> periodicallyShowWithDuration(
+  _i5.Future<void> periodicallyShowWithDuration(
     int? id,
     String? title,
     String? body,
     Duration? repeatDurationInterval,
-    _i6.NotificationDetails? notificationDetails, {
-    _i9.AndroidScheduleMode? androidScheduleMode =
-        _i9.AndroidScheduleMode.exact,
+    _i8.NotificationDetails? notificationDetails, {
+    _i11.AndroidScheduleMode? androidScheduleMode =
+        _i11.AndroidScheduleMode.exact,
     String? payload,
   }) =>
       (super.noSuchMethod(
@@ -181,29 +202,254 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
               [id, title, body, repeatDurationInterval, notificationDetails],
               {#androidScheduleMode: androidScheduleMode, #payload: payload},
             ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<List<_i5.PendingNotificationRequest>>
+  _i5.Future<List<_i7.PendingNotificationRequest>>
   pendingNotificationRequests() =>
       (super.noSuchMethod(
             Invocation.method(#pendingNotificationRequests, []),
-            returnValue: _i3.Future<List<_i5.PendingNotificationRequest>>.value(
-              <_i5.PendingNotificationRequest>[],
+            returnValue: _i5.Future<List<_i7.PendingNotificationRequest>>.value(
+              <_i7.PendingNotificationRequest>[],
             ),
           )
-          as _i3.Future<List<_i5.PendingNotificationRequest>>);
+          as _i5.Future<List<_i7.PendingNotificationRequest>>);
 
   @override
-  _i3.Future<List<_i5.ActiveNotification>> getActiveNotifications() =>
+  _i5.Future<List<_i7.ActiveNotification>> getActiveNotifications() =>
       (super.noSuchMethod(
             Invocation.method(#getActiveNotifications, []),
-            returnValue: _i3.Future<List<_i5.ActiveNotification>>.value(
-              <_i5.ActiveNotification>[],
+            returnValue: _i5.Future<List<_i7.ActiveNotification>>.value(
+              <_i7.ActiveNotification>[],
             ),
           )
-          as _i3.Future<List<_i5.ActiveNotification>>);
+          as _i5.Future<List<_i7.ActiveNotification>>);
+}
+
+/// A class which mocks [BudgetRepository].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockBudgetRepository extends _i1.Mock implements _i13.BudgetRepository {
+  MockBudgetRepository() {
+    _i1.throwOnMissingStub(this);
+  }
+
+  @override
+  _i5.Future<_i2.BudgetEntity?> getActiveBudget() =>
+      (super.noSuchMethod(
+            Invocation.method(#getActiveBudget, []),
+            returnValue: _i5.Future<_i2.BudgetEntity?>.value(),
+          )
+          as _i5.Future<_i2.BudgetEntity?>);
+
+  @override
+  _i5.Future<String?> getActiveBudgetId() =>
+      (super.noSuchMethod(
+            Invocation.method(#getActiveBudgetId, []),
+            returnValue: _i5.Future<String?>.value(),
+          )
+          as _i5.Future<String?>);
+
+  @override
+  _i5.Future<void> setActiveBudgetId(String? budgetId) =>
+      (super.noSuchMethod(
+            Invocation.method(#setActiveBudgetId, [budgetId]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<_i2.BudgetEntity?> getBudgetById(String? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#getBudgetById, [id]),
+            returnValue: _i5.Future<_i2.BudgetEntity?>.value(),
+          )
+          as _i5.Future<_i2.BudgetEntity?>);
+
+  @override
+  _i5.Future<List<_i2.BudgetEntity>> getAllBudgets({
+    _i14.BudgetQueryOptions? options,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#getAllBudgets, [], {#options: options}),
+            returnValue: _i5.Future<List<_i2.BudgetEntity>>.value(
+              <_i2.BudgetEntity>[],
+            ),
+          )
+          as _i5.Future<List<_i2.BudgetEntity>>);
+
+  @override
+  _i5.Future<_i2.BudgetEntity> createBudget(_i2.BudgetEntity? budget) =>
+      (super.noSuchMethod(
+            Invocation.method(#createBudget, [budget]),
+            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+              _FakeBudgetEntity_0(
+                this,
+                Invocation.method(#createBudget, [budget]),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.BudgetEntity>);
+
+  @override
+  _i5.Future<_i2.BudgetEntity> updateBudget(_i2.BudgetEntity? budget) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateBudget, [budget]),
+            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+              _FakeBudgetEntity_0(
+                this,
+                Invocation.method(#updateBudget, [budget]),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.BudgetEntity>);
+
+  @override
+  _i5.Future<void> deleteBudget(String? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteBudget, [id]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<_i2.BudgetEntity> setBudgetArchived(
+    String? id, {
+    required bool? archived,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#setBudgetArchived, [id], {#archived: archived}),
+            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+              _FakeBudgetEntity_0(
+                this,
+                Invocation.method(
+                  #setBudgetArchived,
+                  [id],
+                  {#archived: archived},
+                ),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.BudgetEntity>);
+
+  @override
+  _i5.Future<_i2.BudgetEntity> duplicateBudget(
+    String? id, {
+    required String? newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #duplicateBudget,
+              [id],
+              {#newName: newName, #startDate: startDate, #endDate: endDate},
+            ),
+            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+              _FakeBudgetEntity_0(
+                this,
+                Invocation.method(
+                  #duplicateBudget,
+                  [id],
+                  {#newName: newName, #startDate: startDate, #endDate: endDate},
+                ),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.BudgetEntity>);
+
+  @override
+  _i5.Future<_i3.MonthlyStatisticsEntity> getBudgetStatistics(
+    String? budgetId, {
+    DateTime? referenceDate,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #getBudgetStatistics,
+              [budgetId],
+              {#referenceDate: referenceDate},
+            ),
+            returnValue: _i5.Future<_i3.MonthlyStatisticsEntity>.value(
+              _FakeMonthlyStatisticsEntity_1(
+                this,
+                Invocation.method(
+                  #getBudgetStatistics,
+                  [budgetId],
+                  {#referenceDate: referenceDate},
+                ),
+              ),
+            ),
+          )
+          as _i5.Future<_i3.MonthlyStatisticsEntity>);
+
+  @override
+  _i5.Future<double> getTodaySpending(
+    String? budgetId, {
+    DateTime? referenceDate,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #getTodaySpending,
+              [budgetId],
+              {#referenceDate: referenceDate},
+            ),
+            returnValue: _i5.Future<double>.value(0.0),
+          )
+          as _i5.Future<double>);
+
+  @override
+  _i5.Future<int> getRemainingDays(
+    String? budgetId, {
+    DateTime? referenceDate,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #getRemainingDays,
+              [budgetId],
+              {#referenceDate: referenceDate},
+            ),
+            returnValue: _i5.Future<int>.value(0),
+          )
+          as _i5.Future<int>);
+
+  @override
+  _i5.Future<_i15.BudgetResult<_i13.BudgetCalculationContext>>
+  getCalculationContext(String? budgetId, {DateTime? referenceDate}) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #getCalculationContext,
+              [budgetId],
+              {#referenceDate: referenceDate},
+            ),
+            returnValue:
+                _i5.Future<
+                  _i15.BudgetResult<_i13.BudgetCalculationContext>
+                >.value(
+                  _i16.dummyValue<
+                    _i15.BudgetResult<_i13.BudgetCalculationContext>
+                  >(
+                    this,
+                    Invocation.method(
+                      #getCalculationContext,
+                      [budgetId],
+                      {#referenceDate: referenceDate},
+                    ),
+                  ),
+                ),
+          )
+          as _i5.Future<_i15.BudgetResult<_i13.BudgetCalculationContext>>);
+
+  @override
+  _i5.Future<void> updateBudgetRemainingAmount(String? budgetId) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateBudgetRemainingAmount, [budgetId]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 }
