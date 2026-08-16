@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'core/currency/currency_provider.dart';
+import 'core/notifications/notification_bloc.dart';
 import 'core/di/injection.dart' as di;
-import 'core/notifications/notification_initializer.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/biometric/biometric_gate_screen.dart';
@@ -15,9 +15,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await di.initDependencyInjection();
 
-  // Initialize notifications
-  final notificationInitializer = di.getIt<NotificationInitializer>();
-  await notificationInitializer.initialize();
+  // Initialize notifications (permission + scheduling) before UI.
+  await di.getIt<NotificationBloc>().initializeOnStartup();
 
   runApp(const SmartBudgetApp());
 }

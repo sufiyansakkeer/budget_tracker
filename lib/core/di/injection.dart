@@ -25,6 +25,7 @@ import '../../features/settings/presentation/bloc/settings_bloc.dart';
 import '../../features/settings/presentation/bloc/theme/theme_bloc.dart';
 import '../database/app_database.dart';
 import '../currency/currency_provider.dart';
+import '../notifications/notification_bloc.dart';
 import '../notifications/notification_initializer.dart';
 import '../biometric/biometric_initializer.dart';
 import '../biometric/app_lock_bloc.dart';
@@ -106,11 +107,6 @@ Future<void> initDependencyInjection() async {
 
   // 3.6 Currency Provider
   getIt.registerLazySingleton<CurrencyProvider>(() => CurrencyProvider());
-
-  // 3.7 Notification Initializer
-  getIt.registerLazySingleton<NotificationInitializer>(
-    () => NotificationInitializer(),
-  );
 
   // 3.8 Biometric Initializer
   getIt.registerLazySingleton<BiometricInitializer>(
@@ -399,6 +395,7 @@ Future<void> initDependencyInjection() async {
     () => NotificationService(
       plugin: FlutterLocalNotificationsPlugin(),
       budgetRepository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
@@ -449,6 +446,17 @@ Future<void> initDependencyInjection() async {
     () => ScheduleNotificationsUseCase(
       notificationService: getIt<NotificationService>(),
     ),
+  );
+
+  // 29.5 Notification BLoC + Initializer
+  getIt.registerLazySingleton<NotificationBloc>(
+    () => NotificationBloc(
+      notificationService: getIt<NotificationService>(),
+      loadSettingsUseCase: getIt<LoadSettingsUseCase>(),
+    ),
+  );
+  getIt.registerLazySingleton<NotificationInitializer>(
+    () => NotificationInitializer(),
   );
 
   // 30. Settings Feature – BLoC

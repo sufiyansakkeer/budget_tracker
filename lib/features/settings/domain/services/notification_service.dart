@@ -1,164 +1,171 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../../../budget/domain/repository/budget_repository.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../features/budget/domain/repository/budget_repository.dart';
+import '../../../../features/budget/domain/services/budget_calculation_service.dart';
 import '../entities/app_settings.dart';
-import '../entities/notification_settings.dart';
 
 /// Manages local notification scheduling for reminders, summaries and alerts.
 ///
 /// Uses [flutter_local_notifications] with timezone-aware daily scheduling.
-/// Notification bodies are budget-aware: they reference the currently active
-/// budget so users always know which budget a notification belongs to.
+/// Notification bodies are budget-aware and use the centralized currency formatter.
 class NotificationService {
-  static const int _morningReminderId = 1001;
-  static const int _eveningSummaryId = 1002;
-  static const int _overspendingAlertId = 1003;
-  static const int _noExpenseReminderId = 1004;
+  static const int morningReminderId = 1001;
+  static const int eveningSummaryId = 1002;
+  static const int overspendingAlertId = 1003;
+  static const int noExpenseReminderId = 1004;
+  static const int testNotificationId = 1999;
+
+  static const String channelId = 'budget_reminders';
+  static const String channelName = 'Budget Reminders';
+  static const String channelDescription =
+      'Daily budget reminders and summaries';
 
   final FlutterLocalNotificationsPlugin _plugin;
-  final BudgetRepository? _budgetRepository;
+  final BudgetRepository budgetRepository;
+  final BudgetCalculationService calculationService;
   bool _initialized = false;
+  bool _timeZonesConfigured = false;
 
   NotificationService({
     FlutterLocalNotificationsPlugin? plugin,
-    BudgetRepository? budgetRepository,
-  }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
-       _budgetRepository = budgetRepository;
+    required this.budgetRepository,
+    required this.calculationService,
+  }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
-  /// Initializes the plugin and requests notification permissions.
+  /// Initializes the plugin, timezone database, and Android notification channel.
   Future<bool> initialize() async {
     if (_initialized) return true;
-    tz.initializeTimeZones();
+
+    await _configureLocalTimeZone();
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const ios = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
     const settings = InitializationSettings(android: android, iOS: ios);
 
     final ok = await _plugin.initialize(settings);
-    _initialized = ok ?? true;
-    return _initialized;
+    if (ok != true) {
+      return false;
+    }
+
+    await _createAndroidNotificationChannel();
+    _initialized = true;
+    return true;
   }
 
-  /// Requests notification permission (relevant on iOS).
+  /// Requests native notification permission on Android 13+ and iOS.
   Future<bool> requestPermission() async {
+    try {
+      await initialize();
+
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      if (android != null) {
+        final granted = await android.requestNotificationsPermission();
+        return granted ?? false;
+      }
+
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      if (ios != null) {
+        final granted = await ios.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        return granted ?? false;
+      }
+
+      return true;
+    } catch (e, st) {
+      debugPrint('[NotificationService] Error requesting permission: $e\n$st');
+      return false;
+    }
+  }
+
+  /// Returns whether notifications are enabled at the OS level.
+  Future<bool> areNotificationsEnabled() async {
     await initialize();
+
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android != null) {
+      return await android.areNotificationsEnabled() ?? false;
+    }
+
     final ios = _plugin
         .resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin
         >();
     if (ios != null) {
-      return (await ios.requestPermissions(
-            alert: true,
-            badge: true,
-            sound: true,
-          )) ??
-          false;
+      final settings = await ios.checkPermissions();
+      return settings?.isEnabled ?? false;
     }
-    return true; // Android 13+ handled by plugin; default granted.
+
+    return true;
   }
 
   /// Schedules all daily notifications based on [settings].
-  ///
-  /// Notification bodies are budget-aware: they reference the currently active
-  /// budget so the user always knows which budget a reminder belongs to.
   Future<void> scheduleAll(AppSettings settings) async {
     await initialize();
     await cancelAll();
-    if (!settings.notifications.notificationsEnabled) return;
 
-    final budgetName = await _activeBudgetName();
-    final notifications = settings.notifications;
+    final notifSettings = settings.notifications;
+    if (!notifSettings.notificationsEnabled) return;
 
-    if (notifications.morningReminderEnabled) {
-      await _scheduleDaily(
-        id: _morningReminderId,
-        title: "Today's Safe Spending",
-        body: budgetName == null
-            ? 'Check your daily budget allowance.'
-            : '$budgetName — Check your daily budget allowance.',
-        time: notifications.morningReminderTime,
-        settings: settings,
+    if (notifSettings.morningReminderEnabled) {
+      await _scheduleDailyNotification(
+        id: morningReminderId,
+        title: 'Good morning! 🌅',
+        body: 'Check your budget and plan your spending for today.',
+        hour: notifSettings.morningReminderTime.hour,
+        minute: notifSettings.morningReminderTime.minute,
       );
     }
 
-    if (notifications.eveningSummaryEnabled) {
-      await _scheduleDaily(
-        id: _eveningSummaryId,
-        title: 'Evening Summary',
-        body: budgetName == null
-            ? 'Review how much you spent today.'
-            : '$budgetName — Review how much you spent today.',
-        time: notifications.eveningSummaryTime,
-        settings: settings,
-      );
-    }
-
-    if (notifications.overspendingAlertsEnabled) {
-      await _scheduleDaily(
-        id: _overspendingAlertId,
-        title: 'Budget Alert',
-        body: budgetName == null
-            ? "You exceeded today's allowance."
-            : "$budgetName — You exceeded today's allowance.",
-        time: notifications.eveningSummaryTime,
-        settings: settings,
-      );
-    }
-
-    if (notifications.noExpenseReminderEnabled &&
-        notifications.dailyRemindersEnabled) {
-      await _scheduleDaily(
-        id: _noExpenseReminderId,
-        title: 'Daily Reminder',
-        body: budgetName == null
-            ? "You haven't recorded any expenses today."
-            : "$budgetName — You haven't recorded any expenses today.",
-        time: notifications.morningReminderTime,
-        settings: settings,
+    if (notifSettings.eveningSummaryEnabled) {
+      await _scheduleDailyNotification(
+        id: eveningSummaryId,
+        title: 'Evening Summary 🌙',
+        body: 'Review your spending for today.',
+        hour: notifSettings.eveningSummaryTime.hour,
+        minute: notifSettings.eveningSummaryTime.minute,
       );
     }
   }
 
-  /// Resolves the name of the currently active budget for notification bodies.
-  Future<String?> _activeBudgetName() async {
-    try {
-      final repo = _budgetRepository;
-      if (repo == null) return null;
-      final budget = await repo.getActiveBudget();
-      return budget?.name;
-    } catch (_) {
-      return null;
-    }
-  }
+  /// Schedules a one-off test notification one minute from now.
+  ///
+  /// Intended for development verification of permission, channel, and delivery.
+  Future<void> scheduleTestNotification({AppSettings? settings}) async {
+    await initialize();
 
-  /// Schedules a repeating daily notification at [time] respecting quiet hours.
-  Future<void> _scheduleDaily({
-    required int id,
-    required String title,
-    required String body,
-    required NotificationTime time,
-    required AppSettings settings,
-  }) async {
-    final notifications = settings.notifications;
-
-    // Skip scheduling if within quiet hours.
-    if (notifications.quietHoursEnabled &&
-        _isWithinQuietHours(time, notifications)) {
-      return;
-    }
-
-    final scheduledDate = _nextInstanceOfHourMinute(time.hour, time.minute);
+    final currencyCode = settings?.currencyCode ?? 'INR';
+    const allowance = 1320.0;
+    final formattedAllowance = CurrencyFormatter.format(
+      allowance,
+      code: currencyCode,
+      decimalDigits: 0,
+    );
 
     const androidDetails = AndroidNotificationDetails(
-      'budget_reminders',
-      'Budget Reminders',
-      channelDescription: 'Daily budget reminders and summaries',
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
       importance: Importance.high,
       priority: Priority.high,
     );
@@ -172,14 +179,17 @@ class NotificationService {
       iOS: iosDetails,
     );
 
+    final scheduledDate = tz.TZDateTime.now(
+      tz.local,
+    ).add(const Duration(minutes: 1));
+
     await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
+      testNotificationId,
+      "Today's spending limit",
+      formattedAllowance,
       scheduledDate,
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
@@ -195,26 +205,29 @@ class NotificationService {
     await _plugin.cancel(id);
   }
 
-  bool _isWithinQuietHours(
-    NotificationTime time,
-    NotificationSettings notifications,
-  ) {
-    final start =
-        notifications.quietHoursStart.hour * 60 +
-        notifications.quietHoursStart.minute;
-    final end =
-        notifications.quietHoursEnd.hour * 60 +
-        notifications.quietHoursEnd.minute;
-    final current = time.hour * 60 + time.minute;
+  /// Whether the plugin is ready for scheduling.
+  bool get isInitialized => _initialized;
 
-    if (start <= end) {
-      return current >= start && current <= end;
-    }
-    // Overnight range (e.g. 22:00 -> 07:00).
-    return current >= start || current <= end;
-  }
+  Future<void> _scheduleDailyNotification({
+    required int id,
+    required String title,
+    required String body,
+    required int hour,
+    required int minute,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+    );
+    const iosDetails = DarwinNotificationDetails();
+    const platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
-  tz.TZDateTime _nextInstanceOfHourMinute(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
       tz.local,
@@ -227,9 +240,52 @@ class NotificationService {
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
-    return scheduled;
+
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      scheduled,
+      platformDetails,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
   }
 
-  /// Whether the plugin is ready for scheduling.
-  bool get isInitialized => _initialized;
+  Future<void> _configureLocalTimeZone() async {
+    if (_timeZonesConfigured) return;
+
+    try {
+      tz_data.initializeTimeZones();
+      final timezoneInfo = await FlutterTimezone.getLocalTimezone();
+      debugPrint('[NotificationService] Resolved timezone: ${timezoneInfo.identifier}');
+      tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
+    } catch (e, st) {
+      debugPrint(
+        '[NotificationService] Failed to resolve local timezone: $e\n$st',
+      );
+      debugPrint('[NotificationService] Falling back to UTC');
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    }
+    _timeZonesConfigured = true;
+  }
+
+  Future<void> _createAndroidNotificationChannel() async {
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android == null) return;
+
+    await android.createNotificationChannel(
+      const AndroidNotificationChannel(
+        channelId,
+        channelName,
+        description: channelDescription,
+        importance: Importance.high,
+      ),
+    );
+  }
 }
