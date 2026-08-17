@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/core/theme/app_theme.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
-import 'package:budget_tracker/features/expenses/presentation/widgets/category_picker.dart';
-import 'package:budget_tracker/features/expenses/presentation/widgets/expense_amount_field.dart';
-import 'package:budget_tracker/features/expenses/presentation/widgets/receipt_picker.dart';
+import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
+import 'package:monivo/features/expenses/presentation/widgets/category_picker.dart';
+import 'package:monivo/features/expenses/presentation/widgets/expense_amount_field.dart';
+import 'package:monivo/features/expenses/presentation/widgets/receipt_picker.dart';
 
 void main() {
   group('CategoryPicker', () {

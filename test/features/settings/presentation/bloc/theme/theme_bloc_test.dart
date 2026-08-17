@@ -1,8 +1,8 @@
-import 'package:budget_tracker/features/settings/domain/entities/theme_mode_entity.dart';
-import 'package:budget_tracker/features/settings/domain/repository/theme_repository.dart';
-import 'package:budget_tracker/features/settings/presentation/bloc/theme/theme_bloc.dart';
-import 'package:budget_tracker/features/settings/presentation/bloc/theme/theme_event.dart';
-import 'package:budget_tracker/features/settings/presentation/bloc/theme/theme_state.dart';
+import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
+import 'package:monivo/features/settings/domain/repository/theme_repository.dart';
+import 'package:monivo/features/settings/presentation/bloc/theme/theme_bloc.dart';
+import 'package:monivo/features/settings/presentation/bloc/theme/theme_event.dart';
+import 'package:monivo/features/settings/presentation/bloc/theme/theme_state.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 

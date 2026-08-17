@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/features/expenses/domain/validators/expense_validator.dart';
+import 'package:monivo/features/expenses/domain/validators/expense_validator.dart';
 
 void main() {
   group('ExpenseValidator.validateAmount', () {

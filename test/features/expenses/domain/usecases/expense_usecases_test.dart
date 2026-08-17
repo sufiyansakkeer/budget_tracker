@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_entity.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_failure.dart';
-import 'package:budget_tracker/features/expenses/domain/repository/expense_repository.dart';
-import 'package:budget_tracker/features/expenses/domain/usecases/create_expense_usecase.dart';
-import 'package:budget_tracker/features/expenses/domain/usecases/update_expense_usecase.dart';
-import 'package:budget_tracker/features/expenses/domain/usecases/delete_expense_usecase.dart';
-import 'package:budget_tracker/features/expenses/domain/usecases/get_expense_by_id_usecase.dart';
-import 'package:budget_tracker/features/expenses/domain/usecases/get_categories_usecase.dart';
-import 'package:budget_tracker/features/expenses/domain/usecases/get_expenses_usecase.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_failure.dart';
+import 'package:monivo/features/expenses/domain/repository/expense_repository.dart';
+import 'package:monivo/features/expenses/domain/usecases/create_expense_usecase.dart';
+import 'package:monivo/features/expenses/domain/usecases/update_expense_usecase.dart';
+import 'package:monivo/features/expenses/domain/usecases/delete_expense_usecase.dart';
+import 'package:monivo/features/expenses/domain/usecases/get_expense_by_id_usecase.dart';
+import 'package:monivo/features/expenses/domain/usecases/get_categories_usecase.dart';
+import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
 
 class FakeExpenseRepository implements ExpenseRepository {
   final Map<String, ExpenseEntity> store = {};

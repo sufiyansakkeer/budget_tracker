@@ -121,7 +121,7 @@ class ExportService {
 
     await Share.shareXFiles([
       XFile(file.path, mimeType: 'text/csv'),
-    ], text: 'Budget Tracker Export');
+    ], text: 'Monivo Export');
 
     return ExportResult(filePath: file.path, message: 'CSV exported.');
   }
@@ -140,7 +140,7 @@ class ExportService {
 
     await Share.shareXFiles([
       XFile(file.path, mimeType: 'application/json'),
-    ], text: 'Budget Tracker Backup');
+    ], text: 'Monivo Backup');
 
     return ExportResult(filePath: file.path, message: 'JSON backup exported.');
   }

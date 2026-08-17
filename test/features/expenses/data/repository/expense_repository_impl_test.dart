@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
-import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
-import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
-import 'package:budget_tracker/features/expenses/data/datasource/expense_local_datasource.dart';
-import 'package:budget_tracker/features/expenses/data/repository/expense_repository_impl.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_error.dart';
+import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
+import 'package:monivo/features/expenses/data/datasource/expense_local_datasource.dart';
+import 'package:monivo/features/expenses/data/repository/expense_repository_impl.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 
 class MockBudgetRepository implements BudgetRepository {
   @override

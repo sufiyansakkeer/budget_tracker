@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:budget_tracker/core/database/app_database.dart';
-import 'package:budget_tracker/features/settings/domain/services/import_service.dart';
+import 'package:monivo/core/database/app_database.dart';
+import 'package:monivo/features/settings/domain/services/import_service.dart';
 
 import '../../../../helpers/in_memory_database.dart';
 

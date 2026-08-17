@@ -1,20 +1,20 @@
-import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_status.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_summary_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
-import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
-import 'package:budget_tracker/features/budget/domain/services/budget_calculation_service.dart';
-import 'package:budget_tracker/features/budget/domain/usecases/get_budget_summary_usecase.dart';
-import 'package:budget_tracker/features/dashboard/domain/entities/recent_expense_entity.dart';
-import 'package:budget_tracker/features/dashboard/domain/entities/smart_insight_entity.dart';
-import 'package:budget_tracker/features/dashboard/domain/repository/dashboard_repository.dart';
-import 'package:budget_tracker/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
-import 'package:budget_tracker/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
-import 'package:budget_tracker/features/dashboard/presentation/bloc/dashboard_bloc.dart';
-import 'package:budget_tracker/features/dashboard/presentation/bloc/dashboard_event.dart';
-import 'package:budget_tracker/features/dashboard/presentation/bloc/dashboard_state.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_error.dart';
+import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
+import 'package:monivo/features/budget/domain/entities/budget_status.dart';
+import 'package:monivo/features/budget/domain/entities/budget_summary_entity.dart';
+import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
+import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
+import 'package:monivo/features/dashboard/domain/entities/recent_expense_entity.dart';
+import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
+import 'package:monivo/features/dashboard/domain/repository/dashboard_repository.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
+import 'package:monivo/features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import 'package:monivo/features/dashboard/presentation/bloc/dashboard_event.dart';
+import 'package:monivo/features/dashboard/presentation/bloc/dashboard_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class MockGetSmartInsightsUseCase implements GetSmartInsightsUseCase {

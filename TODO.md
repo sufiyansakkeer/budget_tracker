@@ -1,4 +1,4 @@
-# Smart Budget Tracker – Multi-Issue Fix & UX Improvement
+# Smart Monivo – Multi-Issue Fix & UX Improvement
 
 ## Verified Current State
 

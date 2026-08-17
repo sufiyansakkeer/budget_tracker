@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/features/onboarding/domain/entities/budget_entity.dart';
-import 'package:budget_tracker/features/onboarding/domain/repository/onboarding_repository.dart';
-import 'package:budget_tracker/features/onboarding/domain/usecases/create_budget_usecase.dart';
+import 'package:monivo/features/onboarding/domain/entities/budget_entity.dart';
+import 'package:monivo/features/onboarding/domain/repository/onboarding_repository.dart';
+import 'package:monivo/features/onboarding/domain/usecases/create_budget_usecase.dart';
 
 class FakeOnboardingRepository implements OnboardingRepository {
   bool isFirstLaunch = true;

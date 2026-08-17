@@ -16,7 +16,7 @@ class AboutCard extends StatelessWidget {
         final info = snapshot.data;
         final version = info?.version ?? '1.0.0';
         final buildNumber = info?.buildNumber ?? '1';
-        final appName = info?.appName ?? 'Smart Budget Tracker';
+        final appName = info?.appName ?? 'Smart Monivo';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

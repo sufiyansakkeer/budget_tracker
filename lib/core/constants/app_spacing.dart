@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Central spacing & radius scale for the Smart Budget Tracker.
+/// Central spacing & radius scale for the Smart Monivo.
 ///
 /// Prefer these tokens over ad-hoc margins so the whole app shares one
 /// consistent rhythm (4 → 8 → 12 → 16 → 20 → 24 → 32).

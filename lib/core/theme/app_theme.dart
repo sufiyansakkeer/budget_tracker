@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
 
-/// Central Material 3 theme for the Smart Budget Tracker.
+/// Central Material 3 theme for the Smart Monivo.
 ///
 /// Both light and dark themes share the same typography scale and component
 /// shapes so the whole app feels consistent, while the dark theme uses an

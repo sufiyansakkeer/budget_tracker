@@ -1,17 +1,17 @@
-import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_entity.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_history_filter.dart';
-import 'package:budget_tracker/features/reports/domain/entities/report_data.dart';
-import 'package:budget_tracker/features/reports/domain/entities/report_failure.dart';
-import 'package:budget_tracker/features/reports/domain/entities/report_overview.dart';
-import 'package:budget_tracker/features/reports/domain/entities/report_period.dart';
-import 'package:budget_tracker/features/reports/domain/entities/spending_trend.dart';
-import 'package:budget_tracker/features/reports/domain/entities/time_analytics.dart';
-import 'package:budget_tracker/features/reports/domain/services/report_insight_generator.dart';
-import 'package:budget_tracker/features/reports/domain/usecases/get_report_data_usecase.dart';
-import 'package:budget_tracker/features/reports/presentation/bloc/reports_bloc.dart';
-import 'package:budget_tracker/features/reports/presentation/bloc/reports_event.dart';
-import 'package:budget_tracker/features/reports/presentation/bloc/reports_state.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
+import 'package:monivo/features/reports/domain/entities/report_data.dart';
+import 'package:monivo/features/reports/domain/entities/report_failure.dart';
+import 'package:monivo/features/reports/domain/entities/report_overview.dart';
+import 'package:monivo/features/reports/domain/entities/report_period.dart';
+import 'package:monivo/features/reports/domain/entities/spending_trend.dart';
+import 'package:monivo/features/reports/domain/entities/time_analytics.dart';
+import 'package:monivo/features/reports/domain/services/report_insight_generator.dart';
+import 'package:monivo/features/reports/domain/usecases/get_report_data_usecase.dart';
+import 'package:monivo/features/reports/presentation/bloc/reports_bloc.dart';
+import 'package:monivo/features/reports/presentation/bloc/reports_event.dart';
+import 'package:monivo/features/reports/presentation/bloc/reports_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class MockGetReportDataUseCase implements GetReportDataUseCase {

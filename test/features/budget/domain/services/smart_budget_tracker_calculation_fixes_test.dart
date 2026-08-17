@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_calculation_input.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_calculation_input.dart';
 
-import 'package:budget_tracker/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
 
 void main() {
   late BudgetCalculationService calculationService;
@@ -11,7 +11,7 @@ void main() {
     calculationService = BudgetCalculationService();
   });
 
-  group('Smart Budget Tracker fixes unit tests', () {
+  group('Smart Monivo fixes unit tests', () {
     test('Test 1 – Single Budget remaining and progress', () {
       final input = BudgetCalculationInput(
         monthlyAmount: 10000,

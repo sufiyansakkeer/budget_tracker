@@ -3,12 +3,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 
-import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
-import 'package:budget_tracker/features/budget/domain/services/budget_calculation_service.dart';
-import 'package:budget_tracker/features/settings/domain/entities/app_settings.dart';
-import 'package:budget_tracker/features/settings/domain/entities/notification_settings.dart';
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
+import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/settings/domain/entities/app_settings.dart';
+import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
 
-import 'package:budget_tracker/features/settings/domain/services/notification_service.dart';
+import 'package:monivo/features/settings/domain/services/notification_service.dart';
 
 @GenerateMocks([FlutterLocalNotificationsPlugin, BudgetRepository])
 import 'notification_service_test.mocks.dart';

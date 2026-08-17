@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_category.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_entity.dart';
-import 'package:budget_tracker/features/expenses/domain/entities/expense_history_filter.dart';
-import 'package:budget_tracker/features/reports/domain/entities/report_period.dart';
-import 'package:budget_tracker/features/reports/domain/services/analytics_service.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
+import 'package:monivo/features/reports/domain/entities/report_period.dart';
+import 'package:monivo/features/reports/domain/services/analytics_service.dart';
 
 ExpenseEntity expense({
   required String id,

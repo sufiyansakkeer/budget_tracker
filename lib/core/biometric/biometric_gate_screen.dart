@@ -99,7 +99,7 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'Budget Tracker',
+                        'Monivo',
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),

@@ -1,4 +1,4 @@
-# Smart Budget Tracker v1.1.0
+# Smart Monivo v1.1.0
 
 ## Features
 

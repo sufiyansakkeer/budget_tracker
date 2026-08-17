@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/features/settings/domain/entities/currency_entity.dart';
-import 'package:budget_tracker/features/settings/presentation/widgets/currency_selector.dart';
+import 'package:monivo/features/settings/domain/entities/currency_entity.dart';
+import 'package:monivo/features/settings/presentation/widgets/currency_selector.dart';
 
 void main() {
   group('CurrencySelector', () {
@@ -9,10 +9,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: CurrencySelector(
-              selectedCode: 'USD',
-              onSelected: (_) {},
-            ),
+            body: CurrencySelector(selectedCode: 'USD', onSelected: (_) {}),
           ),
         ),
       );
@@ -24,10 +21,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: CurrencySelector(
-              selectedCode: 'USD',
-              onSelected: (_) {},
-            ),
+            body: CurrencySelector(selectedCode: 'USD', onSelected: (_) {}),
           ),
         ),
       );
@@ -40,10 +34,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: CurrencySelector(
-              selectedCode: 'USD',
-              onSelected: (_) {},
-            ),
+            body: CurrencySelector(selectedCode: 'USD', onSelected: (_) {}),
           ),
         ),
       );
@@ -52,7 +43,9 @@ void main() {
       expect(find.text('USD'), findsWidgets);
     });
 
-    testWidgets('should call onSelected when currency is tapped', (tester) async {
+    testWidgets('should call onSelected when currency is tapped', (
+      tester,
+    ) async {
       CurrencyEntity? selectedCurrency;
 
       await tester.pumpWidget(
@@ -77,10 +70,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: CurrencySelector(
-              selectedCode: 'USD',
-              onSelected: (_) {},
-            ),
+            body: CurrencySelector(selectedCode: 'USD', onSelected: (_) {}),
           ),
         ),
       );

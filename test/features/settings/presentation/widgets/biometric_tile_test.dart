@@ -1,4 +1,4 @@
-import 'package:budget_tracker/features/settings/presentation/widgets/biometric_tile.dart';
+import 'package:monivo/features/settings/presentation/widgets/biometric_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

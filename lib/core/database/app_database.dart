@@ -164,6 +164,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'smart_budget_tracker_db');
+    return driftDatabase(name: 'smart_monivo_db');
   }
 }

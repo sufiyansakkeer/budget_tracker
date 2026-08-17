@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
-import 'package:budget_tracker/features/settings/domain/services/biometric_service.dart';
+import 'package:monivo/features/settings/domain/services/biometric_service.dart';
 
 @GenerateMocks([LocalAuthentication])
 import 'biometric_service_test.mocks.dart';
@@ -159,7 +159,7 @@ void main() {
 
         verify(
           mockAuth.authenticate(
-            localizedReason: 'Unlock Budget Tracker',
+            localizedReason: 'Unlock Monivo',
             options: anyNamed('options'),
           ),
         ).called(1);

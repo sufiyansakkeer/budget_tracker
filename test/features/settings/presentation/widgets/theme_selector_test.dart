@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/features/settings/domain/entities/theme_mode_entity.dart';
-import 'package:budget_tracker/features/settings/presentation/widgets/theme_selector.dart';
+import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
+import 'package:monivo/features/settings/presentation/widgets/theme_selector.dart';
 
 void main() {
   group('ThemeSelector', () {

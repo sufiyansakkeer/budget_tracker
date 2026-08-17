@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:budget_tracker/core/di/injection.dart';
-import 'package:budget_tracker/core/biometric/app_lock_bloc.dart';
-import 'package:budget_tracker/core/biometric/app_lock_event.dart';
-import 'package:budget_tracker/main.dart';
+import 'package:monivo/core/di/injection.dart';
+import 'package:monivo/core/biometric/app_lock_bloc.dart';
+import 'package:monivo/core/biometric/app_lock_event.dart';
+import 'package:monivo/main.dart';
 
 void main() {
   setUp(() async {

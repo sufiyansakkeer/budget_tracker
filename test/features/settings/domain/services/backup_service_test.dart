@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:budget_tracker/core/database/app_database.dart';
-import 'package:budget_tracker/features/settings/domain/services/backup_service.dart';
+import 'package:monivo/core/database/app_database.dart';
+import 'package:monivo/features/settings/domain/services/backup_service.dart';
 
 import '../../../../helpers/in_memory_database.dart';
 
@@ -79,7 +79,7 @@ void main() {
 
       final payload = await backupService.buildBackupPayload();
 
-      expect(payload['type'], 'budget_tracker_backup');
+      expect(payload['type'], 'monivo_backup');
 
       final metadata = payload['metadata'] as Map<String, Object?>;
       expect(metadata['schemaVersion'], database.schemaVersion);
@@ -97,7 +97,7 @@ void main() {
     test('restore rejects a backup with a newer schema version', () async {
       final file = File('${Directory.systemTemp.path}/bad_backup.json');
       await file.writeAsString(
-        '{"type":"budget_tracker_backup","metadata":{"schemaVersion":99},'
+        '{"type":"monivo_backup","metadata":{"schemaVersion":99},'
         '"data":{"budgets":[],"categories":[],"expenses":[],"settings":{}}}',
       );
 
@@ -120,7 +120,7 @@ void main() {
 
     test('restore applies data from a valid backup', () async {
       final payload = {
-        'type': 'budget_tracker_backup',
+        'type': 'monivo_backup',
         'metadata': {'schemaVersion': 2, 'appVersion': '1.0.0'},
         'data': {
           'budgets': [

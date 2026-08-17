@@ -1,7 +1,7 @@
-import 'package:budget_tracker/core/biometric/app_lock_bloc.dart';
-import 'package:budget_tracker/core/biometric/app_lock_event.dart';
-import 'package:budget_tracker/core/biometric/app_lock_state.dart';
-import 'package:budget_tracker/core/biometric/biometric_initializer.dart';
+import 'package:monivo/core/biometric/app_lock_bloc.dart';
+import 'package:monivo/core/biometric/app_lock_event.dart';
+import 'package:monivo/core/biometric/app_lock_state.dart';
+import 'package:monivo/core/biometric/biometric_initializer.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';

@@ -1,7 +1,7 @@
-import 'package:budget_tracker/features/budget/domain/entities/budget_calculation_input.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_status.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_thresholds.dart';
-import 'package:budget_tracker/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/entities/budget_calculation_input.dart';
+import 'package:monivo/features/budget/domain/entities/budget_status.dart';
+import 'package:monivo/features/budget/domain/entities/budget_thresholds.dart';
+import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

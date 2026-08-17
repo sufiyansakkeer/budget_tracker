@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/core/theme/app_theme.dart';
-import 'package:budget_tracker/features/onboarding/presentation/widgets/budget_step_widget.dart';
+import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/features/onboarding/presentation/widgets/budget_step_widget.dart';
 
 void main() {
   Widget createWidgetUnderTest({

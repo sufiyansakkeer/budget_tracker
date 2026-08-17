@@ -1,6 +1,6 @@
 import 'package:drift/native.dart';
 
-import 'package:budget_tracker/core/database/app_database.dart';
+import 'package:monivo/core/database/app_database.dart';
 
 /// Provides an open, in-memory [AppDatabase] for tests that exercise Drift
 /// table access (export, backup, import). The schema is created fresh for each

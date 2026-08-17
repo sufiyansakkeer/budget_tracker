@@ -40,7 +40,7 @@ class BiometricInitializer {
 
         // Perform biometric authentication
         final authenticated = await _biometricService.authenticate(
-          reason: 'Unlock Budget Tracker',
+          reason: 'Unlock Monivo',
           useErrorDialogs: true,
         );
 
@@ -78,7 +78,7 @@ class BiometricInitializer {
         return true;
       }
       final authenticated = await _biometricService.authenticate(
-        reason: 'Unlock Budget Tracker',
+        reason: 'Unlock Monivo',
         useErrorDialogs: true,
       );
       debugPrint('[Biometric] authenticateNow result: $authenticated');

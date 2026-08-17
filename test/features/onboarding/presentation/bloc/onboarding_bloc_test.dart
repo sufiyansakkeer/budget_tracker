@@ -1,16 +1,16 @@
 import 'package:bloc_test/bloc_test.dart';
-import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
-import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart';
-import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
-import 'package:budget_tracker/features/onboarding/domain/entities/budget_entity.dart'
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_error.dart';
+import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
+import 'package:monivo/features/onboarding/domain/entities/budget_entity.dart'
     as onboarding;
-import 'package:budget_tracker/features/onboarding/domain/repository/onboarding_repository.dart';
-import 'package:budget_tracker/features/onboarding/domain/usecases/create_budget_usecase.dart';
-import 'package:budget_tracker/features/onboarding/presentation/bloc/onboarding_bloc.dart';
-import 'package:budget_tracker/features/onboarding/presentation/bloc/onboarding_event.dart';
-import 'package:budget_tracker/features/onboarding/presentation/bloc/onboarding_state.dart';
+import 'package:monivo/features/onboarding/domain/repository/onboarding_repository.dart';
+import 'package:monivo/features/onboarding/domain/usecases/create_budget_usecase.dart';
+import 'package:monivo/features/onboarding/presentation/bloc/onboarding_bloc.dart';
+import 'package:monivo/features/onboarding/presentation/bloc/onboarding_event.dart';
+import 'package:monivo/features/onboarding/presentation/bloc/onboarding_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeOnboardingRepository implements OnboardingRepository {

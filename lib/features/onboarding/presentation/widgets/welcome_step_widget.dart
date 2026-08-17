@@ -43,7 +43,7 @@ class WelcomeStepWidget extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xxl),
           Text(
-            'Smart Budget Tracker',
+            'Smart Monivo',
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,

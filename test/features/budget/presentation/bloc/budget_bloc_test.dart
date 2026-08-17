@@ -1,17 +1,17 @@
 import 'package:bloc_test/bloc_test.dart';
-import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_analytics_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_filter.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_summary_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/monthly_statistics_entity.dart';
-import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
-import 'package:budget_tracker/features/budget/domain/services/budget_calculation_service.dart';
-import 'package:budget_tracker/features/budget/domain/usecases/get_budget_analytics_usecase.dart';
-import 'package:budget_tracker/features/budget/domain/usecases/get_budget_summary_usecase.dart';
-import 'package:budget_tracker/features/budget/presentation/bloc/budget_bloc.dart';
-import 'package:budget_tracker/features/budget/presentation/bloc/budget_event.dart';
-import 'package:budget_tracker/features/budget/presentation/bloc/budget_state.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_analytics_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_error.dart';
+import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
+import 'package:monivo/features/budget/domain/entities/budget_summary_entity.dart';
+import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
+import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/usecases/get_budget_analytics_usecase.dart';
+import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
+import 'package:monivo/features/budget/presentation/bloc/budget_bloc.dart';
+import 'package:monivo/features/budget/presentation/bloc/budget_event.dart';
+import 'package:monivo/features/budget/presentation/bloc/budget_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeBudgetRepository implements BudgetRepository {

@@ -82,7 +82,7 @@ class BiometricService {
   /// or authentication fails. Exceptions are logged (not swallowed) so the
   /// underlying error code is always visible in the console.
   Future<bool> authenticate({
-    String reason = 'Unlock Budget Tracker',
+    String reason = 'Unlock Monivo',
     bool useErrorDialogs = true,
   }) async {
     debugPrint('[Biometric] Calling authenticate() reason="$reason"');

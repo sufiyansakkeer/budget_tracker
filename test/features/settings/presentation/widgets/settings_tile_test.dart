@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:budget_tracker/features/settings/presentation/widgets/settings_tile.dart';
+import 'package:monivo/features/settings/presentation/widgets/settings_tile.dart';
 
 void main() {
   group('SettingsTile', () {

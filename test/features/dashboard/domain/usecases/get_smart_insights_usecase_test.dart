@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:budget_tracker/features/budget/domain/entities/budget_status.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_summary_entity.dart';
-import 'package:budget_tracker/features/dashboard/domain/entities/smart_insight_entity.dart';
-import 'package:budget_tracker/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
+import 'package:monivo/features/budget/domain/entities/budget_status.dart';
+import 'package:monivo/features/budget/domain/entities/budget_summary_entity.dart';
+import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 
 void main() {
   const useCase = GetSmartInsightsUseCase();

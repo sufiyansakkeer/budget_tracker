@@ -1,7 +1,7 @@
-import 'package:budget_tracker/core/database/app_database.dart';
-import 'package:budget_tracker/features/settings/data/datasource/settings_local_datasource_impl.dart';
-import 'package:budget_tracker/features/settings/data/repository/settings_repository_impl.dart';
-import 'package:budget_tracker/features/settings/domain/entities/app_settings.dart';
+import 'package:monivo/core/database/app_database.dart';
+import 'package:monivo/features/settings/data/datasource/settings_local_datasource_impl.dart';
+import 'package:monivo/features/settings/data/repository/settings_repository_impl.dart';
+import 'package:monivo/features/settings/domain/entities/app_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

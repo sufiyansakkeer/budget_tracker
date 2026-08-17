@@ -39,7 +39,7 @@ class BackupService {
       schemaVersion: _database.schemaVersion,
     );
     return <String, Object?>{
-      'type': 'budget_tracker_backup',
+      'type': 'monivo_backup',
       'metadata': {
         'createdAt': metadata.createdAt.toIso8601String(),
         'appVersion': metadata.appVersion,
@@ -88,8 +88,8 @@ class BackupService {
       throw FormatException('Corrupted backup file: $e');
     }
 
-    if (payload['type'] != 'budget_tracker_backup') {
-      throw const FormatException('Not a valid Budget Tracker backup.');
+    if (payload['type'] != 'monivo_backup') {
+      throw const FormatException('Not a valid Monivo backup.');
     }
 
     final meta = payload['metadata'];

@@ -2,12 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 
-import 'package:budget_tracker/core/domain/entities/budget_entity.dart';
-import 'package:budget_tracker/features/budget/domain/entities/budget_error.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 
-import 'package:budget_tracker/features/budget/domain/entities/budget_list_summary_entity.dart';
-import 'package:budget_tracker/features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
-import 'package:budget_tracker/features/budget/domain/repository/budget_repository.dart';
+import 'package:monivo/features/budget/domain/entities/budget_list_summary_entity.dart';
+import 'package:monivo/features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 
 @GenerateMocks([BudgetRepository])
 import 'get_budget_list_summary_usecase_test.mocks.dart';
