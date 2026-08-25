@@ -148,11 +148,15 @@ class ExpenseHistoryBloc
       offset: state.loadedCount,
       items: state.visibleExpenses,
     );
+    final loadedIds = state.loadedExpenses.map((expense) => expense.id).toSet();
+    final newItems = page.items
+        .where((expense) => loadedIds.add(expense.id))
+        .toList();
 
     emit(
       state.copyWith(
         status: ExpenseHistoryStatus.loaded,
-        loadedExpenses: [...state.loadedExpenses, ...page.items],
+        loadedExpenses: [...state.loadedExpenses, ...newItems],
         loadedCount: page.offset,
         hasMore: page.hasMore,
       ),

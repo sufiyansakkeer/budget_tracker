@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
+import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 
 /// Create or edit a budget.
@@ -39,7 +40,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   BudgetEntity? _budget;
   late DateTime _startDate;
   late DateTime _endDate;
-  String _currency = '₹';
+  String _currency = 'INR';
   String? _color;
   String? _icon;
   bool _saving = false;
@@ -57,7 +58,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day);
     _endDate = _startDate.add(const Duration(days: 30));
-    _currency = getIt<CurrencyProvider>().currencySymbol;
+    _currency = getIt<CurrencyProvider>().currencyCode;
     if (widget.budgetId != null) {
       _loadBudget();
     }
@@ -192,6 +193,19 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
   int get _dayCount => _endDate.difference(_startDate).inDays + 1;
 
+  List<CurrencyEntity> get _currencies {
+    final currenciesByCode = <String, CurrencyEntity>{};
+    for (final currency in availableCurrencies) {
+      currenciesByCode.putIfAbsent(currency.code, () => currency);
+    }
+    return currenciesByCode.values.toList();
+  }
+
+  String? get _selectedCurrencyCode {
+    final matches = _currencies.where((currency) => currency.code == _currency);
+    return matches.length == 1 ? _currency : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -265,22 +279,20 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             DropdownButton<String>(
-                              value: _currency,
+                              value: _selectedCurrencyCode,
                               onChanged: (value) {
                                 if (value != null) {
                                   setState(() => _currency = value);
                                 }
                               },
-                              items: const [
-                                DropdownMenuItem(value: '₹', child: Text('₹')),
-                                DropdownMenuItem(
-                                  value: '\$',
-                                  child: Text('\$'),
-                                ),
-                                DropdownMenuItem(value: '€', child: Text('€')),
-                                DropdownMenuItem(value: '£', child: Text('£')),
-                                DropdownMenuItem(value: '¥', child: Text('¥')),
-                              ],
+                              items: _currencies
+                                  .map(
+                                    (currency) => DropdownMenuItem<String>(
+                                      value: currency.code,
+                                      child: Text(currency.symbol),
+                                    ),
+                                  )
+                                  .toList(),
                             ),
                           ],
                         ),

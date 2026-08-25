@@ -1,8 +1,9 @@
 import 'package:equatable/equatable.dart';
+import 'package:intl/intl.dart';
 
 import 'expense_entity.dart';
 
-/// Time buckets used to group expenses on the history screen.
+/// Kept for compatibility with callers that need to identify relative groups.
 enum ExpenseGroupType {
   today,
   yesterday,
@@ -48,15 +49,33 @@ enum ExpenseGroupType {
   }
 }
 
-/// A named group of expenses sharing the same time bucket.
+/// A named group of expenses sharing one local calendar date.
 class ExpenseGroup extends Equatable {
   final ExpenseGroupType type;
+  final DateTime? date;
   final List<ExpenseEntity> expenses;
 
-  const ExpenseGroup({required this.type, required this.expenses});
+  const ExpenseGroup({required this.type, this.date, required this.expenses});
+
+  String get label {
+    final groupDate = date;
+    if (groupDate == null) return type.label;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_sameDay(groupDate, today)) return 'Today';
+    if (_sameDay(groupDate, today.subtract(const Duration(days: 1)))) {
+      return 'Yesterday';
+    }
+    return DateFormat('d MMM yyyy').format(groupDate);
+  }
+
+  bool _sameDay(DateTime first, DateTime second) =>
+      first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
 
   double get totalAmount => expenses.fold(0.0, (sum, e) => sum + e.amount);
 
   @override
-  List<Object?> get props => [type, expenses];
+  List<Object?> get props => [type, date, expenses];
 }
