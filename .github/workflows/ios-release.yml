@@ -1,0 +1,49 @@
+name: iOS Development Build
+
+on:
+  push:
+    branches: [developer]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.32.8
+
+jobs:
+  ios:
+    name: Build unsigned iOS app
+    runs-on: macos-14
+    environment: development
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.21.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install dependencies and generate sources
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock', 'pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --deployment
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-development-${{ github.sha }}
+          path: build/ios/iphoneos/Runner.app
