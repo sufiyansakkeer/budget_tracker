@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_section_header.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
+import '../../../bills/domain/entities/bill_entity.dart';
+import '../../../bills/domain/entities/bill_enums.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
 import '../bloc/dashboard_bloc.dart';
@@ -120,6 +123,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                   BudgetTimelineCard(summary: summary),
                   const SizedBox(height: AppSpacing.lg),
 
+                  // Upcoming Bills
+                  if (state.upcomingBills.isNotEmpty) ...[
+                    SectionHeader(
+                      title: 'Upcoming Bills',
+                      trailing: TextButton(
+                        onPressed: () => context.go('/app/bills'),
+                        child: const Text('View All'),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _UpcomingBillsList(bills: state.upcomingBills),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+
                   // Recent Expenses
                   SectionHeader(
                     title: 'Recent Expenses',
@@ -206,6 +223,104 @@ class _RecentExpenseList extends StatelessWidget {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+class _UpcomingBillsList extends StatelessWidget {
+  final List<BillEntity> bills;
+
+  const _UpcomingBillsList({required this.bills});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: bills.map((bill) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+        final daysUntil = due.difference(today).inDays;
+        final isOverdue = bill.status == BillStatus.overdue;
+        final isDueToday = bill.status == BillStatus.dueToday;
+
+        String dueText;
+        Color dueColor;
+        if (isDueToday) {
+          dueText = 'Due today';
+          dueColor = AppColors.warning;
+        } else if (isOverdue) {
+          dueText = '${today.difference(due).inDays} days overdue';
+          dueColor = AppColors.error;
+        } else if (daysUntil == 1) {
+          dueText = 'Due tomorrow';
+          dueColor = AppColors.primary;
+        } else {
+          dueText = 'Due in $daysUntil days';
+          dueColor = AppColors.primary;
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.smd),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: dueColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isOverdue ? Icons.warning_rounded : Icons.receipt_long_rounded,
+                      color: dueColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.smd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          bill.title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          dueText,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: dueColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    CurrencyFormatter.format(
+                      bill.amount,
+                      code: bill.currency,
+                      decimalDigits: 0,
+                    ),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isOverdue ? AppColors.error : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

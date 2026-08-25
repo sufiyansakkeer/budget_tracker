@@ -7,6 +7,8 @@ import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
+import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
+import 'package:monivo/features/bills/domain/repository/bill_repository.dart';
 import 'package:monivo/features/dashboard/domain/entities/recent_expense_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
 import 'package:monivo/features/dashboard/domain/repository/dashboard_repository.dart';
@@ -157,6 +159,27 @@ class MockDashboardRepository implements DashboardRepository {
   }
 }
 
+class FakeBillRepository implements BillRepository {
+  @override
+  Future<void> createBill(BillEntity bill) async {}
+  @override
+  Future<void> updateBill(BillEntity bill) async {}
+  @override
+  Future<void> deleteBill(String id) async {}
+  @override
+  Future<BillEntity?> getBillById(String id) async => null;
+  @override
+  Future<List<BillEntity>> getBills() async => [];
+  @override
+  Future<void> createBillPayment(BillPaymentRecord payment) async {}
+  @override
+  Future<List<BillPaymentRecord>> getBillPayments(String billId) async => [];
+  @override
+  Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
+  @override
+  Future<double> getMonthlyRecurringBillsTotal() async => 0;
+}
+
 final tBudgetSummary = BudgetSummaryEntity(
   monthlyAmount: 30000,
   remainingBudget: 21500,
@@ -209,6 +232,7 @@ void main() {
       getRecentExpensesUseCase: mockGetRecentExpensesUseCase,
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
       budgetRepository: MockBudgetRepository(),
+      billRepository: FakeBillRepository(),
     );
   });
 
@@ -232,6 +256,7 @@ void main() {
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
         budgetRepository: MockBudgetRepository(),
+        billRepository: FakeBillRepository(),
       );
 
       final expected = [
@@ -267,6 +292,7 @@ void main() {
         getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
         budgetRepository: MockBudgetRepository(),
+        billRepository: FakeBillRepository(),
       );
 
       final expected = const [DashboardLoading(), DashboardEmpty()];
@@ -292,6 +318,7 @@ void main() {
       getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
       budgetRepository: MockBudgetRepository(),
+      billRepository: FakeBillRepository(),
     );
 
     final expected = const [
@@ -318,6 +345,7 @@ void main() {
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
         budgetRepository: MockBudgetRepository(),
+        billRepository: FakeBillRepository(),
       );
 
       final expected = [

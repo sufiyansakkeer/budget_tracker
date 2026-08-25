@@ -6,6 +6,9 @@ import '../../../budget/domain/entities/budget_error.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
 import '../../../budget/domain/usecases/get_budget_summary_usecase.dart';
 import '../../../budget/presentation/bloc/budget_bloc.dart';
+import '../../../bills/domain/entities/bill_entity.dart';
+import '../../../bills/domain/repository/bill_repository.dart';
+import '../../../bills/presentation/bloc/bill_refresh_bus.dart';
 import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
@@ -17,12 +20,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetRecentExpensesUseCase getRecentExpensesUseCase;
   final GetSmartInsightsUseCase getSmartInsightsUseCase;
   final BudgetRepository budgetRepository;
+  final BillRepository billRepository;
 
   DashboardBloc({
     required this.getBudgetSummaryUseCase,
     required this.getRecentExpensesUseCase,
     required this.getSmartInsightsUseCase,
     required this.budgetRepository,
+    required this.billRepository,
   }) : super(const DashboardInitial()) {
     on<DashboardLoadData>(_onLoadData);
     on<DashboardRefresh>(_onRefresh);
@@ -39,15 +44,23 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         add(const DashboardRefresh());
       }
     });
+
+    _billRefreshSubscription = BillRefreshBus.instance.changes.listen((_) {
+      if (!isClosed) {
+        add(const DashboardRefresh());
+      }
+    });
   }
 
   StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _budgetSwitchSubscription;
+  StreamSubscription<void>? _billRefreshSubscription;
 
   @override
   Future<void> close() {
     _refreshSubscription?.cancel();
     _budgetSwitchSubscription?.cancel();
+    _billRefreshSubscription?.cancel();
     return super.close();
   }
 
@@ -85,6 +98,23 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         final recentExpenses = await getRecentExpensesUseCase(
           budgetId: activeId,
         );
+
+        // Load upcoming bills for dashboard summary.
+        List<BillEntity> upcomingBills = [];
+        try {
+          final allBills = await billRepository.getBills();
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          upcomingBills = allBills
+              .where((b) =>
+                  !b.isPaid &&
+                  !b.dueDate.isBefore(today))
+              .take(3)
+              .toList();
+        } catch (_) {
+          // Bills unavailable — not critical for dashboard.
+        }
+
         final insights = getSmartInsightsUseCase(data);
 
         emit(
@@ -92,6 +122,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             budgetSummary: data,
             recentExpenses: recentExpenses,
             insights: insights,
+            upcomingBills: upcomingBills,
           ),
         );
     }

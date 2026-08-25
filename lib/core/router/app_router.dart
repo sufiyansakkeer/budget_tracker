@@ -19,6 +19,10 @@ import '../../features/reports/presentation/bloc/reports_bloc.dart';
 import '../../features/reports/presentation/pages/reports_screen.dart';
 import '../../features/settings/presentation/bloc/settings_bloc.dart';
 import '../../features/settings/presentation/pages/settings_screen.dart';
+import '../../features/bills/presentation/bloc/bill_bloc.dart';
+import '../../features/bills/presentation/pages/bills_list_screen.dart';
+import '../../features/bills/presentation/pages/bill_form_screen.dart';
+import '../../features/bills/presentation/pages/bill_details_screen.dart';
 
 class AppRouter {
   AppRouter._();
@@ -27,6 +31,7 @@ class AppRouter {
   static const String appPath = '/app';
   static const String homePath = '/app/home';
   static const String expensesPath = '/app/expenses';
+  static const String billsPath = '/app/bills';
   static const String reportsPath = '/app/reports';
   static const String budgetsPath = '/app/budgets';
   static const String morePath = '/app/more';
@@ -112,6 +117,49 @@ class AppRouter {
                       create: (context) => getIt<ExpenseBloc>(),
                       child: ExpenseDetailsScreen(
                         expenseId: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          // Bills
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: billsPath,
+                name: 'bills',
+                builder: (context, state) => BlocProvider(
+                  create: (context) => getIt<BillBloc>(),
+                  child: const BillsListScreen(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'add',
+                    name: 'addBill',
+                    builder: (context, state) => BlocProvider(
+                      create: (context) => getIt<BillBloc>(),
+                      child: const BillFormScreen(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'edit/:id',
+                    name: 'editBill',
+                    builder: (context, state) => BlocProvider(
+                      create: (context) => getIt<BillBloc>(),
+                      child: BillFormScreen(
+                        billId: state.pathParameters['id'],
+                      ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    name: 'billDetails',
+                    builder: (context, state) => BlocProvider(
+                      create: (context) => getIt<BillBloc>(),
+                      child: BillDetailsScreen(
+                        billId: state.pathParameters['id']!,
                       ),
                     ),
                   ),

@@ -9,9 +9,10 @@ import '../constants/app_colors.dart';
 /// Tabs:
 ///   1. Home  (Dashboard)
 ///   2. Expenses (Expense History)
-///   3. Reports
-///   4. Budgets
-///   5. More (Settings)
+///   3. Bills
+///   4. Reports
+///   5. Budgets
+///   6. More (Settings)
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -56,6 +57,11 @@ class AppShell extends StatelessWidget {
                 icon: Icon(Icons.receipt_long_outlined),
                 selectedIcon: Icon(Icons.receipt_long_rounded),
                 label: 'Expenses',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.payments_outlined),
+                selectedIcon: Icon(Icons.payments_rounded),
+                label: 'Bills',
               ),
               NavigationDestination(
                 icon: Icon(Icons.analytics_outlined),
