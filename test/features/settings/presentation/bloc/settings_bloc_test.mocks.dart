@@ -5,6 +5,8 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i9;
 
+import 'package:mockito/mockito.dart' as _i1;
+import 'package:mockito/src/dummies.dart' as _i12;
 import 'package:monivo/features/settings/domain/entities/app_settings.dart'
     as _i11;
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart'
@@ -43,8 +45,6 @@ import 'package:monivo/features/settings/domain/usecases/update_currency_usecase
     as _i13;
 import 'package:monivo/features/settings/domain/usecases/update_notification_settings_usecase.dart'
     as _i14;
-import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i12;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values

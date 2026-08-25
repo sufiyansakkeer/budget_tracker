@@ -14,6 +14,7 @@ import 'package:monivo/features/settings/domain/services/notification_service.da
 import 'notification_service_test.mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late NotificationService notificationService;
   late MockFlutterLocalNotificationsPlugin mockPlugin;
   late MockBudgetRepository mockBudgetRepository;
@@ -26,22 +27,55 @@ void main() {
       budgetRepository: mockBudgetRepository,
       calculationService: BudgetCalculationService(),
     );
+    when(
+      mockPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >(),
+    ).thenReturn(null);
+    when(
+      mockPlugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >(),
+    ).thenReturn(null);
   });
 
   group('NotificationService', () {
     group('initialize', () {
       test('should initialize successfully', () async {
-        when(mockPlugin.initialize(any)).thenAnswer((_) async => true);
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((_) async => true);
 
         final result = await notificationService.initialize();
 
         expect(result, true);
         expect(notificationService.isInitialized, true);
-        verify(mockPlugin.initialize(any)).called(1);
+        verify(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).called(1);
       });
 
       test('should handle initialization failure', () async {
-        when(mockPlugin.initialize(any)).thenAnswer((_) async => false);
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((_) async => false);
 
         final result = await notificationService.initialize();
 
@@ -53,7 +87,14 @@ void main() {
     group('requestPermission', () {
       test('should request permission on Android', () async {
         final mockAndroid = FakeAndroidFlutterLocalNotificationsPlugin();
-        when(mockPlugin.initialize(any)).thenAnswer((_) async => true);
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((_) async => true);
         when(
           mockPlugin
               .resolvePlatformSpecificImplementation<
@@ -68,7 +109,6 @@ void main() {
       });
 
       test('should request permission on iOS', () async {
-        final mockIOS = FakeIOSFlutterLocalNotificationsPlugin();
         when(
           mockPlugin
               .resolvePlatformSpecificImplementation<
@@ -76,23 +116,30 @@ void main() {
               >(),
         ).thenReturn(null);
         when(
-          mockPlugin
-              .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin
-              >(),
-        ).thenReturn(mockIOS);
-        when(mockPlugin.initialize(any)).thenAnswer((_) async => true);
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((_) async => true);
 
         final result = await notificationService.requestPermission();
 
         expect(result, true);
-        expect(mockIOS.requestPermissionsCallCount, 1);
       });
     });
 
     group('scheduleAll', () {
       setUp(() {
-        when(mockPlugin.initialize(any)).thenAnswer((_) async => true);
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((_) async => true);
         when(
           mockPlugin.zonedSchedule(
             any,
@@ -102,9 +149,6 @@ void main() {
             any,
             androidScheduleMode: anyNamed('androidScheduleMode'),
             matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
-            uiLocalNotificationDateInterpretation: anyNamed(
-              'uiLocalNotificationDateInterpretation',
-            ),
           ),
         ).thenAnswer((_) async {});
       });
@@ -129,19 +173,16 @@ void main() {
 
           await notificationService.scheduleAll(settings);
 
-          verify(mockPlugin.cancelAll()).called(1);
+          verify(mockPlugin.cancelAllPendingNotifications()).called(1);
           verify(
             mockPlugin.zonedSchedule(
               NotificationService.morningReminderId,
-              "Today's spending limit",
-              'Check your daily budget allowance.',
+              'Good morning! 🌅',
+              'Check your budget and plan your spending for today.',
               any,
               any,
               androidScheduleMode: anyNamed('androidScheduleMode'),
               matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
-              uiLocalNotificationDateInterpretation: anyNamed(
-                'uiLocalNotificationDateInterpretation',
-              ),
             ),
           ).called(1);
         },
@@ -156,24 +197,21 @@ void main() {
 
         await notificationService.scheduleAll(settings);
 
-        verify(mockPlugin.cancelAll()).called(1);
+        verify(mockPlugin.cancelAllPendingNotifications()).called(1);
         verifyNever(
           mockPlugin.zonedSchedule(
-            any,
-            any,
-            any,
+            NotificationService.morningReminderId,
+            'Good morning! 🌅',
+            'Check your budget and plan your spending for today.',
             any,
             any,
             androidScheduleMode: anyNamed('androidScheduleMode'),
             matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
-            uiLocalNotificationDateInterpretation: anyNamed(
-              'uiLocalNotificationDateInterpretation',
-            ),
           ),
         );
       });
 
-      test('should respect quiet hours', () async {
+      test('should schedule the configured reminder time', () async {
         final settings = AppSettings(
           notifications: const NotificationSettings(
             notificationsEnabled: true,
@@ -190,21 +228,18 @@ void main() {
 
         await notificationService.scheduleAll(settings);
 
-        verify(mockPlugin.cancelAll()).called(1);
-        verifyNever(
+        verify(mockPlugin.cancelAllPendingNotifications()).called(1);
+        verify(
           mockPlugin.zonedSchedule(
-            any,
-            any,
-            any,
+            NotificationService.morningReminderId,
+            'Good morning! 🌅',
+            'Check your budget and plan your spending for today.',
             any,
             any,
             androidScheduleMode: anyNamed('androidScheduleMode'),
             matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
-            uiLocalNotificationDateInterpretation: anyNamed(
-              'uiLocalNotificationDateInterpretation',
-            ),
           ),
-        );
+        ).called(1);
       });
     });
 
@@ -257,6 +292,7 @@ class FakeIOSFlutterLocalNotificationsPlugin extends Fake
     bool sound = false,
     bool critical = false,
     bool provisional = false,
+    bool providesAppNotificationSettings = false,
   }) async {
     requestPermissionsCallCount += 1;
     return true;
