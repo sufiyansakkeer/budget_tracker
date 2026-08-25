@@ -74,15 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          context.push('/app/expenses/add');
-        },
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add Expense'),
-        tooltip: 'Add a new expense',
-      ),
+      floatingActionButton: _DashboardFab(),
     );
   }
 
@@ -123,32 +115,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                   BudgetTimelineCard(summary: summary),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Upcoming Bills
-                  if (state.upcomingBills.isNotEmpty) ...[
-                    SectionHeader(
-                      title: 'Upcoming Bills',
-                      trailing: TextButton(
-                        onPressed: () => context.go('/app/bills'),
-                        child: const Text('View All'),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _UpcomingBillsList(bills: state.upcomingBills),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
+                  // Quick Actions
+                  const SectionHeader(title: 'Quick Actions'),
+                  const SizedBox(height: AppSpacing.sm),
+                  const _QuickActionsGrid(),
+                  const SizedBox(height: AppSpacing.lg),
 
                   // Recent Expenses
                   SectionHeader(
-                    title: 'Recent Expenses',
+                    title: 'Recent Transactions',
                     subtitle: state.recentExpenses.isEmpty
                         ? 'No expenses in this budget period'
                         : '${state.recentExpenses.length} expenses',
                     trailing: state.recentExpenses.isNotEmpty
                         ? TextButton(
                             onPressed: () {
-                              // Switch to the existing Expenses tab (single
-                              // source of truth) instead of pushing a clone.
-                              context.go('/app/expenses');
+                              context.push('/app/expenses');
                             },
                             child: const Text('View All'),
                           )
@@ -176,6 +158,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                   else
                     _RecentExpenseList(expenses: state.recentExpenses),
                   const SizedBox(height: AppSpacing.lg),
+
+                  // Upcoming Bills
+                  if (state.upcomingBills.isNotEmpty) ...[
+                    SectionHeader(
+                      title: 'Upcoming Bills',
+                      trailing: TextButton(
+                        onPressed: () => context.push('/app/bills'),
+                        child: const Text('View All'),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _UpcomingBillsList(bills: state.upcomingBills),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
 
                   // Smart Insights
                   if (state.insights.isNotEmpty) ...[
@@ -207,6 +203,136 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 }
 
+// ── Quick Actions ──────────────────────────────────────────────────────
+
+class _QuickActionsGrid extends StatelessWidget {
+  const _QuickActionsGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _QuickActionCard(
+            icon: Icons.add_rounded,
+            label: 'Add Expense',
+            onTap: () => context.push('/app/expenses/add'),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _QuickActionCard(
+            icon: Icons.receipt_long_rounded,
+            label: 'Add Bill',
+            onTap: () => context.push('/app/bills/add'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.primaryContainer,
+      borderRadius: AppSpacing.borderRadiusMd,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.md,
+            horizontal: AppSpacing.sm,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Floating Action Button ─────────────────────────────────────────────
+
+class _DashboardFab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      offset: const Offset(0, -8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (value) {
+        switch (value) {
+          case 'expense':
+            context.push('/app/expenses/add');
+          case 'bill':
+            context.push('/app/bills/add');
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'expense',
+          child: Row(
+            children: [
+              Icon(Icons.add_rounded, color: AppColors.primary, size: 20),
+              const SizedBox(width: 12),
+              const Text('Add Expense'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'bill',
+          child: Row(
+            children: [
+              Icon(
+                Icons.receipt_long_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              const Text('Add Bill'),
+            ],
+          ),
+        ),
+      ],
+      child: FloatingActionButton.extended(
+        onPressed: null, // Handled by PopupMenuButton
+        backgroundColor: AppColors.primary,
+        heroTag: 'dashboard_fab',
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add'),
+        tooltip: 'Quick add',
+      ),
+    );
+  }
+}
+
+// ── Recent Expenses List ───────────────────────────────────────────────
+
 class _RecentExpenseList extends StatelessWidget {
   final List<RecentExpenseEntity> expenses;
 
@@ -226,6 +352,8 @@ class _RecentExpenseList extends StatelessWidget {
     );
   }
 }
+
+// ── Upcoming Bills List ────────────────────────────────────────────────
 
 class _UpcomingBillsList extends StatelessWidget {
   final List<BillEntity> bills;
@@ -324,6 +452,8 @@ class _UpcomingBillsList extends StatelessWidget {
     );
   }
 }
+
+// ── Loading Skeleton ───────────────────────────────────────────────────
 
 class _DashboardSkeleton extends StatelessWidget {
   const _DashboardSkeleton();

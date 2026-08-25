@@ -46,7 +46,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
             key: const Key('historyEntryButton'),
             icon: const Icon(Icons.history),
             tooltip: 'Expense History',
-            onPressed: () => context.go('/app/expenses'),
+            onPressed: () => context.push('/app/expenses'),
           ),
         ],
       ),

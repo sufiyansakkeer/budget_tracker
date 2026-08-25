@@ -34,7 +34,7 @@ class AppRouter {
   static const String billsPath = '/app/bills';
   static const String reportsPath = '/app/reports';
   static const String budgetsPath = '/app/budgets';
-  static const String morePath = '/app/more';
+  static const String settingsPath = '/app/settings';
 
   static final GoRouter router = GoRouter(
     initialLocation: homePath,
@@ -58,6 +58,93 @@ class AppRouter {
         name: 'onboarding',
         builder: (context, state) => const OnboardingScreen(),
       ),
+
+      // ── Standalone routes (full-screen, not bottom-nav tabs) ──────────
+      // These must come before the shell route so they match first when the
+      // user pushes a secondary screen on top of the current tab.
+
+      GoRoute(
+        path: expensesPath,
+        name: 'expenses',
+        builder: (context, state) => MultiBlocProvider(
+          providers: [
+            BlocProvider(create: (context) => getIt<ExpenseHistoryBloc>()),
+            BlocProvider(create: (context) => getIt<ExpenseBloc>()),
+          ],
+          child: const ExpenseHistoryScreen(),
+        ),
+        routes: [
+          GoRoute(
+            path: 'add',
+            name: 'addExpense',
+            builder: (context, state) => BlocProvider(
+              create: (context) => getIt<ExpenseBloc>(),
+              child: const ExpenseFormScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'edit/:id',
+            name: 'editExpense',
+            builder: (context, state) => BlocProvider(
+              create: (context) => getIt<ExpenseBloc>(),
+              child: ExpenseFormScreen(
+                expenseId: state.pathParameters['id'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: ':id',
+            name: 'expenseDetails',
+            builder: (context, state) => BlocProvider(
+              create: (context) => getIt<ExpenseBloc>(),
+              child: ExpenseDetailsScreen(
+                expenseId: state.pathParameters['id']!,
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      GoRoute(
+        path: billsPath,
+        name: 'bills',
+        builder: (context, state) => BlocProvider(
+          create: (context) => getIt<BillBloc>(),
+          child: const BillsListScreen(),
+        ),
+        routes: [
+          GoRoute(
+            path: 'add',
+            name: 'addBill',
+            builder: (context, state) => BlocProvider(
+              create: (context) => getIt<BillBloc>(),
+              child: const BillFormScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'edit/:id',
+            name: 'editBill',
+            builder: (context, state) => BlocProvider(
+              create: (context) => getIt<BillBloc>(),
+              child: BillFormScreen(
+                billId: state.pathParameters['id'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: ':id',
+            name: 'billDetails',
+            builder: (context, state) => BlocProvider(
+              create: (context) => getIt<BillBloc>(),
+              child: BillDetailsScreen(
+                billId: state.pathParameters['id']!,
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      // ── Shell route (bottom-navigation tabs) ─────────────────────────
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
@@ -73,97 +160,6 @@ class AppRouter {
                       getIt<DashboardBloc>()..add(const DashboardLoadData()),
                   child: const DashboardScreen(),
                 ),
-              ),
-            ],
-          ),
-          // Expenses (History)
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: expensesPath,
-                name: 'expenses',
-                builder: (context, state) => MultiBlocProvider(
-                  providers: [
-                    BlocProvider(
-                      create: (context) => getIt<ExpenseHistoryBloc>(),
-                    ),
-                    BlocProvider(create: (context) => getIt<ExpenseBloc>()),
-                  ],
-                  child: const ExpenseHistoryScreen(),
-                ),
-                routes: [
-                  GoRoute(
-                    path: 'add',
-                    name: 'addExpense',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<ExpenseBloc>(),
-                      child: const ExpenseFormScreen(),
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'edit/:id',
-                    name: 'editExpense',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<ExpenseBloc>(),
-                      child: ExpenseFormScreen(
-                        expenseId: state.pathParameters['id'],
-                      ),
-                    ),
-                  ),
-                  GoRoute(
-                    path: ':id',
-                    name: 'expenseDetails',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<ExpenseBloc>(),
-                      child: ExpenseDetailsScreen(
-                        expenseId: state.pathParameters['id']!,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          // Bills
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: billsPath,
-                name: 'bills',
-                builder: (context, state) => BlocProvider(
-                  create: (context) => getIt<BillBloc>(),
-                  child: const BillsListScreen(),
-                ),
-                routes: [
-                  GoRoute(
-                    path: 'add',
-                    name: 'addBill',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<BillBloc>(),
-                      child: const BillFormScreen(),
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'edit/:id',
-                    name: 'editBill',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<BillBloc>(),
-                      child: BillFormScreen(
-                        billId: state.pathParameters['id'],
-                      ),
-                    ),
-                  ),
-                  GoRoute(
-                    path: ':id',
-                    name: 'billDetails',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<BillBloc>(),
-                      child: BillDetailsScreen(
-                        billId: state.pathParameters['id']!,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -213,12 +209,12 @@ class AppRouter {
               ),
             ],
           ),
-          // More (Settings)
+          // Settings
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: morePath,
-                name: 'more',
+                path: settingsPath,
+                name: 'settings',
                 builder: (context, state) => BlocProvider(
                   create: (context) => getIt<SettingsBloc>(),
                   child: const SettingsScreen(),

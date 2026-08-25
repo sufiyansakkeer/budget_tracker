@@ -129,6 +129,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               ),
               child: Row(
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    tooltip: 'Back',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
                   const Expanded(
                     child: AppHeader(
                       title: 'Expenses',
