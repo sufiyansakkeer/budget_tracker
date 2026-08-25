@@ -3,6 +3,8 @@ import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/time_analytics.dart';
 
 /// Displays time-based analytics: most/least active days and weekend vs
@@ -36,11 +38,42 @@ class TimeAnalyticsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Time Analytics',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Time Analytics',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Time Analytics',
+                  whatIsThis:
+                      'Breakdown of your spending patterns by '
+                      'calendar day and day of the week.',
+                  howIsItCalculated:
+                      'Most Expensive Day: Calendar day with the '
+                      'highest total expenses.\n'
+                      'Most Active Day: Day with the most '
+                      'transactions.\n'
+                      'Weekday vs Weekend: Sum of Mon–Fri vs '
+                      'Sat–Sun expenses.',
+                  example:
+                      '23 Aug: ₹2,000 (highest)\n'
+                      'Weekday total: ₹12,000\n'
+                      'Weekend total: ₹3,000',
+                  additionalNotes:
+                      '• Expenses are grouped by their recorded date\n'
+                      '• Most expensive day shows the highest '
+                        'single-day total\n'
+                      '• Highest spending weekday is the most '
+                        'expensive day of the week on average',
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
           Row(

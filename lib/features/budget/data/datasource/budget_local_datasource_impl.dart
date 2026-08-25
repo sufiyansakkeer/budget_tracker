@@ -248,4 +248,37 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
   String _newId() {
     return 'budget_${DateTime.now().microsecondsSinceEpoch}';
   }
+
+  @override
+  Future<double> getExpensesTotalInRange(
+    String budgetId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final start = DateTime(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+    );
+    final end = DateTime(
+      endDate.year,
+      endDate.month,
+      endDate.day,
+      23,
+      59,
+      59,
+      999,
+    );
+
+    final expenses =
+        await (database.select(database.expenses)..where(
+              (expense) =>
+                  expense.budgetId.equals(budgetId) &
+                  expense.date.isBiggerOrEqualValue(start) &
+                  expense.date.isSmallerOrEqualValue(end),
+            ))
+            .get();
+
+    return expenses.fold<double>(0, (sum, e) => sum + e.amount);
+  }
 }

@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
+import '../../../../core/widgets/info_section_header.dart';
 import '../../../../core/widgets/app_section_header.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -13,14 +16,19 @@ import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/entities/bill_enums.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
+import '../../domain/entities/spending_target_entity.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
+import '../bloc/spending_target/spending_target_bloc.dart';
+import '../bloc/spending_target/spending_target_event.dart';
+import '../bloc/spending_target/spending_target_state.dart';
 import '../widgets/budget_hero_card.dart';
 import '../widgets/dashboard_error_widget.dart';
 import '../widgets/empty_dashboard_state.dart';
 import '../widgets/insight_card.dart';
 import '../widgets/recent_expense_tile.dart';
+import '../widgets/spending_target_cards.dart';
 import '../widgets/today_spending_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -37,7 +45,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
-    context.read<DashboardBloc>().add(const DashboardLoadData());
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -107,8 +114,35 @@ class _DashboardScreenState extends State<DashboardScreen>
                   BudgetOverviewCard(summary: summary),
                   const SizedBox(height: AppSpacing.md),
 
-                  // Today's Spending
-                  TodaySpendingCard(summary: summary),
+                  // Spending Targets (Daily + Weekly)
+                  InfoSectionHeader(
+                    title: 'Spending Targets',
+                    infoContent: InfoContent(
+                      title: 'Spending Targets',
+                      whatIsThis:
+                          'Your spending targets show how much you can safely '
+                          'spend today and this week while staying on track '
+                          'with your active budget(s).',
+                      howIsItCalculated:
+                          'Daily target = Remaining budget ÷ Remaining days\n'
+                          'Weekly target = Budget × Days this week ÷ Total budget days',
+                      example:
+                          'If your budget is ₹30,000 for 30 days and you\'ve '
+                          'spent ₹9,000 with 20 days remaining:\n\n'
+                          'Remaining budget: ₹21,000\n'
+                          'Daily target: ₹21,000 ÷ 20 = ₹1,050\n'
+                          'Weekly target: ₹30,000 × 7 ÷ 30 = ₹7,000',
+                      additionalNotes:
+                          '• Multiple active budgets are combined\n'
+                          '• Adding or editing an expense updates the target\n'
+                          '• The target adjusts each day as remaining budget changes\n'
+                          '• Today\'s target includes today in the remaining days',
+                      privacyNote:
+                          'Your financial data is stored locally on your device.',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  const SpendingTargetsSection(),
                   const SizedBox(height: AppSpacing.md),
 
                   // Budget Timeline
@@ -161,11 +195,27 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                   // Upcoming Bills
                   if (state.upcomingBills.isNotEmpty) ...[
-                    SectionHeader(
+                    InfoSectionHeader(
                       title: 'Upcoming Bills',
                       trailing: TextButton(
                         onPressed: () => context.push('/app/bills'),
                         child: const Text('View All'),
+                      ),
+                      infoContent: InfoContent(
+                        title: 'Upcoming Bills',
+                        whatIsThis:
+                            'Bills that are scheduled to become due soon. '
+                            'These are tracked separately from your regular '
+                            'expenses.',
+                        howIsItCalculated:
+                            'The app looks at all bills that are due in the '
+                            'near future and have not yet been marked as paid. '
+                            'Bills are sorted by their due date.',
+                        additionalNotes:
+                            '• Bills shown here are due but not yet paid\n'
+                            '• Mark a bill as paid to remove it from this list\n'
+                            '• Bills are separate from your expense tracking\n'
+                            '• Overdue bills are highlighted in red',
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -175,7 +225,34 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                   // Smart Insights
                   if (state.insights.isNotEmpty) ...[
-                    const SectionHeader(title: 'Smart Insights'),
+                    InfoSectionHeader(
+                      title: 'Smart Insights',
+                      infoContent: InfoContent(
+                        title: 'Smart Insights',
+                        whatIsThis:
+                            'Smart Insights analyze your local budget and '
+                            'expense data to identify spending patterns, '
+                            'budget progress, and unusual behavior.',
+                        howIsItCalculated:
+                            'The insights engine examines your current budget '
+                            'status, daily spending pace, weekly targets, '
+                            'projected spending, and category behavior. '
+                            'Up to 3 insights are shown, prioritized by '
+                            'severity.',
+                        additionalNotes:
+                            'Types of analysis include:\n'
+                            '• Critical overspending alerts\n'
+                            '• Projected spending & budget risk\n'
+                            '• Today\'s spending status\n'
+                            '• Daily & weekly target performance\n'
+                            '• Spending pace vs. safe allowance\n'
+                            '• Budget progress updates\n'
+                            '• Projected savings estimates',
+                        privacyNote:
+                            'All analysis runs on your device. No data leaves '
+                            'your phone.',
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     _buildInsights(state.insights),
                     const SizedBox(height: AppSpacing.lg),
@@ -449,6 +526,152 @@ class _UpcomingBillsList extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+// ── Spending Targets Section ────────────────────────────────────────
+
+class SpendingTargetsSection extends StatelessWidget {
+  const SpendingTargetsSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<SpendingTargetBloc, SpendingTargetState>(
+      builder: (context, state) {
+        return switch (state.status) {
+          SpendingTargetBlocStatus.initial ||
+          SpendingTargetBlocStatus.loading => const _SpendingTargetSkeleton(),
+          SpendingTargetBlocStatus.loaded when state.targets != null =>
+            _buildTargets(context, state.targets!),
+          SpendingTargetBlocStatus.empty => _buildEmptyState(context),
+          SpendingTargetBlocStatus.error => _buildErrorState(
+            context,
+            state.errorMessage ?? 'Unable to calculate spending target.',
+          ),
+          _ => const _SpendingTargetSkeleton(),
+        };
+      },
+    );
+  }
+
+  Widget _buildTargets(BuildContext context, SpendingTargetEntity targets) {
+    return Column(
+      children: [
+        DailyTargetCard(targets: targets),
+        const SizedBox(height: AppSpacing.sm),
+        WeeklyTargetCard(targets: targets),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.track_changes_rounded,
+            size: 40,
+            color: AppColors.primary.withValues(alpha: 0.6),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'No Spending Target',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Create an active budget to see\nyour daily and weekly spending targets.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          FilledButton.icon(
+            onPressed: () => context.push('/app/budget/add'),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Create Budget'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(160, 40),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            size: 36,
+            color: AppColors.error.withValues(alpha: 0.7),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Unable to calculate spending target.',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: () {
+              context
+                  .read<SpendingTargetBloc>()
+                  .add(const SpendingTargetRefresh());
+            },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpendingTargetSkeleton extends StatelessWidget {
+  const _SpendingTargetSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        SkeletonBox(height: 200, radius: 20),
+        SizedBox(height: AppSpacing.sm),
+        SkeletonBox(height: 200, radius: 20),
+      ],
     );
   }
 }

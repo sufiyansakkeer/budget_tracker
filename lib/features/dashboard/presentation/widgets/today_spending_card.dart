@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
 
 /// Displays today's spending against the daily safe-spending allowance with a
@@ -43,10 +45,34 @@ class TodaySpendingCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                "Today's Safe Spending",
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  "Today's Safe Spending",
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              InfoIcon(
+                content: InfoContent(
+                  title: "Today's Safe Spending",
+                  whatIsThis:
+                      'The amount you can spend today while remaining '
+                      'within your budget plan.',
+                  howIsItCalculated:
+                      'Remaining budget ÷ Remaining days\n\n'
+                      'Remaining budget = Budget amount − Total spent\n'
+                      'Remaining days = Budget end date − Today + 1',
+                  example:
+                      'Budget: ₹30,000\n'
+                      'Spent: ₹9,000\n'
+                      'Remaining: ₹21,000\n'
+                      'Days left: 20\n\n'
+                      'Safe spending: ₹21,000 ÷ 20 = ₹1,050',
+                  additionalNotes:
+                      '• Status shown: On Track / Near Limit / Exceeded\n'
+                      '• Updates as you add or edit expenses\n'
+                      '• Unused allowance carries over to the next day',
                 ),
               ),
               Container(
@@ -184,6 +210,28 @@ class BudgetTimelineCard extends StatelessWidget {
                 'Budget Timeline',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                ),
+              ),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Remaining Days',
+                  whatIsThis:
+                      'The number of calendar days remaining in your '
+                      'active budget period, including today.',
+                  howIsItCalculated:
+                      'Remaining days = Budget end date − Today + 1\n\n'
+                      'The result is always at least 1 to prevent '
+                      'division errors in daily calculations.',
+                  example:
+                      'Budget: 10 Aug → 25 Aug\n'
+                      'Today: 15 Aug\n'
+                      'Remaining: 25 − 15 + 1 = 11 days',
+                  additionalNotes:
+                      '• Today is always counted as a remaining day\n'
+                      '• The minimum value is 1 (never 0)\n'
+                      '• Used by the daily safe spending calculation\n'
+                      '• The budget end date determines when remaining '
+                        'days reach 1',
                 ),
               ),
               Text(

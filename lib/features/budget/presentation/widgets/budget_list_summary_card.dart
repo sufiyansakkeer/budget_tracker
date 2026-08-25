@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/budget_list_summary_entity.dart';
 
 /// Displays the combined remaining amount across all active budgets.
@@ -49,6 +51,29 @@ class BudgetListSummaryCard extends StatelessWidget {
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.primary,
+                ),
+              ),
+              const Spacer(),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Combined Remaining',
+                  whatIsThis:
+                      'The total remaining budget across all your '
+                      'active budgets.',
+                  howIsItCalculated:
+                      'For each active budget:\n'
+                      '  Remaining = Budget amount − Spent amount\n\n'
+                      'Then all active budget remainders are added '
+                      'together.',
+                  example:
+                      'Budget A: ₹10,000 − ₹5,000 = ₹5,000 remaining\n'
+                      'Budget B: ₹8,000 − ₹5,000 = ₹3,000 remaining\n\n'
+                      'Combined remaining: ₹8,000',
+                  additionalNotes:
+                      '• Only active (non-archived) budgets are included\n'
+                      '• Each budget has its own amount, date range, '
+                        'and spending\n'
+                      '• Can be negative if overspending on a budget',
                 ),
               ),
             ],

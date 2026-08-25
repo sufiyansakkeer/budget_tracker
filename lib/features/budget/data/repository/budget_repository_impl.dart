@@ -155,4 +155,17 @@ class BudgetRepositoryImpl implements BudgetRepository {
     final updatedBudget = budget.copyWith(remainingAmount: newRemaining);
     await localDataSource.updateBudget(updatedBudget);
   }
+
+  @override
+  Future<double> getExpensesTotalInRange(
+    String budgetId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    return localDataSource.getExpensesTotalInRange(
+      budgetId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+  }
 }

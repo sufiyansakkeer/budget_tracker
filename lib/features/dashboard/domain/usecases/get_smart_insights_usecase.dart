@@ -2,6 +2,8 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../budget/domain/entities/budget_status.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
 import '../entities/smart_insight_entity.dart';
+import '../entities/spending_target_entity.dart';
+import '../entities/spending_target_status.dart';
 
 /// Deterministic Smart Insights engine.
 ///
@@ -16,9 +18,13 @@ class GetSmartInsightsUseCase {
 
   /// Derives a prioritized list of [SmartInsight] messages from [summary].
   ///
+  /// Optionally accepts [spendingTarget] to include target-based insights.
   /// Insights are ordered by severity so the most important message appears
   /// first on the Dashboard.
-  List<SmartInsight> call(BudgetSummaryEntity summary) {
+  List<SmartInsight> call(
+    BudgetSummaryEntity summary, {
+    SpendingTargetEntity? spendingTarget,
+  }) {
     if (summary.monthlyAmount <= 0) {
       return const [
         SmartInsight(
@@ -41,17 +47,25 @@ class GetSmartInsightsUseCase {
     // 3. Today overspending.
     _addTodayOverspending(summary, insights);
 
-    // 4. Spending pace relative to safe allowance.
+    // 4. Spending target insights (if available).
+    if (spendingTarget != null && insights.length < 3) {
+      _addWeeklyTargetInsight(spendingTarget, summary.currency, insights);
+    }
+    if (spendingTarget != null && insights.length < 3) {
+      _addDailyTargetInsight(spendingTarget, summary.currency, insights);
+    }
+
+    // 5. Spending pace relative to safe allowance.
     if (insights.length < 3) {
       _addSpendingPace(summary, insights);
     }
 
-    // 5. Budget progress.
+    // 6. Budget progress.
     if (insights.length < 3) {
       _addBudgetProgress(summary, insights);
     }
 
-    // 6. Positive / projected savings.
+    // 7. Positive / projected savings.
     if (insights.length < 3) {
       _addPositive(summary, insights);
     }
@@ -174,6 +188,83 @@ class GetSmartInsightsUseCase {
         type: usedPercent >= 80 ? InsightType.warning : InsightType.info,
       ),
     );
+  }
+
+  void _addDailyTargetInsight(
+    SpendingTargetEntity target,
+    String currency,
+    List<SmartInsight> insights,
+  ) {
+    if (target.dailyTarget <= 0) return;
+
+    if (target.dailyStatus == SpendingTargetStatus.exceeded) {
+      insights.add(
+        SmartInsight(
+          id: 'daily_target_exceeded',
+          message:
+              'You\'ve exceeded your daily target by '
+              '${_money(target.dailyExceeded, currency)}.',
+          type: InsightType.warning,
+        ),
+      );
+    } else if (target.dailyStatus == SpendingTargetStatus.nearLimit) {
+      final pct = (target.dailyProgress * 100).round();
+      insights.add(
+        SmartInsight(
+          id: 'daily_target_near',
+          message:
+              'You\'re at $pct% of your daily target '
+              '(${_money(target.dailyRemaining, currency)} remaining).',
+          type: InsightType.warning,
+        ),
+      );
+    } else if (target.dailyProgress > 0) {
+      final pct = (target.dailyProgress * 100).round();
+      insights.add(
+        SmartInsight(
+          id: 'daily_target_on_track',
+          message:
+              'You\'re at $pct% of your daily target '
+              'with ${_money(target.dailyRemaining, currency)} remaining.',
+          type: InsightType.positive,
+        ),
+      );
+    }
+  }
+
+  void _addWeeklyTargetInsight(
+    SpendingTargetEntity target,
+    String currency,
+    List<SmartInsight> insights,
+  ) {
+    if (target.weeklyTarget <= 0) return;
+
+    if (target.weeklyStatus == SpendingTargetStatus.exceeded) {
+      insights.add(
+        SmartInsight(
+          id: 'weekly_target_exceeded',
+          message:
+              'You\'ve exceeded your weekly target by '
+              '${_money(target.weeklyExceeded, currency)}. '
+              'Consider reducing spending over the next few days to stay '
+              'within your budget period.',
+          type: InsightType.negative,
+        ),
+      );
+    } else if (target.weeklyProgress > 0) {
+      final pct = (target.weeklyProgress * 100).round();
+      insights.add(
+        SmartInsight(
+          id: 'weekly_target_status',
+          message:
+              'Your spending is currently $pct% of your weekly target '
+              'with ${_money(target.weeklyRemaining, currency)} remaining.',
+          type: target.weeklyStatus == SpendingTargetStatus.nearLimit
+              ? InsightType.warning
+              : InsightType.positive,
+        ),
+      );
+    }
   }
 
   void _addPositive(BudgetSummaryEntity summary, List<SmartInsight> insights) {

@@ -4,6 +4,8 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 
 /// Animated radial budget utilization: spent vs remaining vs percentage user.
 class BudgetUtilizationCard extends StatefulWidget {
@@ -66,11 +68,39 @@ class _BudgetUtilizationCardState extends State<BudgetUtilizationCard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Budget Utilization',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Budget Utilization',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Budget Utilization',
+                  whatIsThis:
+                      'Shows what percentage of your available budget '
+                      'has already been used.',
+                  howIsItCalculated:
+                      'Utilization = Spent ÷ Budget amount\n\n'
+                      'Spent = Total expenses in the budget period\n'
+                      'Budget = Your configured budget amount',
+                  example:
+                      'Budget: ₹30,000\n'
+                      'Spent: ₹18,000\n\n'
+                      'Utilization: 18,000 ÷ 30,000\n'
+                      '= 60%',
+                  additionalNotes:
+                      '• Color: Green (< 80%), Orange (80–100%), '
+                        'Red (> 100%)\n'
+                      '• Can exceed 100% when overspending\n'
+                      '• Updates when expenses are added or edited',
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
           Row(

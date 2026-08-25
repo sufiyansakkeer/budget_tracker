@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/money_text.dart';
 import '../../domain/entities/bill_entity.dart';
@@ -126,6 +128,41 @@ class _BillsListScreenState extends State<BillsListScreen> {
           if (state.allBills.isNotEmpty)
             SliverToBoxAdapter(
               child: _BillSummaryCards(state: state),
+            ),
+          if (state.allBills.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  top: AppSpacing.xs,
+                  right: AppSpacing.md,
+                ),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: InfoIcon(
+                    content: InfoContent(
+                      title: 'Bills Overview',
+                      whatIsThis:
+                          'Summary of your upcoming, due today, and '
+                          'overdue bills.',
+                      howIsItCalculated:
+                          'Upcoming: Bills due in the future (not yet '
+                          'due).\n'
+                          'Due Today: Bills with today\'s date as the '
+                          'due date.\n'
+                          'Overdue: Bills past their due date and not '
+                          'yet marked as paid.',
+                      additionalNotes:
+                          '• Bills are separate from your regular expenses\n'
+                          '• Mark a bill as paid to move it out of '
+                            'these categories\n'
+                          '• Recurring bills regenerate based on their '
+                            'recurrence rule\n'
+                          '• Bills do not affect your budget tracking '
+                            'unless recorded as expenses',
+                    ),
+                  ),
+                ),
+              ),
             ),
 
           // Search bar

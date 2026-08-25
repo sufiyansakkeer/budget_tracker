@@ -3,6 +3,8 @@ import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/spending_trend.dart';
 
 /// Displays spending trend metrics: averages, growth, and consistency.
@@ -44,6 +46,34 @@ class TrendCard extends StatelessWidget {
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
+                ),
+              ),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Spending Trends',
+                  whatIsThis:
+                      'Analysis of your spending patterns over time, '
+                      'showing averages, growth rate, and '
+                      'consistency.',
+                  howIsItCalculated:
+                      'Daily avg = Total spending ÷ Days in period\n'
+                      'Weekly avg = Daily avg × 7\n'
+                      'Monthly avg = Daily avg × 30\n\n'
+                      'Growth rate = (Recent half spending − '
+                      'First half spending) ÷ First half spending\n\n'
+                      'Consistency = 1 − (Std deviation ÷ Mean) '
+                      'of daily spending',
+                  example:
+                      'Period: 1–25 Aug\n'
+                      'Total: ₹15,000\n'
+                      'Daily avg: ₹600\n'
+                      'Weekly avg: ₹4,200\n'
+                      'Monthly avg: ₹18,000\n'
+                      'Growth: −10% (improving)',
+                  additionalNotes:
+                      '• Green growth icon means spending decreased\n'
+                      '• Red growth icon means spending increased\n'
+                      '• Consistency ≥ 60% is considered stable',
                 ),
               ),
               Container(

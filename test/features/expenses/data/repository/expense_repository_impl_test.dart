@@ -95,6 +95,13 @@ class MockBudgetRepository implements BudgetRepository {
 
   @override
   Future<void> updateBudgetRemainingAmount(String budgetId) async {}
+
+  @override
+  Future<double> getExpensesTotalInRange(
+    String budgetId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async => 0.0;
 }
 
 class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {

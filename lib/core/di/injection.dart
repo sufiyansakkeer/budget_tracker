@@ -49,7 +49,9 @@ import '../../features/dashboard/data/repository/dashboard_repository_impl.dart'
 import '../../features/dashboard/domain/repository/dashboard_repository.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import '../../features/dashboard/presentation/bloc/spending_target/spending_target_bloc.dart';
 import '../../features/expenses/data/datasource/expense_local_datasource.dart';
 import '../../features/expenses/data/datasource/expense_local_datasource_impl.dart';
 import '../../features/expenses/data/repository/expense_repository_impl.dart';
@@ -261,6 +263,13 @@ Future<void> initDependencyInjection() async {
     () => const GetSmartInsightsUseCase(),
   );
 
+  getIt.registerLazySingleton<GetSpendingTargetsUseCase>(
+    () => GetSpendingTargetsUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
   // 15. Dashboard Feature - BLoC
   getIt.registerFactory<DashboardBloc>(
     () => DashboardBloc(
@@ -269,6 +278,12 @@ Future<void> initDependencyInjection() async {
       getSmartInsightsUseCase: getIt<GetSmartInsightsUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
       billRepository: getIt<BillRepository>(),
+    ),
+  );
+
+  getIt.registerFactory<SpendingTargetBloc>(
+    () => SpendingTargetBloc(
+      getSpendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
     ),
   );
 

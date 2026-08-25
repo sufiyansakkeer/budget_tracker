@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
 
 /// The primary hero card on the dashboard. Highlights "today's safe spending"
@@ -66,11 +68,45 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                "Today's Safe Spending",
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        "Today's Safe Spending",
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    InfoIcon(
+                      content: InfoContent(
+                        title: "Today's Safe Spending",
+                        whatIsThis:
+                            "This is the amount you can safely spend today "
+                            "while staying on track with your active budget.",
+                        howIsItCalculated:
+                            'Remaining budget ÷ Remaining days\n\n'
+                            'The remaining budget is calculated by subtracting '
+                            'total expenses from your budget amount. Remaining '
+                            'days include today through the budget end date.',
+                        example:
+                            'Budget: ₹30,000\n'
+                            'Spent: ₹9,000\n'
+                            'Remaining budget: ₹21,000\n'
+                            'Remaining days: 20\n\n'
+                            'Safe spending: ₹21,000 ÷ 20\n'
+                            '= ₹1,050 per day',
+                        additionalNotes:
+                            '• Changes when you add, edit, or delete expenses\n'
+                            '• Unused allowance is not removed — it rolls into '
+                              'the next day\n'
+                            '• Multiple active budgets are combined\n'
+                            '• Adjusts automatically each day',
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Container(
@@ -211,7 +247,39 @@ class BudgetOverviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          AppProgress(value: summary.budgetUtilization, showLabel: true),
+          Row(
+            children: [
+              Expanded(
+                child: AppProgress(
+                  value: summary.budgetUtilization,
+                  showLabel: true,
+                ),
+              ),
+              const SizedBox(width: 8),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Budget Progress',
+                  whatIsThis:
+                      'Shows how much of your budget has been used so far '
+                      'and how much remains.',
+                  howIsItCalculated:
+                      'Progress = Total spent ÷ Budget amount\n'
+                      'Remaining = Budget amount − Total spent',
+                  example:
+                      'Budget: ₹30,000\n'
+                      'Spent: ₹18,000\n'
+                      'Remaining: ₹12,000\n'
+                      'Progress: 18,000 ÷ 30,000 = 60%',
+                  additionalNotes:
+                      '• The progress bar shows ≤ 100% even when over budget\n'
+                      '• Color changes: green (< 80%), orange (80–100%), '
+                        'red (> 100%)\n'
+                      '• Updates automatically when expenses are added '
+                        'or edited',
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

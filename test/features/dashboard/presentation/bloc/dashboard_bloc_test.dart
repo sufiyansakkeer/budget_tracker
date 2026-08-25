@@ -11,6 +11,7 @@ import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/repository/bill_repository.dart';
 import 'package:monivo/features/dashboard/domain/entities/recent_expense_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
+import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
 import 'package:monivo/features/dashboard/domain/repository/dashboard_repository.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
@@ -21,7 +22,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 class MockGetSmartInsightsUseCase implements GetSmartInsightsUseCase {
   @override
-  List<SmartInsight> call(BudgetSummaryEntity summary) => const [];
+  List<SmartInsight> call(
+    BudgetSummaryEntity summary, {
+    SpendingTargetEntity? spendingTarget,
+  }) => const [];
 }
 
 class MockGetBudgetSummaryUseCase implements GetBudgetSummaryUseCase {
@@ -125,6 +129,13 @@ class MockBudgetRepository implements BudgetRepository {
 
   @override
   Future<void> updateBudgetRemainingAmount(String budgetId) async {}
+
+  @override
+  Future<double> getExpensesTotalInRange(
+    String budgetId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async => 0.0;
 }
 
 class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {
