@@ -112,10 +112,12 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
           Expanded(
             child: ListView.separated(
               itemCount: _filteredCurrencies.length,
-              separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.xs),
+              separatorBuilder: (context, index) =>
+                  const SizedBox(height: AppSpacing.xs),
               itemBuilder: (context, index) {
                 final currency = _filteredCurrencies[index];
-                final isSelected = currency.code == widget.selectedCurrency.code;
+                final isSelected =
+                    currency.code == widget.selectedCurrency.code;
 
                 return InkWell(
                   onTap: () => widget.onSelected(currency),
@@ -131,7 +133,9 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                           : theme.cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.transparent,
                         width: 1.5,
                       ),
                     ),
@@ -152,7 +156,9 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: isSelected ? Colors.white : AppColors.primary,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.primary,
                             ),
                           ),
                         ),
@@ -170,7 +176,8 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                               Text(
                                 currency.code,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                                  color: theme.textTheme.bodySmall?.color
+                                      ?.withValues(alpha: 0.6),
                                 ),
                               ),
                             ],

@@ -26,14 +26,14 @@ class RecentExpenseEntity extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        amount,
-        categoryId,
-        categoryName,
-        categoryIcon,
-        categoryColorHex,
-        note,
-        date,
-        createdAt,
-      ];
+    id,
+    amount,
+    categoryId,
+    categoryName,
+    categoryIcon,
+    categoryColorHex,
+    note,
+    date,
+    createdAt,
+  ];
 }

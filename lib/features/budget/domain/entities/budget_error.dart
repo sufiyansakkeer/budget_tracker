@@ -1,19 +1,12 @@
 /// Typed errors returned by budget use cases instead of throwing.
-enum BudgetErrorType {
-  notFound,
-  invalidDate,
-  invalidBudget,
-}
+enum BudgetErrorType { notFound, invalidDate, invalidBudget }
 
 /// Failure object for budget operations.
 class BudgetFailure {
   final BudgetErrorType type;
   final String message;
 
-  const BudgetFailure({
-    required this.type,
-    required this.message,
-  });
+  const BudgetFailure({required this.type, required this.message});
 }
 
 /// Success wrapper for budget use case results.

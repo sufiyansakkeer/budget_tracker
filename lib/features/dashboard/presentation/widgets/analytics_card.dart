@@ -25,8 +25,8 @@ class AnalyticsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final displayColor = valueColor ??
-        (isPositive ? AppColors.safeGreen : AppColors.dangerRed);
+    final displayColor =
+        valueColor ?? (isPositive ? AppColors.safeGreen : AppColors.dangerRed);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -46,11 +46,7 @@ class AnalyticsCard extends StatelessWidget {
               color: displayColor.withValues(alpha: 0.1),
               borderRadius: AppSpacing.borderRadiusSm,
             ),
-            child: Icon(
-              icon,
-              color: displayColor,
-              size: 20,
-            ),
+            child: Icon(icon, color: displayColor, size: 20),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

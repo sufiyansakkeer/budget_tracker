@@ -24,7 +24,9 @@ class TodaySpendingCard extends StatelessWidget {
     final dayRatio = allowance > 0 ? (spent / allowance).clamp(0.0, 1.0) : 0.0;
     final statusColor = _statusColor(isOver);
     final statusLabel = isOver ? 'Exceeded' : 'On Track';
-    final statusIcon = isOver ? Icons.error_rounded : Icons.check_circle_rounded;
+    final statusIcon = isOver
+        ? Icons.error_rounded
+        : Icons.check_circle_rounded;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -124,7 +126,12 @@ class TodaySpendingCard extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(ThemeData theme, String text, {bool isBold = false, Color? color}) {
+  Widget _infoRow(
+    ThemeData theme,
+    String text, {
+    bool isBold = false,
+    Color? color,
+  }) {
     return Text(
       text,
       style: theme.textTheme.bodyMedium?.copyWith(

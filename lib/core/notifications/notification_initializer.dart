@@ -14,8 +14,7 @@ class NotificationInitializer {
   NotificationInitializer({
     NotificationBloc? notificationBloc,
     LoadSettingsUseCase? loadSettingsUseCase,
-  }) : _notificationBloc =
-           notificationBloc ?? di.getIt<NotificationBloc>(),
+  }) : _notificationBloc = notificationBloc ?? di.getIt<NotificationBloc>(),
        _loadSettingsUseCase =
            loadSettingsUseCase ?? di.getIt<LoadSettingsUseCase>();
 

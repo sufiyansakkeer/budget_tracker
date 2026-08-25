@@ -4,10 +4,10 @@ import 'package:equatable/equatable.dart';
 class BudgetListSummaryEntity extends Equatable {
   /// Total remaining amount across all active budgets (same currency).
   final double totalRemaining;
-  
+
   /// Number of active budgets included in the summary.
   final int activeBudgetCount;
-  
+
   /// Currency code (all budgets must use same currency).
   final String currency;
 

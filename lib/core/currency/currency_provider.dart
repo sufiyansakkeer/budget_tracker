@@ -10,7 +10,8 @@ class CurrencyProvider extends ChangeNotifier {
   String _currencySymbol = '₹';
 
   CurrencyProvider({LoadSettingsUseCase? loadSettingsUseCase})
-      : _loadSettingsUseCase = loadSettingsUseCase ?? di.getIt<LoadSettingsUseCase>() {
+    : _loadSettingsUseCase =
+          loadSettingsUseCase ?? di.getIt<LoadSettingsUseCase>() {
     _loadCurrencySettings();
   }
 
