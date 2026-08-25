@@ -171,17 +171,12 @@ class GetSmartInsightsUseCase {
         message:
             'You\'ve used $usedPercent% of your budget and '
             'have ${summary.remainingDays} ${summary.remainingDays == 1 ? 'day' : 'days'} remaining.',
-        type: usedPercent >= 80
-            ? InsightType.warning
-            : InsightType.info,
+        type: usedPercent >= 80 ? InsightType.warning : InsightType.info,
       ),
     );
   }
 
-  void _addPositive(
-    BudgetSummaryEntity summary,
-    List<SmartInsight> insights,
-  ) {
+  void _addPositive(BudgetSummaryEntity summary, List<SmartInsight> insights) {
     if (summary.expectedSavings > 0) {
       insights.add(
         SmartInsight(

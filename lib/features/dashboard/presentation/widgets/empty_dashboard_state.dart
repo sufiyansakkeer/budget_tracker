@@ -3,20 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
-enum EmptyStateType {
-  noBudget,
-  noExpenses,
-}
+enum EmptyStateType { noBudget, noExpenses }
 
 class EmptyDashboardState extends StatelessWidget {
   final EmptyStateType type;
   final VoidCallback? onAction;
 
-  const EmptyDashboardState({
-    super.key,
-    required this.type,
-    this.onAction,
-  });
+  const EmptyDashboardState({super.key, required this.type, this.onAction});
 
   @override
   Widget build(BuildContext context) {
@@ -35,11 +28,7 @@ class EmptyDashboardState extends StatelessWidget {
                 color: AppColors.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                config.icon,
-                size: 64,
-                color: AppColors.primary,
-              ),
+              child: Icon(config.icon, size: 64, color: AppColors.primary),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(

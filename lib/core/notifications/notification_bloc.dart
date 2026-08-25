@@ -53,12 +53,16 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
   ) async {
     if (_startupCompleted) {
       if (state.status == NotificationStatus.initial) {
-        emit(state.copyWith(status: NotificationStatus.ready, clearError: true));
+        emit(
+          state.copyWith(status: NotificationStatus.ready, clearError: true),
+        );
       }
       return;
     }
 
-    emit(state.copyWith(status: NotificationStatus.initializing, clearError: true));
+    emit(
+      state.copyWith(status: NotificationStatus.initializing, clearError: true),
+    );
 
     try {
       // Initialize the notification service.
@@ -97,18 +101,23 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
           );
         }
 
-        emit(state.copyWith(status: NotificationStatus.ready, clearError: true));
+        emit(
+          state.copyWith(status: NotificationStatus.ready, clearError: true),
+        );
         debugPrint('[NotificationBloc] Notifications scheduled successfully');
       } else {
         emit(
           state.copyWith(
             status: NotificationStatus.ready,
-            errorMessage: 'Notifications ready but settings could not be loaded',
+            errorMessage:
+                'Notifications ready but settings could not be loaded',
           ),
         );
       }
     } catch (e, st) {
-      debugPrint('[NotificationBloc] Error initializing notifications: $e\n$st');
+      debugPrint(
+        '[NotificationBloc] Error initializing notifications: $e\n$st',
+      );
       emit(
         state.copyWith(
           status: NotificationStatus.error,

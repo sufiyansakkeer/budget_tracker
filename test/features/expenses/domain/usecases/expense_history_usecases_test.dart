@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
@@ -296,6 +297,59 @@ void main() {
 
   group('GroupExpensesUseCase', () {
     const useCase = GroupExpensesUseCase();
+
+    test('creates one group per local calendar date', () {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final groups = useCase([
+        expense(id: 'morning', date: today.add(const Duration(hours: 10))),
+        expense(id: 'afternoon', date: today.add(const Duration(hours: 14))),
+        expense(id: 'evening', date: today.add(const Duration(hours: 20))),
+      ]);
+
+      expect(groups, hasLength(1));
+      expect(groups.single.label, 'Today');
+      expect(groups.single.expenses.map((item) => item.id), [
+        'evening',
+        'afternoon',
+        'morning',
+      ]);
+    });
+
+    test('labels yesterday and older dates', () {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final groups = useCase([
+        expense(id: 'yesterday', date: today.subtract(const Duration(days: 1))),
+        expense(id: 'older', date: today.subtract(const Duration(days: 2))),
+      ]);
+
+      expect(groups.map((group) => group.label), [
+        'Yesterday',
+        DateFormat(
+          'd MMM yyyy',
+        ).format(today.subtract(const Duration(days: 2))),
+      ]);
+    });
+
+    test(
+      'sorts distinct dates newest first across month and year boundaries',
+      () {
+        final groups = useCase([
+          expense(id: 'new-year', date: DateTime(2027, 1, 1)),
+          expense(id: 'old-year', date: DateTime(2026, 12, 31)),
+          expense(id: 'month-end', date: DateTime(2026, 8, 31)),
+          expense(id: 'month-start', date: DateTime(2026, 9, 1)),
+        ]);
+
+        expect(groups.map((group) => group.date), [
+          DateTime(2027, 1, 1),
+          DateTime(2026, 12, 31),
+          DateTime(2026, 9, 1),
+          DateTime(2026, 8, 31),
+        ]);
+      },
+    );
 
     test('groups today and earlier', () {
       final now = DateTime.now();

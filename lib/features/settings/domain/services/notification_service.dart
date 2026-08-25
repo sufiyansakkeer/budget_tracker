@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
@@ -14,6 +15,9 @@ import '../entities/app_settings.dart';
 /// Uses [flutter_local_notifications] with timezone-aware daily scheduling.
 /// Notification bodies are budget-aware and use the centralized currency formatter.
 class NotificationService {
+  static const MethodChannel _recoveryChannel = MethodChannel(
+    'monivo/notifications',
+  );
   static const int morningReminderId = 1001;
   static const int eveningSummaryId = 1002;
   static const int overspendingAlertId = 1003;
@@ -41,6 +45,8 @@ class NotificationService {
   Future<bool> initialize() async {
     if (_initialized) return true;
 
+    debugPrint('[Notifications] Initializing');
+
     await _configureLocalTimeZone();
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -51,13 +57,18 @@ class NotificationService {
     );
     const settings = InitializationSettings(android: android, iOS: ios);
 
-    final ok = await _plugin.initialize(settings);
+    debugPrint('[Notifications] Timezone initialized');
+    final ok = await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
     if (ok != true) {
       return false;
     }
 
     await _createAndroidNotificationChannel();
     _initialized = true;
+    debugPrint('[Notifications] Plugin initialized');
     return true;
   }
 
@@ -122,7 +133,7 @@ class NotificationService {
   /// Schedules all daily notifications based on [settings].
   Future<void> scheduleAll(AppSettings settings) async {
     await initialize();
-    await cancelAll();
+    await cancelAllPending();
 
     final notifSettings = settings.notifications;
     if (!notifSettings.notificationsEnabled) return;
@@ -190,14 +201,17 @@ class NotificationService {
       scheduledDate,
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
   /// Cancels all scheduled notifications.
   Future<void> cancelAll() async {
-    await _plugin.cancelAll();
+    await _cancelWithRecovery(() => _plugin.cancelAll());
+  }
+
+  /// Cancels scheduled notifications without touching already displayed ones.
+  Future<void> cancelAllPending() async {
+    await _cancelWithRecovery(() => _plugin.cancelAllPendingNotifications());
   }
 
   /// Cancels a specific notification by id.
@@ -248,8 +262,6 @@ class NotificationService {
       scheduled,
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
@@ -260,7 +272,9 @@ class NotificationService {
     try {
       tz_data.initializeTimeZones();
       final timezoneInfo = await FlutterTimezone.getLocalTimezone();
-      debugPrint('[NotificationService] Resolved timezone: ${timezoneInfo.identifier}');
+      debugPrint(
+        '[NotificationService] Resolved timezone: ${timezoneInfo.identifier}',
+      );
       tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
     } catch (e, st) {
       debugPrint(
@@ -270,6 +284,40 @@ class NotificationService {
       tz.setLocalLocation(tz.getLocation('UTC'));
     }
     _timeZonesConfigured = true;
+  }
+
+  Future<void> _cancelWithRecovery(Future<void> Function() cancel) async {
+    try {
+      await cancel();
+    } catch (e, st) {
+      if (!_isScheduledNotificationDeserializationError(e)) rethrow;
+
+      debugPrint(
+        '[Notifications] Recovery triggered for persisted schedules: $e\n$st',
+      );
+      await _recoveryChannel.invokeMethod<void>(
+        'clearScheduledNotificationsStore',
+      );
+      debugPrint('[Notifications] Notification recovery completed');
+      await cancel();
+    }
+  }
+
+  bool _isScheduledNotificationDeserializationError(Object error) {
+    return error.toString().contains('Missing type parameter');
+  }
+
+  void _onNotificationResponse(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+
+    switch (payload) {
+      case 'daily_spending_limit':
+      case 'evening_summary':
+        debugPrint('[Notifications] Received notification: $payload');
+      default:
+        debugPrint('[Notifications] Ignoring unknown notification payload');
+    }
   }
 
   Future<void> _createAndroidNotificationChannel() async {

@@ -38,19 +38,19 @@ class BudgetAnalyticsEntity extends Equatable {
 
   @override
   List<Object?> get props => [
-        monthlyAmount,
-        totalSpent,
-        remainingBudget,
-        spendingPercentage,
-        remainingPercentage,
-        averageDailySpending,
-        expectedMonthEndSpending,
-        projectedRemainingBalance,
-        projectedSavings,
-        projectedOverspending,
-        daysPassed,
-        daysRemaining,
-        dailySafeSpending,
-        status,
-      ];
+    monthlyAmount,
+    totalSpent,
+    remainingBudget,
+    spendingPercentage,
+    remainingPercentage,
+    averageDailySpending,
+    expectedMonthEndSpending,
+    projectedRemainingBalance,
+    projectedSavings,
+    projectedOverspending,
+    daysPassed,
+    daysRemaining,
+    dailySafeSpending,
+    status,
+  ];
 }

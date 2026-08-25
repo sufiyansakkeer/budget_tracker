@@ -1,0 +1,168 @@
+name: Production Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: production-release-main
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.32.8
+
+jobs:
+  release:
+    name: Version, build, and publish Android release
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Refresh main after concurrency wait
+        run: |
+          git fetch origin main --tags
+          git checkout -B main origin/main
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.21.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies and generate sources
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code
+
+      - name: Calculate next semantic version
+        id: version
+        shell: bash
+        run: |
+          current_version=$(sed -nE 's/^version: ([0-9]+)\.([0-9]+)\.([0-9]+)\+([0-9]+)$/\1.\2.\3/p' pubspec.yaml)
+          current_build=$(sed -nE 's/^version: ([0-9]+)\.([0-9]+)\.([0-9]+)\+([0-9]+)$/\4/p' pubspec.yaml)
+          test -n "$current_version" && test -n "$current_build"
+          IFS=. read -r major minor patch <<< "$current_version"
+          next_version="$major.$minor.$((patch + 1))"
+          next_build=$((current_build + 1))
+          latest_commit_message=$(git log -1 --format=%s)
+          if [[ "$latest_commit_message" == *"[skip ci]"* ]]; then
+            tag="v$current_version"
+            git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || {
+              echo "Version commit exists without its expected tag $tag. Resolve this release manually."
+              exit 1
+            }
+            next_version="$current_version"
+            next_build="$current_build"
+            already_published=true
+          else
+            tag="v$next_version"
+            if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+              echo "Tag $tag already exists before its version commit; refusing an inconsistent release."
+              exit 1
+            fi
+            already_published=false
+          fi
+          {
+            echo "version=$next_version"
+            echo "build=$next_build"
+            echo "tag=$tag"
+            echo "already_published=$already_published"
+          } >> "$GITHUB_OUTPUT"
+          echo "Next version: $next_version+$next_build"
+
+      - name: Decode Android keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.keystore
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=release.keystore\n' \
+            "$ANDROID_STORE_PASSWORD" "$ANDROID_KEY_PASSWORD" "$ANDROID_KEY_ALIAS" \
+            > android/key.properties
+
+      - name: Validate release source
+        run: |
+          dart format --output=none --set-exit-if-changed .
+          flutter analyze
+          flutter test
+
+      - name: Build release APK and AAB
+        run: |
+          flutter build apk --release \
+            --build-name="${{ steps.version.outputs.version }}" \
+            --build-number="${{ steps.version.outputs.build }}"
+          flutter build appbundle --release \
+            --build-name="${{ steps.version.outputs.version }}" \
+            --build-number="${{ steps.version.outputs.build }}"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ steps.version.outputs.tag }}
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+
+      - name: Commit version and create tag
+        if: steps.version.outputs.already_published != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_BUILD: ${{ steps.version.outputs.build }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          sed -i -E "s/^version: .*/version: ${RELEASE_VERSION}+${RELEASE_BUILD}/" pubspec.yaml
+          grep -qx "version: ${RELEASE_VERSION}+${RELEASE_BUILD}" pubspec.yaml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add pubspec.yaml
+          git commit -m "chore: bump version to ${RELEASE_VERSION} [skip ci]"
+          git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+          git push origin HEAD:main "$RELEASE_TAG"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              build/app/outputs/flutter-apk/app-release.apk \
+              build/app/outputs/bundle/release/app-release.aab \
+              --clobber
+            gh release edit "$RELEASE_TAG" \
+              --title "Release $RELEASE_TAG" \
+              --notes "Version: $RELEASE_VERSION\nBuild: $RELEASE_BUILD"
+          else
+            gh release create "$RELEASE_TAG" \
+              build/app/outputs/flutter-apk/app-release.apk \
+              build/app/outputs/bundle/release/app-release.aab \
+              --title "Release $RELEASE_TAG" \
+              --notes "Version: $RELEASE_VERSION\nBuild: $RELEASE_BUILD"
+          fi
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f android/key.properties android/release.keystore

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../domain/entities/expense_group.dart';
 
-/// Sticky section header for a group of expenses (Today, Yesterday, etc.).
+/// Section header for a group of expenses sharing one calendar date.
 class ExpenseGroupHeader extends StatelessWidget {
   final ExpenseGroup group;
 
@@ -25,7 +24,7 @@ class ExpenseGroupHeader extends StatelessWidget {
       child: Row(
         children: [
           Text(
-            group.type.label,
+            group.label,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.primary,

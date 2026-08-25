@@ -11,7 +11,9 @@ class BudgetThresholds extends Equatable {
   const BudgetThresholds({
     this.nearLimitThreshold = 0.80,
     this.overBudgetThreshold = 1.0,
-  }) : assert(nearLimitThreshold > 0 && nearLimitThreshold <= overBudgetThreshold),
+  }) : assert(
+         nearLimitThreshold > 0 && nearLimitThreshold <= overBudgetThreshold,
+       ),
        assert(overBudgetThreshold > 0);
 
   @override

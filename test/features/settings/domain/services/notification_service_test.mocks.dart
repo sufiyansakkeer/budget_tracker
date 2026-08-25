@@ -5,15 +5,6 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i5;
 
-import 'package:monivo/core/domain/entities/budget_entity.dart' as _i2;
-import 'package:monivo/features/budget/domain/entities/budget_error.dart'
-    as _i15;
-import 'package:monivo/features/budget/domain/entities/budget_filter.dart'
-    as _i14;
-import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart'
-    as _i3;
-import 'package:monivo/features/budget/domain/repository/budget_repository.dart'
-    as _i13;
 import 'package:flutter_local_notifications/src/flutter_local_notifications_plugin.dart'
     as _i4;
 import 'package:flutter_local_notifications/src/initialization_settings.dart'
@@ -21,14 +12,21 @@ import 'package:flutter_local_notifications/src/initialization_settings.dart'
 import 'package:flutter_local_notifications/src/notification_details.dart'
     as _i8;
 import 'package:flutter_local_notifications/src/platform_specifics/android/schedule_mode.dart'
-    as _i11;
-import 'package:flutter_local_notifications/src/platform_specifics/ios/enums.dart'
     as _i10;
-import 'package:flutter_local_notifications/src/types.dart' as _i12;
+import 'package:flutter_local_notifications/src/types.dart' as _i11;
 import 'package:flutter_local_notifications_platform_interface/flutter_local_notifications_platform_interface.dart'
     as _i7;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i16;
+import 'package:mockito/src/dummies.dart' as _i15;
+import 'package:monivo/core/domain/entities/budget_entity.dart' as _i2;
+import 'package:monivo/features/budget/domain/entities/budget_error.dart'
+    as _i14;
+import 'package:monivo/features/budget/domain/entities/budget_filter.dart'
+    as _i13;
+import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart'
+    as _i3;
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart'
+    as _i12;
 import 'package:timezone/timezone.dart' as _i9;
 
 // ignore_for_file: type=lint
@@ -135,25 +133,30 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
           as _i5.Future<void>);
 
   @override
+  _i5.Future<void> cancelAllPendingNotifications() =>
+      (super.noSuchMethod(
+            Invocation.method(#cancelAllPendingNotifications, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
   _i5.Future<void> zonedSchedule(
     int? id,
     String? title,
     String? body,
     _i9.TZDateTime? scheduledDate,
     _i8.NotificationDetails? notificationDetails, {
-    required _i10.UILocalNotificationDateInterpretation?
-    uiLocalNotificationDateInterpretation,
-    required _i11.AndroidScheduleMode? androidScheduleMode,
+    required _i10.AndroidScheduleMode? androidScheduleMode,
     String? payload,
-    _i12.DateTimeComponents? matchDateTimeComponents,
+    _i11.DateTimeComponents? matchDateTimeComponents,
   }) =>
       (super.noSuchMethod(
             Invocation.method(
               #zonedSchedule,
               [id, title, body, scheduledDate, notificationDetails],
               {
-                #uiLocalNotificationDateInterpretation:
-                    uiLocalNotificationDateInterpretation,
                 #androidScheduleMode: androidScheduleMode,
                 #payload: payload,
                 #matchDateTimeComponents: matchDateTimeComponents,
@@ -171,7 +174,7 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
     String? body,
     _i7.RepeatInterval? repeatInterval,
     _i8.NotificationDetails? notificationDetails, {
-    required _i11.AndroidScheduleMode? androidScheduleMode,
+    required _i10.AndroidScheduleMode? androidScheduleMode,
     String? payload,
   }) =>
       (super.noSuchMethod(
@@ -192,8 +195,8 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
     String? body,
     Duration? repeatDurationInterval,
     _i8.NotificationDetails? notificationDetails, {
-    _i11.AndroidScheduleMode? androidScheduleMode =
-        _i11.AndroidScheduleMode.exact,
+    _i10.AndroidScheduleMode? androidScheduleMode =
+        _i10.AndroidScheduleMode.exact,
     String? payload,
   }) =>
       (super.noSuchMethod(
@@ -232,7 +235,7 @@ class MockFlutterLocalNotificationsPlugin extends _i1.Mock
 /// A class which mocks [BudgetRepository].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockBudgetRepository extends _i1.Mock implements _i13.BudgetRepository {
+class MockBudgetRepository extends _i1.Mock implements _i12.BudgetRepository {
   MockBudgetRepository() {
     _i1.throwOnMissingStub(this);
   }
@@ -272,7 +275,7 @@ class MockBudgetRepository extends _i1.Mock implements _i13.BudgetRepository {
 
   @override
   _i5.Future<List<_i2.BudgetEntity>> getAllBudgets({
-    _i14.BudgetQueryOptions? options,
+    _i13.BudgetQueryOptions? options,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#getAllBudgets, [], {#options: options}),
@@ -418,7 +421,7 @@ class MockBudgetRepository extends _i1.Mock implements _i13.BudgetRepository {
           as _i5.Future<int>);
 
   @override
-  _i5.Future<_i15.BudgetResult<_i13.BudgetCalculationContext>>
+  _i5.Future<_i14.BudgetResult<_i12.BudgetCalculationContext>>
   getCalculationContext(String? budgetId, {DateTime? referenceDate}) =>
       (super.noSuchMethod(
             Invocation.method(
@@ -428,10 +431,10 @@ class MockBudgetRepository extends _i1.Mock implements _i13.BudgetRepository {
             ),
             returnValue:
                 _i5.Future<
-                  _i15.BudgetResult<_i13.BudgetCalculationContext>
+                  _i14.BudgetResult<_i12.BudgetCalculationContext>
                 >.value(
-                  _i16.dummyValue<
-                    _i15.BudgetResult<_i13.BudgetCalculationContext>
+                  _i15.dummyValue<
+                    _i14.BudgetResult<_i12.BudgetCalculationContext>
                   >(
                     this,
                     Invocation.method(
@@ -442,7 +445,7 @@ class MockBudgetRepository extends _i1.Mock implements _i13.BudgetRepository {
                   ),
                 ),
           )
-          as _i5.Future<_i15.BudgetResult<_i13.BudgetCalculationContext>>);
+          as _i5.Future<_i14.BudgetResult<_i12.BudgetCalculationContext>>);
 
   @override
   _i5.Future<void> updateBudgetRemainingAmount(String? budgetId) =>

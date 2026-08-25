@@ -1,10 +1,9 @@
 import '../entities/expense_entity.dart';
 import '../entities/expense_group.dart';
 
-/// Groups expenses into time buckets: Today, Yesterday, This Week,
-/// Last Week, This Month, Earlier.
+/// Groups expenses by their local calendar date.
 ///
-/// Groups are returned sorted by recency (Today first).
+/// Groups and expenses within each group are returned newest first.
 class GroupExpensesUseCase {
   const GroupExpensesUseCase();
 
@@ -12,51 +11,26 @@ class GroupExpensesUseCase {
     final now = DateTime.now();
     final today = _dateOnly(now);
     final yesterday = today.subtract(const Duration(days: 1));
-
-    final startOfThisWeek = today.subtract(Duration(days: today.weekday - 1));
-    final startOfLastWeek = startOfThisWeek.subtract(const Duration(days: 7));
-    final startOfThisMonth = DateTime(now.year, now.month, 1);
-
-    final buckets = <ExpenseGroupType, List<ExpenseEntity>>{
-      ExpenseGroupType.today: [],
-      ExpenseGroupType.yesterday: [],
-      ExpenseGroupType.thisWeek: [],
-      ExpenseGroupType.lastWeek: [],
-      ExpenseGroupType.thisMonth: [],
-      ExpenseGroupType.earlier: [],
-    };
+    final buckets = <DateTime, List<ExpenseEntity>>{};
 
     for (final expense in expenses) {
-      final date = _dateOnly(expense.date);
-      final ExpenseGroupType type;
-
-      if (_sameDay(date, today)) {
-        type = ExpenseGroupType.today;
-      } else if (_sameDay(date, yesterday)) {
-        type = ExpenseGroupType.yesterday;
-      } else if (!date.isBefore(startOfThisWeek)) {
-        type = ExpenseGroupType.thisWeek;
-      } else if (!date.isBefore(startOfLastWeek)) {
-        type = ExpenseGroupType.lastWeek;
-      } else if (!date.isBefore(startOfThisMonth)) {
-        type = ExpenseGroupType.thisMonth;
-      } else {
-        type = ExpenseGroupType.earlier;
-      }
-
-      buckets[type]!.add(expense);
+      final date = _dateOnly(expense.date.toLocal());
+      buckets.putIfAbsent(date, () => []).add(expense);
     }
 
-    final groups = <ExpenseGroup>[];
-    for (final type in ExpenseGroupType.values) {
-      final items = buckets[type]!;
-      if (items.isEmpty) continue;
-      // Within a group, sort newest first.
-      items.sort((a, b) => b.date.compareTo(a.date));
-      groups.add(ExpenseGroup(type: type, expenses: items));
-    }
-    groups.sort((a, b) => a.type.order.compareTo(b.type.order));
+    final dates = buckets.keys.toList()..sort((a, b) => b.compareTo(a));
+    final groups = dates.map((date) {
+      final items = buckets[date]!..sort((a, b) => b.time.compareTo(a.time));
+      final type = _typeFor(date, today, yesterday);
+      return ExpenseGroup(type: type, date: date, expenses: items);
+    }).toList();
     return groups;
+  }
+
+  ExpenseGroupType _typeFor(DateTime date, DateTime today, DateTime yesterday) {
+    if (_sameDay(date, today)) return ExpenseGroupType.today;
+    if (_sameDay(date, yesterday)) return ExpenseGroupType.yesterday;
+    return ExpenseGroupType.earlier;
   }
 
   DateTime _dateOnly(DateTime date) =>

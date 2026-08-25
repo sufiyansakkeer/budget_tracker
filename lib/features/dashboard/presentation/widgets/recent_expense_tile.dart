@@ -7,10 +7,7 @@ import '../../domain/entities/recent_expense_entity.dart';
 class RecentExpenseTile extends StatelessWidget {
   final RecentExpenseEntity expense;
 
-  const RecentExpenseTile({
-    super.key,
-    required this.expense,
-  });
+  const RecentExpenseTile({super.key, required this.expense});
 
   @override
   Widget build(BuildContext context) {
