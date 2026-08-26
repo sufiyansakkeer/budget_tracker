@@ -15,11 +15,7 @@ class BudgetHeroCard extends StatefulWidget {
   final BudgetSummaryEntity summary;
   final SpendingTargetEntity? spendingTarget;
 
-  const BudgetHeroCard({
-    super.key,
-    required this.summary,
-    this.spendingTarget,
-  });
+  const BudgetHeroCard({super.key, required this.summary, this.spendingTarget});
 
   @override
   State<BudgetHeroCard> createState() => _BudgetHeroCardState();
@@ -63,8 +59,7 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
 
     // Use SpendingTargetEntity as single source of truth.
     final dailyLimit = spendingTarget?.dailyTarget ?? 0.0;
-    final isOver =
-        spendingTarget?.dailyStatus == SpendingTargetStatus.exceeded;
+    final isOver = spendingTarget?.dailyStatus == SpendingTargetStatus.exceeded;
     final isNearLimit =
         spendingTarget?.dailyStatus == SpendingTargetStatus.nearLimit;
 
@@ -230,7 +225,10 @@ class BudgetOverviewCard extends StatelessWidget {
     final currency = summary.currency;
     final dailySpent = spendingTarget?.dailySpent ?? summary.todaySpending;
     final dailyLimit = spendingTarget?.dailyTarget ?? summary.dailySafeSpending;
-    final dailyRemaining = (dailyLimit - dailySpent).clamp(0.0, double.infinity);
+    final dailyRemaining = (dailyLimit - dailySpent).clamp(
+      0.0,
+      double.infinity,
+    );
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -274,14 +272,13 @@ class BudgetOverviewCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: summary.budgetUtilization.clamp(0.0, 1.0),
                   minHeight: 8,
-                  backgroundColor:
-                      theme.colorScheme.surfaceContainerHighest,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   valueColor: AlwaysStoppedAnimation<Color>(
                     summary.budgetUtilization >= 1.0
                         ? AppColors.error
                         : summary.budgetUtilization >= 0.8
-                            ? AppColors.warning
-                            : AppColors.success,
+                        ? AppColors.warning
+                        : AppColors.success,
                   ),
                 ),
               ),

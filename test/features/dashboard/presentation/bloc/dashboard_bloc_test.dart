@@ -143,7 +143,8 @@ class MockGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   @override
   final BudgetRepository repository = MockBudgetRepository();
   @override
-  final BudgetCalculationService calculationService = BudgetCalculationService();
+  final BudgetCalculationService calculationService =
+      BudgetCalculationService();
 
   @override
   Future<SpendingTargetResult> call({DateTime? referenceDate}) async {

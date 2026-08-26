@@ -151,11 +151,7 @@ class NotificationService {
       );
 
       final body = safeSpending != null
-          ? 'You can safely spend ${CurrencyFormatter.format(
-              safeSpending.amount,
-              code: safeSpending.currency,
-              decimalDigits: 0,
-            )} today.'
+          ? 'You can safely spend ${CurrencyFormatter.format(safeSpending.amount, code: safeSpending.currency, decimalDigits: 0)} today.'
           : 'Check your budget and plan your spending for today.';
 
       debugPrint('[Notification] Morning notification body: $body');
@@ -199,11 +195,7 @@ class NotificationService {
             code: safeSpending.currency,
             decimalDigits: 0,
           )
-        : CurrencyFormatter.format(
-            0,
-            code: currencyCode,
-            decimalDigits: 0,
-          );
+        : CurrencyFormatter.format(0, code: currencyCode, decimalDigits: 0);
 
     debugPrint('[Notification] Test notification amount: $formattedAmount');
 

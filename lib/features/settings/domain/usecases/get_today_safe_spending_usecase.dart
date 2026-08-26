@@ -29,23 +29,23 @@ class GetTodaySafeSpendingUseCase {
 
     return switch (result) {
       SpendingTargetNoBudget() => () {
-          debugPrint('[Notification] No active budget found');
-          return null;
-        }(),
+        debugPrint('[Notification] No active budget found');
+        return null;
+      }(),
       SpendingTargetError(:final failure) => () {
-          debugPrint('[Notification] Spending target error: ${failure.message}');
-          return null;
-        }(),
+        debugPrint('[Notification] Spending target error: ${failure.message}');
+        return null;
+      }(),
       SpendingTargetSuccess(:final data) => () {
-          debugPrint(
-            '[Notification] Today\'s safe spending: '
-            '${data.dailyTarget} ${data.currency}',
-          );
-          return SafeSpendingResult(
-            amount: data.dailyTarget,
-            currency: data.currency,
-          );
-        }(),
+        debugPrint(
+          '[Notification] Today\'s safe spending: '
+          '${data.dailyTarget} ${data.currency}',
+        );
+        return SafeSpendingResult(
+          amount: data.dailyTarget,
+          currency: data.currency,
+        );
+      }(),
     };
   }
 }

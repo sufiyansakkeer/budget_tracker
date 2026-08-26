@@ -27,7 +27,8 @@ class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   @override
   final BudgetRepository repository = MockBudgetRepository();
   @override
-  final BudgetCalculationService calculationService = BudgetCalculationService();
+  final BudgetCalculationService calculationService =
+      BudgetCalculationService();
 
   @override
   Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
@@ -278,36 +279,33 @@ void main() {
         },
       );
 
-      test(
-        'should use fallback text when no active budget exists',
-        () async {
-          // When no spending target is available, use fallback text
-          fakeSpendingTargetsUseCase.targetsToReturn = null;
+      test('should use fallback text when no active budget exists', () async {
+        // When no spending target is available, use fallback text
+        fakeSpendingTargetsUseCase.targetsToReturn = null;
 
-          final settings = AppSettings(
-            notifications: const NotificationSettings(
-              notificationsEnabled: true,
-              morningReminderEnabled: true,
-              eveningSummaryEnabled: false,
-            ),
-          );
+        final settings = AppSettings(
+          notifications: const NotificationSettings(
+            notificationsEnabled: true,
+            morningReminderEnabled: true,
+            eveningSummaryEnabled: false,
+          ),
+        );
 
-          await notificationService.scheduleAll(settings);
+        await notificationService.scheduleAll(settings);
 
-          // Should use the fallback text when no budget exists
-          verify(
-            mockPlugin.zonedSchedule(
-              NotificationService.morningReminderId,
-              "Today's Spending Limit",
-              'Check your budget and plan your spending for today.',
-              any,
-              any,
-              androidScheduleMode: anyNamed('androidScheduleMode'),
-              matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
-            ),
-          ).called(1);
-        },
-      );
+        // Should use the fallback text when no budget exists
+        verify(
+          mockPlugin.zonedSchedule(
+            NotificationService.morningReminderId,
+            "Today's Spending Limit",
+            'Check your budget and plan your spending for today.',
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).called(1);
+      });
 
       test('should not schedule when notifications disabled', () async {
         final settings = AppSettings(

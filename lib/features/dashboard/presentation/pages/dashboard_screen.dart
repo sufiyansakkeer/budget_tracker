@@ -516,8 +516,6 @@ class _UpcomingBillsList extends StatelessWidget {
   }
 }
 
-
-
 // ── Loading Skeleton ───────────────────────────────────────────────────
 
 class _DashboardSkeleton extends StatelessWidget {

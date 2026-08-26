@@ -152,8 +152,7 @@ class AppRouter {
                 name: 'dashboard',
                 builder: (context, state) => BlocProvider(
                   create: (context) =>
-                      getIt<DashboardBloc>()
-                        ..add(const DashboardLoadData()),
+                      getIt<DashboardBloc>()..add(const DashboardLoadData()),
                   child: const DashboardScreen(),
                 ),
               ),
