@@ -8,8 +8,6 @@ import '../../features/budget/presentation/pages/budget_form_screen.dart';
 import '../../features/budget/presentation/pages/budget_list_screen.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_event.dart';
-import '../../features/dashboard/presentation/bloc/spending_target/spending_target_bloc.dart';
-import '../../features/dashboard/presentation/bloc/spending_target/spending_target_event.dart';
 import '../../features/dashboard/presentation/pages/dashboard_screen.dart';
 import '../../features/expenses/presentation/bloc/expense_bloc.dart';
 import '../../features/expenses/presentation/history/bloc/expense_history_bloc.dart';
@@ -152,19 +150,10 @@ class AppRouter {
               GoRoute(
                 path: homePath,
                 name: 'dashboard',
-                builder: (context, state) => MultiBlocProvider(
-                  providers: [
-                    BlocProvider(
-                      create: (context) =>
-                          getIt<DashboardBloc>()
-                            ..add(const DashboardLoadData()),
-                    ),
-                    BlocProvider(
-                      create: (context) =>
-                          getIt<SpendingTargetBloc>()
-                            ..add(const SpendingTargetLoad()),
-                    ),
-                  ],
+                builder: (context, state) => BlocProvider(
+                  create: (context) =>
+                      getIt<DashboardBloc>()
+                        ..add(const DashboardLoadData()),
                   child: const DashboardScreen(),
                 ),
               ),

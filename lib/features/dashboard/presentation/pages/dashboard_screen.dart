@@ -15,13 +15,10 @@ import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/entities/bill_enums.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
-import '../../domain/entities/spending_target_entity.dart';
+
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
-import '../bloc/spending_target/spending_target_bloc.dart';
-import '../bloc/spending_target/spending_target_event.dart';
-import '../bloc/spending_target/spending_target_state.dart';
 import '../widgets/budget_hero_card.dart';
 import '../widgets/dashboard_error_widget.dart';
 import '../widgets/empty_dashboard_state.dart';
@@ -86,6 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildContent(BuildContext context, DashboardLoaded state) {
     final summary = state.budgetSummary;
+    final spendingTarget = state.spendingTarget;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -105,43 +103,26 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const ActiveBudgetSelector(),
                   const SizedBox(height: AppSpacing.md),
 
-                  // Hero
-                  BudgetHeroCard(summary: summary),
-                  const SizedBox(height: AppSpacing.md),
-
-                  // Budget Overview (Budget / Spent / Remaining)
-                  BudgetOverviewCard(summary: summary),
-                  const SizedBox(height: AppSpacing.md),
-
-                  // Spending Targets (Daily + Weekly)
-                  InfoSectionHeader(
-                    title: 'Spending Targets',
-                    infoContent: InfoContent(
-                      title: 'Spending Targets',
-                      whatIsThis:
-                          'Your spending targets show how much you can safely '
-                          'spend today and this week while staying on track '
-                          'with your active budget(s).',
-                      howIsItCalculated:
-                          'Daily target = Remaining budget ÷ Remaining days\n'
-                          'Weekly target = Budget × Days this week ÷ Total budget days',
-                      example:
-                          'If your budget is ₹30,000 for 30 days and you\'ve '
-                          'spent ₹9,000 with 20 days remaining:\n\n'
-                          'Remaining budget: ₹21,000\n'
-                          'Daily target: ₹21,000 ÷ 20 = ₹1,050\n'
-                          'Weekly target: ₹30,000 × 7 ÷ 30 = ₹7,000',
-                      additionalNotes:
-                          '• Multiple active budgets are combined\n'
-                          '• Adding or editing an expense updates the target\n'
-                          '• The target adjusts each day as remaining budget changes\n'
-                          '• Today\'s target includes today in the remaining days',
-                      privacyNote:
-                          'Your financial data is stored locally on your device.',
-                    ),
+                  // Hero — Today's Spending Limit
+                  BudgetHeroCard(
+                    summary: summary,
+                    spendingTarget: spendingTarget,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  const SpendingTargetsSection(),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Budget Overview (Remaining Budget / Spent Today / Remaining Today)
+                  BudgetOverviewCard(
+                    summary: summary,
+                    spendingTarget: spendingTarget,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Today's Progress + Weekly Target
+                  if (spendingTarget != null) ...[
+                    TodayProgressCard(targets: spendingTarget),
+                    const SizedBox(height: AppSpacing.sm),
+                    WeeklyTargetCard(targets: spendingTarget),
+                  ],
                   const SizedBox(height: AppSpacing.md),
 
                   // Budget Timeline
@@ -535,149 +516,7 @@ class _UpcomingBillsList extends StatelessWidget {
   }
 }
 
-// ── Spending Targets Section ────────────────────────────────────────
 
-class SpendingTargetsSection extends StatelessWidget {
-  const SpendingTargetsSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<SpendingTargetBloc, SpendingTargetState>(
-      builder: (context, state) {
-        return switch (state.status) {
-          SpendingTargetBlocStatus.initial ||
-          SpendingTargetBlocStatus.loading => const _SpendingTargetSkeleton(),
-          SpendingTargetBlocStatus.loaded when state.targets != null =>
-            _buildTargets(context, state.targets!),
-          SpendingTargetBlocStatus.empty => _buildEmptyState(context),
-          SpendingTargetBlocStatus.error => _buildErrorState(
-            context,
-            state.errorMessage ?? 'Unable to calculate spending target.',
-          ),
-          _ => const _SpendingTargetSkeleton(),
-        };
-      },
-    );
-  }
-
-  Widget _buildTargets(BuildContext context, SpendingTargetEntity targets) {
-    return Column(
-      children: [
-        DailyTargetCard(targets: targets),
-        const SizedBox(height: AppSpacing.sm),
-        WeeklyTargetCard(targets: targets),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.track_changes_rounded,
-            size: 40,
-            color: AppColors.primary.withValues(alpha: 0.6),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'No Spending Target',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Create an active budget to see\nyour daily and weekly spending targets.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          FilledButton.icon(
-            onPressed: () => context.push('/app/budget/add'),
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Create Budget'),
-            style: FilledButton.styleFrom(minimumSize: const Size(160, 40)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(BuildContext context, String message) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 36,
-            color: AppColors.error.withValues(alpha: 0.7),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Unable to calculate spending target.',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            message,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          OutlinedButton.icon(
-            onPressed: () {
-              context.read<SpendingTargetBloc>().add(
-                const SpendingTargetRefresh(),
-              );
-            },
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Try Again'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SpendingTargetSkeleton extends StatelessWidget {
-  const _SpendingTargetSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        SkeletonBox(height: 200, radius: 20),
-        SizedBox(height: AppSpacing.sm),
-        SkeletonBox(height: 200, radius: 20),
-      ],
-    );
-  }
-}
 
 // ── Loading Skeleton ───────────────────────────────────────────────────
 

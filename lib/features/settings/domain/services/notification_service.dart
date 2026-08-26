@@ -9,6 +9,7 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../features/budget/domain/repository/budget_repository.dart';
 import '../../../../features/budget/domain/services/budget_calculation_service.dart';
 import '../entities/app_settings.dart';
+import '../../../dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import '../usecases/get_today_safe_spending_usecase.dart';
 
 /// Manages local notification scheduling for reminders, summaries and alerts.
@@ -33,6 +34,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin;
   final BudgetRepository budgetRepository;
   final BudgetCalculationService calculationService;
+  final GetSpendingTargetsUseCase spendingTargetsUseCase;
   bool _initialized = false;
   bool _timeZonesConfigured = false;
 
@@ -40,6 +42,7 @@ class NotificationService {
     FlutterLocalNotificationsPlugin? plugin,
     required this.budgetRepository,
     required this.calculationService,
+    required this.spendingTargetsUseCase,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   /// Initializes the plugin, timezone database, and Android notification channel.
@@ -304,8 +307,7 @@ class NotificationService {
   }) async {
     try {
       final useCase = GetTodaySafeSpendingUseCase(
-        repository: budgetRepository,
-        calculationService: calculationService,
+        spendingTargetsUseCase: spendingTargetsUseCase,
       );
       return await useCase(fallbackCurrency: fallbackCurrency);
     } catch (e, st) {

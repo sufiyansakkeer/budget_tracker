@@ -58,7 +58,7 @@ Widget wrap(Widget child) {
 }
 
 void main() {
-  group('DailyTargetCard', () {
+  group('TodayProgressCard', () {
     testWidgets('renders on-track state correctly', (tester) async {
       final target = _buildTarget(
         dailyTarget: 1250,
@@ -66,13 +66,13 @@ void main() {
         dailyStatus: SpendingTargetStatus.onTrack,
       );
 
-      await tester.pumpWidget(wrap(DailyTargetCard(targets: target)));
+      await tester.pumpWidget(wrap(TodayProgressCard(targets: target)));
 
-      expect(find.text('TODAY'), findsOneWidget);
-      expect(find.text('₹1,250'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('Spent'), findsOneWidget);
       expect(find.text('Remaining'), findsOneWidget);
-      expect(find.text('On Track'), findsOneWidget);
-      expect(find.text('Exceeded'), findsNothing);
+      expect(find.text('On track'), findsOneWidget);
+      expect(find.text('Over limit'), findsNothing);
     });
 
     testWidgets('renders exceeded state correctly', (tester) async {
@@ -82,11 +82,10 @@ void main() {
         dailyStatus: SpendingTargetStatus.exceeded,
       );
 
-      await tester.pumpWidget(wrap(DailyTargetCard(targets: target)));
+      await tester.pumpWidget(wrap(TodayProgressCard(targets: target)));
 
-      expect(find.text('₹1,250'), findsOneWidget);
-      expect(find.text('Exceeded by'), findsOneWidget);
-      expect(find.text('Over Target'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('Over limit'), findsWidgets);
       expect(find.text('Remaining'), findsNothing);
     });
 
@@ -97,9 +96,9 @@ void main() {
         dailyStatus: SpendingTargetStatus.nearLimit,
       );
 
-      await tester.pumpWidget(wrap(DailyTargetCard(targets: target)));
+      await tester.pumpWidget(wrap(TodayProgressCard(targets: target)));
 
-      expect(find.text('Near Limit'), findsOneWidget);
+      expect(find.text('Near limit'), findsOneWidget);
       expect(find.text('Remaining'), findsOneWidget);
     });
   });
@@ -114,9 +113,9 @@ void main() {
 
       await tester.pumpWidget(wrap(WeeklyTargetCard(targets: target)));
 
-      expect(find.text('THIS WEEK'), findsOneWidget);
+      expect(find.text('This Week'), findsOneWidget);
       expect(find.text('₹8,750'), findsOneWidget);
-      expect(find.text('On Track'), findsOneWidget);
+      expect(find.text('On track'), findsOneWidget);
     });
 
     testWidgets('renders exceeded state correctly', (tester) async {
@@ -130,7 +129,7 @@ void main() {
 
       expect(find.text('₹8,750'), findsOneWidget);
       expect(find.text('Exceeded by'), findsOneWidget);
-      expect(find.text('Over Target'), findsOneWidget);
+      expect(find.text('Over target'), findsOneWidget);
     });
   });
 
@@ -142,7 +141,7 @@ void main() {
         wrap(
           Column(
             children: [
-              DailyTargetCard(targets: target),
+              TodayProgressCard(targets: target),
               const SizedBox(height: 8),
               WeeklyTargetCard(targets: target),
             ],
@@ -150,10 +149,9 @@ void main() {
         ),
       );
 
-      expect(find.text('TODAY'), findsOneWidget);
-      expect(find.text('THIS WEEK'), findsOneWidget);
-      // Target amounts
-      expect(find.text('₹1,250'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('This Week'), findsOneWidget);
+      // Weekly target amount
       expect(find.text('₹8,750'), findsOneWidget);
     });
   });

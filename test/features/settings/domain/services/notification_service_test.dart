@@ -8,6 +8,9 @@ import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
+import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/settings/domain/entities/app_settings.dart';
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
 
@@ -15,6 +18,25 @@ import 'package:monivo/features/settings/domain/services/notification_service.da
 
 @GenerateMocks([FlutterLocalNotificationsPlugin, BudgetRepository])
 import 'notification_service_test.mocks.dart';
+
+class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
+  SpendingTargetEntity? targetsToReturn;
+
+  FakeGetSpendingTargetsUseCase({this.targetsToReturn});
+
+  @override
+  final BudgetRepository repository = MockBudgetRepository();
+  @override
+  final BudgetCalculationService calculationService = BudgetCalculationService();
+
+  @override
+  Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
+    if (targetsToReturn != null) {
+      return SpendingTargetSuccess(targetsToReturn!);
+    }
+    return const SpendingTargetNoBudget();
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -30,14 +52,33 @@ void main() {
   late NotificationService notificationService;
   late MockFlutterLocalNotificationsPlugin mockPlugin;
   late MockBudgetRepository mockBudgetRepository;
+  late FakeGetSpendingTargetsUseCase fakeSpendingTargetsUseCase;
 
   setUp(() {
     mockPlugin = MockFlutterLocalNotificationsPlugin();
     mockBudgetRepository = MockBudgetRepository();
+    fakeSpendingTargetsUseCase = FakeGetSpendingTargetsUseCase(
+      targetsToReturn: const SpendingTargetEntity(
+        dailyTarget: 1500,
+        dailySpent: 500,
+        dailyRemaining: 1000,
+        dailyExceeded: 0,
+        dailyProgress: 0.33,
+        dailyStatus: SpendingTargetStatus.onTrack,
+        weeklyTarget: 10500,
+        weeklySpent: 3500,
+        weeklyRemaining: 7000,
+        weeklyExceeded: 0,
+        weeklyProgress: 0.33,
+        weeklyStatus: SpendingTargetStatus.onTrack,
+        currency: 'INR',
+      ),
+    );
     notificationService = NotificationService(
       plugin: mockPlugin,
       budgetRepository: mockBudgetRepository,
       calculationService: BudgetCalculationService(),
+      spendingTargetsUseCase: fakeSpendingTargetsUseCase,
     );
     when(
       mockPlugin
@@ -240,9 +281,8 @@ void main() {
       test(
         'should use fallback text when no active budget exists',
         () async {
-          when(
-            mockBudgetRepository.getActiveBudgetId(),
-          ).thenAnswer((_) async => null);
+          // When no spending target is available, use fallback text
+          fakeSpendingTargetsUseCase.targetsToReturn = null;
 
           final settings = AppSettings(
             notifications: const NotificationSettings(

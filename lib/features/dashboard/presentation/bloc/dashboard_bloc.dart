@@ -10,8 +10,10 @@ import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/repository/bill_repository.dart';
 import '../../../bills/presentation/bloc/bill_refresh_bus.dart';
 import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
+import '../../domain/entities/spending_target_entity.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
+import '../../domain/usecases/get_spending_targets_usecase.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
@@ -19,6 +21,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetBudgetSummaryUseCase getBudgetSummaryUseCase;
   final GetRecentExpensesUseCase getRecentExpensesUseCase;
   final GetSmartInsightsUseCase getSmartInsightsUseCase;
+  final GetSpendingTargetsUseCase getSpendingTargetsUseCase;
   final BudgetRepository budgetRepository;
   final BillRepository billRepository;
 
@@ -26,6 +29,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     required this.getBudgetSummaryUseCase,
     required this.getRecentExpensesUseCase,
     required this.getSmartInsightsUseCase,
+    required this.getSpendingTargetsUseCase,
     required this.budgetRepository,
     required this.billRepository,
   }) : super(const DashboardInitial()) {
@@ -113,7 +117,21 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           // Bills unavailable — not critical for dashboard.
         }
 
-        final insights = getSmartInsightsUseCase(data);
+        // Load spending targets (single source of truth for daily limit).
+        SpendingTargetEntity? spendingTarget;
+        try {
+          final targetResult = await getSpendingTargetsUseCase();
+          if (targetResult is SpendingTargetSuccess) {
+            spendingTarget = targetResult.data;
+          }
+        } catch (_) {
+          // Spending targets unavailable — not critical for dashboard.
+        }
+
+        final insights = getSmartInsightsUseCase(
+          data,
+          spendingTarget: spendingTarget,
+        );
 
         emit(
           DashboardLoaded(
@@ -121,6 +139,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             recentExpenses: recentExpenses,
             insights: insights,
             upcomingBills: upcomingBills,
+            spendingTarget: spendingTarget,
           ),
         );
     }

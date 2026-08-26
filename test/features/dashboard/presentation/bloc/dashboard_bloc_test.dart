@@ -15,6 +15,7 @@ import 'package:monivo/features/dashboard/domain/entities/spending_target_entity
 import 'package:monivo/features/dashboard/domain/repository/dashboard_repository.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_state.dart';
@@ -138,6 +139,18 @@ class MockBudgetRepository implements BudgetRepository {
   }) async => 0.0;
 }
 
+class MockGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
+  @override
+  final BudgetRepository repository = MockBudgetRepository();
+  @override
+  final BudgetCalculationService calculationService = BudgetCalculationService();
+
+  @override
+  Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
+    return const SpendingTargetNoBudget();
+  }
+}
+
 class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {
   final List<RecentExpenseEntity>? expensesToReturn;
 
@@ -242,6 +255,7 @@ void main() {
       getBudgetSummaryUseCase: mockGetBudgetSummaryUseCase,
       getRecentExpensesUseCase: mockGetRecentExpensesUseCase,
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+      getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
       budgetRepository: MockBudgetRepository(),
       billRepository: FakeBillRepository(),
     );
@@ -266,6 +280,7 @@ void main() {
           expensesToReturn: tRecentExpenses,
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
         budgetRepository: MockBudgetRepository(),
         billRepository: FakeBillRepository(),
       );
@@ -302,6 +317,7 @@ void main() {
         ),
         getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
         budgetRepository: MockBudgetRepository(),
         billRepository: FakeBillRepository(),
       );
@@ -328,6 +344,7 @@ void main() {
       ),
       getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+      getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
       budgetRepository: MockBudgetRepository(),
       billRepository: FakeBillRepository(),
     );
@@ -355,6 +372,7 @@ void main() {
           expensesToReturn: const [],
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
         budgetRepository: MockBudgetRepository(),
         billRepository: FakeBillRepository(),
       );

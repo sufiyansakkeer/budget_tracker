@@ -51,7 +51,6 @@ import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dar
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
-import '../../features/dashboard/presentation/bloc/spending_target/spending_target_bloc.dart';
 import '../../features/expenses/data/datasource/expense_local_datasource.dart';
 import '../../features/expenses/data/datasource/expense_local_datasource_impl.dart';
 import '../../features/expenses/data/repository/expense_repository_impl.dart';
@@ -282,14 +281,9 @@ Future<void> initDependencyInjection() async {
       getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
       getRecentExpensesUseCase: getIt<GetRecentExpensesUseCase>(),
       getSmartInsightsUseCase: getIt<GetSmartInsightsUseCase>(),
+      getSpendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
       billRepository: getIt<BillRepository>(),
-    ),
-  );
-
-  getIt.registerFactory<SpendingTargetBloc>(
-    () => SpendingTargetBloc(
-      getSpendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
     ),
   );
 
@@ -431,6 +425,7 @@ Future<void> initDependencyInjection() async {
       plugin: FlutterLocalNotificationsPlugin(),
       budgetRepository: getIt<BudgetRepository>(),
       calculationService: getIt<BudgetCalculationService>(),
+      spendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());

@@ -1,9 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../budget/domain/entities/budget_error.dart';
-import '../../../budget/domain/repository/budget_repository.dart';
-import '../../../budget/domain/services/budget_calculation_service.dart';
-import '../../../budget/domain/usecases/get_budget_summary_usecase.dart';
+import '../../../dashboard/domain/usecases/get_spending_targets_usecase.dart';
 
 /// Result of the safe spending calculation.
 class SafeSpendingResult {
@@ -13,48 +10,39 @@ class SafeSpendingResult {
   const SafeSpendingResult({required this.amount, required this.currency});
 }
 
-/// Calculates today's safe spending amount using the same business logic
-/// as the Dashboard's "Today's Safe Spending" section.
+/// Calculates today's safe spending amount using [GetSpendingTargetsUseCase].
 ///
 /// This ensures the notification system and the Dashboard always show
-/// the same value for the same data and time.
+/// the same value — the combined daily target across all active budgets.
 class GetTodaySafeSpendingUseCase {
-  final BudgetRepository repository;
-  final BudgetCalculationService calculationService;
+  final GetSpendingTargetsUseCase _spendingTargetsUseCase;
 
   const GetTodaySafeSpendingUseCase({
-    required this.repository,
-    required this.calculationService,
-  });
+    required GetSpendingTargetsUseCase spendingTargetsUseCase,
+  }) : _spendingTargetsUseCase = spendingTargetsUseCase;
 
-  /// Returns today's safe spending amount and the budget's currency code.
+  /// Returns today's safe spending amount and currency code.
   ///
   /// Falls back to [fallbackCurrency] when no active budget is found.
   Future<SafeSpendingResult?> call({String fallbackCurrency = 'INR'}) async {
-    final activeId = await repository.getActiveBudgetId();
-    if (activeId == null) {
-      debugPrint('[Notification] No active budget found');
-      return null;
-    }
-
-    debugPrint('[Notification] Active budget id: $activeId');
-
-    final summaryUseCase = GetBudgetSummaryUseCase(
-      repository: repository,
-      calculationService: calculationService,
-    );
-
-    final result = await summaryUseCase(budgetId: activeId);
+    final result = await _spendingTargetsUseCase();
 
     return switch (result) {
-      BudgetError(:final failure) => () {
-          debugPrint('[Notification] Budget calculation error: ${failure.message}');
+      SpendingTargetNoBudget() => () {
+          debugPrint('[Notification] No active budget found');
           return null;
         }(),
-      BudgetSuccess(:final data) => () {
-          debugPrint('[Notification] Today\'s safe spending: ${data.dailySafeSpending} ${data.currency}');
+      SpendingTargetError(:final failure) => () {
+          debugPrint('[Notification] Spending target error: ${failure.message}');
+          return null;
+        }(),
+      SpendingTargetSuccess(:final data) => () {
+          debugPrint(
+            '[Notification] Today\'s safe spending: '
+            '${data.dailyTarget} ${data.currency}',
+          );
           return SafeSpendingResult(
-            amount: data.dailySafeSpending,
+            amount: data.dailyTarget,
             currency: data.currency,
           );
         }(),
