@@ -73,7 +73,7 @@ class FakeBillReminderService extends BillReminderService {
 }
 
 BillEntity validBill({String id = 'bill-1', bool isPaid = false}) {
-  final now = DateTime(2026, 8, 25);
+  final now = DateTime.now();
   return BillEntity(
     id: id,
     title: 'Test Bill',
@@ -256,7 +256,7 @@ void main() {
 
   group('BillState filtering', () {
     test('filteredBills filters by overdue', () async {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final overdue = BillEntity(
         id: 'overdue',
         title: 'Overdue Bill',
@@ -288,14 +288,14 @@ void main() {
     });
 
     test('filteredBills filters by paid', () async {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final paid = BillEntity(
         id: 'paid',
         title: 'Paid Bill',
         amount: 500,
         currency: 'INR',
         category: BillCategory.phone,
-        dueDate: DateTime(2026, 8, 25),
+        dueDate: DateTime.now(),
         isPaid: true,
         paidDate: now,
         createdAt: now,
@@ -322,7 +322,7 @@ void main() {
     });
 
     test('filteredBills filters by recurring', () async {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final recurring = BillEntity(
         id: 'recurring',
         title: 'Netflix',
@@ -356,14 +356,14 @@ void main() {
     });
 
     test('search filters by title', () async {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final electricity = BillEntity(
         id: 'elec',
         title: 'Electricity',
         amount: 1250,
         currency: 'INR',
         category: BillCategory.electricity,
-        dueDate: DateTime(2026, 8, 26),
+        dueDate: DateTime.now().add(const Duration(days: 1)),
         createdAt: now,
         updatedAt: now,
       );
@@ -388,7 +388,7 @@ void main() {
     });
 
     test('search works with category name', () async {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final internet = BillEntity(
         id: 'net',
         title: 'Airtel Fibre',
@@ -407,7 +407,7 @@ void main() {
     });
 
     test('sorting puts overdue before due today before upcoming', () async {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final upcoming = BillEntity(
         id: 'upcoming',
         title: 'Upcoming',
@@ -434,7 +434,7 @@ void main() {
         amount: 799,
         currency: 'INR',
         category: BillCategory.internet,
-        dueDate: DateTime(2026, 8, 25),
+        dueDate: DateTime.now(),
         createdAt: now,
         updatedAt: now,
       );
@@ -447,14 +447,14 @@ void main() {
     });
 
     test('paid bills go to the bottom', () async {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final paid = BillEntity(
         id: 'paid',
         title: 'Paid',
         amount: 500,
         currency: 'INR',
         category: BillCategory.phone,
-        dueDate: DateTime(2026, 8, 25),
+        dueDate: DateTime.now(),
         isPaid: true,
         paidDate: now,
         createdAt: now,
@@ -480,7 +480,7 @@ void main() {
 
   group('BillState computed properties', () {
     test('upcomingTotal sums unpaid upcoming and due today bills', () {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final state = BillState(
         allBills: [
           BillEntity(
@@ -489,7 +489,7 @@ void main() {
             amount: 1000,
             currency: 'INR',
             category: BillCategory.electricity,
-            dueDate: DateTime(2026, 8, 25),
+            dueDate: DateTime.now(),
             createdAt: now,
             updatedAt: now,
           ),
@@ -509,7 +509,7 @@ void main() {
             amount: 500,
             currency: 'INR',
             category: BillCategory.phone,
-            dueDate: DateTime(2026, 8, 25),
+            dueDate: DateTime.now(),
             isPaid: true,
             createdAt: now,
             updatedAt: now,
@@ -521,7 +521,7 @@ void main() {
     });
 
     test('overdueTotal sums overdue bills only', () {
-      final now = DateTime(2026, 8, 25);
+      final now = DateTime.now();
       final state = BillState(
         allBills: [
           BillEntity(
@@ -548,6 +548,57 @@ void main() {
       );
 
       expect(state.overdueTotal, 799);
+    });
+
+    test('upcomingTotal excludes overdue and paid bills', () {
+      final now = DateTime.now();
+      final state = BillState(
+        allBills: [
+          BillEntity(
+            id: '1',
+            title: 'Upcoming unpaid',
+            amount: 2000,
+            currency: 'INR',
+            category: BillCategory.rent,
+            dueDate: DateTime.now().add(const Duration(days: 7)),
+            createdAt: now,
+            updatedAt: now,
+          ),
+          BillEntity(
+            id: '2',
+            title: 'Due today unpaid',
+            amount: 1000,
+            currency: 'INR',
+            category: BillCategory.electricity,
+            dueDate: DateTime.now(),
+            createdAt: now,
+            updatedAt: now,
+          ),
+          BillEntity(
+            id: '3',
+            title: 'Overdue unpaid',
+            amount: 500,
+            currency: 'INR',
+            category: BillCategory.phone,
+            dueDate: DateTime.now().subtract(const Duration(days: 3)),
+            createdAt: now,
+            updatedAt: now,
+          ),
+          BillEntity(
+            id: '4',
+            title: 'Paid upcoming',
+            amount: 700,
+            currency: 'INR',
+            category: BillCategory.subscription,
+            dueDate: DateTime.now().add(const Duration(days: 10)),
+            isPaid: true,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        ],
+      );
+
+      expect(state.upcomingTotal, 3000); // 2000 + 1000
     });
   });
 }

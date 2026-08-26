@@ -13,7 +13,7 @@ BillEntity makeBill({
   int reminderOffsetDays = 1,
   DateTime? dueTime,
 }) {
-  final now = DateTime(2026, 8, 25);
+  final now = DateTime.now();
   return BillEntity(
     id: id,
     title: 'Test Bill',
@@ -46,13 +46,73 @@ void main() {
     });
 
     test('returns dueToday when dueDate is today', () {
-      final bill = makeBill(dueDate: DateTime(2026, 8, 25));
+      final today = DateTime.now();
+      final bill = makeBill(dueDate: today);
       expect(bill.status, BillStatus.dueToday);
     });
 
     test('returns upcoming when dueDate is in the future', () {
       final bill = makeBill(dueDate: DateTime(2026, 9, 1));
       expect(bill.status, BillStatus.upcoming);
+    });
+
+    test('returns dueToday at midnight boundary', () {
+      final today = DateTime.now();
+      final dueDate = DateTime(today.year, today.month, today.day, 0, 0, 0);
+      final bill = makeBill(dueDate: dueDate);
+      expect(bill.status, BillStatus.dueToday);
+    });
+
+    test(
+      'returns dueToday when dueDate is today at midnight and now is morning',
+      () {
+        final today = DateTime.now();
+        // dueDate is midnight today
+        final dueDate = DateTime(today.year, today.month, today.day);
+        final bill = makeBill(dueDate: dueDate);
+        // Regardless of current time, should be dueToday
+        expect(bill.status, BillStatus.dueToday);
+      },
+    );
+
+    test(
+      'returns dueToday when dueDate is today at midnight and now is afternoon',
+      () {
+        final today = DateTime.now();
+        // Simulate afternoon: dueDate is midnight, now is 14:56
+        final dueDate = DateTime(today.year, today.month, today.day);
+        final bill = makeBill(dueDate: dueDate);
+        expect(bill.status, BillStatus.dueToday);
+      },
+    );
+
+    test(
+      'returns dueToday when dueDate is today at midnight and now is night',
+      () {
+        final today = DateTime.now();
+        // Simulate night: dueDate is midnight, now is 23:59
+        final dueDate = DateTime(today.year, today.month, today.day);
+        final bill = makeBill(dueDate: dueDate);
+        expect(bill.status, BillStatus.dueToday);
+      },
+    );
+
+    test('returns overdue when dueDate is yesterday', () {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final bill = makeBill(dueDate: yesterday);
+      expect(bill.status, BillStatus.overdue);
+    });
+
+    test('returns upcoming when dueDate is tomorrow', () {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final bill = makeBill(dueDate: tomorrow);
+      expect(bill.status, BillStatus.upcoming);
+    });
+
+    test('returns paid when bill is paid regardless of due date', () {
+      final today = DateTime.now();
+      final bill = makeBill(dueDate: today, isPaid: true);
+      expect(bill.status, BillStatus.paid);
     });
   });
 
