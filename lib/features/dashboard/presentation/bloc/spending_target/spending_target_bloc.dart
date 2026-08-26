@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../budget/presentation/bloc/budget_bloc.dart';
 import '../../../../expenses/presentation/bloc/expense_refresh_bus.dart';
+import '../../../domain/entities/spending_target_entity.dart';
+import '../../../domain/entities/spending_target_status.dart';
 import '../../../domain/usecases/get_spending_targets_usecase.dart';
 import 'spending_target_event.dart';
 import 'spending_target_state.dart';
@@ -82,33 +84,97 @@ class SpendingTargetBloc
     Emitter<SpendingTargetState> emit, {
     DateTime? referenceDate,
   }) async {
-    final result = await getSpendingTargetsUseCase(
+    final result = await getSpendingTargetsUseCase.callPerBudget(
       referenceDate: referenceDate,
     );
 
     switch (result) {
-      case SpendingTargetNoBudget():
+      case PerBudgetSpendingTargetNoBudget():
         emit(
           state.copyWith(
             status: SpendingTargetBlocStatus.empty,
             clearError: true,
           ),
         );
-      case SpendingTargetError(:final failure):
+      case PerBudgetSpendingTargetError(:final failure):
         emit(
           state.copyWith(
             status: SpendingTargetBlocStatus.error,
             errorMessage: failure.message,
           ),
         );
-      case SpendingTargetSuccess(:final data):
+      case PerBudgetSpendingTargetSuccess(
+        :final budgetLimits,
+        :final combinedDailyTarget,
+        :final currency,
+      ):
+        // Derive legacy combined target from per-budget data.
+        final dailySpent = budgetLimits.fold<double>(
+          0.0,
+          (sum, bl) => sum + bl.spentToday,
+        );
+        final weeklyTarget = budgetLimits.fold<double>(
+          0.0,
+          (sum, bl) => sum + bl.weeklyTarget,
+        );
+        final weeklySpent = budgetLimits.fold<double>(
+          0.0,
+          (sum, bl) => sum + bl.weeklySpent,
+        );
+
+        final dailyRemaining = (combinedDailyTarget - dailySpent).clamp(
+          0.0,
+          double.infinity,
+        );
+        final dailyExceeded = dailySpent > combinedDailyTarget
+            ? dailySpent - combinedDailyTarget
+            : 0.0;
+        final dailyProgress = combinedDailyTarget > 0
+            ? (dailySpent / combinedDailyTarget).clamp(0.0, 1.0)
+            : 0.0;
+        final dailyStatus = _targetStatus(dailySpent, combinedDailyTarget);
+
+        final weeklyRemaining = (weeklyTarget - weeklySpent).clamp(
+          0.0,
+          double.infinity,
+        );
+        final weeklyExceeded = weeklySpent > weeklyTarget
+            ? weeklySpent - weeklyTarget
+            : 0.0;
+        final weeklyProgress = weeklyTarget > 0
+            ? (weeklySpent / weeklyTarget).clamp(0.0, 1.0)
+            : 0.0;
+        final weeklyStatus = _targetStatus(weeklySpent, weeklyTarget);
+
         emit(
           state.copyWith(
             status: SpendingTargetBlocStatus.loaded,
-            targets: data,
+            targets: SpendingTargetEntity(
+              dailyTarget: combinedDailyTarget,
+              dailySpent: dailySpent,
+              dailyRemaining: dailyRemaining,
+              dailyExceeded: dailyExceeded,
+              dailyProgress: dailyProgress,
+              dailyStatus: dailyStatus,
+              weeklyTarget: weeklyTarget,
+              weeklySpent: weeklySpent,
+              weeklyRemaining: weeklyRemaining,
+              weeklyExceeded: weeklyExceeded,
+              weeklyProgress: weeklyProgress,
+              weeklyStatus: weeklyStatus,
+              currency: currency,
+            ),
             clearError: true,
           ),
         );
     }
+  }
+
+  SpendingTargetStatus _targetStatus(double spent, double target) {
+    if (target <= 0) return SpendingTargetStatus.onTrack;
+    final ratio = spent / target;
+    if (ratio > 1.0) return SpendingTargetStatus.exceeded;
+    if (ratio >= 0.8) return SpendingTargetStatus.nearLimit;
+    return SpendingTargetStatus.onTrack;
   }
 }

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-26
+
+### Added
+- Per-budget daily spending limits with individual daily and weekly targets for
+	each active budget, displayed in a dedicated dashboard section.
+
+### Changed
+- Refactored dashboard spending target implementation to separate hero card
+	and spending target widgets for better maintainability.
+- Improved AppBottomSheet and InfoIcon components with enhanced bottom sheet
+	behavior and state management.
+- Morning notifications now dynamically calculate the safe spending amount
+	based on each budget's daily limit.
+
+### Fixed
+- Improved test formatting for BillEntity `dueToday` status checks and
+	enhanced BillBloc test coverage.
+- Updated `.gitignore` to include Android keystore files.
+- Updated CI/CD release workflow configuration.
+
+## [1.2.0] - 2026-08-26
+
 ### Added
 - Bill management improvements for tracking due dates, payment status, recurring
 	bills, and payment reminders.

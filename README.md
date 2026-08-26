@@ -69,6 +69,7 @@ Smart Monivo is a **personal finance management app** designed to help users:
 | **Data Export/Import**      | Backup and restore financial data.                                                               | `BackupDataUseCase` and `RestoreDataUseCase` with CSV/PDF support.                                       |
 | **Customizable Reports**    | Visualize spending trends and patterns.                                                          | `fl_chart` for interactive charts and `ReportsBloc` for data aggregation.                             |
 | **Bill Management**         | Track bills, set payment reminders, and manage recurring payments.                                  | `BillEntity` and `BillBloc` for managing bills and payment reminders.                                   |
+| **Per-Budget Daily Limits**  | Automatic daily and weekly spending targets for each active budget.                                  | `BudgetDailyLimitEntity` and `GetSpendingTargetsUseCase` for per-budget calculations.                   |
 
 ### Using Recent Features
 
@@ -101,6 +102,20 @@ morning reminder and evening summary times, and control overspending alerts,
 no-expense reminders, and quiet hours. Notification scheduling is restored when
 the app recovers after a device restart. Device notification permissions must
 also be granted for reminders to appear.
+
+#### Per-Budget Daily Spending Limits
+
+1. Open the **Dashboard** to see the daily spending limits section.
+2. Each active budget displays its own daily and weekly spending targets.
+3. The daily limit is calculated as `remaining budget ÷ remaining days`.
+4. Progress bars show how much of today's limit has been spent.
+5. Status indicators show whether you are under, near, or over your daily
+  limit for each budget.
+6. Weekly targets are also tracked alongside daily limits.
+
+Daily limits are calculated dynamically and are independent for each budget.
+Morning notifications now use each budget's daily limit to calculate the
+safe spending amount.
 
 #### Analytics Explanations
 
@@ -785,6 +800,8 @@ MIT License (see `LICENSE` file).
 | **Advanced Analytics**           | Machine learning for spending predictions.                                             | Backlog         |
 | **Bill Reminders**               | Track due dates, payment status, and recurring payments.                               | Implemented     |
 | **App Update Checks**            | Check GitHub for newer app releases from Settings.                                      | Implemented     |
+| **Per-Budget Daily Limits**      | Daily and weekly spending targets for each active budget.                              | Implemented     |
+| **Weekly Spending Targets**      | Weekly spending tracking alongside daily limits.                                        | Implemented     |
 | **Dark Mode**                    | Full dark mode support.                                                                 | Implemented     |
 | **Multi-Currency Support**        | Enhanced currency handling and conversion.                                             | Implemented     |
 

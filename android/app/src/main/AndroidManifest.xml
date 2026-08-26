@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Internet access (GitHub release check, etc.) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Receipt capture requires camera access -->
     <uses-permission android:name="android.permission.CAMERA" />
 <!-- Biometric lock (Fingerprint / Face) -->
