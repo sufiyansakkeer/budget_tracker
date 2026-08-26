@@ -12,6 +12,7 @@ import '../../../bills/presentation/bloc/bill_refresh_bus.dart';
 import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/spending_target_entity.dart';
+import '../../domain/entities/spending_target_status.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
 import '../../domain/usecases/get_spending_targets_usecase.dart';
@@ -120,22 +121,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
         // Load per-budget daily spending limits (primary data source).
         List<BudgetDailyLimitEntity> budgetDailyLimits = [];
+        SpendingTargetEntity? spendingTarget;
         try {
           final perBudgetResult = await getSpendingTargetsUseCase
               .callPerBudget();
           if (perBudgetResult is PerBudgetSpendingTargetSuccess) {
             budgetDailyLimits = perBudgetResult.budgetLimits;
-          }
-        } catch (_) {
-          // Per-budget limits unavailable — not critical for dashboard.
-        }
-
-        // Also load legacy combined target for backward compatibility.
-        SpendingTargetEntity? spendingTarget;
-        try {
-          final targetResult = await getSpendingTargetsUseCase();
-          if (targetResult is SpendingTargetSuccess) {
-            spendingTarget = targetResult.data;
+            // Derive legacy combined target for backward compatibility.
+            spendingTarget = _deriveSpendingTarget(perBudgetResult);
           }
         } catch (_) {
           // Spending targets unavailable — not critical for dashboard.
@@ -165,5 +158,70 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       return const DashboardEmpty();
     }
     return DashboardError(message: failure.message);
+  }
+
+  /// Derives a legacy [SpendingTargetEntity] from per-budget data so that
+  /// existing widgets (e.g. [BudgetHeroCard]) keep working without changes.
+  SpendingTargetEntity _deriveSpendingTarget(
+    PerBudgetSpendingTargetSuccess result,
+  ) {
+    var dailySpent = 0.0;
+    var weeklyTarget = 0.0;
+    var weeklySpent = 0.0;
+
+    for (final bl in result.budgetLimits) {
+      dailySpent += bl.spentToday;
+      weeklyTarget += bl.weeklyTarget;
+      weeklySpent += bl.weeklySpent;
+    }
+
+    final dailyTarget = result.combinedDailyTarget;
+    final dailyRemaining = (dailyTarget - dailySpent).clamp(
+      0.0,
+      double.infinity,
+    );
+    final dailyExceeded = dailySpent > dailyTarget
+        ? dailySpent - dailyTarget
+        : 0.0;
+    final dailyProgress = dailyTarget > 0
+        ? (dailySpent / dailyTarget).clamp(0.0, 1.0)
+        : 0.0;
+    final dailyStatus = _targetStatus(dailySpent, dailyTarget);
+
+    final weeklyRemaining = (weeklyTarget - weeklySpent).clamp(
+      0.0,
+      double.infinity,
+    );
+    final weeklyExceeded = weeklySpent > weeklyTarget
+        ? weeklySpent - weeklyTarget
+        : 0.0;
+    final weeklyProgress = weeklyTarget > 0
+        ? (weeklySpent / weeklyTarget).clamp(0.0, 1.0)
+        : 0.0;
+    final weeklyStatus = _targetStatus(weeklySpent, weeklyTarget);
+
+    return SpendingTargetEntity(
+      dailyTarget: dailyTarget,
+      dailySpent: dailySpent,
+      dailyRemaining: dailyRemaining,
+      dailyExceeded: dailyExceeded,
+      dailyProgress: dailyProgress,
+      dailyStatus: dailyStatus,
+      weeklyTarget: weeklyTarget,
+      weeklySpent: weeklySpent,
+      weeklyRemaining: weeklyRemaining,
+      weeklyExceeded: weeklyExceeded,
+      weeklyProgress: weeklyProgress,
+      weeklyStatus: weeklyStatus,
+      currency: result.currency,
+    );
+  }
+
+  SpendingTargetStatus _targetStatus(double spent, double target) {
+    if (target <= 0) return SpendingTargetStatus.onTrack;
+    final ratio = spent / target;
+    if (ratio > 1.0) return SpendingTargetStatus.exceeded;
+    if (ratio >= 0.8) return SpendingTargetStatus.nearLimit;
+    return SpendingTargetStatus.onTrack;
   }
 }
