@@ -15,7 +15,7 @@ class AboutCard extends StatelessWidget {
       builder: (context, snapshot) {
         final info = snapshot.data;
         final version = info?.version ?? '1.0.0';
-        final buildNumber = info?.buildNumber ?? '1';
+        // final buildNumber = info?.buildNumber ?? '1';
         final appName = info?.appName ?? 'Smart Monivo';
 
         return Column(
@@ -23,11 +23,11 @@ class AboutCard extends StatelessWidget {
           children: [
             _Row(label: 'App Name', value: appName),
             const SizedBox(height: AppSpacing.sm),
-            _Row(label: 'Version', value: version),
-            const SizedBox(height: AppSpacing.sm),
-            _Row(label: 'Build Number', value: buildNumber),
-            const SizedBox(height: AppSpacing.sm),
-            const _Row(label: 'Database Version', value: '2'),
+            // _Row(label: 'Version', value: version),
+            // const SizedBox(height: AppSpacing.sm),
+            // _Row(label: 'Build Number', value: buildNumber),
+            // const SizedBox(height: AppSpacing.sm),
+            // const _Row(label: 'Database Version', value: '2'),
             const SizedBox(height: AppSpacing.md),
             const Divider(),
             const SizedBox(height: AppSpacing.sm),
