@@ -1,8 +1,10 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../budget/domain/entities/budget_summary_entity.dart';
+import '../../../bills/domain/entities/bill_entity.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
+import '../../domain/entities/spending_target_entity.dart';
 
 abstract class DashboardState extends Equatable {
   const DashboardState();
@@ -23,15 +25,25 @@ class DashboardLoaded extends DashboardState {
   final BudgetSummaryEntity budgetSummary;
   final List<RecentExpenseEntity> recentExpenses;
   final List<SmartInsight> insights;
+  final List<BillEntity> upcomingBills;
+  final SpendingTargetEntity? spendingTarget;
 
   const DashboardLoaded({
     required this.budgetSummary,
     required this.recentExpenses,
     required this.insights,
+    this.upcomingBills = const [],
+    this.spendingTarget,
   });
 
   @override
-  List<Object?> get props => [budgetSummary, recentExpenses, insights];
+  List<Object?> get props => [
+    budgetSummary,
+    recentExpenses,
+    insights,
+    upcomingBills,
+    spendingTarget,
+  ];
 }
 
 class DashboardEmpty extends DashboardState {

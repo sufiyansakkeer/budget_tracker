@@ -1,10 +1,13 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/di/injection.dart' as di;
+import '../../../app_update/presentation/bloc/app_update_bloc.dart';
+import '../../../app_update/presentation/widgets/app_update_section.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/theme_mode_entity.dart';
@@ -175,6 +178,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
+          // Financial Management
+          SettingsSection(
+            title: 'Financial',
+            icon: Icons.account_balance_outlined,
+            children: [
+              SettingsTile(
+                icon: Icons.receipt_long_outlined,
+                title: 'Expenses',
+                subtitle: 'View and manage all expenses',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/app/expenses'),
+              ),
+              SettingsTile(
+                icon: Icons.payments_outlined,
+                title: 'Bills & Reminders',
+                subtitle: 'Track bills and set payment reminders',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/app/bills'),
+              ),
+            ],
+          ),
+
           // Appearance
           SettingsSection(
             title: 'Appearance',
@@ -337,6 +362,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => _showBudgetAmountDialog(context, bloc),
               ),
             ],
+          ),
+
+          // App Updates
+          BlocProvider<AppUpdateBloc>.value(
+            value: di.getIt<AppUpdateBloc>(),
+            child: const AppUpdateSection(),
           ),
 
           // About

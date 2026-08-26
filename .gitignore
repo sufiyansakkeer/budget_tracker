@@ -53,3 +53,7 @@ app.*.map.json
 /linux/
 /windows/
 /.qodo/
+android/release.keystore
+android/key.properties
+*.jks
+*.keystore

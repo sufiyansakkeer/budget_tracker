@@ -4,6 +4,8 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/report_overview.dart';
 
 /// A prominent hero card showing the report's total spending, with a compact
@@ -33,12 +35,36 @@ class ReportHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Total Spending',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            children: [
+              Text(
+                'Total Spending',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 4),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Total Spending',
+                  whatIsThis:
+                      'The total amount of all recorded expenses during '
+                      'the selected reporting period.',
+                  howIsItCalculated:
+                      'All expenses whose date falls within the selected '
+                      'period are summed. Only expenses in the current '
+                      'active budget are included.',
+                  example:
+                      'Period: 1 Aug → 25 Aug\n'
+                      'Expenses in this period:\n'
+                      '  Food: ₹4,500\n'
+                      '  Shopping: ₹3,000\n'
+                      '  Transport: ₹1,500\n\n'
+                      'Total: ₹9,000',
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(

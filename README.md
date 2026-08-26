@@ -55,6 +55,7 @@ Smart Monivo is a **personal finance management app** designed to help users:
 - Gain insights through visual reports and analytics
 - Secure their data with biometric authentication
 - Export/import data for backup and sharing
+- Manage bills, recurring payments, and payment reminders
 
 ### 🔥 Key Features
 
@@ -66,7 +67,54 @@ Smart Monivo is a **personal finance management app** designed to help users:
 | **Multi-Currency Support**  | Track budgets in any currency.                                                                       | `CurrencyProvider` and `BudgetEntity.currency` field.                                                     |
 | **Biometric Security**      | Fingerprint/Face ID authentication.                                                                  | `BiometricInitializer` and `AppLockBloc` for app lock state.                                             |
 | **Data Export/Import**      | Backup and restore financial data.                                                               | `BackupDataUseCase` and `RestoreDataUseCase` with CSV/PDF support.                                       |
-| **Customizable Reports**    | Visualize spending trends and patterns.                                                          | `fl_chart` for interactive charts and `ReportsBloc` for data aggregation.
+| **Customizable Reports**    | Visualize spending trends and patterns.                                                          | `fl_chart` for interactive charts and `ReportsBloc` for data aggregation.                             |
+| **Bill Management**         | Track bills, set payment reminders, and manage recurring payments.                                  | `BillEntity` and `BillBloc` for managing bills and payment reminders.                                   |
+
+### Using Recent Features
+
+#### Bills and Payment Reminders
+
+1. Open **Settings** and select **Bills & Reminders**, or open Bills from the
+  app navigation.
+2. Select **Add Bill**, then enter a name, amount, category, and due date.
+3. Optionally add a due time, enable a reminder, and choose how many days
+  before the due date the reminder should appear.
+4. Enable recurrence for bills such as rent, utilities, or subscriptions.
+5. Use the Bills screen to search, filter by status, open details, and mark a
+  bill as paid. Recurring bills are generated according to their recurrence
+  rule.
+
+Bills are tracked separately from ordinary expenses. Marking a bill as paid
+does not change the budget until you record the payment as an expense.
+
+#### Currency Selection
+
+- Choose the app's default currency in **Settings > Currency**.
+- Choose a currency while creating or editing a budget. Existing budgets keep
+  their configured currency, and amounts are displayed with that currency's
+  symbol and code.
+
+#### Notifications
+
+Use **Settings > Notifications** to enable or disable reminders, choose the
+morning reminder and evening summary times, and control overspending alerts,
+no-expense reminders, and quiet hours. Notification scheduling is restored when
+the app recovers after a device restart. Device notification permissions must
+also be granted for reminders to appear.
+
+#### Analytics Explanations
+
+Select the information icon on an analytics card to see what the metric means,
+how it is calculated, examples where available, and notes about its status
+colors and update behavior.
+
+#### App Updates
+
+The app can check GitHub for a newer release. Open **Settings > App Updates**
+and select **Check for Updates**. When a release is available, select **View
+Update** to open its release page in the device browser. An internet connection
+is required for this check; the app continues to work normally if the check
+cannot be completed.
 
 ---
 
@@ -458,7 +506,7 @@ All configuration is handled via **SharedPreferences** and **SQLite Database**. 
 | `active_budget_id`          | String   | ID of the currently active budget.                                                              | `null`              |
 | `app_lock_enabled`           | bool     | Whether the app lock is enabled.                                                                | `true`              |
 | `biometric_auth_enabled`     | bool     | Whether biometric authentication is enabled.                                                   | `true`              |
-| `currency`                   | String   | Default currency for the app.                                                                   | `USD`               |
+| `currency`                   | String   | Default currency for the app.                                                                   | `INR`               |
 | `theme_mode`                 | String   | Current theme mode (`light` or `dark`).                                                         | `light`             |
 | `notification_settings`     | String   | JSON string for notification preferences.                                                       | `{"enabled": true}` |
 
@@ -735,8 +783,8 @@ MIT License (see `LICENSE` file).
 | **Cloud Sync**                   | Backup to iCloud/Google Drive.                                                      | Planned         |
 | **Multi-User Support**           | Family/household budgets.                                                             | Planned         |
 | **Advanced Analytics**           | Machine learning for spending predictions.                                             | Backlog         |
-| **Recurring Expenses**            | Automate recurring expense tracking.                                                   | Backlog         |
-| **Savings Goals**                | Track savings goals with progress visualization.                                       | Backlog         |
+| **Bill Reminders**               | Track due dates, payment status, and recurring payments.                               | Implemented     |
+| **App Update Checks**            | Check GitHub for newer app releases from Settings.                                      | Implemented     |
 | **Dark Mode**                    | Full dark mode support.                                                                 | Implemented     |
 | **Multi-Currency Support**        | Enhanced currency handling and conversion.                                             | Implemented     |
 

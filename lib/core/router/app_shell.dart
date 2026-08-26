@@ -8,10 +8,9 @@ import '../constants/app_colors.dart';
 ///
 /// Tabs:
 ///   1. Home  (Dashboard)
-///   2. Expenses (Expense History)
-///   3. Reports
-///   4. Budgets
-///   5. More (Settings)
+///   2. Reports
+///   3. Budget
+///   4. Settings
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -46,16 +45,13 @@ class AppShell extends StatelessWidget {
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: _onDestinationSelected,
             indicatorColor: AppColors.primary.withValues(alpha: 0.12),
+            height: 72,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),
                 selectedIcon: Icon(Icons.home_rounded),
                 label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Expenses',
               ),
               NavigationDestination(
                 icon: Icon(Icons.analytics_outlined),
@@ -65,12 +61,12 @@ class AppShell extends StatelessWidget {
               NavigationDestination(
                 icon: Icon(Icons.account_balance_wallet_outlined),
                 selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-                label: 'Budgets',
+                label: 'Budget',
               ),
               NavigationDestination(
-                icon: Icon(Icons.more_horiz_rounded),
-                selectedIcon: Icon(Icons.more_horiz_rounded),
-                label: 'More',
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings_rounded),
+                label: 'Settings',
               ),
             ],
           ),

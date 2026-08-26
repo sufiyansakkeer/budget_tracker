@@ -49,6 +49,7 @@ import '../../features/dashboard/data/repository/dashboard_repository_impl.dart'
 import '../../features/dashboard/domain/repository/dashboard_repository.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../../features/expenses/data/datasource/expense_local_datasource.dart';
 import '../../features/expenses/data/datasource/expense_local_datasource_impl.dart';
@@ -80,6 +81,25 @@ import '../../features/reports/domain/services/analytics_service.dart';
 import '../../features/reports/domain/services/report_insight_generator.dart';
 import '../../features/reports/domain/usecases/get_report_data_usecase.dart';
 import '../../features/reports/presentation/bloc/reports_bloc.dart';
+import '../../features/bills/data/datasource/bill_local_datasource.dart';
+import '../../features/bills/data/datasource/bill_local_datasource_impl.dart';
+import '../../features/bills/data/repository/bill_repository_impl.dart';
+import '../../features/bills/domain/repository/bill_repository.dart';
+import '../../features/bills/domain/usecases/create_bill_usecase.dart';
+import '../../features/bills/domain/usecases/delete_bill_usecase.dart';
+import '../../features/bills/domain/usecases/get_bill_by_id_usecase.dart';
+import '../../features/bills/domain/usecases/get_bills_usecase.dart';
+import '../../features/bills/domain/usecases/mark_bill_paid_usecase.dart';
+import '../../features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
+import '../../features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
+import '../../features/bills/domain/usecases/update_bill_usecase.dart';
+import '../../features/bills/presentation/bloc/bill_bloc.dart';
+import '../../features/app_update/data/datasources/github_release_remote_datasource.dart';
+import '../../features/app_update/data/datasources/github_release_remote_datasource_impl.dart';
+import '../../features/app_update/data/repository/app_update_repository_impl.dart';
+import '../../features/app_update/domain/repository/app_update_repository.dart';
+import '../../features/app_update/domain/usecases/check_for_app_update_usecase.dart';
+import '../../features/app_update/presentation/bloc/app_update_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -248,13 +268,22 @@ Future<void> initDependencyInjection() async {
     () => const GetSmartInsightsUseCase(),
   );
 
+  getIt.registerLazySingleton<GetSpendingTargetsUseCase>(
+    () => GetSpendingTargetsUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
+  );
+
   // 15. Dashboard Feature - BLoC
   getIt.registerFactory<DashboardBloc>(
     () => DashboardBloc(
       getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
       getRecentExpensesUseCase: getIt<GetRecentExpensesUseCase>(),
       getSmartInsightsUseCase: getIt<GetSmartInsightsUseCase>(),
+      getSpendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
+      billRepository: getIt<BillRepository>(),
     ),
   );
 
@@ -396,6 +425,7 @@ Future<void> initDependencyInjection() async {
       plugin: FlutterLocalNotificationsPlugin(),
       budgetRepository: getIt<BudgetRepository>(),
       calculationService: getIt<BudgetCalculationService>(),
+      spendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
@@ -474,6 +504,93 @@ Future<void> initDependencyInjection() async {
       restoreDataUseCase: getIt<RestoreDataUseCase>(),
       resetBudgetUseCase: getIt<ResetBudgetUseCase>(),
       scheduleNotificationsUseCase: getIt<ScheduleNotificationsUseCase>(),
+    ),
+  );
+
+  // ============================================================
+  //  Phase 9 – Bills & Reminders Feature
+  // ============================================================
+
+  // 31. Bills Feature – Datasource
+  getIt.registerLazySingleton<BillLocalDataSource>(
+    () => BillLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+
+  // 32. Bills Feature – Repository
+  getIt.registerLazySingleton<BillRepository>(
+    () => BillRepositoryImpl(localDataSource: getIt<BillLocalDataSource>()),
+  );
+
+  // 33. Bills Feature – Reminder Service
+  getIt.registerLazySingleton<BillReminderService>(
+    () => BillReminderService(
+      plugin: FlutterLocalNotificationsPlugin(),
+      repository: getIt<BillRepository>(),
+    ),
+  );
+
+  // 34. Bills Feature – Use Cases
+  getIt.registerLazySingleton<CreateBillUseCase>(
+    () => CreateBillUseCase(repository: getIt<BillRepository>()),
+  );
+  getIt.registerLazySingleton<UpdateBillUseCase>(
+    () => UpdateBillUseCase(repository: getIt<BillRepository>()),
+  );
+  getIt.registerLazySingleton<DeleteBillUseCase>(
+    () => DeleteBillUseCase(repository: getIt<BillRepository>()),
+  );
+  getIt.registerLazySingleton<GetBillsUseCase>(
+    () => GetBillsUseCase(repository: getIt<BillRepository>()),
+  );
+  getIt.registerLazySingleton<GetBillByIdUseCase>(
+    () => GetBillByIdUseCase(repository: getIt<BillRepository>()),
+  );
+  getIt.registerLazySingleton<MarkBillPaidUseCase>(
+    () => MarkBillPaidUseCase(repository: getIt<BillRepository>()),
+  );
+  getIt.registerLazySingleton<MarkBillUnpaidUseCase>(
+    () => MarkBillUnpaidUseCase(repository: getIt<BillRepository>()),
+  );
+
+  // 35. Bills Feature – BLoC
+  getIt.registerFactory<BillBloc>(
+    () => BillBloc(
+      createBillUseCase: getIt<CreateBillUseCase>(),
+      updateBillUseCase: getIt<UpdateBillUseCase>(),
+      deleteBillUseCase: getIt<DeleteBillUseCase>(),
+      getBillsUseCase: getIt<GetBillsUseCase>(),
+      getBillByIdUseCase: getIt<GetBillByIdUseCase>(),
+      markBillPaidUseCase: getIt<MarkBillPaidUseCase>(),
+      markBillUnpaidUseCase: getIt<MarkBillUnpaidUseCase>(),
+      reminderService: getIt<BillReminderService>(),
+    ),
+  );
+
+  // ============================================================
+  //  Phase 10 – App Update Checker
+  // ============================================================
+
+  // 36. App Update – Remote Data Source
+  getIt.registerLazySingleton<GithubReleaseRemoteDataSource>(
+    () => GithubReleaseRemoteDataSourceImpl(),
+  );
+
+  // 37. App Update – Repository
+  getIt.registerLazySingleton<AppUpdateRepository>(
+    () => AppUpdateRepositoryImpl(
+      remoteDataSource: getIt<GithubReleaseRemoteDataSource>(),
+    ),
+  );
+
+  // 38. App Update – Use Case
+  getIt.registerLazySingleton<CheckForAppUpdateUseCase>(
+    () => CheckForAppUpdateUseCase(repository: getIt<AppUpdateRepository>()),
+  );
+
+  // 39. App Update – BLoC
+  getIt.registerLazySingleton<AppUpdateBloc>(
+    () => AppUpdateBloc(
+      checkForAppUpdateUseCase: getIt<CheckForAppUpdateUseCase>(),
     ),
   );
 }

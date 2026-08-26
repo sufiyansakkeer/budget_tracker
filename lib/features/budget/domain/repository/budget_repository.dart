@@ -62,6 +62,13 @@ abstract class BudgetRepository {
 
   /// Updates the budget's remaining amount based on current spending.
   Future<void> updateBudgetRemainingAmount(String budgetId);
+
+  /// Returns total spending within an explicit date range for a specific budget.
+  Future<double> getExpensesTotalInRange(
+    String budgetId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  });
 }
 
 /// Bundled raw data used by use cases before invoking [BudgetCalculationService].

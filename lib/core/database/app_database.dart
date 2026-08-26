@@ -96,6 +96,47 @@ class SavingsGoals extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+// 7. Bills Table
+@TableIndex(name: 'index_bills_due_date', columns: {#dueDate})
+class Bills extends Table {
+  TextColumn get id => text()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+  RealColumn get amount => real()();
+  TextColumn get currency => text()();
+  TextColumn get category => text()();
+  DateTimeColumn get dueDate => dateTime()();
+  DateTimeColumn get dueTime => dateTime().nullable()();
+  BoolColumn get isRecurring => boolean().withDefault(const Constant(false))();
+  TextColumn get recurrenceType => text().withDefault(const Constant('none'))();
+  IntColumn get recurrenceInterval =>
+      integer().withDefault(const Constant(1))();
+  BoolColumn get reminderEnabled =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get reminderOffsetDays =>
+      integer().withDefault(const Constant(1))();
+  BoolColumn get isPaid => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get paidDate => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// 8. Bill Payments Table (payment history for recurring bills)
+class BillPayments extends Table {
+  TextColumn get id => text()();
+  TextColumn get billId => text().references(Bills, #id)();
+  RealColumn get amount => real()();
+  TextColumn get currency => text()();
+  DateTimeColumn get paidDate => dateTime()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     Budgets,
@@ -104,13 +145,15 @@ class SavingsGoals extends Table {
     Settings,
     RecurringExpenses,
     SavingsGoals,
+    Bills,
+    BillPayments,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -158,6 +201,11 @@ class AppDatabase extends _$AppDatabase {
             SET budgetId = (SELECT id FROM budgets LIMIT 1)
             WHERE budgetId IS NULL;
           ''');
+        }
+        if (from < 4) {
+          // Phase 4: Bills & Reminders tables are created fresh — no backfill needed.
+          await m.createTable(bills);
+          await m.createTable(billPayments);
         }
       },
     );

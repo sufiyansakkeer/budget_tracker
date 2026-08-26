@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_section_header.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../../expenses/presentation/history/widgets/filter_bottom_sheet.dart';
 import '../../domain/entities/report_period.dart';
@@ -207,7 +209,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ],
 
             // Category analytics
-            const AnalyticsSection(title: 'Category Analytics'),
+            InfoSectionHeader(
+              title: 'Category Analytics',
+              infoContent: InfoContent(
+                title: 'Category Breakdown',
+                whatIsThis:
+                    'Shows your spending broken down by category '
+                    'during the selected period.',
+                howIsItCalculated:
+                    'Each category shows the total amount spent on '
+                    'expenses assigned to that category.\n\n'
+                    'Category % = Category spending ÷ Total spending × 100',
+                example:
+                    'Food: ₹4,500 (30%)\n'
+                    'Shopping: ₹3,000 (20%)\n'
+                    'Transport: ₹1,500 (10%)\n'
+                    'Total spending: ₹15,000',
+              ),
+            ),
             const SizedBox(height: AppSpacing.sm),
             CategoryAnalyticsCard(
               analytics: data.categoryAnalytics,
@@ -216,7 +235,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: AppSpacing.lg),
 
             // Time analytics
-            const AnalyticsSection(title: 'Time Analytics'),
+            InfoSectionHeader(
+              title: 'Time Analytics',
+              infoContent: InfoContent(
+                title: 'Time Analytics',
+                whatIsThis:
+                    'Breakdown of your spending patterns by day '
+                    'of the week and calendar date.',
+                howIsItCalculated:
+                    'Most Expensive Day: The calendar day with the '
+                    'highest total of recorded expenses.\n'
+                    'Weekday vs Weekend: Total spent on Mon–Fri '
+                    'vs Sat–Sun.',
+                additionalNotes:
+                    '• Expenses are grouped by their recorded date\n'
+                    '• Weekday vs weekend shows spending distribution\n'
+                    '• The highest spending weekday indicates your '
+                    'most expensive day of the week',
+              ),
+            ),
             const SizedBox(height: AppSpacing.sm),
             TimeAnalyticsCard(
               analytics: data.timeAnalytics,
@@ -225,13 +262,56 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: AppSpacing.lg),
 
             // Trends
-            const AnalyticsSection(title: 'Spending Trends'),
+            InfoSectionHeader(
+              title: 'Spending Trends',
+              infoContent: InfoContent(
+                title: 'Spending Trends',
+                whatIsThis:
+                    'Analysis of your spending patterns over time, '
+                    'including averages, growth rate, and '
+                    'consistency.',
+                howIsItCalculated:
+                    'Daily average = Total spending ÷ Days in period\n'
+                    'Weekly average = Daily average × 7\n'
+                    'Monthly average = Daily average × 30\n\n'
+                    'Growth rate compares the recent half of the '
+                    'period to the earlier half.\n\n'
+                    'Consistency score measures how uniform your '
+                    'daily spending is (0% = erratic, 100% = '
+                    'very consistent).',
+                additionalNotes:
+                    '• Positive growth (green) means spending decreased\n'
+                    '• Negative growth (red) means spending increased\n'
+                    '• Is improving when recent half is lower than '
+                    'the first half',
+              ),
+            ),
             const SizedBox(height: AppSpacing.sm),
             TrendCard(trend: data.trend, currency: currency),
             const SizedBox(height: AppSpacing.lg),
 
             // Smart insights
-            const AnalyticsSection(title: 'Smart Insights'),
+            InfoSectionHeader(
+              title: 'Smart Insights',
+              infoContent: InfoContent(
+                title: 'Smart Insights',
+                whatIsThis:
+                    'Analysis of your local budget and expense data '
+                    'to identify spending patterns, budget progress, '
+                    'and unusual behavior.',
+                howIsItCalculated:
+                    'Insights are generated from your actual budget '
+                    'and expense data, including:\n'
+                    '• Spending pace vs. safe allowance\n'
+                    '• Budget progress and remaining days\n'
+                    '• Daily and weekly target performance\n'
+                    '• Projected spending at period end\n'
+                    '• Overspending alerts',
+                privacyNote:
+                    'All analysis runs on your device. No data leaves '
+                    'your phone.',
+              ),
+            ),
             const SizedBox(height: AppSpacing.sm),
             if (state.insights == null || state.insights!.isEmpty)
               const Text('No insights available.')

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../domain/entities/category_analytics.dart';
 
@@ -35,11 +37,35 @@ class CategoryAnalyticsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Category Analytics',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Category Analytics',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Category Breakdown',
+                  whatIsThis:
+                      'Each category shows the total amount spent '
+                      'on expenses assigned to that category during '
+                      'the selected period.',
+                  howIsItCalculated:
+                      'Category % = Category spending ÷ '
+                      'Total spending × 100\n\n'
+                      'Avg per txn = Category total ÷ '
+                      'Number of transactions',
+                  example:
+                      'Food: ₹4,500 from 15 transactions\n'
+                      'Category %: 4,500 ÷ 15,000 = 30%\n'
+                      'Avg per txn: ₹300',
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
           if (sorted.isEmpty)

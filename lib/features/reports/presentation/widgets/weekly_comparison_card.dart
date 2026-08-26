@@ -4,6 +4,8 @@ import '../../../../core/currency/currency_formatter.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/weekly_comparison.dart';
 
 /// Compares the current week's spending with the previous week.
@@ -37,11 +39,41 @@ class WeeklyComparisonCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Week-over-Week',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Week-over-Week',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              InfoIcon(
+                content: InfoContent(
+                  title: 'Weekly Comparison',
+                  whatIsThis:
+                      'Compares your spending between the current '
+                      'week and the previous week.',
+                  howIsItCalculated:
+                      'Current week: Expenses from Monday to today\n'
+                      'Previous week: Expenses from the Monday '
+                      'before that\n\n'
+                      'Difference = Current − Previous\n'
+                      'Percentage change = Difference ÷ '
+                      'Previous × 100',
+                  example:
+                      'Previous week: ₹8,000\n'
+                      'Current week: ₹6,800\n\n'
+                      'Difference: −₹1,200\n'
+                      'Change: −15% (spending decreased)',
+                  additionalNotes:
+                      '• Green means you spent less than last week\n'
+                      '• Red means you spent more than last week\n'
+                      '• Weeks run Monday through Sunday',
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
           Row(

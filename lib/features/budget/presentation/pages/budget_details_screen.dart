@@ -6,6 +6,8 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
@@ -387,12 +389,40 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Budget Used', style: theme.textTheme.titleMedium),
-                Text(
-                  '$percent%',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$percent%',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InfoIcon(
+                      content: InfoContent(
+                        title: 'Budget Progress',
+                        whatIsThis:
+                            'Shows how much of this budget has been used '
+                            'and how much remains.',
+                        howIsItCalculated:
+                            'Progress = Spent ÷ Budget amount × 100\n'
+                            'Remaining = Budget amount − Spent amount',
+                        example:
+                            'Budget: ₹30,000\n'
+                            'Spent: ₹18,000\n'
+                            'Progress: 18,000 ÷ 30,000 = 60%\n'
+                            'Remaining: ₹12,000',
+                        additionalNotes:
+                            '• Start date and end date define the period\n'
+                            '• Flexible date ranges: budget can start and '
+                            'end on any dates\n'
+                            '• Color changes: green (< 80%), orange (80–100%), '
+                            'red (> 100%)',
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -434,12 +464,12 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                 _ActionButton(
                   icon: Icons.history,
                   label: 'View Expenses',
-                  onPressed: () => context.go('/app/expenses'),
+                  onPressed: () => context.push('/app/expenses'),
                 ),
                 _ActionButton(
                   icon: Icons.bar_chart,
                   label: 'Reports',
-                  onPressed: () => context.go('/app/reports'),
+                  onPressed: () => context.push('/app/reports'),
                 ),
               ],
             ),
