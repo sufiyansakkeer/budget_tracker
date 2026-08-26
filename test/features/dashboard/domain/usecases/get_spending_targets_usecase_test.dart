@@ -66,29 +66,25 @@ class FakeBudgetRepository implements BudgetRepository {
     required String newName,
     DateTime? startDate,
     DateTime? endDate,
-  }) async =>
-      budget!;
+  }) async => budget!;
 
   @override
   Future<MonthlyStatisticsEntity> getBudgetStatistics(
     String budgetId, {
     DateTime? referenceDate,
-  }) async =>
-      statistics;
+  }) async => statistics;
 
   @override
   Future<double> getTodaySpending(
     String budgetId, {
     DateTime? referenceDate,
-  }) async =>
-      todaySpending;
+  }) async => todaySpending;
 
   @override
   Future<int> getRemainingDays(
     String budgetId, {
     DateTime? referenceDate,
-  }) async =>
-      1;
+  }) async => 1;
 
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
@@ -117,8 +113,7 @@ class FakeBudgetRepository implements BudgetRepository {
     String budgetId, {
     required DateTime startDate,
     required DateTime endDate,
-  }) async =>
-      weekSpending;
+  }) async => weekSpending;
 }
 
 void main() {
@@ -163,35 +158,39 @@ void main() {
   });
 
   group('Daily target', () {
-    test('single 30k budget on day 10 of 31-day period with no spending', () async {
-      repository.budgets = [
-        BudgetEntity(
-          id: 'b1',
-          name: 'Personal',
-          monthlyAmount: 30000,
-          remainingAmount: 30000,
-          currency: 'INR',
-          startDate: DateTime(2026, 8, 1),
-          endDate: DateTime(2026, 8, 31),
-          createdAt: DateTime(2026, 8, 1),
-          updatedAt: DateTime(2026, 8, 1),
-        ),
-      ];
-      repository.todaySpending = 0;
-      repository.weekSpending = 0;
+    test(
+      'single 30k budget on day 10 of 31-day period with no spending',
+      () async {
+        repository.budgets = [
+          BudgetEntity(
+            id: 'b1',
+            name: 'Personal',
+            monthlyAmount: 30000,
+            remainingAmount: 30000,
+            currency: 'INR',
+            startDate: DateTime(2026, 8, 1),
+            endDate: DateTime(2026, 8, 31),
+            createdAt: DateTime(2026, 8, 1),
+            updatedAt: DateTime(2026, 8, 1),
+          ),
+        ];
+        repository.todaySpending = 0;
+        repository.weekSpending = 0;
 
-      final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+        final result =
+            await useCase(referenceDate: DateTime(2026, 8, 10))
+                as SpendingTargetSuccess;
 
-      // remainingBudget = 30000, remainingDays = 22
-      // dailyTarget = 30000/22 ≈ 1363.64
-      expect(result.data.dailyTarget, closeTo(1363.64, 0.01));
-      expect(result.data.dailySpent, 0);
-      expect(result.data.dailyRemaining, closeTo(1363.64, 0.01));
-      expect(result.data.dailyExceeded, 0);
-      expect(result.data.dailyStatus, SpendingTargetStatus.onTrack);
-      expect(result.data.currency, 'INR');
-    });
+        // remainingBudget = 30000, remainingDays = 22
+        // dailyTarget = 30000/22 ≈ 1363.64
+        expect(result.data.dailyTarget, closeTo(1363.64, 0.01));
+        expect(result.data.dailySpent, 0);
+        expect(result.data.dailyRemaining, closeTo(1363.64, 0.01));
+        expect(result.data.dailyExceeded, 0);
+        expect(result.data.dailyStatus, SpendingTargetStatus.onTrack);
+        expect(result.data.currency, 'INR');
+      },
+    );
 
     test('daily target with spending shows correct remaining', () async {
       repository.budgets = [
@@ -211,7 +210,8 @@ void main() {
       repository.weekSpending = 3000;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
 
       // remainingBudget = 29200, remainingDays = 22
       // dailyTarget = 29200/22 ≈ 1327.27
@@ -239,7 +239,8 @@ void main() {
       repository.weekSpending = 5000;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
 
       // remainingBudget = 28500, remainingDays = 22
       // dailyTarget = 28500/22 ≈ 1295.45
@@ -269,7 +270,8 @@ void main() {
       repository.weekSpending = 3000;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
       expect(result.data.dailyStatus, SpendingTargetStatus.nearLimit);
     });
   });
@@ -293,7 +295,8 @@ void main() {
       repository.weekSpending = 3000;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 11)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 11))
+              as SpendingTargetSuccess;
 
       // Monday Aug 11 → week Aug 11-17
       // Budget covers all 7 days
@@ -326,7 +329,8 @@ void main() {
       // totalBudgetDays = 31 - 13 + 1 = 19
       // weeklyTarget = 10000 * 4 / 19 ≈ 2105.26
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 13)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 13))
+              as SpendingTargetSuccess;
       expect(result.data.weeklyTarget, closeTo(2105.26, 0.01));
     });
 
@@ -350,7 +354,8 @@ void main() {
       // Thursday Aug 14 → week Mon Aug 11 - Sun Aug 17, budget ends Aug 15
       // effectiveWeekEnd is clamped to budget.endDate
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 14)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 14))
+              as SpendingTargetSuccess;
       // Verify the weekly target is proportional to the budget period
       expect(result.data.weeklyTarget, greaterThan(0));
       expect(result.data.weeklyTarget, lessThanOrEqualTo(10000));
@@ -387,7 +392,8 @@ void main() {
       repository.weekSpending = 0;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
 
       // Food: 4000/22 ≈ 181.82, Travel: 3000/22 ≈ 136.36
       // Combined dailyTarget ≈ 318.18
@@ -423,7 +429,8 @@ void main() {
       repository.weekSpending = 0;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
 
       // Only the active budget contributes
       expect(result.data.dailyTarget, closeTo(30000 / 22, 0.01));
@@ -449,7 +456,8 @@ void main() {
       repository.weekSpending = 0;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 1)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 1))
+              as SpendingTargetSuccess;
 
       // Day 1, remainingDays = 31
       expect(result.data.dailyTarget, closeTo(30000 / 31, 0.01));
@@ -473,7 +481,8 @@ void main() {
       repository.weekSpending = 0;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 31)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 31))
+              as SpendingTargetSuccess;
 
       // Last day, remainingDays = 1
       expect(result.data.dailyTarget, 5000);
@@ -520,7 +529,8 @@ void main() {
       repository.weekSpending = 10000;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
 
       // Progress should be capped at 1.0 for visual display
       expect(result.data.dailyProgress, lessThanOrEqualTo(1.0));
@@ -545,7 +555,8 @@ void main() {
       repository.weekSpending = 0;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
 
       expect(result.data.dailyProgress, 0.0);
       expect(result.data.weeklyProgress, 0.0);
@@ -571,7 +582,8 @@ void main() {
       repository.weekSpending = 0;
 
       final result =
-          await useCase(referenceDate: DateTime(2026, 8, 10)) as SpendingTargetSuccess;
+          await useCase(referenceDate: DateTime(2026, 8, 10))
+              as SpendingTargetSuccess;
 
       expect(result.data.currency, 'USD');
     });

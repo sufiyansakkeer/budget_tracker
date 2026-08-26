@@ -106,9 +106,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           final now = DateTime.now();
           final today = DateTime(now.year, now.month, now.day);
           upcomingBills = allBills
-              .where((b) =>
-                  !b.isPaid &&
-                  !b.dueDate.isBefore(today))
+              .where((b) => !b.isPaid && !b.dueDate.isBefore(today))
               .take(3)
               .toList();
         } catch (_) {

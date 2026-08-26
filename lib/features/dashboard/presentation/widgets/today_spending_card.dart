@@ -231,7 +231,7 @@ class BudgetTimelineCard extends StatelessWidget {
                       '• The minimum value is 1 (never 0)\n'
                       '• Used by the daily safe spending calculation\n'
                       '• The budget end date determines when remaining '
-                        'days reach 1',
+                      'days reach 1',
                 ),
               ),
               Text(

@@ -154,10 +154,7 @@ void main() {
         reminderEnabled: true,
         reminderOffsetDays: 2,
       );
-      expect(
-        bill.reminderDateTime,
-        DateTime(2026, 9, 3, 9, 0),
-      );
+      expect(bill.reminderDateTime, DateTime(2026, 9, 3, 9, 0));
     });
 
     test('returns due date minus offset at dueTime when dueTime is set', () {
@@ -167,10 +164,7 @@ void main() {
         reminderEnabled: true,
         reminderOffsetDays: 1,
       );
-      expect(
-        bill.reminderDateTime,
-        DateTime(2026, 9, 4, 14, 30),
-      );
+      expect(bill.reminderDateTime, DateTime(2026, 9, 4, 14, 30));
     });
 
     test('zero offset returns reminder on the due date', () {
@@ -179,10 +173,7 @@ void main() {
         reminderEnabled: true,
         reminderOffsetDays: 0,
       );
-      expect(
-        bill.reminderDateTime,
-        DateTime(2026, 9, 5, 9, 0),
-      );
+      expect(bill.reminderDateTime, DateTime(2026, 9, 5, 9, 0));
     });
   });
 

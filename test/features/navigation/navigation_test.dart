@@ -7,18 +7,38 @@ void main() {
   group('AppShell Bottom Navigation', () {
     Widget buildShell(int index) {
       final branches = [
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/app/home', builder: (_, __) => const _FakePage('Home')),
-        ]),
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/app/reports', builder: (_, __) => const _FakePage('Reports')),
-        ]),
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/app/budgets', builder: (_, __) => const _FakePage('Budget')),
-        ]),
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/app/settings', builder: (_, __) => const _FakePage('Settings')),
-        ]),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/app/home',
+              builder: (_, __) => const _FakePage('Home'),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/app/reports',
+              builder: (_, __) => const _FakePage('Reports'),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/app/budgets',
+              builder: (_, __) => const _FakePage('Budget'),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/app/settings',
+              builder: (_, __) => const _FakePage('Settings'),
+            ),
+          ],
+        ),
       ];
 
       final router = GoRouter(
@@ -43,7 +63,9 @@ void main() {
       expect(navBar.destinations.length, 4);
     });
 
-    testWidgets('displays Home, Reports, Budget, Settings labels', (tester) async {
+    testWidgets('displays Home, Reports, Budget, Settings labels', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildShell(0));
       await tester.pump();
 

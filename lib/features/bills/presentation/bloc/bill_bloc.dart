@@ -63,21 +63,13 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     return super.close();
   }
 
-  Future<void> _onLoadAll(
-    BillLoadAll event,
-    Emitter<BillState> emit,
-  ) async {
+  Future<void> _onLoadAll(BillLoadAll event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.loading));
 
     final result = await getBillsUseCase();
     switch (result) {
       case BillSuccess(:final data):
-        emit(
-          state.copyWith(
-            status: BillBlocStatus.loaded,
-            allBills: data,
-          ),
-        );
+        emit(state.copyWith(status: BillBlocStatus.loaded, allBills: data));
       case BillError(:final failure):
         emit(
           state.copyWith(
@@ -88,21 +80,13 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
-  Future<void> _onLoadById(
-    BillLoadById event,
-    Emitter<BillState> emit,
-  ) async {
+  Future<void> _onLoadById(BillLoadById event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.loading));
 
     final result = await getBillByIdUseCase(event.id);
     switch (result) {
       case BillSuccess(:final data):
-        emit(
-          state.copyWith(
-            status: BillBlocStatus.loaded,
-            selectedBill: data,
-          ),
-        );
+        emit(state.copyWith(status: BillBlocStatus.loaded, selectedBill: data));
       case BillError(:final failure):
         emit(
           state.copyWith(
@@ -113,10 +97,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
-  Future<void> _onCreate(
-    BillCreate event,
-    Emitter<BillState> emit,
-  ) async {
+  Future<void> _onCreate(BillCreate event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.creating));
 
     final result = await createBillUseCase(event.bill);
@@ -143,10 +124,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
-  Future<void> _onUpdate(
-    BillUpdate event,
-    Emitter<BillState> emit,
-  ) async {
+  Future<void> _onUpdate(BillUpdate event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.updating));
 
     final result = await updateBillUseCase(event.bill);
@@ -174,10 +152,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
-  Future<void> _onDelete(
-    BillDelete event,
-    Emitter<BillState> emit,
-  ) async {
+  Future<void> _onDelete(BillDelete event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.deleting));
 
     // Cancel any pending notification for this bill before deleting.
@@ -206,10 +181,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
-  Future<void> _onMarkPaid(
-    BillMarkPaid event,
-    Emitter<BillState> emit,
-  ) async {
+  Future<void> _onMarkPaid(BillMarkPaid event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.updating));
 
     // Cancel current reminder.
@@ -272,33 +244,19 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
-  void _onFilterChanged(
-    BillFilterChanged event,
-    Emitter<BillState> emit,
-  ) {
+  void _onFilterChanged(BillFilterChanged event, Emitter<BillState> emit) {
     emit(state.copyWith(filter: event.filter));
   }
 
-  void _onSearchChanged(
-    BillSearchChanged event,
-    Emitter<BillState> emit,
-  ) {
+  void _onSearchChanged(BillSearchChanged event, Emitter<BillState> emit) {
     emit(state.copyWith(searchQuery: event.query));
   }
 
-  Future<void> _onRefresh(
-    BillRefresh event,
-    Emitter<BillState> emit,
-  ) async {
+  Future<void> _onRefresh(BillRefresh event, Emitter<BillState> emit) async {
     final result = await getBillsUseCase();
     switch (result) {
       case BillSuccess(:final data):
-        emit(
-          state.copyWith(
-            status: BillBlocStatus.loaded,
-            allBills: data,
-          ),
-        );
+        emit(state.copyWith(status: BillBlocStatus.loaded, allBills: data));
       case BillError(:final failure):
         emit(
           state.copyWith(
@@ -309,10 +267,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
-  void _onClearMessage(
-    BillClearMessage event,
-    Emitter<BillState> emit,
-  ) {
+  void _onClearMessage(BillClearMessage event, Emitter<BillState> emit) {
     emit(state.copyWith(status: BillBlocStatus.initial, clearMessage: true));
   }
 }

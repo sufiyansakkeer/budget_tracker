@@ -255,11 +255,7 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final start = DateTime(
-      startDate.year,
-      startDate.month,
-      startDate.day,
-    );
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
     final end = DateTime(
       endDate.year,
       endDate.month,

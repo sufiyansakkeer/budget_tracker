@@ -223,10 +223,7 @@ void main() {
       final result = await useCase();
 
       expect(result, isA<BillSuccess<List<BillEntity>>>());
-      expect(
-        (result as BillSuccess<List<BillEntity>>).data.length,
-        2,
-      );
+      expect((result as BillSuccess<List<BillEntity>>).data.length, 2);
     });
 
     test('returns databaseFailure when repository throws', () async {

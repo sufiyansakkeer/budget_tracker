@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/di/injection.dart' as di;
+import '../../../app_update/presentation/bloc/app_update_bloc.dart';
+import '../../../app_update/presentation/widgets/app_update_section.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/theme_mode_entity.dart';
@@ -360,6 +362,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => _showBudgetAmountDialog(context, bloc),
               ),
             ],
+          ),
+
+          // App Updates
+          BlocProvider<AppUpdateBloc>.value(
+            value: di.getIt<AppUpdateBloc>(),
+            child: const AppUpdateSection(),
           ),
 
           // About

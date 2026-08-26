@@ -444,7 +444,11 @@ class _UpcomingBillsList extends StatelessWidget {
       children: bills.map((bill) {
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
-        final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+        final due = DateTime(
+          bill.dueDate.year,
+          bill.dueDate.month,
+          bill.dueDate.day,
+        );
         final daysUntil = due.difference(today).inDays;
         final isOverdue = bill.status == BillStatus.overdue;
         final isDueToday = bill.status == BillStatus.dueToday;
@@ -481,7 +485,9 @@ class _UpcomingBillsList extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      isOverdue ? Icons.warning_rounded : Icons.receipt_long_rounded,
+                      isOverdue
+                          ? Icons.warning_rounded
+                          : Icons.receipt_long_rounded,
                       color: dueColor,
                       size: 20,
                     ),
@@ -603,9 +609,7 @@ class SpendingTargetsSection extends StatelessWidget {
             onPressed: () => context.push('/app/budget/add'),
             icon: const Icon(Icons.add_rounded, size: 18),
             label: const Text('Create Budget'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(160, 40),
-            ),
+            style: FilledButton.styleFrom(minimumSize: const Size(160, 40)),
           ),
         ],
       ),
@@ -648,9 +652,9 @@ class SpendingTargetsSection extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           OutlinedButton.icon(
             onPressed: () {
-              context
-                  .read<SpendingTargetBloc>()
-                  .add(const SpendingTargetRefresh());
+              context.read<SpendingTargetBloc>().add(
+                const SpendingTargetRefresh(),
+              );
             },
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Try Again'),

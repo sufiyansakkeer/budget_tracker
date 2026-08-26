@@ -417,9 +417,9 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                         additionalNotes:
                             '• Start date and end date define the period\n'
                             '• Flexible date ranges: budget can start and '
-                              'end on any dates\n'
+                            'end on any dates\n'
                             '• Color changes: green (< 80%), orange (80–100%), '
-                              'red (> 100%)',
+                            'red (> 100%)',
                       ),
                     ),
                   ],

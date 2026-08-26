@@ -2,12 +2,7 @@
 library;
 
 /// Display status of a bill — calculated from isPaid + dueDate, never persisted.
-enum BillStatus {
-  upcoming,
-  dueToday,
-  overdue,
-  paid,
-}
+enum BillStatus { upcoming, dueToday, overdue, paid }
 
 /// Category of a bill.
 enum BillCategory {
@@ -28,12 +23,7 @@ enum BillCategory {
 }
 
 /// Recurrence type for recurring bills.
-enum RecurrenceType {
-  none,
-  weekly,
-  monthly,
-  yearly,
-}
+enum RecurrenceType { none, weekly, monthly, yearly }
 
 /// Human-readable labels for bill categories.
 extension BillCategoryLabel on BillCategory {
@@ -156,14 +146,7 @@ extension RecurrenceTypeLabel on RecurrenceType {
 }
 
 /// Filter options for the bills list.
-enum BillFilter {
-  all,
-  upcoming,
-  dueToday,
-  overdue,
-  paid,
-  recurring,
-}
+enum BillFilter { all, upcoming, dueToday, overdue, paid, recurring }
 
 extension BillFilterLabel on BillFilter {
   String get label {

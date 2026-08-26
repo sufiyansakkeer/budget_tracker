@@ -13,10 +13,7 @@ class GetBillByIdUseCase {
       final bill = await repository.getBillById(id);
       if (bill == null) {
         return const BillError(
-          BillFailure(
-            type: BillErrorType.notFound,
-            message: 'Bill not found',
-          ),
+          BillFailure(type: BillErrorType.notFound, message: 'Bill not found'),
         );
       }
       return BillSuccess(bill);

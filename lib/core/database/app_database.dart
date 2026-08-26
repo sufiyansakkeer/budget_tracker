@@ -109,9 +109,12 @@ class Bills extends Table {
   DateTimeColumn get dueTime => dateTime().nullable()();
   BoolColumn get isRecurring => boolean().withDefault(const Constant(false))();
   TextColumn get recurrenceType => text().withDefault(const Constant('none'))();
-  IntColumn get recurrenceInterval => integer().withDefault(const Constant(1))();
-  BoolColumn get reminderEnabled => boolean().withDefault(const Constant(false))();
-  IntColumn get reminderOffsetDays => integer().withDefault(const Constant(1))();
+  IntColumn get recurrenceInterval =>
+      integer().withDefault(const Constant(1))();
+  BoolColumn get reminderEnabled =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get reminderOffsetDays =>
+      integer().withDefault(const Constant(1))();
   BoolColumn get isPaid => boolean().withDefault(const Constant(false))();
   DateTimeColumn get paidDate => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../di/injection.dart';
+import '../../features/app_update/presentation/widgets/update_dialog_service.dart';
 import 'app_shell.dart';
 import '../../features/budget/presentation/pages/budget_details_screen.dart';
 import '../../features/budget/presentation/pages/budget_form_screen.dart';
@@ -39,6 +40,7 @@ class AppRouter {
   static const String settingsPath = '/app/settings';
 
   static final GoRouter router = GoRouter(
+    navigatorKey: UpdateDialogService.rootNavigatorKey,
     initialLocation: homePath,
     redirect: (context, state) async {
       final checkFirstLaunch = getIt<CheckFirstLaunchUseCase>();
@@ -64,7 +66,6 @@ class AppRouter {
       // ── Standalone routes (full-screen, not bottom-nav tabs) ──────────
       // These must come before the shell route so they match first when the
       // user pushes a secondary screen on top of the current tab.
-
       GoRoute(
         path: expensesPath,
         name: 'expenses',
@@ -89,9 +90,7 @@ class AppRouter {
             name: 'editExpense',
             builder: (context, state) => BlocProvider(
               create: (context) => getIt<ExpenseBloc>(),
-              child: ExpenseFormScreen(
-                expenseId: state.pathParameters['id'],
-              ),
+              child: ExpenseFormScreen(expenseId: state.pathParameters['id']),
             ),
           ),
           GoRoute(
@@ -128,9 +127,7 @@ class AppRouter {
             name: 'editBill',
             builder: (context, state) => BlocProvider(
               create: (context) => getIt<BillBloc>(),
-              child: BillFormScreen(
-                billId: state.pathParameters['id'],
-              ),
+              child: BillFormScreen(billId: state.pathParameters['id']),
             ),
           ),
           GoRoute(
@@ -138,9 +135,7 @@ class AppRouter {
             name: 'billDetails',
             builder: (context, state) => BlocProvider(
               create: (context) => getIt<BillBloc>(),
-              child: BillDetailsScreen(
-                billId: state.pathParameters['id']!,
-              ),
+              child: BillDetailsScreen(billId: state.pathParameters['id']!),
             ),
           ),
         ],
@@ -161,11 +156,13 @@ class AppRouter {
                   providers: [
                     BlocProvider(
                       create: (context) =>
-                          getIt<DashboardBloc>()..add(const DashboardLoadData()),
+                          getIt<DashboardBloc>()
+                            ..add(const DashboardLoadData()),
                     ),
                     BlocProvider(
                       create: (context) =>
-                          getIt<SpendingTargetBloc>()..add(const SpendingTargetLoad()),
+                          getIt<SpendingTargetBloc>()
+                            ..add(const SpendingTargetLoad()),
                     ),
                   ],
                   child: const DashboardScreen(),

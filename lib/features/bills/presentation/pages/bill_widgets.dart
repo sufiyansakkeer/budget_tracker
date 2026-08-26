@@ -55,8 +55,9 @@ class BillCard extends StatelessWidget {
                                   ? TextDecoration.lineThrough
                                   : null,
                               color: bill.isPaid
-                                  ? theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.5)
+                                  ? theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.5,
+                                    )
                                   : null,
                             ),
                             maxLines: 1,
@@ -68,8 +69,9 @@ class BillCard extends StatelessWidget {
                           Icon(
                             Icons.repeat_rounded,
                             size: 14,
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.4),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.4,
+                            ),
                           ),
                         ],
                       ],
@@ -95,8 +97,8 @@ class BillCard extends StatelessWidget {
                       color: bill.isPaid
                           ? AppColors.success
                           : status == BillStatus.overdue
-                              ? AppColors.error
-                              : theme.colorScheme.onSurface,
+                          ? AppColors.error
+                          : theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -122,8 +124,8 @@ class _CategoryIcon extends StatelessWidget {
     final color = status == BillStatus.overdue
         ? AppColors.error
         : status == BillStatus.paid
-            ? AppColors.success
-            : AppColors.primary;
+        ? AppColors.success
+        : AppColors.primary;
 
     return Container(
       width: 44,
@@ -132,11 +134,7 @@ class _CategoryIcon extends StatelessWidget {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
-      child: Icon(
-        _iconForCategory(category),
-        color: color,
-        size: 22,
-      ),
+      child: Icon(_iconForCategory(category), color: color, size: 22),
     );
   }
 
@@ -184,7 +182,11 @@ class _DueText extends StatelessWidget {
     final theme = Theme.of(context);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+    final due = DateTime(
+      bill.dueDate.year,
+      bill.dueDate.month,
+      bill.dueDate.day,
+    );
     final difference = due.difference(today).inDays;
 
     String text;

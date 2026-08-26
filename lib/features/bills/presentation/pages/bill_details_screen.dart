@@ -122,23 +122,17 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
             decoration: BoxDecoration(
               gradient: status == BillStatus.paid
                   ? LinearGradient(
-                      colors: [
-                        AppColors.successDark,
-                        AppColors.success,
-                      ],
+                      colors: [AppColors.successDark, AppColors.success],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )
                   : status == BillStatus.overdue
-                      ? LinearGradient(
-                          colors: [
-                            AppColors.errorDark,
-                            AppColors.error,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : AppColors.primaryGradient,
+                  ? LinearGradient(
+                      colors: [AppColors.errorDark, AppColors.error],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : AppColors.primaryGradient,
               borderRadius: AppSpacing.borderRadiusLg,
             ),
             child: Column(
@@ -218,7 +212,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
                       Icons.repeat_rounded,
                       'Recurrence',
                       '${bill.recurrenceType.label}'
-                      '${bill.recurrenceInterval > 1 ? ' (every ${bill.recurrenceInterval})' : ''}',
+                          '${bill.recurrenceInterval > 1 ? ' (every ${bill.recurrenceInterval})' : ''}',
                     ),
                   if (bill.reminderEnabled)
                     _infoRow(
@@ -266,37 +260,40 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    ..._payments.map((payment) => Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 16,
+                    ..._payments.map(
+                      (payment) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_rounded,
+                              size: 16,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                DateFormat(
+                                  'MMM d, yyyy',
+                                ).format(payment.paidDate),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                            Text(
+                              CurrencyFormatter.format(
+                                payment.amount,
+                                code: payment.currency,
+                                decimalDigits: 0,
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
                                 color: AppColors.success,
                               ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: Text(
-                                  DateFormat('MMM d, yyyy').format(
-                                      payment.paidDate),
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ),
-                              Text(
-                                CurrencyFormatter.format(
-                                  payment.amount,
-                                  code: payment.currency,
-                                  decimalDigits: 0,
-                                ),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.success,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -311,9 +308,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               onPressed: () => _markPaid(context, bill),
               icon: const Icon(Icons.check_circle_outline_rounded),
               label: const Text('Mark as Paid'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.success,
-              ),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
             ),
             const SizedBox(height: AppSpacing.sm),
 
@@ -365,7 +360,9 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
   }
 
   Future<void> _markPaidAndAddExpense(
-      BuildContext context, BillEntity bill) async {
+    BuildContext context,
+    BillEntity bill,
+  ) async {
     final confirmed = await ConfirmationDialog.show(
       context: context,
       title: 'Mark Paid & Add Expense?',
@@ -403,9 +400,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(
-              content: Text('Bill paid and expense created'),
-            ),
+            const SnackBar(content: Text('Bill paid and expense created')),
           );
       }
     } catch (e) {
@@ -453,12 +448,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
     }
   }
 
-  Widget _infoRow(
-    ThemeData theme,
-    IconData icon,
-    String label,
-    String value,
-  ) {
+  Widget _infoRow(ThemeData theme, IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(

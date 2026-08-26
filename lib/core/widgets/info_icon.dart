@@ -86,10 +86,7 @@ class _ExplanationSheet extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
 
               // ── What is this? ──
-              _Section(
-                heading: 'What is this?',
-                body: content.whatIsThis,
-              ),
+              _Section(heading: 'What is this?', body: content.whatIsThis),
 
               // ── How is it calculated? ──
               if (content.howIsItCalculated != null) ...[

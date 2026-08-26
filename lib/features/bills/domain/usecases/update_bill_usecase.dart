@@ -28,10 +28,7 @@ class UpdateBillUseCase {
       final existing = await repository.getBillById(bill.id);
       if (existing == null) {
         return const BillError(
-          BillFailure(
-            type: BillErrorType.notFound,
-            message: 'Bill not found',
-          ),
+          BillFailure(type: BillErrorType.notFound, message: 'Bill not found'),
         );
       }
       await repository.updateBill(bill);

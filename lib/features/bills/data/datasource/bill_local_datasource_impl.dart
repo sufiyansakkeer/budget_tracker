@@ -19,20 +19,17 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
 
   @override
   Future<void> updateBill(BillEntity bill) async {
-    await (database.update(database.bills)
-          ..where((b) => b.id.equals(bill.id)))
+    await (database.update(database.bills)..where((b) => b.id.equals(bill.id)))
         .write(BillModel.toUpdateCompanion(bill));
   }
 
   @override
   Future<void> deleteBill(String id) async {
     // Delete associated payment records first.
-    await (database.delete(database.billPayments)
-          ..where((p) => p.billId.equals(id)))
-        .go();
-    await (database.delete(database.bills)
-          ..where((b) => b.id.equals(id)))
-        .go();
+    await (database.delete(
+      database.billPayments,
+    )..where((p) => p.billId.equals(id))).go();
+    await (database.delete(database.bills)..where((b) => b.id.equals(id))).go();
   }
 
   @override
@@ -92,9 +89,7 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
   @override
   Future<double> getMonthlyRecurringBillsTotal() async {
     final query = database.select(database.bills)
-      ..where(
-        (b) => b.isRecurring.equals(true) & b.isPaid.equals(false),
-      );
+      ..where((b) => b.isRecurring.equals(true) & b.isPaid.equals(false));
     final rows = await query.get();
     double total = 0;
     for (final row in rows) {

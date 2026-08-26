@@ -251,7 +251,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     '• Expenses are grouped by their recorded date\n'
                     '• Weekday vs weekend shows spending distribution\n'
                     '• The highest spending weekday indicates your '
-                      'most expensive day of the week',
+                    'most expensive day of the week',
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -283,7 +283,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     '• Positive growth (green) means spending decreased\n'
                     '• Negative growth (red) means spending increased\n'
                     '• Is improving when recent half is lower than '
-                      'the first half',
+                    'the first half',
               ),
             ),
             const SizedBox(height: AppSpacing.sm),

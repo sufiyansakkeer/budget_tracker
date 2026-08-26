@@ -72,7 +72,7 @@ class BudgetListSummaryCard extends StatelessWidget {
                   additionalNotes:
                       '• Only active (non-archived) budgets are included\n'
                       '• Each budget has its own amount, date range, '
-                        'and spending\n'
+                      'and spending\n'
                       '• Can be negative if overspending on a budget',
                 ),
               ),

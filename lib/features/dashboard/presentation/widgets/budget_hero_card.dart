@@ -101,7 +101,7 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
                         additionalNotes:
                             '• Changes when you add, edit, or delete expenses\n'
                             '• Unused allowance is not removed — it rolls into '
-                              'the next day\n'
+                            'the next day\n'
                             '• Multiple active budgets are combined\n'
                             '• Adjusts automatically each day',
                       ),
@@ -273,9 +273,9 @@ class BudgetOverviewCard extends StatelessWidget {
                   additionalNotes:
                       '• The progress bar shows ≤ 100% even when over budget\n'
                       '• Color changes: green (< 80%), orange (80–100%), '
-                        'red (> 100%)\n'
+                      'red (> 100%)\n'
                       '• Updates automatically when expenses are added '
-                        'or edited',
+                      'or edited',
                 ),
               ),
             ],

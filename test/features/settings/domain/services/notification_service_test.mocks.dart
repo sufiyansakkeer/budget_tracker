@@ -455,4 +455,20 @@ class MockBudgetRepository extends _i1.Mock implements _i12.BudgetRepository {
             returnValueForMissingStub: _i5.Future<void>.value(),
           )
           as _i5.Future<void>);
+
+  @override
+  _i5.Future<double> getExpensesTotalInRange(
+    String? budgetId, {
+    required DateTime? startDate,
+    required DateTime? endDate,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #getExpensesTotalInRange,
+              [budgetId],
+              {#startDate: startDate, #endDate: endDate},
+            ),
+            returnValue: _i5.Future<double>.value(0.0),
+          )
+          as _i5.Future<double>);
 }

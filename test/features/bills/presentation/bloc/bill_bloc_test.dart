@@ -52,10 +52,7 @@ class FakeBillReminderService extends BillReminderService {
   final List<String> scheduledBillIds = [];
   final List<String> cancelledBillIds = [];
 
-  FakeBillReminderService()
-      : super(
-          repository: FakeBillRepository(),
-        );
+  FakeBillReminderService() : super(repository: FakeBillRepository());
 
   @override
   Future<void> scheduleReminder(BillEntity bill) async =>
@@ -403,10 +400,7 @@ void main() {
         updatedAt: now,
       );
 
-      final state = BillState(
-        allBills: [internet],
-        searchQuery: 'internet',
-      );
+      final state = BillState(allBills: [internet], searchQuery: 'internet');
 
       expect(state.filteredBills.length, 1);
       expect(state.filteredBills.first.id, 'net');
@@ -445,9 +439,7 @@ void main() {
         updatedAt: now,
       );
 
-      final state = BillState(
-        allBills: [upcoming, overdue, dueToday],
-      );
+      final state = BillState(allBills: [upcoming, overdue, dueToday]);
 
       expect(state.filteredBills[0].id, 'overdue');
       expect(state.filteredBills[1].id, 'today');
@@ -479,9 +471,7 @@ void main() {
         updatedAt: now,
       );
 
-      final state = BillState(
-        allBills: [paid, overdue],
-      );
+      final state = BillState(allBills: [paid, overdue]);
 
       expect(state.filteredBills[0].id, 'overdue');
       expect(state.filteredBills[1].id, 'paid');

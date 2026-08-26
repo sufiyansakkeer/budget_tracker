@@ -207,5 +207,12 @@ class BillPaymentRecord extends Equatable {
   });
 
   @override
-  List<Object?> get props => [id, billId, amount, currency, paidDate, createdAt];
+  List<Object?> get props => [
+    id,
+    billId,
+    amount,
+    currency,
+    paidDate,
+    createdAt,
+  ];
 }

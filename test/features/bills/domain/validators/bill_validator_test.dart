@@ -20,17 +20,11 @@ void main() {
     });
 
     test('returns error for title exceeding max length', () {
-      expect(
-        BillValidator.validateTitle('A' * 101),
-        isNotNull,
-      );
+      expect(BillValidator.validateTitle('A' * 101), isNotNull);
     });
 
     test('returns null for title at max length', () {
-      expect(
-        BillValidator.validateTitle('A' * 100),
-        isNull,
-      );
+      expect(BillValidator.validateTitle('A' * 100), isNull);
     });
   });
 
@@ -92,10 +86,7 @@ void main() {
     });
 
     test('returns null for any valid date (including past dates)', () {
-      expect(
-        BillValidator.validateDueDate(DateTime(2020, 1, 1)),
-        isNull,
-      );
+      expect(BillValidator.validateDueDate(DateTime(2020, 1, 1)), isNull);
     });
   });
 
@@ -109,10 +100,7 @@ void main() {
     });
 
     test('returns error for note exceeding max length', () {
-      expect(
-        BillValidator.validateNote('A' * 501),
-        isNotNull,
-      );
+      expect(BillValidator.validateNote('A' * 501), isNotNull);
     });
 
     test('returns null for valid note', () {

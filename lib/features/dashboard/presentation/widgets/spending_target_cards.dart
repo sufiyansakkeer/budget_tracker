@@ -246,9 +246,9 @@ InfoContent _infoForLabel(String label, String currency) {
           '• Today is included in the remaining days\n'
           '• The target adjusts each day\n'
           '• Adding expenses reduces the remaining budget, '
-            'lowering the target\n'
+          'lowering the target\n'
           '• Status: On Track (< 80%), Near Limit (80–100%), '
-            'Exceeded (> 100%)',
+          'Exceeded (> 100%)',
     );
   }
   // THIS WEEK
@@ -269,7 +269,7 @@ InfoContent _infoForLabel(String label, String currency) {
         '• Only budget days that overlap with the current week are counted\n'
         '• If the budget starts/ends mid-week, only the covered days are used\n'
         '• Status: On Track (< 80%), Near Limit (80–100%), '
-          'Exceeded (> 100%)',
+        'Exceeded (> 100%)',
   );
 }
 
@@ -282,20 +282,20 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (color, label, icon) = switch (status) {
       SpendingTargetStatus.onTrack => (
-          AppColors.success,
-          'On Track',
-          Icons.check_circle_rounded,
-        ),
+        AppColors.success,
+        'On Track',
+        Icons.check_circle_rounded,
+      ),
       SpendingTargetStatus.nearLimit => (
-          AppColors.warning,
-          'Near Limit',
-          Icons.warning_amber_rounded,
-        ),
+        AppColors.warning,
+        'Near Limit',
+        Icons.warning_amber_rounded,
+      ),
       SpendingTargetStatus.exceeded => (
-          AppColors.error,
-          'Over Target',
-          Icons.error_rounded,
-        ),
+        AppColors.error,
+        'Over Target',
+        Icons.error_rounded,
+      ),
     };
 
     return Container(

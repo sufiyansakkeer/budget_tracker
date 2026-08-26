@@ -95,7 +95,7 @@ class _BudgetUtilizationCardState extends State<BudgetUtilizationCard>
                       '= 60%',
                   additionalNotes:
                       '• Color: Green (< 80%), Orange (80–100%), '
-                        'Red (> 100%)\n'
+                      'Red (> 100%)\n'
                       '• Can exceed 100% when overspending\n'
                       '• Updates when expenses are added or edited',
                 ),

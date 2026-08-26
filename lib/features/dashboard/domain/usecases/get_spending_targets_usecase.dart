@@ -56,8 +56,9 @@ class GetSpendingTargetsUseCase {
     }
 
     // Filter to budgets that are active today.
-    final activeBudgets =
-        allBudgets.where((b) => !b.isArchived && b.isActiveOn(today)).toList();
+    final activeBudgets = allBudgets
+        .where((b) => !b.isArchived && b.isActiveOn(today))
+        .toList();
     if (activeBudgets.isEmpty) {
       return const SpendingTargetNoBudget();
     }
@@ -107,10 +108,12 @@ class GetSpendingTargetsUseCase {
       );
 
       // Compute the actual week coverage within this budget.
-      final effectiveWeekStart =
-          weekStart.isBefore(budget.startDate) ? budget.startDate : weekStart;
-      final effectiveWeekEnd =
-          weekEnd.isAfter(budget.endDate) ? budget.endDate : weekEnd;
+      final effectiveWeekStart = weekStart.isBefore(budget.startDate)
+          ? budget.startDate
+          : weekStart;
+      final effectiveWeekEnd = weekEnd.isAfter(budget.endDate)
+          ? budget.endDate
+          : weekEnd;
 
       if (effectiveWeekStart.isAfter(effectiveWeekEnd)) {
         // Budget doesn't cover any day this week — skip.
@@ -133,21 +136,29 @@ class GetSpendingTargetsUseCase {
     }
 
     // --- Daily derived values ---
-    final dailyRemaining = (totalDailyTarget - totalDailySpent)
-        .clamp(0.0, double.infinity);
-    final dailyExceeded =
-        totalDailySpent > totalDailyTarget ? totalDailySpent - totalDailyTarget : 0.0;
-    final dailyProgress =
-        totalDailyTarget > 0 ? (totalDailySpent / totalDailyTarget).clamp(0.0, 1.0) : 0.0;
+    final dailyRemaining = (totalDailyTarget - totalDailySpent).clamp(
+      0.0,
+      double.infinity,
+    );
+    final dailyExceeded = totalDailySpent > totalDailyTarget
+        ? totalDailySpent - totalDailyTarget
+        : 0.0;
+    final dailyProgress = totalDailyTarget > 0
+        ? (totalDailySpent / totalDailyTarget).clamp(0.0, 1.0)
+        : 0.0;
     final dailyStatus = _targetStatus(totalDailySpent, totalDailyTarget);
 
     // --- Weekly derived values ---
-    final weeklyRemaining = (totalWeeklyTarget - totalWeeklySpent)
-        .clamp(0.0, double.infinity);
-    final weeklyExceeded =
-        totalWeeklySpent > totalWeeklyTarget ? totalWeeklySpent - totalWeeklyTarget : 0.0;
-    final weeklyProgress =
-        totalWeeklyTarget > 0 ? (totalWeeklySpent / totalWeeklyTarget).clamp(0.0, 1.0) : 0.0;
+    final weeklyRemaining = (totalWeeklyTarget - totalWeeklySpent).clamp(
+      0.0,
+      double.infinity,
+    );
+    final weeklyExceeded = totalWeeklySpent > totalWeeklyTarget
+        ? totalWeeklySpent - totalWeeklyTarget
+        : 0.0;
+    final weeklyProgress = totalWeeklyTarget > 0
+        ? (totalWeeklySpent / totalWeeklyTarget).clamp(0.0, 1.0)
+        : 0.0;
     final weeklyStatus = _targetStatus(totalWeeklySpent, totalWeeklyTarget);
 
     return SpendingTargetSuccess(

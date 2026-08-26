@@ -20,10 +20,7 @@ class MarkBillPaidUseCase {
       final bill = await repository.getBillById(billId);
       if (bill == null) {
         return const BillError(
-          BillFailure(
-            type: BillErrorType.notFound,
-            message: 'Bill not found',
-          ),
+          BillFailure(type: BillErrorType.notFound, message: 'Bill not found'),
         );
       }
 
@@ -40,8 +37,7 @@ class MarkBillPaidUseCase {
       );
       await repository.createBillPayment(payment);
 
-      if (bill.isRecurring &&
-          bill.recurrenceType != RecurrenceType.none) {
+      if (bill.isRecurring && bill.recurrenceType != RecurrenceType.none) {
         // For recurring bills: advance the due date, keep active.
         final updatedBill = bill.copyWith(
           dueDate: bill.nextDueDate,

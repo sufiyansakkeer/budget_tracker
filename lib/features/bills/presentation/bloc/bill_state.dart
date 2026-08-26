@@ -48,12 +48,10 @@ class BillState extends Equatable {
         result = result.where((b) => b.status == BillStatus.upcoming).toList();
         break;
       case BillFilter.dueToday:
-        result =
-            result.where((b) => b.status == BillStatus.dueToday).toList();
+        result = result.where((b) => b.status == BillStatus.dueToday).toList();
         break;
       case BillFilter.overdue:
-        result =
-            result.where((b) => b.status == BillStatus.overdue).toList();
+        result = result.where((b) => b.status == BillStatus.overdue).toList();
         break;
       case BillFilter.paid:
         result = result.where((b) => b.status == BillStatus.paid).toList();
@@ -86,8 +84,9 @@ class BillState extends Equatable {
         BillStatus.upcoming: 2,
         BillStatus.paid: 3,
       };
-      final cmp =
-          (statusOrder[a.status] ?? 2).compareTo(statusOrder[b.status] ?? 2);
+      final cmp = (statusOrder[a.status] ?? 2).compareTo(
+        statusOrder[b.status] ?? 2,
+      );
       if (cmp != 0) return cmp;
       return a.dueDate.compareTo(b.dueDate);
     });
@@ -155,8 +154,9 @@ class BillState extends Equatable {
     return BillState(
       status: status ?? this.status,
       allBills: allBills ?? this.allBills,
-      selectedBill:
-          clearSelectedBill ? null : (selectedBill ?? this.selectedBill),
+      selectedBill: clearSelectedBill
+          ? null
+          : (selectedBill ?? this.selectedBill),
       filter: filter ?? this.filter,
       searchQuery: searchQuery ?? this.searchQuery,
       message: clearMessage ? null : (message ?? this.message),

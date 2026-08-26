@@ -25,8 +25,8 @@ class BillReminderService {
   BillReminderService({
     FlutterLocalNotificationsPlugin? plugin,
     required BillRepository repository,
-  })  : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
-        _repository = repository;
+  }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+       _repository = repository;
 
   /// Ensures the notification plugin and timezone are configured.
   Future<void> initialize() async {
@@ -45,7 +45,8 @@ class BillReminderService {
     // Create notification channel for Android.
     final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (androidPlugin != null) {
       await androidPlugin.createNotificationChannel(
         const AndroidNotificationChannel(
@@ -98,20 +99,23 @@ class BillReminderService {
     );
 
     final daysUntil = bill.dueDate
-            .difference(DateTime(now.year, now.month, now.day))
-            .inDays;
+        .difference(DateTime(now.year, now.month, now.day))
+        .inDays;
     final String title;
     final String body;
 
     if (daysUntil <= 0) {
       title = 'Bill Due Today';
-      body = 'Your ${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due today.';
+      body =
+          'Your ${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due today.';
     } else if (daysUntil == 1) {
       title = "Tomorrow's Bill";
-      body = '${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due tomorrow.';
+      body =
+          '${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due tomorrow.';
     } else {
       title = 'Upcoming Bill';
-      body = '${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due in $daysUntil days.';
+      body =
+          '${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due in $daysUntil days.';
     }
 
     try {
@@ -172,14 +176,16 @@ class BillReminderService {
 
     final android = _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (android != null) {
       return await android.areNotificationsEnabled() ?? false;
     }
 
     final ios = _plugin
         .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>();
+          IOSFlutterLocalNotificationsPlugin
+        >();
     if (ios != null) {
       final settings = await ios.checkPermissions();
       return settings?.isEnabled ?? false;

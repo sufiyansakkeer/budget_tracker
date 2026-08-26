@@ -68,9 +68,9 @@ class TimeAnalyticsCard extends StatelessWidget {
                   additionalNotes:
                       '• Expenses are grouped by their recorded date\n'
                       '• Most expensive day shows the highest '
-                        'single-day total\n'
+                      'single-day total\n'
                       '• Highest spending weekday is the most '
-                        'expensive day of the week on average',
+                      'expensive day of the week on average',
                 ),
               ),
             ],

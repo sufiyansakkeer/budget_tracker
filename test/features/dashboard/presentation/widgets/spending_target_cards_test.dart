@@ -15,17 +15,23 @@ SpendingTargetEntity _buildTarget({
   String currency = 'INR',
 }) {
   final dailyRemaining = (dailyTarget - dailySpent).clamp(0.0, double.infinity);
-  final dailyExceeded =
-      dailySpent > dailyTarget ? dailySpent - dailyTarget : 0.0;
-  final dailyProgress =
-      dailyTarget > 0 ? (dailySpent / dailyTarget).clamp(0.0, 1.0) : 0.0;
+  final dailyExceeded = dailySpent > dailyTarget
+      ? dailySpent - dailyTarget
+      : 0.0;
+  final dailyProgress = dailyTarget > 0
+      ? (dailySpent / dailyTarget).clamp(0.0, 1.0)
+      : 0.0;
 
-  final weeklyRemaining =
-      (weeklyTarget - weeklySpent).clamp(0.0, double.infinity);
-  final weeklyExceeded =
-      weeklySpent > weeklyTarget ? weeklySpent - weeklyTarget : 0.0;
-  final weeklyProgress =
-      weeklyTarget > 0 ? (weeklySpent / weeklyTarget).clamp(0.0, 1.0) : 0.0;
+  final weeklyRemaining = (weeklyTarget - weeklySpent).clamp(
+    0.0,
+    double.infinity,
+  );
+  final weeklyExceeded = weeklySpent > weeklyTarget
+      ? weeklySpent - weeklyTarget
+      : 0.0;
+  final weeklyProgress = weeklyTarget > 0
+      ? (weeklySpent / weeklyTarget).clamp(0.0, 1.0)
+      : 0.0;
 
   return SpendingTargetEntity(
     dailyTarget: dailyTarget,

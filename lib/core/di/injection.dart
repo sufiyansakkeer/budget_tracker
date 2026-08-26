@@ -95,6 +95,12 @@ import '../../features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
 import '../../features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../features/bills/domain/usecases/update_bill_usecase.dart';
 import '../../features/bills/presentation/bloc/bill_bloc.dart';
+import '../../features/app_update/data/datasources/github_release_remote_datasource.dart';
+import '../../features/app_update/data/datasources/github_release_remote_datasource_impl.dart';
+import '../../features/app_update/data/repository/app_update_repository_impl.dart';
+import '../../features/app_update/domain/repository/app_update_repository.dart';
+import '../../features/app_update/domain/usecases/check_for_app_update_usecase.dart';
+import '../../features/app_update/presentation/bloc/app_update_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -517,9 +523,7 @@ Future<void> initDependencyInjection() async {
 
   // 32. Bills Feature – Repository
   getIt.registerLazySingleton<BillRepository>(
-    () => BillRepositoryImpl(
-      localDataSource: getIt<BillLocalDataSource>(),
-    ),
+    () => BillRepositoryImpl(localDataSource: getIt<BillLocalDataSource>()),
   );
 
   // 33. Bills Feature – Reminder Service
@@ -564,6 +568,34 @@ Future<void> initDependencyInjection() async {
       markBillPaidUseCase: getIt<MarkBillPaidUseCase>(),
       markBillUnpaidUseCase: getIt<MarkBillUnpaidUseCase>(),
       reminderService: getIt<BillReminderService>(),
+    ),
+  );
+
+  // ============================================================
+  //  Phase 10 – App Update Checker
+  // ============================================================
+
+  // 36. App Update – Remote Data Source
+  getIt.registerLazySingleton<GithubReleaseRemoteDataSource>(
+    () => GithubReleaseRemoteDataSourceImpl(),
+  );
+
+  // 37. App Update – Repository
+  getIt.registerLazySingleton<AppUpdateRepository>(
+    () => AppUpdateRepositoryImpl(
+      remoteDataSource: getIt<GithubReleaseRemoteDataSource>(),
+    ),
+  );
+
+  // 38. App Update – Use Case
+  getIt.registerLazySingleton<CheckForAppUpdateUseCase>(
+    () => CheckForAppUpdateUseCase(repository: getIt<AppUpdateRepository>()),
+  );
+
+  // 39. App Update – BLoC
+  getIt.registerLazySingleton<AppUpdateBloc>(
+    () => AppUpdateBloc(
+      checkForAppUpdateUseCase: getIt<CheckForAppUpdateUseCase>(),
     ),
   );
 }

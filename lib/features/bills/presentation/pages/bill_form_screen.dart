@@ -194,9 +194,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Bill' : 'Add Bill'),
-      ),
+      appBar: AppBar(title: Text(_isEditing ? 'Edit Bill' : 'Add Bill')),
       body: BlocConsumer<BillBloc, BillState>(
         listener: (context, state) {
           if (state.isBusy) return;
@@ -204,9 +202,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
           if (state.status == BillBlocStatus.success) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(content: Text(state.message ?? 'Saved')),
-              );
+              ..showSnackBar(SnackBar(content: Text(state.message ?? 'Saved')));
             context.read<BillBloc>().add(const BillClearMessage());
             context.pop();
           } else if (state.status == BillBlocStatus.error) {
@@ -264,8 +260,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       prefixText: '${CurrencyFormatter.symbolFor(_currency)} ',
                       errorText: _amountError,
                     ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     onChanged: _onAmountChanged,
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -305,10 +302,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       style: TextStyle(
                         color: _dueDate != null
                             ? Theme.of(context).colorScheme.onSurface
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.5),
+                            : Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
@@ -338,10 +334,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       style: TextStyle(
                         color: _dueTime != null
                             ? Theme.of(context).colorScheme.onSurface
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.5),
+                            : Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                     trailing: _dueTime != null
@@ -353,7 +348,8 @@ class _BillFormScreenState extends State<BillFormScreen> {
                     onTap: () async {
                       final picked = await showTimePicker(
                         context: context,
-                        initialTime: _dueTime ?? const TimeOfDay(hour: 9, minute: 0),
+                        initialTime:
+                            _dueTime ?? const TimeOfDay(hour: 9, minute: 0),
                       );
                       if (picked != null) {
                         setState(() => _dueTime = picked);
@@ -385,8 +381,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
                           : 'One-time bill',
                     ),
                     value: _isRecurring,
-                    onChanged: (value) =>
-                        setState(() => _isRecurring = value),
+                    onChanged: (value) => setState(() => _isRecurring = value),
                     contentPadding: EdgeInsets.zero,
                   ),
 
@@ -403,18 +398,19 @@ class _BillFormScreenState extends State<BillFormScreen> {
                               labelText: 'Frequency',
                               isDense: true,
                             ),
-                            items: [
-                              RecurrenceType.weekly,
-                              RecurrenceType.monthly,
-                              RecurrenceType.yearly,
-                            ]
-                                .map(
-                                  (type) => DropdownMenuItem(
-                                    value: type,
-                                    child: Text(type.label),
-                                  ),
-                                )
-                                .toList(),
+                            items:
+                                [
+                                      RecurrenceType.weekly,
+                                      RecurrenceType.monthly,
+                                      RecurrenceType.yearly,
+                                    ]
+                                    .map(
+                                      (type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(type.label),
+                                      ),
+                                    )
+                                    .toList(),
                             onChanged: (value) {
                               if (value != null) {
                                 setState(() => _recurrenceType = value);
@@ -442,26 +438,26 @@ class _BillFormScreenState extends State<BillFormScreen> {
                                   onChanged: (value) {
                                     final n = int.tryParse(value);
                                     if (n != null && n >= 1) {
-                                      setState(
-                                          () => _recurrenceInterval = n);
+                                      setState(() => _recurrenceInterval = n);
                                     }
                                   },
                                 ),
                               ),
                               const SizedBox(width: AppSpacing.sm),
-                              Text(_recurrenceType.label.toLowerCase() ==
-                                      'weekly'
-                                  ? _recurrenceInterval == 1
-                                      ? 'week'
-                                      : 'weeks'
-                                  : _recurrenceType.label.toLowerCase() ==
+                              Text(
+                                _recurrenceType.label.toLowerCase() == 'weekly'
+                                    ? _recurrenceInterval == 1
+                                          ? 'week'
+                                          : 'weeks'
+                                    : _recurrenceType.label.toLowerCase() ==
                                           'monthly'
-                                      ? _recurrenceInterval == 1
+                                    ? _recurrenceInterval == 1
                                           ? 'month'
                                           : 'months'
-                                      : _recurrenceInterval == 1
-                                          ? 'year'
-                                          : 'years'),
+                                    : _recurrenceInterval == 1
+                                    ? 'year'
+                                    : 'years',
+                              ),
                             ],
                           ),
                         ],
@@ -476,8 +472,8 @@ class _BillFormScreenState extends State<BillFormScreen> {
                     subtitle: Text(
                       _reminderEnabled
                           ? _reminderOffsetDays == 0
-                              ? 'On the due date'
-                              : '$_reminderOffsetDays day${_reminderOffsetDays > 1 ? 's' : ''} before'
+                                ? 'On the due date'
+                                : '$_reminderOffsetDays day${_reminderOffsetDays > 1 ? 's' : ''} before'
                           : 'No reminder',
                     ),
                     value: _reminderEnabled,

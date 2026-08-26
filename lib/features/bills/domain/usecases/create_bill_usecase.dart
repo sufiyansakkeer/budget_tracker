@@ -44,10 +44,7 @@ class CreateBillUseCase {
     );
     if (recurrenceError != null) {
       return BillError(
-        BillFailure(
-          type: BillErrorType.invalidInput,
-          message: recurrenceError,
-        ),
+        BillFailure(type: BillErrorType.invalidInput, message: recurrenceError),
       );
     }
 

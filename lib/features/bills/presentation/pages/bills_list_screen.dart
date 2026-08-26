@@ -112,8 +112,9 @@ class _BillsListScreenState extends State<BillsListScreen> {
                         Text(
                           'Track & manage your bills',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                       ],
@@ -126,9 +127,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
 
           // Summary cards
           if (state.allBills.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _BillSummaryCards(state: state),
-            ),
+            SliverToBoxAdapter(child: _BillSummaryCards(state: state)),
           if (state.allBills.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -154,11 +153,11 @@ class _BillsListScreenState extends State<BillsListScreen> {
                       additionalNotes:
                           '• Bills are separate from your regular expenses\n'
                           '• Mark a bill as paid to move it out of '
-                            'these categories\n'
+                          'these categories\n'
                           '• Recurring bills regenerate based on their '
-                            'recurrence rule\n'
+                          'recurrence rule\n'
                           '• Bills do not affect your budget tracking '
-                            'unless recorded as expenses',
+                          'unless recorded as expenses',
                     ),
                   ),
                 ),
@@ -182,9 +181,9 @@ class _BillsListScreenState extends State<BillsListScreen> {
                           icon: const Icon(Icons.clear_rounded),
                           onPressed: () {
                             _searchController.clear();
-                            context
-                                .read<BillBloc>()
-                                .add(const BillSearchChanged(''));
+                            context.read<BillBloc>().add(
+                              const BillSearchChanged(''),
+                            );
                             setState(() {});
                           },
                         )
@@ -213,9 +212,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
 
           // Bills list
           if (state.filteredBills.isEmpty)
-            SliverFillRemaining(
-              child: _buildEmptyState(context, state),
-            )
+            SliverFillRemaining(child: _buildEmptyState(context, state))
           else
             SliverPadding(
               padding: const EdgeInsets.symmetric(
@@ -223,29 +220,23 @@ class _BillsListScreenState extends State<BillsListScreen> {
                 vertical: AppSpacing.sm,
               ),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final bill = state.filteredBills[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: BillCard(
-                        bill: bill,
-                        currency: bill.currency,
-                        onTap: () =>
-                            context.push('/app/bills/${bill.id}'),
-                        onMarkPaid: () => _confirmMarkPaid(context, bill),
-                      ),
-                    );
-                  },
-                  childCount: state.filteredBills.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final bill = state.filteredBills[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: BillCard(
+                      bill: bill,
+                      currency: bill.currency,
+                      onTap: () => context.push('/app/bills/${bill.id}'),
+                      onMarkPaid: () => _confirmMarkPaid(context, bill),
+                    ),
+                  );
+                }, childCount: state.filteredBills.length),
               ),
             ),
 
           // Bottom padding for FAB
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 80),
-          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
     );
