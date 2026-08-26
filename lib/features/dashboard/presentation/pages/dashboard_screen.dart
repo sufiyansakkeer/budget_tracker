@@ -8,23 +8,26 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_section_header.dart';
 import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/entities/bill_enums.dart';
+import '../../../budget/domain/entities/budget_summary_entity.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
 
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
-import '../widgets/budget_hero_card.dart';
+import '../widgets/budget_daily_limits_section.dart';
+
 import '../widgets/dashboard_error_widget.dart';
 import '../widgets/empty_dashboard_state.dart';
 import '../widgets/insight_card.dart';
 import '../widgets/recent_expense_tile.dart';
-import '../widgets/spending_target_cards.dart';
+
 import '../widgets/today_spending_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -83,7 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildContent(BuildContext context, DashboardLoaded state) {
     final summary = state.budgetSummary;
-    final spendingTarget = state.spendingTarget;
+    final budgetDailyLimits = state.budgetDailyLimits;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -103,29 +106,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const ActiveBudgetSelector(),
                   const SizedBox(height: AppSpacing.md),
 
-                  // Hero — Today's Spending Limit
-                  BudgetHeroCard(
-                    summary: summary,
-                    spendingTarget: spendingTarget,
-                  ),
+                  // ── Per-Budget Daily Spending Limits ──────────────────
+                  BudgetDailyLimitsSection(budgetLimits: budgetDailyLimits),
                   const SizedBox(height: AppSpacing.md),
 
-                  // Budget Overview (Remaining Budget / Spent Today / Remaining Today)
-                  BudgetOverviewCard(
-                    summary: summary,
-                    spendingTarget: spendingTarget,
-                  ),
+                  // ── Budget Overview (Remaining Budget) ────────────────
+                  _OverallBudgetCard(summary: summary),
                   const SizedBox(height: AppSpacing.md),
 
-                  // Today's Progress + Weekly Target
-                  if (spendingTarget != null) ...[
-                    TodayProgressCard(targets: spendingTarget),
-                    const SizedBox(height: AppSpacing.sm),
-                    WeeklyTargetCard(targets: spendingTarget),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-
-                  // Budget Timeline
+                  // ── Budget Timeline ───────────────────────────────────
                   BudgetTimelineCard(summary: summary),
                   const SizedBox(height: AppSpacing.lg),
 
@@ -160,7 +149,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         icon: Icons.receipt_long_rounded,
                         title: "You're ready to start",
                         message:
-                            'Add your first expense and we\'ll start tracking '
+                            "Add your first expense and we'll start tracking "
                             'your budget.',
                         actionLabel: 'Add Expense',
                         actionIcon: Icons.add_rounded,
@@ -256,6 +245,96 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           )
           .toList(),
+    );
+  }
+}
+
+// ── Overall Budget Card ──────────────────────────────────────────────────
+
+/// Shows overall budget remaining across all active budgets.
+/// This is the only "combined" view allowed — total remaining, NOT combined
+/// daily spending limit.
+class _OverallBudgetCard extends StatelessWidget {
+  final BudgetSummaryEntity summary;
+
+  const _OverallBudgetCard({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.account_balance_wallet_rounded,
+              color: AppColors.primary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Overall Budget',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  CurrencyFormatter.format(
+                    summary.remainingBudget,
+                    code: summary.currency,
+                  ),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.success,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'remaining',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          InfoIcon(
+            content: InfoContent(
+              title: 'Overall Budget',
+              whatIsThis:
+                  'The total remaining amount across all active budgets. '
+                  "This combines all budgets' remaining balances.",
+              howIsItCalculated:
+                  'Sum of remaining amounts from all active budgets.\n\n'
+                  'Note: Daily spending limits are calculated '
+                  'separately for each budget and are NOT combined.',
+              additionalNotes:
+                  '• Combined total remaining is shown here for convenience\n'
+                  '• Each budget\'s daily spending limit is independent\n'
+                  '• Expenses are tracked per budget, not combined',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -532,8 +611,6 @@ class _DashboardSkeleton extends StatelessWidget {
           SkeletonBox(width: 200, height: 52, radius: 16),
           SizedBox(height: AppSpacing.md),
           SkeletonBox(height: 180, radius: 24),
-          SizedBox(height: AppSpacing.md),
-          SkeletonBox(height: 120, radius: 20),
           SizedBox(height: AppSpacing.md),
           SkeletonBox(height: 120, radius: 20),
           SizedBox(height: AppSpacing.md),

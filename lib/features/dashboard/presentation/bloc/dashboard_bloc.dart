@@ -10,6 +10,7 @@ import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/repository/bill_repository.dart';
 import '../../../bills/presentation/bloc/bill_refresh_bus.dart';
 import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
+import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/spending_target_entity.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
@@ -117,7 +118,19 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           // Bills unavailable — not critical for dashboard.
         }
 
-        // Load spending targets (single source of truth for daily limit).
+        // Load per-budget daily spending limits (primary data source).
+        List<BudgetDailyLimitEntity> budgetDailyLimits = [];
+        try {
+          final perBudgetResult = await getSpendingTargetsUseCase
+              .callPerBudget();
+          if (perBudgetResult is PerBudgetSpendingTargetSuccess) {
+            budgetDailyLimits = perBudgetResult.budgetLimits;
+          }
+        } catch (_) {
+          // Per-budget limits unavailable — not critical for dashboard.
+        }
+
+        // Also load legacy combined target for backward compatibility.
         SpendingTargetEntity? spendingTarget;
         try {
           final targetResult = await getSpendingTargetsUseCase();
@@ -131,6 +144,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         final insights = getSmartInsightsUseCase(
           data,
           spendingTarget: spendingTarget,
+          budgetDailyLimits: budgetDailyLimits,
         );
 
         emit(
@@ -140,6 +154,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             insights: insights,
             upcomingBills: upcomingBills,
             spendingTarget: spendingTarget,
+            budgetDailyLimits: budgetDailyLimits,
           ),
         );
     }

@@ -4,10 +4,14 @@ import '../../../budget/domain/entities/budget_error.dart';
 import '../../../budget/domain/entities/budget_thresholds.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
 import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../entities/budget_daily_limit_entity.dart';
 import '../entities/spending_target_entity.dart';
 import '../entities/spending_target_status.dart';
 
-/// Raw result type for the spending targets use case.
+// ---------------------------------------------------------------------------
+// Legacy result types (kept for backward compatibility with SpendingTargetBloc)
+// ---------------------------------------------------------------------------
+
 sealed class SpendingTargetResult extends Equatable {
   const SpendingTargetResult();
 }
@@ -32,10 +36,57 @@ class SpendingTargetNoBudget extends SpendingTargetResult {
   List<Object?> get props => [];
 }
 
-/// Calculates combined daily and weekly spending targets across all active budgets.
+// ---------------------------------------------------------------------------
+// Per-budget result types
+// ---------------------------------------------------------------------------
+
+sealed class PerBudgetSpendingTargetResult extends Equatable {
+  const PerBudgetSpendingTargetResult();
+}
+
+class PerBudgetSpendingTargetSuccess extends PerBudgetSpendingTargetResult {
+  /// Per-budget daily limits — one entry per active budget.
+  final List<BudgetDailyLimitEntity> budgetLimits;
+
+  /// Combined daily target (sum of all active budgets' daily limits).
+  /// Kept for aggregate views like "Total Remaining".
+  final double combinedDailyTarget;
+
+  /// Currency code.
+  final String currency;
+
+  const PerBudgetSpendingTargetSuccess({
+    required this.budgetLimits,
+    required this.combinedDailyTarget,
+    required this.currency,
+  });
+
+  @override
+  List<Object?> get props => [budgetLimits, combinedDailyTarget, currency];
+}
+
+class PerBudgetSpendingTargetNoBudget extends PerBudgetSpendingTargetResult {
+  const PerBudgetSpendingTargetNoBudget();
+  @override
+  List<Object?> get props => [];
+}
+
+class PerBudgetSpendingTargetError extends PerBudgetSpendingTargetResult {
+  final BudgetFailure failure;
+  const PerBudgetSpendingTargetError(this.failure);
+  @override
+  List<Object?> get props => [failure];
+}
+
+// ---------------------------------------------------------------------------
+// Use case
+// ---------------------------------------------------------------------------
+
+/// Calculates daily and weekly spending targets — both per-budget and
+/// combined — across all active budgets.
 ///
-/// Reuses the existing [BudgetCalculationService] as the single source of truth
-/// for all calculations — no duplicate budget math.
+/// Reuses [BudgetCalculationService] as the single source of truth for
+/// all calculations.
 class GetSpendingTargetsUseCase {
   final BudgetRepository repository;
   final BudgetCalculationService calculationService;
@@ -45,17 +96,19 @@ class GetSpendingTargetsUseCase {
     required this.calculationService,
   });
 
+  // ── Legacy combined target (kept for backward compatibility) ──────────────
+
+  /// Returns combined daily and weekly targets across all active budgets.
+  @Deprecated('Use callPerBudget() for per-budget daily limits')
   Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
     final now = referenceDate ?? DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    // Get all active (non-archived) budgets.
     final allBudgets = await repository.getAllBudgets();
     if (allBudgets.isEmpty) {
       return const SpendingTargetNoBudget();
     }
 
-    // Filter to budgets that are active today.
     final activeBudgets = allBudgets
         .where((b) => !b.isArchived && b.isActiveOn(today))
         .toList();
@@ -63,8 +116,7 @@ class GetSpendingTargetsUseCase {
       return const SpendingTargetNoBudget();
     }
 
-    // Calculate Monday → Sunday week boundaries (date-only).
-    final weekday = today.weekday; // 1=Monday, 7=Sunday
+    final weekday = today.weekday;
     final weekStart = today.subtract(Duration(days: weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
 
@@ -77,7 +129,6 @@ class GetSpendingTargetsUseCase {
     for (final budget in activeBudgets) {
       currency = budget.currency;
 
-      // --- Daily target: use BudgetCalculationService ---
       final remainingDays = calculationService.calculateRemainingDays(
         referenceDate: today,
         startDate: budget.startDate,
@@ -94,20 +145,17 @@ class GetSpendingTargetsUseCase {
       );
       totalDailyTarget += dailyAllowance;
 
-      // Today's actual spending from efficient DB query.
       final todaySpent = await repository.getTodaySpending(
         budget.id,
         referenceDate: today,
       );
       totalDailySpent += todaySpent;
 
-      // --- Weekly target: proportional to the budget period ---
       final totalBudgetDays = calculationService.daysInPeriod(
         startDate: budget.startDate,
         endDate: budget.endDate,
       );
 
-      // Compute the actual week coverage within this budget.
       final effectiveWeekStart = weekStart.isBefore(budget.startDate)
           ? budget.startDate
           : weekStart;
@@ -116,7 +164,6 @@ class GetSpendingTargetsUseCase {
           : weekEnd;
 
       if (effectiveWeekStart.isAfter(effectiveWeekEnd)) {
-        // Budget doesn't cover any day this week — skip.
         continue;
       }
 
@@ -126,7 +173,6 @@ class GetSpendingTargetsUseCase {
           budget.monthlyAmount * daysThisWeek / totalBudgetDays;
       totalWeeklyTarget += weeklyTarget;
 
-      // This week's spending for this budget.
       final weekSpending = await repository.getExpensesTotalInRange(
         budget.id,
         startDate: weekStart,
@@ -135,7 +181,6 @@ class GetSpendingTargetsUseCase {
       totalWeeklySpent += weekSpending;
     }
 
-    // --- Daily derived values ---
     final dailyRemaining = (totalDailyTarget - totalDailySpent).clamp(
       0.0,
       double.infinity,
@@ -148,7 +193,6 @@ class GetSpendingTargetsUseCase {
         : 0.0;
     final dailyStatus = _targetStatus(totalDailySpent, totalDailyTarget);
 
-    // --- Weekly derived values ---
     final weeklyRemaining = (totalWeeklyTarget - totalWeeklySpent).clamp(
       0.0,
       double.infinity,
@@ -180,7 +224,174 @@ class GetSpendingTargetsUseCase {
     );
   }
 
-  /// Classifies target health using the same thresholds as the budget engine.
+  // ── Per-budget targets (primary API) ──────────────────────────────────────
+
+  /// Returns independent daily and weekly limits for each active budget.
+  ///
+  /// Each budget's limit is calculated using only that budget's:
+  /// - Remaining amount
+  /// - Remaining days
+  /// - Expenses assigned to that budget
+  /// - Date range
+  Future<PerBudgetSpendingTargetResult> callPerBudget({
+    DateTime? referenceDate,
+  }) async {
+    final now = referenceDate ?? DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Get all non-archived budgets.
+    final allBudgets = await repository.getAllBudgets();
+    if (allBudgets.isEmpty) {
+      return const PerBudgetSpendingTargetNoBudget();
+    }
+
+    // Filter to budgets active today.
+    final activeBudgets = allBudgets
+        .where((b) => !b.isArchived && b.isActiveOn(today))
+        .toList();
+    if (activeBudgets.isEmpty) {
+      return const PerBudgetSpendingTargetNoBudget();
+    }
+
+    // Week boundaries (Monday → Sunday).
+    final weekday = today.weekday;
+    final weekStart = today.subtract(Duration(days: weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    final budgetLimits = <BudgetDailyLimitEntity>[];
+    var combinedDailyTarget = 0.0;
+    var currency = 'INR';
+
+    for (final budget in activeBudgets) {
+      currency = budget.currency;
+
+      // ── Daily target for THIS budget ──────────────────────────────────
+      final remainingDays = calculationService.calculateRemainingDays(
+        referenceDate: today,
+        startDate: budget.startDate,
+        endDate: budget.endDate,
+      );
+
+      final totalSpent = budget.monthlyAmount - budget.remainingAmount;
+      final budgetRemaining = calculationService.calculateRemainingBudget(
+        monthlyAmount: budget.monthlyAmount,
+        totalSpent: totalSpent,
+      );
+
+      final dailyLimit = calculationService.calculateDailyAllowance(
+        remainingBudget: budgetRemaining,
+        remainingDays: remainingDays,
+      );
+
+      combinedDailyTarget += dailyLimit;
+
+      // Today's spending for THIS budget only.
+      final spentToday = await repository.getTodaySpending(
+        budget.id,
+        referenceDate: today,
+      );
+
+      final remainingToday = (dailyLimit - spentToday).clamp(
+        0.0,
+        double.infinity,
+      );
+      final exceededToday = spentToday > dailyLimit
+          ? spentToday - dailyLimit
+          : 0.0;
+      final progress = dailyLimit > 0
+          ? (spentToday / dailyLimit).clamp(0.0, 1.0)
+          : 0.0;
+      final isOverLimit = spentToday > dailyLimit;
+      final status = _targetStatus(spentToday, dailyLimit);
+
+      // ── Budget health status ──────────────────────────────────────────
+      final utilization = calculationService.calculateBudgetUtilization(
+        totalSpent: totalSpent,
+        monthlyAmount: budget.monthlyAmount,
+      );
+      final budgetStatus = calculationService.calculateBudgetStatus(
+        budgetUtilization: utilization,
+      );
+
+      // ── Weekly target for THIS budget ─────────────────────────────────
+      final totalBudgetDays = calculationService.daysInPeriod(
+        startDate: budget.startDate,
+        endDate: budget.endDate,
+      );
+
+      final effectiveWeekStart = weekStart.isBefore(budget.startDate)
+          ? budget.startDate
+          : weekStart;
+      final effectiveWeekEnd = weekEnd.isAfter(budget.endDate)
+          ? budget.endDate
+          : weekEnd;
+
+      double weeklyTarget = 0;
+      double weeklySpent = 0;
+
+      if (!effectiveWeekStart.isAfter(effectiveWeekEnd)) {
+        final daysThisWeek =
+            effectiveWeekEnd.difference(effectiveWeekStart).inDays + 1;
+        weeklyTarget = budget.monthlyAmount * daysThisWeek / totalBudgetDays;
+
+        weeklySpent = await repository.getExpensesTotalInRange(
+          budget.id,
+          startDate: weekStart,
+          endDate: weekEnd,
+        );
+      }
+
+      final weeklyRemaining = (weeklyTarget - weeklySpent).clamp(
+        0.0,
+        double.infinity,
+      );
+      final weeklyExceeded = weeklySpent > weeklyTarget
+          ? weeklySpent - weeklyTarget
+          : 0.0;
+      final weeklyProgress = weeklyTarget > 0
+          ? (weeklySpent / weeklyTarget).clamp(0.0, 1.0)
+          : 0.0;
+      final weeklyStatus = _targetStatus(weeklySpent, weeklyTarget);
+
+      budgetLimits.add(
+        BudgetDailyLimitEntity(
+          budgetId: budget.id,
+          budgetName: budget.name,
+          dailyLimit: dailyLimit,
+          spentToday: spentToday,
+          remainingToday: remainingToday,
+          exceededToday: exceededToday,
+          progress: progress,
+          isOverLimit: isOverLimit,
+          status: status,
+          budgetStatus: budgetStatus,
+          budgetUtilization: utilization,
+          monthlyAmount: budget.monthlyAmount,
+          totalSpent: totalSpent,
+          remainingBudget: budgetRemaining,
+          remainingDays: remainingDays,
+          weeklyTarget: weeklyTarget,
+          weeklySpent: weeklySpent,
+          weeklyRemaining: weeklyRemaining,
+          weeklyExceeded: weeklyExceeded,
+          weeklyProgress: weeklyProgress,
+          weeklyStatus: weeklyStatus,
+          currency: currency,
+          startDate: budget.startDate,
+          endDate: budget.endDate,
+        ),
+      );
+    }
+
+    return PerBudgetSpendingTargetSuccess(
+      budgetLimits: budgetLimits,
+      combinedDailyTarget: combinedDailyTarget,
+      currency: currency,
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
   SpendingTargetStatus _targetStatus(double spent, double target) {
     if (target <= 0) return SpendingTargetStatus.onTrack;
     final ratio = spent / target;

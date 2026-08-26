@@ -26,6 +26,7 @@ class MockGetSmartInsightsUseCase implements GetSmartInsightsUseCase {
   List<SmartInsight> call(
     BudgetSummaryEntity summary, {
     SpendingTargetEntity? spendingTarget,
+    List<dynamic>? budgetDailyLimits,
   }) => const [];
 }
 
@@ -149,6 +150,13 @@ class MockGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   @override
   Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
     return const SpendingTargetNoBudget();
+  }
+
+  @override
+  Future<PerBudgetSpendingTargetResult> callPerBudget({
+    DateTime? referenceDate,
+  }) async {
+    return const PerBudgetSpendingTargetNoBudget();
   }
 }
 

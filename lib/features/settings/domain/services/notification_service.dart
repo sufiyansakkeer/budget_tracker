@@ -136,8 +136,8 @@ class NotificationService {
 
   /// Schedules all daily notifications based on [settings].
   ///
-  /// The morning notification body is dynamically calculated from the
-  /// current budget data using [GetTodaySafeSpendingUseCase].
+  /// The morning notification body is dynamically calculated from per-budget
+  /// data using [GetTodaySafeSpendingUseCase].
   Future<void> scheduleAll(AppSettings settings) async {
     await initialize();
     await cancelAllPending();
@@ -146,19 +146,39 @@ class NotificationService {
     if (!notifSettings.notificationsEnabled) return;
 
     if (notifSettings.morningReminderEnabled) {
-      final safeSpending = await _getTodaySafeSpending(
+      final perBudget = await _getPerBudgetSafeSpending(
         fallbackCurrency: settings.currencyCode,
       );
 
-      final body = safeSpending != null
-          ? 'You can safely spend ${CurrencyFormatter.format(safeSpending.amount, code: safeSpending.currency, decimalDigits: 0)} today.'
-          : 'Check your budget and plan your spending for today.';
+      String body;
+      if (perBudget != null && perBudget.budgetLimits.isNotEmpty) {
+        if (perBudget.budgetLimits.length == 1) {
+          // Single budget — show simple message.
+          final bl = perBudget.budgetLimits.first;
+          body =
+              'Today\'s ${bl.budgetName} limit: '
+              '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}. '
+              'You can safely spend this amount today.';
+        } else {
+          // Multiple budgets — show summary.
+          final lines = perBudget.budgetLimits
+              .map(
+                (bl) =>
+                    '${bl.budgetName}: '
+                    '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}',
+              )
+              .join('\n');
+          body = "Today's Spending Limits\n\n$lines";
+        }
+      } else {
+        body = 'Check your budget and plan your spending for today.';
+      }
 
       debugPrint('[Notification] Morning notification body: $body');
 
       await _scheduleDailyNotification(
         id: morningReminderId,
-        title: "Today's Spending Limit",
+        title: "Today's Spending Limits",
         body: body,
         hour: notifSettings.morningReminderTime.hour,
         minute: notifSettings.morningReminderTime.minute,
@@ -179,25 +199,41 @@ class NotificationService {
   /// Schedules a one-off test notification one minute from now.
   ///
   /// Intended for development verification of permission, channel, and delivery.
-  /// Uses the same dynamic calculation as the morning notification.
+  /// Uses the same per-budget calculation as the morning notification.
   Future<void> scheduleTestNotification({AppSettings? settings}) async {
     await initialize();
 
     final currencyCode = settings?.currencyCode ?? 'INR';
 
-    final safeSpending = await _getTodaySafeSpending(
+    final perBudget = await _getPerBudgetSafeSpending(
       fallbackCurrency: currencyCode,
     );
 
-    final formattedAmount = safeSpending != null
-        ? CurrencyFormatter.format(
-            safeSpending.amount,
-            code: safeSpending.currency,
-            decimalDigits: 0,
-          )
-        : CurrencyFormatter.format(0, code: currencyCode, decimalDigits: 0);
+    String body;
+    if (perBudget != null && perBudget.budgetLimits.isNotEmpty) {
+      if (perBudget.budgetLimits.length == 1) {
+        final bl = perBudget.budgetLimits.first;
+        body =
+            'Today\'s ${bl.budgetName} limit: '
+            '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}. '
+            'You can safely spend this amount today.';
+      } else {
+        final lines = perBudget.budgetLimits
+            .map(
+              (bl) =>
+                  '${bl.budgetName}: '
+                  '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}',
+            )
+            .join('\n');
+        body = "Today's Spending Limits\n\n$lines";
+      }
+    } else {
+      body =
+          'You can safely spend '
+          '${CurrencyFormatter.format(0, code: currencyCode, decimalDigits: 0)} today.';
+    }
 
-    debugPrint('[Notification] Test notification amount: $formattedAmount');
+    debugPrint('[Notification] Test notification body: $body');
 
     const androidDetails = AndroidNotificationDetails(
       channelId,
@@ -222,8 +258,8 @@ class NotificationService {
 
     await _plugin.zonedSchedule(
       testNotificationId,
-      "Today's Spending Limit",
-      'You can safely spend $formattedAmount today.',
+      "Today's Spending Limits",
+      body,
       scheduledDate,
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -292,16 +328,16 @@ class NotificationService {
     );
   }
 
-  /// Fetches today's safe spending using the same business logic as the
-  /// Dashboard's "Today's Safe Spending" section.
-  Future<SafeSpendingResult?> _getTodaySafeSpending({
+  /// Fetches per-budget safe spending using the same business logic as the
+  /// Dashboard's "Today's Spending Limits" section.
+  Future<PerBudgetSafeSpendingResult?> _getPerBudgetSafeSpending({
     String fallbackCurrency = 'INR',
   }) async {
     try {
       final useCase = GetTodaySafeSpendingUseCase(
         spendingTargetsUseCase: spendingTargetsUseCase,
       );
-      return await useCase(fallbackCurrency: fallbackCurrency);
+      return await useCase.callPerBudget(fallbackCurrency: fallbackCurrency);
     } catch (e, st) {
       debugPrint('[Notification] Error calculating safe spending: $e\n$st');
       return null;
@@ -315,14 +351,12 @@ class NotificationService {
       tz_data.initializeTimeZones();
       final timezoneInfo = await FlutterTimezone.getLocalTimezone();
       debugPrint(
-        '[NotificationService] Resolved timezone: ${timezoneInfo.identifier}',
+        '[Notifications] Resolved timezone: ${timezoneInfo.identifier}',
       );
       tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
     } catch (e, st) {
-      debugPrint(
-        '[NotificationService] Failed to resolve local timezone: $e\n$st',
-      );
-      debugPrint('[NotificationService] Falling back to UTC');
+      debugPrint('[Notifications] Failed to resolve local timezone: $e\n$st');
+      debugPrint('[Notifications] Falling back to UTC');
       tz.setLocalLocation(tz.getLocation('UTC'));
     }
     _timeZonesConfigured = true;

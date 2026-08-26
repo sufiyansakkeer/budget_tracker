@@ -8,6 +8,8 @@ import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/entities/budget_status.dart';
+import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -21,8 +23,12 @@ import 'notification_service_test.mocks.dart';
 
 class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   SpendingTargetEntity? targetsToReturn;
+  PerBudgetSpendingTargetResult? perBudgetResultToReturn;
 
-  FakeGetSpendingTargetsUseCase({this.targetsToReturn});
+  FakeGetSpendingTargetsUseCase({
+    this.targetsToReturn,
+    this.perBudgetResultToReturn,
+  });
 
   @override
   final BudgetRepository repository = MockBudgetRepository();
@@ -36,6 +42,16 @@ class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
       return SpendingTargetSuccess(targetsToReturn!);
     }
     return const SpendingTargetNoBudget();
+  }
+
+  @override
+  Future<PerBudgetSpendingTargetResult> callPerBudget({
+    DateTime? referenceDate,
+  }) async {
+    if (perBudgetResultToReturn != null) {
+      return perBudgetResultToReturn!;
+    }
+    return const PerBudgetSpendingTargetNoBudget();
   }
 }
 
@@ -72,6 +88,38 @@ void main() {
         weeklyExceeded: 0,
         weeklyProgress: 0.33,
         weeklyStatus: SpendingTargetStatus.onTrack,
+        currency: 'INR',
+      ),
+      perBudgetResultToReturn: PerBudgetSpendingTargetSuccess(
+        budgetLimits: [
+          BudgetDailyLimitEntity(
+            budgetId: 'b1',
+            budgetName: 'Food',
+            dailyLimit: 1500,
+            spentToday: 500,
+            remainingToday: 1000,
+            exceededToday: 0,
+            progress: 0.33,
+            isOverLimit: false,
+            status: SpendingTargetStatus.onTrack,
+            budgetStatus: BudgetStatus.underBudget,
+            budgetUtilization: 0.38,
+            monthlyAmount: 30000,
+            totalSpent: 11500,
+            remainingBudget: 18500,
+            remainingDays: 22,
+            weeklyTarget: 10500,
+            weeklySpent: 3500,
+            weeklyRemaining: 7000,
+            weeklyExceeded: 0,
+            weeklyProgress: 0.33,
+            weeklyStatus: SpendingTargetStatus.onTrack,
+            currency: 'INR',
+            startDate: DateTime(2026, 8, 1),
+            endDate: DateTime(2026, 8, 31),
+          ),
+        ],
+        combinedDailyTarget: 1500,
         currency: 'INR',
       ),
     );
@@ -264,12 +312,12 @@ void main() {
           await notificationService.scheduleAll(settings);
 
           verify(mockPlugin.cancelAllPendingNotifications()).called(1);
-          // Verify the morning notification has a dynamic body (not the old static text)
+          // Verify the morning notification has a per-budget body
           verify(
             mockPlugin.zonedSchedule(
               NotificationService.morningReminderId,
-              "Today's Spending Limit",
-              argThat(contains('safely spend')),
+              "Today's Spending Limits",
+              argThat(contains('Food')),
               any,
               any,
               androidScheduleMode: anyNamed('androidScheduleMode'),
@@ -282,6 +330,7 @@ void main() {
       test('should use fallback text when no active budget exists', () async {
         // When no spending target is available, use fallback text
         fakeSpendingTargetsUseCase.targetsToReturn = null;
+        fakeSpendingTargetsUseCase.perBudgetResultToReturn = null;
 
         final settings = AppSettings(
           notifications: const NotificationSettings(
@@ -297,7 +346,7 @@ void main() {
         verify(
           mockPlugin.zonedSchedule(
             NotificationService.morningReminderId,
-            "Today's Spending Limit",
+            "Today's Spending Limits",
             'Check your budget and plan your spending for today.',
             any,
             any,
@@ -385,8 +434,8 @@ void main() {
         verify(
           mockPlugin.zonedSchedule(
             NotificationService.morningReminderId,
-            "Today's Spending Limit",
-            argThat(contains('safely spend')),
+            "Today's Spending Limits",
+            any,
             any,
             any,
             androidScheduleMode: anyNamed('androidScheduleMode'),
