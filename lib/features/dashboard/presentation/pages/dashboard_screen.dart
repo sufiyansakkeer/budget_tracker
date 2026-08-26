@@ -6,7 +6,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/info_content.dart';
-import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/info_section_header.dart';
 import '../../../../core/widgets/app_section_header.dart';
 import '../../../../core/widgets/loading_skeleton.dart';

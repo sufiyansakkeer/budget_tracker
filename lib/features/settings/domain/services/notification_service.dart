@@ -9,6 +9,7 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../features/budget/domain/repository/budget_repository.dart';
 import '../../../../features/budget/domain/services/budget_calculation_service.dart';
 import '../entities/app_settings.dart';
+import '../usecases/get_today_safe_spending_usecase.dart';
 
 /// Manages local notification scheduling for reminders, summaries and alerts.
 ///
@@ -131,6 +132,9 @@ class NotificationService {
   }
 
   /// Schedules all daily notifications based on [settings].
+  ///
+  /// The morning notification body is dynamically calculated from the
+  /// current budget data using [GetTodaySafeSpendingUseCase].
   Future<void> scheduleAll(AppSettings settings) async {
     await initialize();
     await cancelAllPending();
@@ -139,10 +143,24 @@ class NotificationService {
     if (!notifSettings.notificationsEnabled) return;
 
     if (notifSettings.morningReminderEnabled) {
+      final safeSpending = await _getTodaySafeSpending(
+        fallbackCurrency: settings.currencyCode,
+      );
+
+      final body = safeSpending != null
+          ? 'You can safely spend ${CurrencyFormatter.format(
+              safeSpending.amount,
+              code: safeSpending.currency,
+              decimalDigits: 0,
+            )} today.'
+          : 'Check your budget and plan your spending for today.';
+
+      debugPrint('[Notification] Morning notification body: $body');
+
       await _scheduleDailyNotification(
         id: morningReminderId,
-        title: 'Good morning! 🌅',
-        body: 'Check your budget and plan your spending for today.',
+        title: "Today's Spending Limit",
+        body: body,
         hour: notifSettings.morningReminderTime.hour,
         minute: notifSettings.morningReminderTime.minute,
       );
@@ -162,16 +180,29 @@ class NotificationService {
   /// Schedules a one-off test notification one minute from now.
   ///
   /// Intended for development verification of permission, channel, and delivery.
+  /// Uses the same dynamic calculation as the morning notification.
   Future<void> scheduleTestNotification({AppSettings? settings}) async {
     await initialize();
 
     final currencyCode = settings?.currencyCode ?? 'INR';
-    const allowance = 1320.0;
-    final formattedAllowance = CurrencyFormatter.format(
-      allowance,
-      code: currencyCode,
-      decimalDigits: 0,
+
+    final safeSpending = await _getTodaySafeSpending(
+      fallbackCurrency: currencyCode,
     );
+
+    final formattedAmount = safeSpending != null
+        ? CurrencyFormatter.format(
+            safeSpending.amount,
+            code: safeSpending.currency,
+            decimalDigits: 0,
+          )
+        : CurrencyFormatter.format(
+            0,
+            code: currencyCode,
+            decimalDigits: 0,
+          );
+
+    debugPrint('[Notification] Test notification amount: $formattedAmount');
 
     const androidDetails = AndroidNotificationDetails(
       channelId,
@@ -196,8 +227,8 @@ class NotificationService {
 
     await _plugin.zonedSchedule(
       testNotificationId,
-      "Today's spending limit",
-      formattedAllowance,
+      "Today's Spending Limit",
+      'You can safely spend $formattedAmount today.',
       scheduledDate,
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -264,6 +295,23 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+  }
+
+  /// Fetches today's safe spending using the same business logic as the
+  /// Dashboard's "Today's Safe Spending" section.
+  Future<SafeSpendingResult?> _getTodaySafeSpending({
+    String fallbackCurrency = 'INR',
+  }) async {
+    try {
+      final useCase = GetTodaySafeSpendingUseCase(
+        repository: budgetRepository,
+        calculationService: calculationService,
+      );
+      return await useCase(fallbackCurrency: fallbackCurrency);
+    } catch (e, st) {
+      debugPrint('[Notification] Error calculating safe spending: $e\n$st');
+      return null;
+    }
   }
 
   Future<void> _configureLocalTimeZone() async {
