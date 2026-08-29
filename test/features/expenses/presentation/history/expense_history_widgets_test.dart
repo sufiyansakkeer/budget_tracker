@@ -14,6 +14,7 @@ import 'package:monivo/features/expenses/domain/repository/expense_repository.da
 import 'package:monivo/features/expenses/domain/usecases/calculate_expense_summary_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/filter_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/get_categories_usecase.dart';
+import 'package:monivo/features/expenses/domain/usecases/get_expenses_for_budgets_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/page_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/search_expenses_usecase.dart';
@@ -72,6 +73,10 @@ class FakeHistoryRepository implements ExpenseRepository {
   }) async => expenses;
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  }) async => expenses.where((e) => budgetIds.contains(e.budgetId)).toList();
 }
 
 class FakeBudgetRepository implements BudgetRepository {
@@ -159,6 +164,9 @@ class FakeBudgetRepository implements BudgetRepository {
 ExpenseHistoryBloc buildBloc(ExpenseRepository repository) {
   return ExpenseHistoryBloc(
     getExpensesUseCase: GetExpensesUseCase(repository: repository),
+    getExpensesForBudgetsUseCase: GetExpensesForBudgetsUseCase(
+      repository: repository,
+    ),
     getCategoriesUseCase: GetCategoriesUseCase(repository: repository),
     searchExpensesUseCase: const SearchExpensesUseCase(),
     filterExpensesUseCase: const FilterExpensesUseCase(),

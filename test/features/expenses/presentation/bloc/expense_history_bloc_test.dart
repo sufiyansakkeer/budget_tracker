@@ -10,6 +10,7 @@ import 'package:monivo/features/expenses/domain/repository/expense_repository.da
 import 'package:monivo/features/expenses/domain/usecases/calculate_expense_summary_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/filter_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/get_categories_usecase.dart';
+import 'package:monivo/features/expenses/domain/usecases/get_expenses_for_budgets_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/page_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/search_expenses_usecase.dart';
@@ -17,6 +18,7 @@ import 'package:monivo/features/expenses/domain/usecases/sort_expenses_usecase.d
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_event.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_state.dart';
+import 'package:monivo/features/expenses/presentation/bloc/expense_refresh_bus.dart';
 
 ExpenseEntity expense({
   required String id,
@@ -64,6 +66,10 @@ class FakeHistoryRepository implements ExpenseRepository {
   }) async => expenses;
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  }) async => expenses.where((e) => budgetIds.contains(e.budgetId)).toList();
 }
 
 class FakeBudgetRepository implements BudgetRepository {
@@ -151,6 +157,9 @@ class FakeBudgetRepository implements BudgetRepository {
 ExpenseHistoryBloc buildBloc(FakeHistoryRepository repository) {
   return ExpenseHistoryBloc(
     getExpensesUseCase: GetExpensesUseCase(repository: repository),
+    getExpensesForBudgetsUseCase: GetExpensesForBudgetsUseCase(
+      repository: repository,
+    ),
     getCategoriesUseCase: GetCategoriesUseCase(repository: repository),
     searchExpensesUseCase: const SearchExpensesUseCase(),
     filterExpensesUseCase: const FilterExpensesUseCase(),
@@ -259,5 +268,82 @@ void main() {
     bloc.add(const ExpenseHistoryClearFilters());
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state.visibleExpenses.length, 3);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Regression tests for ExpenseRefreshBus subscription
+  // Verifies that when expenses change, the history auto-refreshes
+  // ──────────────────────────────────────────────────────────────
+
+  test('auto-refreshes when ExpenseRefreshBus notifies', () async {
+    // Load initial expenses
+    bloc.add(const ExpenseHistoryLoad());
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.visibleExpenses.length, 3);
+
+    // Simulate an external expense change (e.g., created by another BLoC)
+    ExpenseRefreshBus.instance.notifyChanged();
+    await Future<void>.delayed(Duration.zero);
+
+    // Give the async refresh event time to process
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // The bloc should have reloaded the expenses
+    // (Status should briefly be 'refreshing' then back to 'loaded')
+    expect(bloc.state.status, ExpenseHistoryStatus.loaded);
+    expect(bloc.state.visibleExpenses.length, 3);
+  });
+
+  test('auto-refreshes when new expense is added externally', () async {
+    // Load initial expenses
+    bloc.add(const ExpenseHistoryLoad());
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.visibleExpenses.length, 3);
+
+    // Simulate adding a new expense externally
+    final newExpense = expense(id: '4', amount: 400, note: 'New');
+    repository.expenses.add(newExpense);
+
+    // Notify refresh bus (as would happen from ExpenseBloc)
+    ExpenseRefreshBus.instance.notifyChanged();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // The bloc should have reloaded and now show 4 expenses
+    expect(bloc.state.visibleExpenses.length, 4);
+    expect(
+      bloc.state.visibleExpenses.any((e) => e.id == '4'),
+      isTrue,
+      reason: 'Newly added expense should appear in the list',
+    );
+  });
+
+  test('auto-refreshes even when expense causes overspending', () async {
+    // Load initial expenses
+    bloc.add(const ExpenseHistoryLoad());
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.visibleExpenses.length, 3);
+
+    // Simulate adding an overspent expense externally
+    final overspentExpense = expense(
+      id: 'overspent-1',
+      amount: 5000.0, // Large amount that could cause overspending
+      note: 'Big purchase',
+    );
+    repository.expenses.add(overspentExpense);
+
+    // Notify refresh bus
+    ExpenseRefreshBus.instance.notifyChanged();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // CRITICAL: Overspent expense MUST appear in the list
+    expect(bloc.state.visibleExpenses.length, 4);
+    expect(
+      bloc.state.visibleExpenses.any((e) => e.id == 'overspent-1'),
+      isTrue,
+      reason:
+          'Overspent expense must appear in list (not filtered out by amount)',
+    );
   });
 }

@@ -59,6 +59,7 @@ import '../../features/expenses/domain/usecases/create_expense_usecase.dart';
 import '../../features/expenses/domain/usecases/delete_expense_usecase.dart';
 import '../../features/expenses/domain/usecases/get_categories_usecase.dart';
 import '../../features/expenses/domain/usecases/get_expense_by_id_usecase.dart';
+import '../../features/expenses/domain/usecases/get_expenses_for_budgets_usecase.dart';
 import '../../features/expenses/domain/usecases/get_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/update_expense_usecase.dart';
 import '../../features/expenses/domain/usecases/calculate_expense_summary_usecase.dart';
@@ -316,6 +317,9 @@ Future<void> initDependencyInjection() async {
   getIt.registerLazySingleton<GetExpensesUseCase>(
     () => GetExpensesUseCase(repository: getIt<ExpenseRepository>()),
   );
+  getIt.registerLazySingleton<GetExpensesForBudgetsUseCase>(
+    () => GetExpensesForBudgetsUseCase(repository: getIt<ExpenseRepository>()),
+  );
   getIt.registerLazySingleton<GetCategoriesUseCase>(
     () => GetCategoriesUseCase(repository: getIt<ExpenseRepository>()),
   );
@@ -358,6 +362,7 @@ Future<void> initDependencyInjection() async {
   getIt.registerFactory<ExpenseHistoryBloc>(
     () => ExpenseHistoryBloc(
       getExpensesUseCase: getIt<GetExpensesUseCase>(),
+      getExpensesForBudgetsUseCase: getIt<GetExpensesForBudgetsUseCase>(),
       getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
       searchExpensesUseCase: getIt<SearchExpensesUseCase>(),
       filterExpensesUseCase: getIt<FilterExpensesUseCase>(),

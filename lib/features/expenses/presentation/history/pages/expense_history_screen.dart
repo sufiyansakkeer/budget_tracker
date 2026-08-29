@@ -17,6 +17,8 @@ import '../bloc/expense_history_bloc.dart';
 import '../bloc/expense_history_event.dart';
 import '../bloc/expense_history_state.dart';
 import '../widgets/active_filter_chips.dart';
+import '../widgets/budget_info_bottom_sheet.dart';
+import '../widgets/budget_selection_sheet.dart';
 import '../widgets/expense_group_header.dart';
 import '../widgets/expense_history_empty_state.dart';
 import '../widgets/expense_history_error_widget.dart';
@@ -29,7 +31,7 @@ import '../widgets/sort_bottom_sheet.dart';
 import '../widgets/summary_card.dart';
 
 /// Material 3 expense history screen with search, filters, sorting, grouping,
-/// pagination, swipe actions, and pull-to-refresh.
+/// pagination, swipe actions, pull-to-refresh, and combined multi-budget view.
 class ExpenseHistoryScreen extends StatefulWidget {
   const ExpenseHistoryScreen({super.key});
 
@@ -99,19 +101,51 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       context: context,
       title: 'Delete expense?',
       message:
-          'This will permanently remove the expense of ₹${expense.amount}. '
+          'This will permanently remove the expense of \u20b9${expense.amount}. '
           'This action cannot be undone.',
       confirmLabel: 'Delete',
       icon: Icons.delete_rounded,
       isDestructive: true,
     );
     if (confirmed && mounted) {
-      // Trigger the existing delete flow via the CRUD ExpenseBloc.
-      // The ExpenseRefreshBus automatically refreshes history, dashboard, and
-      // budget engine.
       expenseBloc.add(ExpenseDelete(expense.id));
     }
     return confirmed;
+  }
+
+  Future<void> _openBudgetSelection() async {
+    if (!mounted) return;
+    final historyBloc = context.read<ExpenseHistoryBloc>();
+    final state = historyBloc.state;
+
+    // Ensure budgets are loaded
+    if (state.allBudgets.isEmpty) {
+      historyBloc.add(const ExpenseHistoryToggleViewMode());
+      // Wait for the bloc to load budgets
+      await historyBloc.stream.firstWhere((s) => s.allBudgets.isNotEmpty);
+    }
+
+    if (!mounted) return;
+    final current = historyBloc.state;
+    final selected = await BudgetSelectionSheet.show(
+      context: context,
+      allBudgets: current.allBudgets,
+      initiallySelected: current.selectedBudgetIds,
+    );
+
+    if (selected != null && mounted) {
+      // Update selections then apply
+      for (final id in current.allBudgets.map((b) => b.id)) {
+        final wasSelected = current.selectedBudgetIds.contains(id);
+        final nowSelected = selected.contains(id);
+        if (wasSelected != nowSelected) {
+          historyBloc.add(ExpenseHistoryToggleBudgetSelection(id));
+        }
+      }
+      // Small delay for state to settle, then apply
+      await Future<void>.delayed(Duration.zero);
+      historyBloc.add(const ExpenseHistoryApplyCombinedView());
+    }
   }
 
   @override
@@ -120,47 +154,25 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.sm,
-                AppSpacing.sm,
-                AppSpacing.xs,
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const Expanded(
-                    child: AppHeader(
-                      title: 'Expenses',
-                      subtitle: 'Track & manage your spending',
-                    ),
-                  ),
-                  IconButton(
-                    key: const Key('filterButton'),
-                    icon: const Icon(Icons.filter_list_rounded),
-                    tooltip: 'Filter expenses',
-                    onPressed: () => _openFilterSheet(
-                      context.read<ExpenseHistoryBloc>().state,
-                    ),
-                  ),
-                  IconButton(
-                    key: const Key('sortButton'),
-                    icon: const Icon(Icons.sort_rounded),
-                    tooltip: 'Sort expenses',
-                    onPressed: () => _openSortSheet(
-                      context.read<ExpenseHistoryBloc>().state,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildHeader(),
             Expanded(
-              child: BlocBuilder<ExpenseHistoryBloc, ExpenseHistoryState>(
+              child: BlocConsumer<ExpenseHistoryBloc, ExpenseHistoryState>(
+                listener: (context, state) {
+                  if (state.status == ExpenseHistoryStatus.error &&
+                      state.allExpenses.isEmpty &&
+                      !state.isCombinedMode) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            state.errorMessage ?? 'Unable to load expenses',
+                          ),
+                          backgroundColor: AppColors.dangerRed,
+                        ),
+                      );
+                  }
+                },
                 builder: (context, state) {
                   if (state.status == ExpenseHistoryStatus.loading &&
                       state.allExpenses.isEmpty) {
@@ -201,6 +213,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                             .read<ExpenseHistoryBloc>()
                             .add(ExpenseHistoryFilterChanged(filter)),
                       ),
+                      if (state.isCombinedMode) _buildCombinedSummary(state),
                       SummaryCard(summary: state.summary),
                       Expanded(child: _buildResults(context, state)),
                     ],
@@ -221,6 +234,176 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     );
   }
 
+  Widget _buildHeader() {
+    return BlocBuilder<ExpenseHistoryBloc, ExpenseHistoryState>(
+      buildWhen: (prev, curr) =>
+          prev.viewMode != curr.viewMode ||
+          prev.selectedBudgetIds != curr.selectedBudgetIds ||
+          prev.budgetName != curr.budgetName,
+      builder: (context, state) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.sm,
+            AppSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                tooltip: 'Back',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              Expanded(
+                child: state.isCombinedMode
+                    ? _buildCombinedHeader(context, state)
+                    : AppHeader(
+                        title: 'Expenses',
+                        subtitle:
+                            state.budgetName ?? 'Track & manage your spending',
+                      ),
+              ),
+              // View mode toggle
+              IconButton(
+                key: const Key('viewModeToggle'),
+                icon: Icon(
+                  state.isCombinedMode
+                      ? Icons.account_balance_wallet_rounded
+                      : Icons.dashboard_customize_rounded,
+                  size: 22,
+                ),
+                tooltip: state.isCombinedMode
+                    ? 'Switch to single budget'
+                    : 'Combine budgets',
+                onPressed: () {
+                  if (state.isCombinedMode) {
+                    _searchController.clear();
+                    context.read<ExpenseHistoryBloc>().add(
+                      const ExpenseHistoryExitCombinedView(),
+                    );
+                  } else {
+                    context.read<ExpenseHistoryBloc>().add(
+                      const ExpenseHistoryToggleViewMode(),
+                    );
+                    _openBudgetSelection();
+                  }
+                },
+              ),
+              IconButton(
+                key: const Key('filterButton'),
+                icon: const Icon(Icons.filter_list_rounded),
+                tooltip: 'Filter expenses',
+                onPressed: () =>
+                    _openFilterSheet(context.read<ExpenseHistoryBloc>().state),
+              ),
+              IconButton(
+                key: const Key('sortButton'),
+                icon: const Icon(Icons.sort_rounded),
+                tooltip: 'Sort expenses',
+                onPressed: () =>
+                    _openSortSheet(context.read<ExpenseHistoryBloc>().state),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCombinedHeader(BuildContext context, ExpenseHistoryState state) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Combined Expenses',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        GestureDetector(
+          onTap: _openBudgetSelection,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  state.selectedBudgetsLabel.isEmpty
+                      ? 'Select budgets'
+                      : state.selectedBudgetsLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.edit_rounded,
+                size: 12,
+                color: AppColors.primary.withValues(alpha: 0.7),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          '${state.selectedBudgetIds.length} budgets',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCombinedSummary(ExpenseHistoryState state) {
+    return Container(
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.account_balance_wallet_rounded,
+            size: 18,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            'Total spent',
+            style: TextStyle(
+              color: AppColors.primary.withValues(alpha: 0.8),
+              fontSize: 13,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '\u20b9${state.combinedTotalAmount.toStringAsFixed(0)}',
+            style: TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildResults(BuildContext context, ExpenseHistoryState state) {
     if (state.isEmpty) {
       return ExpenseHistoryEmptyState(
@@ -234,7 +417,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       );
     }
 
-    final groups = _groupExpensesUseCase(state.loadedExpenses);
+    final groups = _groupExpensesUseCase(
+      state.loadedExpenses,
+      sort: state.sort,
+    );
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -276,6 +462,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         ExpenseGroupHeader(group: group),
         ...group.expenses.map((expense) {
           final category = _findCategory(state.categories, expense.categoryId);
+          final budgetName = state.isCombinedMode
+              ? state.budgetMap[expense.budgetId]?.name
+              : null;
           return Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: Dismissible(
@@ -283,10 +472,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               direction: DismissDirection.horizontal,
               confirmDismiss: (direction) async {
                 if (direction == DismissDirection.endToStart) {
-                  // Left swipe => delete
                   return _confirmDelete(expense);
                 }
-                // Right swipe => edit
                 return false;
               },
               onDismissed: (direction) {},
@@ -311,6 +498,15 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               child: ExpenseHistoryItem(
                 expense: expense,
                 category: category,
+                budgetName: budgetName,
+                onInfoTap: state.isCombinedMode
+                    ? () => BudgetInfoBottomSheet.show(
+                        context: context,
+                        expense: expense,
+                        budget: state.budgetMap[expense.budgetId],
+                        categoryName: category?.name,
+                      )
+                    : null,
                 onTap: () => context.push('/app/expenses/${expense.id}'),
               ),
             ),

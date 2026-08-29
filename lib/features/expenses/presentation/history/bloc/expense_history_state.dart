@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../../core/domain/entities/budget_entity.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_history_filter.dart';
@@ -17,6 +18,9 @@ enum ExpenseHistoryStatus {
   refreshing,
   error,
 }
+
+/// View mode for the expense history screen.
+enum ExpenseViewMode { singleBudget, combined }
 
 /// Immutable state for the ExpenseHistoryBloc.
 class ExpenseHistoryState extends Equatable {
@@ -63,6 +67,20 @@ class ExpenseHistoryState extends Equatable {
 
   final String? errorMessage;
 
+  // ── Combined mode fields ─────────────────────────────────────────────
+
+  /// Current view mode (single budget or combined).
+  final ExpenseViewMode viewMode;
+
+  /// Budget IDs selected for the combined view.
+  final List<String> selectedBudgetIds;
+
+  /// All available (non-archived) budgets.
+  final List<BudgetEntity> allBudgets;
+
+  /// Map of budget ID to BudgetEntity for efficient lookup.
+  final Map<String, BudgetEntity> budgetMap;
+
   const ExpenseHistoryState({
     this.status = ExpenseHistoryStatus.initial,
     this.allExpenses = const [],
@@ -79,6 +97,10 @@ class ExpenseHistoryState extends Equatable {
     this.budgetId,
     this.budgetName,
     this.errorMessage,
+    this.viewMode = ExpenseViewMode.singleBudget,
+    this.selectedBudgetIds = const [],
+    this.allBudgets = const [],
+    this.budgetMap = const {},
   });
 
   bool get isEmpty =>
@@ -101,6 +123,10 @@ class ExpenseHistoryState extends Equatable {
     String? budgetName,
     String? errorMessage,
     bool clearError = false,
+    ExpenseViewMode? viewMode,
+    List<String>? selectedBudgetIds,
+    List<BudgetEntity>? allBudgets,
+    Map<String, BudgetEntity>? budgetMap,
   }) {
     return ExpenseHistoryState(
       status: status ?? this.status,
@@ -118,7 +144,27 @@ class ExpenseHistoryState extends Equatable {
       budgetId: budgetId ?? this.budgetId,
       budgetName: budgetName ?? this.budgetName,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      viewMode: viewMode ?? this.viewMode,
+      selectedBudgetIds: selectedBudgetIds ?? this.selectedBudgetIds,
+      allBudgets: allBudgets ?? this.allBudgets,
+      budgetMap: budgetMap ?? this.budgetMap,
     );
+  }
+
+  bool get isCombinedMode => viewMode == ExpenseViewMode.combined;
+
+  /// Total amount spent across all visible expenses.
+  double get combinedTotalAmount =>
+      visibleExpenses.fold(0.0, (sum, e) => sum + e.amount);
+
+  /// Compact label for selected budgets (e.g. "Food \u2022 Travel \u2022 Shopping +2").
+  String get selectedBudgetsLabel {
+    if (selectedBudgetIds.isEmpty) return '';
+    final names = selectedBudgetIds
+        .map((id) => budgetMap[id]?.name ?? id)
+        .toList();
+    if (names.length <= 3) return names.join(' \u2022 ');
+    return '${names.sublist(0, 3).join(' \u2022 ')} +${names.length - 3}';
   }
 
   @override
@@ -138,5 +184,8 @@ class ExpenseHistoryState extends Equatable {
     budgetId,
     budgetName,
     errorMessage,
+    viewMode,
+    selectedBudgetIds,
+    allBudgets,
   ];
 }

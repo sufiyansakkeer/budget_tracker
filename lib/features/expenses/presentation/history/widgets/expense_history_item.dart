@@ -13,16 +13,26 @@ import '../../widgets/category_visuals.dart';
 ///
 /// Shows category icon/color, name, amount, date, time, note preview, and a
 /// receipt indicator. Tapping it opens the expense details.
+///
+/// In combined mode, optionally shows a budget name chip and an info icon.
 class ExpenseHistoryItem extends StatelessWidget {
   final ExpenseEntity expense;
   final ExpenseCategory? category;
   final VoidCallback? onTap;
+
+  /// Budget name to display in combined mode (null = single budget mode).
+  final String? budgetName;
+
+  /// Callback when the info icon is tapped (combined mode).
+  final VoidCallback? onInfoTap;
 
   const ExpenseHistoryItem({
     super.key,
     required this.expense,
     this.category,
     this.onTap,
+    this.budgetName,
+    this.onInfoTap,
   });
 
   @override
@@ -61,13 +71,42 @@ class ExpenseHistoryItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  categoryName,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        categoryName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (budgetName != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          budgetName!,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 if (expense.note != null && expense.note!.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -113,13 +152,29 @@ class ExpenseHistoryItem extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
 
-          // Amount
-          Text(
-            CurrencyFormatter.format(expense.amount, decimalDigits: 0),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
-            ),
+          // Amount + info icon
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                CurrencyFormatter.format(expense.amount, decimalDigits: 0),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              if (onInfoTap != null) ...[
+                const SizedBox(height: 2),
+                GestureDetector(
+                  onTap: onInfoTap,
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

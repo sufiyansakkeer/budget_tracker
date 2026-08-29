@@ -103,14 +103,21 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   /// Resolves the effective budget id for an expense during creation.
   /// Prefers the expense's own budgetId; otherwise uses the active budget id
   /// (from state, or resolved from the repository).
-  Future<ExpenseEntity> _ensureBudgetId(ExpenseEntity expense) async {
+  ///
+  /// If budgetId cannot be resolved, returns an error result instead of
+  /// silently returning an expense with empty budgetId (which would violate
+  /// database constraints and make the expense invisible).
+  Future<ExpenseEntity?> _ensureBudgetId(ExpenseEntity expense) async {
     if (expense.budgetId.isNotEmpty) return expense;
 
     var id = state.activeBudgetId;
     if (id == null || id.isEmpty) {
       id = await _resolveActiveBudgetId();
     }
-    if (id == null || id.isEmpty) return expense;
+    if (id == null || id.isEmpty) {
+      // Cannot proceed without a valid budget ID
+      return null;
+    }
 
     return expense.copyWith(budgetId: id);
   }
@@ -180,6 +187,16 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     emit(state.copyWith(status: ExpenseBlocStatus.creating));
 
     final expense = await _ensureBudgetId(event.expense);
+    if (expense == null) {
+      emit(
+        state.copyWith(
+          status: ExpenseBlocStatus.error,
+          message: 'No active budget selected. Please select a budget first.',
+        ),
+      );
+      return;
+    }
+
     final result = await createExpenseUseCase(expense);
     switch (result) {
       case ExpenseSuccess():

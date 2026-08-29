@@ -263,8 +263,8 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
               Expanded(
                 child: Text(
                   bl.isOverLimit
-                      ? '₹${CurrencyFormatter.format(bl.exceededToday, code: bl.currency, decimalDigits: 0)} over today\'s limit'
-                      : '₹${CurrencyFormatter.format(bl.remainingToday, code: bl.currency, decimalDigits: 0)} left today',
+                      ? '${CurrencyFormatter.format(bl.exceededToday, code: bl.currency, decimalDigits: 0)} over today\'s limit'
+                      : '${CurrencyFormatter.format(bl.remainingToday, code: bl.currency, decimalDigits: 0)} left today',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: statusColor,
                     fontWeight: FontWeight.w600,
