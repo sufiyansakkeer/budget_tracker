@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-30
+
+### Added
+- Combined expense history mode that lets users view and compare expenses
+	across multiple budgets in a single unified list, with budget name chips
+	on each expense tile.
+- Budget selection sheet for choosing which budgets to include in combined
+	mode, with support for selecting, deselecting, and searching budgets.
+- Sort-by-amount support in expense history for ordering expenses
+	ascending or descending by amount.
+
+### Changed
+- Refactored expense history screen and BLoC to support a combined view
+	mode alongside the existing single-budget mode.
+- Enhanced expense grouping and sorting use cases to work across multiple
+	budgets in combined mode.
+
+### Fixed
+- Added missing INTERNET permission to AndroidManifest for GitHub release
+	checks.
+
+### Technical
+- Added combined-mode tests covering budget selection, expense filtering,
+	search, category filtering, date filtering, and state persistence.
+- Added combined-mode widget tests for ExpenseHistoryItem, BudgetInfoBottomSheet,
+	and BudgetSelectionSheet.
+- Added integration tests for sorting expenses by amount in expense history.
+- Enhanced test coverage for expense history BLoC, use cases, and data sources.
+
 ## [1.2.1] - 2026-08-26
 
 ### Added

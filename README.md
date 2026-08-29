@@ -117,6 +117,21 @@ Daily limits are calculated dynamically and are independent for each budget.
 Morning notifications now use each budget's daily limit to calculate the
 safe spending amount.
 
+#### Combined Expense History
+
+1. Open the **Expenses** screen from the app navigation.
+2. Tap the **combine** button to enter combined mode.
+3. Select which budgets to include using the budget selection sheet.
+4. View expenses from all selected budgets in a single unified list.
+5. Each expense tile shows a **budget name chip** so you can see which budget
+  it belongs to.
+6. Use the **sort** button to order expenses ascending or descending by amount.
+7. Tap the **info** icon on an expense to see full budget details in a bottom sheet.
+8. Tap the combine button again to return to single-budget mode.
+
+Combined mode supports searching, category filtering, and date filtering across
+all selected budgets. The budget selection is preserved during screen refreshes.
+
 #### Analytics Explanations
 
 Select the information icon on an analytics card to see what the metric means,
@@ -800,6 +815,7 @@ MIT License (see `LICENSE` file).
 | **Advanced Analytics**           | Machine learning for spending predictions.                                             | Backlog         |
 | **Bill Reminders**               | Track due dates, payment status, and recurring payments.                               | Implemented     |
 | **App Update Checks**            | Check GitHub for newer app releases from Settings.                                      | Implemented     |
+| **Combined Expense History**     | View expenses from multiple budgets in a single unified list with sorting support.       | Implemented     |
 | **Per-Budget Daily Limits**      | Daily and weekly spending targets for each active budget.                              | Implemented     |
 | **Weekly Spending Targets**      | Weekly spending tracking alongside daily limits.                                        | Implemented     |
 | **Dark Mode**                    | Full dark mode support.                                                                 | Implemented     |
