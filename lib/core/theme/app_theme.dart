@@ -291,19 +291,13 @@ class AppTheme {
       checkmarkColor: scheme.onPrimaryContainer,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        side: BorderSide(
-          color: dividerColor,
-          width: 1,
-        ),
+        side: BorderSide(color: dividerColor, width: 1),
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.smd,
         vertical: AppSpacing.xs,
       ),
-      iconTheme: IconThemeData(
-        size: 18,
-        color: textSecondary,
-      ),
+      iconTheme: IconThemeData(size: 18, color: textSecondary),
     );
 
     final bottomSheetTheme = BottomSheetThemeData(
@@ -328,9 +322,7 @@ class AppTheme {
       backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppSpacing.borderRadiusLg,
-      ),
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusLg),
       titleTextStyle: _textTheme.titleLarge?.copyWith(
         color: scheme.onSurface,
         fontWeight: FontWeight.w700,

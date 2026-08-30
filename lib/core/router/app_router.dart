@@ -24,6 +24,10 @@ import '../../features/bills/presentation/bloc/bill_bloc.dart';
 import '../../features/bills/presentation/pages/bills_list_screen.dart';
 import '../../features/bills/presentation/pages/bill_form_screen.dart';
 import '../../features/bills/presentation/pages/bill_details_screen.dart';
+import '../../features/widgets/home_widget_service.dart';
+
+/// Sentinel value for the widget-launched add-expense deep link.
+const String widgetAddExpensePath = '/app/expenses/add';
 
 class AppRouter {
   AppRouter._();
@@ -52,6 +56,15 @@ class AppRouter {
       if (!isFirstLaunch && isOnboardingRoute) {
         return homePath;
       }
+
+      // ── Widget deep link: Add Expense ─────────────────────────────────
+      // Check if the app was launched from a home-screen widget.
+      // consumePendingWidgetRoute() returns a non-null path only once.
+      final widgetRoute = consumePendingWidgetRoute();
+      if (widgetRoute != null && !isOnboardingRoute && !isFirstLaunch) {
+        return widgetRoute;
+      }
+
       return null;
     },
     routes: [

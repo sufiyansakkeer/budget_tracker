@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'app_lock_bloc.dart';
 import 'app_lock_event.dart';
 import 'app_lock_state.dart';
+import '../router/app_router.dart';
+import '../../features/widgets/home_widget_service.dart';
 
 /// Full-screen gate shown while the application is locked.
 ///
@@ -58,7 +60,25 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AppLockBloc, AppLockState>(
+    return BlocConsumer<AppLockBloc, AppLockState>(
+      listenWhen: (previous, current) =>
+          previous.status != AppLockStatus.unlocked &&
+          current.status == AppLockStatus.unlocked,
+      listener: (context, state) {
+        final pending = consumePendingWidgetRoute();
+        if (pending != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            try {
+              if (pending == widgetAddExpensePath) {
+                AppRouter.router.push(widgetAddExpensePath);
+              } else {
+                AppRouter.router.go(pending);
+              }
+            } catch (_) {}
+          });
+        }
+      },
+
       builder: (context, state) {
         // Unlocked -> reveal the real application content.
         if (state.status == AppLockStatus.unlocked) {

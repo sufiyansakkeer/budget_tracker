@@ -1,5 +1,6 @@
 package com.example.monivo
 
+import android.content.Intent
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.plugin.common.MethodChannel
@@ -9,6 +10,11 @@ import io.flutter.plugin.common.MethodChannel
 // FlutterActivity is a plain Activity and is NOT a FragmentActivity, which
 // prevents the native biometric prompt from appearing on Android.
 class MainActivity : FlutterFragmentActivity() {
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		setIntent(intent)
+	}
+
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
 
@@ -28,3 +34,4 @@ class MainActivity : FlutterFragmentActivity() {
 		}
 	}
 }
+

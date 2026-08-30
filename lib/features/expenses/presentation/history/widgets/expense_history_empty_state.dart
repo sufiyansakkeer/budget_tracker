@@ -78,14 +78,12 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.5,
+                  ),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  size: 48,
-                  color: theme.colorScheme.primary,
-                ),
+                child: Icon(icon, size: 48, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
