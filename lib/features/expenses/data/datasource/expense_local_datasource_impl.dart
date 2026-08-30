@@ -117,4 +117,9 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
           );
     }
   }
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) {
+    return database.transaction(action);
+  }
 }

@@ -25,4 +25,8 @@ abstract class ExpenseLocalDataSource {
   Future<List<ExpenseCategory>> getCategories();
 
   Future<void> seedDefaultCategories(List<ExpenseCategory> categories);
+
+  /// Runs [action] inside a database transaction. If [action] throws, all
+  /// changes within are rolled back.
+  Future<T> transaction<T>(Future<T> Function() action);
 }

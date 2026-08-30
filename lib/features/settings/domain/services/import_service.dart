@@ -7,6 +7,9 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_database.dart';
 
 /// Handles importing data into the application from CSV or JSON files.
+///
+/// All imports are transactional: if any record fails validation, no data
+/// is written to the database and the existing data remains unchanged.
 class ImportService {
   final AppDatabase _database;
 
@@ -16,6 +19,9 @@ class ImportService {
   ///
   /// Skips the header row and validates required columns.
   /// Returns the number of expenses imported.
+  ///
+  /// The entire import is transactional — if any record fails validation,
+  /// no data is written.
   Future<int> importCsv(String path) async {
     final file = File(path);
     if (!await file.exists()) {
@@ -31,9 +37,8 @@ class ImportService {
       throw const FormatException('CSV file is empty or has no data rows.');
     }
 
-    // Expected header: amount,categoryId,note,date,tags
-    int importedCount = 0;
-
+    // First pass: validate all rows before writing anything.
+    final validRows = <_CsvRow>[];
     for (int i = 1; i < lines.length; i++) {
       final line = lines[i].trim();
       if (line.isEmpty) continue;
@@ -42,32 +47,57 @@ class ImportService {
       if (columns.length < 4) continue;
 
       final amount = double.tryParse(columns[0].trim());
-      if (amount == null || amount <= 0) continue;
+      if (amount == null || !amount.isFinite || amount <= 0) continue;
 
       final categoryId = columns[1].trim();
+      if (categoryId.isEmpty) continue;
+
       final note = columns.length > 2 ? columns[2].trim() : null;
       final date = DateTime.tryParse(columns[3].trim());
       if (date == null) continue;
 
       final tags = columns.length > 4 ? columns[4].trim() : '';
 
-      final budgetId = await _findOrCreateDefaultBudgetId();
-      await _database
-          .into(_database.expenses)
-          .insert(
-            ExpensesCompanion.insert(
-              id: const Uuid().v4(),
-              budgetId: budgetId,
-              amount: amount,
-              categoryId: categoryId,
-              note: Value(note?.isNotEmpty == true ? note : null),
-              date: date,
-              time: Value(date),
-              tags: Value(tags.isNotEmpty ? tags : null),
-            ),
-          );
-      importedCount++;
+      validRows.add(_CsvRow(
+        amount: amount,
+        categoryId: categoryId,
+        note: note,
+        date: date,
+        tags: tags,
+      ));
     }
+
+    if (validRows.isEmpty) {
+      throw const FormatException('No valid data rows found in CSV.');
+    }
+
+    // Ensure a default budget exists BEFORE starting the transaction, so the
+    // foreign key constraint on expenses.budgetId is satisfied.
+    final budgetId = await _findOrCreateDefaultBudgetId();
+
+    // Write all valid rows in a transaction.
+    int importedCount = 0;
+    await _database.transaction(() async {
+      for (final row in validRows) {
+        await _database
+            .into(_database.expenses)
+            .insert(
+              ExpensesCompanion.insert(
+                id: const Uuid().v4(),
+                budgetId: budgetId,
+                amount: row.amount,
+                categoryId: row.categoryId,
+                note: Value(
+                  row.note?.isNotEmpty == true ? row.note : null,
+                ),
+                date: row.date,
+                time: Value(row.date),
+                tags: Value(row.tags.isNotEmpty ? row.tags : null),
+              ),
+            );
+        importedCount++;
+      }
+    });
 
     return importedCount;
   }
@@ -112,11 +142,55 @@ class ImportService {
       }
     }
 
+    // Validate records before importing.
+    _validateImportData(data);
+
     await _upsertAll(data);
     return (meta is Map<String, Object?>
             ? (meta['schemaVersion'] as num?)?.toInt()
             : null) ??
         0;
+  }
+
+  /// Validates import data records before writing to the database.
+  void _validateImportData(Map<String, Object?> data) {
+    // Validate expense records.
+    final expenses = (data['expenses'] as List?) ?? [];
+    for (var i = 0; i < expenses.length; i++) {
+      final item = expenses[i];
+      if (item is! Map) {
+        throw FormatException('Invalid expense record at index $i.');
+      }
+      final amount = (item['amount'] as num?)?.toDouble();
+      if (amount == null || !amount.isFinite || amount <= 0) {
+        throw FormatException(
+          'Invalid expense amount at index $i: ${item['amount']}.',
+        );
+      }
+      if (item['date'] != null) {
+        final date = DateTime.tryParse(item['date'].toString());
+        if (date == null) {
+          throw FormatException(
+            'Invalid expense date at index $i: ${item['date']}.',
+          );
+        }
+      }
+    }
+
+    // Validate budget records.
+    final budgets = (data['budgets'] as List?) ?? [];
+    for (var i = 0; i < budgets.length; i++) {
+      final item = budgets[i];
+      if (item is! Map) {
+        throw FormatException('Invalid budget record at index $i.');
+      }
+      final amount = (item['monthlyAmount'] as num?)?.toDouble();
+      if (amount == null || !amount.isFinite || amount < 0) {
+        throw FormatException(
+          'Invalid budget amount at index $i: ${item['monthlyAmount']}.',
+        );
+      }
+    }
   }
 
   /// Returns the id of an existing budget, creating a default one if none exists.
@@ -233,4 +307,21 @@ class ImportService {
       }
     });
   }
+}
+
+/// Internal CSV row representation for two-pass import.
+class _CsvRow {
+  final double amount;
+  final String categoryId;
+  final String? note;
+  final DateTime date;
+  final String tags;
+
+  const _CsvRow({
+    required this.amount,
+    required this.categoryId,
+    this.note,
+    required this.date,
+    required this.tags,
+  });
 }

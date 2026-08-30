@@ -86,13 +86,15 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
 
   @override
   Future<void> deleteBudget(String id) async {
-    // Delete associated expenses first, then the budget.
-    await (database.delete(
-      database.expenses,
-    )..where((expense) => expense.budgetId.equals(id))).go();
-    await (database.delete(
-      database.budgets,
-    )..where((budget) => budget.id.equals(id))).go();
+    // Delete associated expenses first, then the budget — atomically.
+    await database.transaction(() async {
+      await (database.delete(
+        database.expenses,
+      )..where((expense) => expense.budgetId.equals(id))).go();
+      await (database.delete(
+        database.budgets,
+      )..where((budget) => budget.id.equals(id))).go();
+    });
   }
 
   @override

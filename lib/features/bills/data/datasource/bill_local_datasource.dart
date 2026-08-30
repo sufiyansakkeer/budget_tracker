@@ -19,4 +19,8 @@ abstract class BillLocalDataSource {
   Future<double> getUpcomingBillsTotal({int withinDays = 30});
 
   Future<double> getMonthlyRecurringBillsTotal();
+
+  /// Runs [action] inside a database transaction. If [action] throws, all
+  /// changes within are rolled back.
+  Future<T> transaction<T>(Future<T> Function() action);
 }

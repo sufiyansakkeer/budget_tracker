@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../domain/services/database_integrity_service.dart';
 import '../../features/settings/data/datasource/settings_local_datasource.dart';
 import '../../features/settings/data/datasource/settings_local_datasource_impl.dart';
 import '../../features/settings/data/repository/settings_repository_impl.dart';
@@ -112,6 +113,11 @@ Future<void> initDependencyInjection() async {
   // 2. Local Database
   final database = AppDatabase();
   getIt.registerSingleton<AppDatabase>(database);
+
+  // 2.5 Database Integrity Service
+  getIt.registerLazySingleton<DatabaseIntegrityService>(
+    () => DatabaseIntegrityService(database: getIt<AppDatabase>()),
+  );
 
   // 3. Budget Engine - Core Service
   getIt.registerLazySingleton<BudgetCalculationService>(

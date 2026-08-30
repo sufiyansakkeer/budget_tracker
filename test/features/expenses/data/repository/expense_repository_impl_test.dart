@@ -145,6 +145,9 @@ class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {
 
   @override
   Future<void> seedDefaultCategories(List<ExpenseCategory> categories) async {}
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
 }
 
 ExpenseEntity expenseEntity(String id) {

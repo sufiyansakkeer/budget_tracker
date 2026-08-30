@@ -25,11 +25,13 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
 
   @override
   Future<void> deleteBill(String id) async {
-    // Delete associated payment records first.
-    await (database.delete(
-      database.billPayments,
-    )..where((p) => p.billId.equals(id))).go();
-    await (database.delete(database.bills)..where((b) => b.id.equals(id))).go();
+    // Delete associated payment records and bill atomically.
+    await database.transaction(() async {
+      await (database.delete(
+        database.billPayments,
+      )..where((p) => p.billId.equals(id))).go();
+      await (database.delete(database.bills)..where((b) => b.id.equals(id))).go();
+    });
   }
 
   @override
@@ -108,5 +110,10 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
       }
     }
     return total;
+  }
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) {
+    return database.transaction(action);
   }
 }
