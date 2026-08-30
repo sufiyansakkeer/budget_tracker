@@ -60,13 +60,6 @@ class _BudgetProgressCardState extends State<BudgetProgressCard>
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: AppSpacing.borderRadiusLg,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [

@@ -283,17 +283,26 @@ class AppTheme {
     final chipTheme = ChipThemeData(
       backgroundColor: surfaceContainer,
       selectedColor: scheme.primaryContainer,
+      disabledColor: surfaceContainer,
       labelStyle: _textTheme.labelMedium?.copyWith(color: scheme.onSurface),
       secondaryLabelStyle: _textTheme.labelMedium?.copyWith(
         color: scheme.onPrimaryContainer,
       ),
+      checkmarkColor: scheme.onPrimaryContainer,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        side: BorderSide(color: dividerColor),
+        side: BorderSide(
+          color: dividerColor,
+          width: 1,
+        ),
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.smd,
         vertical: AppSpacing.xs,
+      ),
+      iconTheme: IconThemeData(
+        size: 18,
+        color: textSecondary,
       ),
     );
 
@@ -301,6 +310,13 @@ class AppTheme {
       backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
+      dragHandleColor: dividerColor,
+      clipBehavior: Clip.antiAlias,
+      constraints: BoxConstraints(
+        maxWidth: MediaQueryData.fromView(
+          WidgetsBinding.instance.platformDispatcher.views.first,
+        ).size.width,
+      ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(AppSpacing.radiusLg),
@@ -311,9 +327,24 @@ class AppTheme {
     final dialogTheme = DialogThemeData(
       backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusLg),
-      titleTextStyle: _textTheme.titleLarge?.copyWith(color: scheme.onSurface),
-      contentTextStyle: _textTheme.bodyMedium?.copyWith(color: textSecondary),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppSpacing.borderRadiusLg,
+      ),
+      titleTextStyle: _textTheme.titleLarge?.copyWith(
+        color: scheme.onSurface,
+        fontWeight: FontWeight.w700,
+      ),
+      contentTextStyle: _textTheme.bodyMedium?.copyWith(
+        color: textSecondary,
+        height: 1.5,
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
     );
 
     final snackBarTheme = SnackBarThemeData(
@@ -322,7 +353,13 @@ class AppTheme {
       contentTextStyle: _textTheme.bodyMedium?.copyWith(
         color: scheme.onSurface,
       ),
-      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusMd),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
     );
 
     final progressIndicatorTheme = ProgressIndicatorThemeData(
@@ -348,7 +385,10 @@ class AppTheme {
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusXl),
+      focusElevation: 0,
+      hoverElevation: 2,
+      highlightElevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusLg),
     );
 
     final switchTheme = SwitchThemeData(
@@ -360,6 +400,32 @@ class AppTheme {
         if (states.contains(WidgetState.selected)) return scheme.primary;
         return null;
       }),
+    );
+
+    final tabBarTheme = TabBarThemeData(
+      labelColor: scheme.onSurface,
+      unselectedLabelColor: textSecondary,
+      labelStyle: _textTheme.labelLarge,
+      unselectedLabelStyle: _textTheme.labelLarge,
+      indicatorColor: scheme.primary,
+      dividerColor: dividerColor,
+    );
+
+    final sliderTheme = SliderThemeData(
+      activeTrackColor: scheme.primary,
+      inactiveTrackColor: surfaceContainerHigh,
+      thumbColor: scheme.primary,
+      overlayColor: scheme.primary.withValues(alpha: 0.12),
+    );
+
+    final tooltipTheme = TooltipThemeData(
+      decoration: BoxDecoration(
+        color: isDark ? surfaceContainerHigh : colorScheme.inverseSurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      textStyle: _textTheme.bodySmall?.copyWith(
+        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+      ),
     );
 
     return base.copyWith(
@@ -379,6 +445,9 @@ class AppTheme {
       dividerTheme: dividerTheme,
       floatingActionButtonTheme: floatingActionButtonTheme,
       switchTheme: switchTheme,
+      tabBarTheme: tabBarTheme,
+      sliderTheme: sliderTheme,
+      tooltipTheme: tooltipTheme,
     );
   }
 }

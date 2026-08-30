@@ -262,26 +262,24 @@ class _OverallBudgetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardTheme.color,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
+              color: colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               Icons.account_balance_wallet_rounded,
-              color: AppColors.primary,
+              color: colorScheme.primary,
               size: 22,
             ),
           ),
@@ -291,9 +289,9 @@ class _OverallBudgetCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Overall Budget',
+                  'Total Remaining',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -309,9 +307,9 @@ class _OverallBudgetCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'remaining',
+                  'remaining across all budgets',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
               ],
@@ -319,7 +317,7 @@ class _OverallBudgetCard extends StatelessWidget {
           ),
           InfoIcon(
             content: InfoContent(
-              title: 'Overall Budget',
+              title: 'Total Remaining',
               whatIsThis:
                   'The total remaining amount across all active budgets. '
                   "This combines all budgets' remaining balances.",
@@ -382,27 +380,35 @@ class _QuickActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Material(
-      color: theme.colorScheme.primaryContainer,
+      color: colorScheme.surfaceContainer,
       borderRadius: AppSpacing.borderRadiusMd,
       child: InkWell(
         onTap: onTap,
         borderRadius: AppSpacing.borderRadiusMd,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            vertical: AppSpacing.md,
+            vertical: AppSpacing.smd,
             horizontal: AppSpacing.sm,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 20, color: AppColors.primary),
-              const SizedBox(width: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+                child: Icon(icon, size: 18, color: colorScheme.primary),
+              ),
+              const SizedBox(width: AppSpacing.smd),
               Text(
                 label,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
@@ -541,7 +547,7 @@ class _UpcomingBillsList extends StatelessWidget {
                     height: 40,
                     decoration: BoxDecoration(
                       color: dueColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       isOverdue
@@ -564,11 +570,12 @@ class _UpcomingBillsList extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           dueText,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: dueColor,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/app_colors.dart';
-
 /// The main application shell that hosts the Material 3 [NavigationBar] and
 /// preserves each tab's navigation stack via [StatefulShellRoute.indexedStack].
 ///
@@ -19,8 +17,6 @@ class AppShell extends StatelessWidget {
   void _onDestinationSelected(int index) {
     navigationShell.goBranch(
       index,
-      // Blow the stack (reset to root of the tab) only when the user taps the
-      // currently active tab; otherwise preserve the tab's navigation state.
       initialLocation: index == navigationShell.currentIndex,
     );
   }
@@ -28,14 +24,16 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          color: colorScheme.surface,
           border: Border(
             top: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+              width: 0.5,
             ),
           ),
         ),
@@ -44,8 +42,8 @@ class AppShell extends StatelessWidget {
           child: NavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: _onDestinationSelected,
-            indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-            height: 72,
+            elevation: 0,
+            height: 68,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: const [
               NavigationDestination(

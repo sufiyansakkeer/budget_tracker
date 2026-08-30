@@ -18,19 +18,27 @@ class InsightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: config.backgroundColor.withValues(alpha: 0.1),
-        borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: config.backgroundColor, width: 1),
+        color: config.backgroundColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(config.icon, color: config.backgroundColor, size: 24),
-          const SizedBox(width: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.xs),
+            decoration: BoxDecoration(
+              color: config.backgroundColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(config.icon, color: config.backgroundColor, size: 20),
+          ),
+          const SizedBox(width: AppSpacing.smd),
           Expanded(
             child: Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface,
+                height: 1.4,
               ),
             ),
           ),

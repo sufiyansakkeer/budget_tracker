@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
 
 /// A reusable empty state with an icon circle, title, message and optional
@@ -26,6 +25,7 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -35,10 +35,10 @@ class EmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.xl),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 56, color: AppColors.primary),
+              child: Icon(icon, size: 52, color: colorScheme.primary),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
@@ -49,18 +49,21 @@ class EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: AppSpacing.lg),
               FilledButton.icon(
                 onPressed: onAction,
-                icon: Icon(actionIcon ?? Icons.add_rounded),
+                icon: Icon(actionIcon ?? Icons.add_rounded, size: 18),
                 label: Text(actionLabel!),
               ),
             ],
@@ -87,6 +90,7 @@ class ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -96,13 +100,13 @@ class ErrorState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.xl),
               decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
+                color: colorScheme.errorContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.error_outline_rounded,
                 size: 48,
-                color: AppColors.error,
+                color: colorScheme.onErrorContainer,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -114,12 +118,15 @@ class ErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton.icon(

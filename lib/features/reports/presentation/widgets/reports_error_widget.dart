@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
 /// Friendly error state with a retry action.
@@ -17,6 +16,7 @@ class ReportsErrorWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -26,35 +26,38 @@ class ReportsErrorWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
-                color: AppColors.dangerRed.withValues(alpha: 0.1),
+                color: colorScheme.errorContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.error_outline,
                 size: 48,
-                color: AppColors.dangerRed,
+                color: colorScheme.onErrorContainer,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Something went wrong',
+              'Unable to load reports',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            OutlinedButton.icon(
+            FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Try Again'),
             ),
           ],
         ),
