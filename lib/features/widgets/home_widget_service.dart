@@ -46,12 +46,14 @@ String? resolveWidgetUriToRoute(Uri? uri) {
   if (uri == null) return null;
   final str = uri.toString().toLowerCase();
   final path = uri.path.toLowerCase();
-  if (str.contains('expense') || str.contains('add') || path.contains('expense') || path.contains('add')) {
+  if (str.contains('expense') ||
+      str.contains('add') ||
+      path.contains('expense') ||
+      path.contains('add')) {
     return '/app/expenses/add';
   }
   return '/app/home';
 }
-
 
 /// Service that bridges the existing budget/expense architecture with
 /// home-screen widgets.

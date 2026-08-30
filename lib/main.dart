@@ -154,7 +154,6 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
       }
     });
 
-
     // Trigger update check asynchronously after the first frame renders
     // so the app never blocks on a slow network.
     WidgetsBinding.instance.addPostFrameCallback((_) {
