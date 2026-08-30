@@ -63,8 +63,9 @@ class FakeBudgetRepo implements BudgetRepository {
   @override
   Future<BudgetEntity?> getBudgetById(String id) async => budget;
   @override
-  Future<List<BudgetEntity>> getAllBudgets({BudgetQueryOptions? options}) async =>
-      [budget];
+  Future<List<BudgetEntity>> getAllBudgets({
+    BudgetQueryOptions? options,
+  }) async => [budget];
   @override
   Future<BudgetEntity> createBudget(BudgetEntity b) async => b;
   @override
@@ -72,39 +73,46 @@ class FakeBudgetRepo implements BudgetRepository {
   @override
   Future<void> deleteBudget(String id) async {}
   @override
-  Future<BudgetEntity> setBudgetArchived(String id,
-          {required bool archived}) async =>
-      budget;
+  Future<BudgetEntity> setBudgetArchived(
+    String id, {
+    required bool archived,
+  }) async => budget;
   @override
-  Future<BudgetEntity> duplicateBudget(String id,
-          {required String newName,
-          DateTime? startDate,
-          DateTime? endDate}) async =>
-      budget;
+  Future<BudgetEntity> duplicateBudget(
+    String id, {
+    required String newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async => budget;
   @override
-  Future<MonthlyStatisticsEntity> getBudgetStatistics(String budgetId,
-          {DateTime? referenceDate}) async =>
-      MonthlyStatisticsEntity.empty;
+  Future<MonthlyStatisticsEntity> getBudgetStatistics(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => MonthlyStatisticsEntity.empty;
   @override
-  Future<double> getTodaySpending(String budgetId,
-          {DateTime? referenceDate}) async =>
-      0;
+  Future<double> getTodaySpending(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 0;
   @override
-  Future<int> getRemainingDays(String budgetId,
-          {DateTime? referenceDate}) async =>
-      1;
+  Future<int> getRemainingDays(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => 1;
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
-          String budgetId,
-          {DateTime? referenceDate}) async =>
-      BudgetError(
-          BudgetFailure(type: BudgetErrorType.notFound, message: ''));
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async =>
+      BudgetError(BudgetFailure(type: BudgetErrorType.notFound, message: ''));
   @override
   Future<void> updateBudgetRemainingAmount(String budgetId) async {}
   @override
-  Future<double> getExpensesTotalInRange(String budgetId,
-          {required DateTime startDate, required DateTime endDate}) async =>
-      0;
+  Future<double> getExpensesTotalInRange(
+    String budgetId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async => 0;
 }
 
 void main() {
@@ -113,20 +121,55 @@ void main() {
   final today = DateTime(2026, 8, 29);
   final expenses = [
     ExpenseEntity(
-        id: '1', budgetId: 'b1', amount: 500, categoryId: 'food',
-        date: today, time: today, createdAt: today, updatedAt: today),
+      id: '1',
+      budgetId: 'b1',
+      amount: 500,
+      categoryId: 'food',
+      date: today,
+      time: today,
+      createdAt: today,
+      updatedAt: today,
+    ),
     ExpenseEntity(
-        id: '2', budgetId: 'b1', amount: 2000, categoryId: 'food',
-        date: today, time: today, createdAt: today, updatedAt: today),
+      id: '2',
+      budgetId: 'b1',
+      amount: 2000,
+      categoryId: 'food',
+      date: today,
+      time: today,
+      createdAt: today,
+      updatedAt: today,
+    ),
     ExpenseEntity(
-        id: '3', budgetId: 'b1', amount: 800, categoryId: 'food',
-        date: today, time: today, createdAt: today, updatedAt: today),
+      id: '3',
+      budgetId: 'b1',
+      amount: 800,
+      categoryId: 'food',
+      date: today,
+      time: today,
+      createdAt: today,
+      updatedAt: today,
+    ),
     ExpenseEntity(
-        id: '4', budgetId: 'b1', amount: 200, categoryId: 'food',
-        date: today, time: today, createdAt: today, updatedAt: today),
+      id: '4',
+      budgetId: 'b1',
+      amount: 200,
+      categoryId: 'food',
+      date: today,
+      time: today,
+      createdAt: today,
+      updatedAt: today,
+    ),
     ExpenseEntity(
-        id: '5', budgetId: 'b1', amount: 1500, categoryId: 'food',
-        date: today, time: today, createdAt: today, updatedAt: today),
+      id: '5',
+      budgetId: 'b1',
+      amount: 1500,
+      categoryId: 'food',
+      date: today,
+      time: today,
+      createdAt: today,
+      updatedAt: today,
+    ),
   ];
 
   Widget buildScreen(ExpenseHistoryBloc bloc) {
@@ -143,25 +186,36 @@ void main() {
     final repo = FakeRepository(expenses);
     return ExpenseHistoryBloc(
       getExpensesUseCase: GetExpensesUseCase(repository: repo),
-      getExpensesForBudgetsUseCase: GetExpensesForBudgetsUseCase(repository: repo),
+      getExpensesForBudgetsUseCase: GetExpensesForBudgetsUseCase(
+        repository: repo,
+      ),
       getCategoriesUseCase: GetCategoriesUseCase(repository: repo),
       searchExpensesUseCase: const SearchExpensesUseCase(),
       filterExpensesUseCase: const FilterExpensesUseCase(),
       sortExpensesUseCase: const SortExpensesUseCase(),
       calculateExpenseSummaryUseCase: const CalculateExpenseSummaryUseCase(),
       pageExpensesUseCase: const PageExpensesUseCase(pageSize: 50),
-      budgetRepository: FakeBudgetRepo(BudgetEntity(
-        id: 'b1', name: 'Test', monthlyAmount: 30000,
-        remainingAmount: 30000, currency: 'INR',
-        startDate: DateTime(2026, 8, 1), endDate: DateTime(2026, 8, 31),
-        createdAt: DateTime(2026, 8, 1), updatedAt: DateTime(2026, 8, 1),
-      )),
+      budgetRepository: FakeBudgetRepo(
+        BudgetEntity(
+          id: 'b1',
+          name: 'Test',
+          monthlyAmount: 30000,
+          remainingAmount: 30000,
+          currency: 'INR',
+          startDate: DateTime(2026, 8, 1),
+          endDate: DateTime(2026, 8, 31),
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+      ),
     );
   }
 
   // Helper: extract the ordered list of ₹ amounts from the ExpenseHistoryItem widgets
   List<double> displayedAmounts(WidgetTester tester) {
-    final items = tester.widgetList<ExpenseHistoryItem>(find.byType(ExpenseHistoryItem));
+    final items = tester.widgetList<ExpenseHistoryItem>(
+      find.byType(ExpenseHistoryItem),
+    );
     return items.map((w) => w.expense.amount).toList();
   }
 
@@ -170,7 +224,9 @@ void main() {
     addTearDown(bloc.close);
 
     bloc.add(const ExpenseHistoryLoad());
-    await bloc.stream.firstWhere((s) => s.status == ExpenseHistoryStatus.loaded);
+    await bloc.stream.firstWhere(
+      (s) => s.status == ExpenseHistoryStatus.loaded,
+    );
 
     await tester.pumpWidget(buildScreen(bloc));
     await tester.pumpAndSettle();
@@ -181,7 +237,9 @@ void main() {
 
     // Dispatch sort change
     bloc.add(const ExpenseHistorySortChanged(ExpenseSortOption.highestAmount));
-    await bloc.stream.firstWhere((s) => s.sort == ExpenseSortOption.highestAmount);
+    await bloc.stream.firstWhere(
+      (s) => s.sort == ExpenseSortOption.highestAmount,
+    );
     await tester.pumpAndSettle();
 
     final after = displayedAmounts(tester);
@@ -196,13 +254,17 @@ void main() {
     addTearDown(bloc.close);
 
     bloc.add(const ExpenseHistoryLoad());
-    await bloc.stream.firstWhere((s) => s.status == ExpenseHistoryStatus.loaded);
+    await bloc.stream.firstWhere(
+      (s) => s.status == ExpenseHistoryStatus.loaded,
+    );
 
     await tester.pumpWidget(buildScreen(bloc));
     await tester.pumpAndSettle();
 
     bloc.add(const ExpenseHistorySortChanged(ExpenseSortOption.lowestAmount));
-    await bloc.stream.firstWhere((s) => s.sort == ExpenseSortOption.lowestAmount);
+    await bloc.stream.firstWhere(
+      (s) => s.sort == ExpenseSortOption.lowestAmount,
+    );
     await tester.pumpAndSettle();
 
     final after = displayedAmounts(tester);
@@ -215,21 +277,26 @@ void main() {
     addTearDown(bloc.close);
 
     bloc.add(const ExpenseHistoryLoad());
-    await bloc.stream.firstWhere((s) => s.status == ExpenseHistoryStatus.loaded);
+    await bloc.stream.firstWhere(
+      (s) => s.status == ExpenseHistoryStatus.loaded,
+    );
 
     await tester.pumpWidget(buildScreen(bloc));
     await tester.pumpAndSettle();
 
     // Set to highest amount
     bloc.add(const ExpenseHistorySortChanged(ExpenseSortOption.highestAmount));
-    await bloc.stream.firstWhere((s) => s.sort == ExpenseSortOption.highestAmount);
+    await bloc.stream.firstWhere(
+      (s) => s.sort == ExpenseSortOption.highestAmount,
+    );
     await tester.pumpAndSettle();
 
     // Simulate refresh
     bloc.add(const ExpenseHistoryRefresh());
-    await bloc.stream.firstWhere((s) =>
-        s.status == ExpenseHistoryStatus.loaded &&
-        s.allExpenses.length == 5);
+    await bloc.stream.firstWhere(
+      (s) =>
+          s.status == ExpenseHistoryStatus.loaded && s.allExpenses.length == 5,
+    );
     await tester.pumpAndSettle();
 
     // Sort should survive

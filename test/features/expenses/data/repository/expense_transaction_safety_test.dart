@@ -37,8 +37,7 @@ class TrackingExpenseDataSource implements ExpenseLocalDataSource {
     String? budgetId,
     int? month,
     int? year,
-  }) async =>
-      store.values.toList();
+  }) async => store.values.toList();
 
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
@@ -95,49 +94,42 @@ class TrackingBudgetRepository implements BudgetRepository {
   Future<BudgetEntity> setBudgetArchived(
     String id, {
     required bool archived,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
   @override
   Future<BudgetEntity> duplicateBudget(
     String id, {
     required String newName,
     DateTime? startDate,
     DateTime? endDate,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
   @override
   Future<MonthlyStatisticsEntity> getBudgetStatistics(
     String budgetId, {
     DateTime? referenceDate,
-  }) async =>
-      MonthlyStatisticsEntity.empty;
+  }) async => MonthlyStatisticsEntity.empty;
   @override
   Future<double> getTodaySpending(
     String budgetId, {
     DateTime? referenceDate,
-  }) async =>
-      0;
+  }) async => 0;
   @override
   Future<int> getRemainingDays(
     String budgetId, {
     DateTime? referenceDate,
-  }) async =>
-      30;
+  }) async => 30;
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
     DateTime? referenceDate,
-  }) async =>
-      const BudgetError(
-        BudgetFailure(type: BudgetErrorType.notFound, message: 'Not found'),
-      );
+  }) async => const BudgetError(
+    BudgetFailure(type: BudgetErrorType.notFound, message: 'Not found'),
+  );
   @override
   Future<double> getExpensesTotalInRange(
     String budgetId, {
     required DateTime startDate,
     required DateTime endDate,
-  }) async =>
-      0.0;
+  }) async => 0.0;
 }
 
 ExpenseEntity makeExpense(String id, {String budgetId = 'budget-1'}) {

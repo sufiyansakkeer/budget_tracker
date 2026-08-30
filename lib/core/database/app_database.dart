@@ -115,7 +115,8 @@ class Bills extends Table {
       integer().withDefault(const Constant(1))();
   BoolColumn get reminderEnabled =>
       boolean().withDefault(const Constant(false))();
-  IntColumn get reminderOffsetDays => integer().withDefault(const Constant(1))();
+  IntColumn get reminderOffsetDays =>
+      integer().withDefault(const Constant(1))();
   BoolColumn get isPaid => boolean().withDefault(const Constant(false))();
   DateTimeColumn get paidDate => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -160,13 +161,14 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (m) async {
-        developer.log('[Database] Creating schema v$schemaVersion',
-            name: 'Database');
+        developer.log(
+          '[Database] Creating schema v$schemaVersion',
+          name: 'Database',
+        );
         await m.createAll();
       },
       onUpgrade: (m, from, to) async {
-        developer.log('[Database] Migrating v$from → v$to',
-            name: 'Database');
+        developer.log('[Database] Migrating v$from → v$to', name: 'Database');
         if (from < 2) {
           await m.addColumn(expenses, expenses.time);
         }
@@ -233,10 +235,7 @@ class AppDatabase extends _$AppDatabase {
                 name: 'Database',
               );
             } else {
-              developer.log(
-                '[Database] Integrity check: OK',
-                name: 'Database',
-              );
+              developer.log('[Database] Integrity check: OK', name: 'Database');
             }
           } catch (e) {
             developer.log(

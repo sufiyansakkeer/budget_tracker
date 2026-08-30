@@ -58,13 +58,15 @@ class ImportService {
 
       final tags = columns.length > 4 ? columns[4].trim() : '';
 
-      validRows.add(_CsvRow(
-        amount: amount,
-        categoryId: categoryId,
-        note: note,
-        date: date,
-        tags: tags,
-      ));
+      validRows.add(
+        _CsvRow(
+          amount: amount,
+          categoryId: categoryId,
+          note: note,
+          date: date,
+          tags: tags,
+        ),
+      );
     }
 
     if (validRows.isEmpty) {
@@ -87,9 +89,7 @@ class ImportService {
                 budgetId: budgetId,
                 amount: row.amount,
                 categoryId: row.categoryId,
-                note: Value(
-                  row.note?.isNotEmpty == true ? row.note : null,
-                ),
+                note: Value(row.note?.isNotEmpty == true ? row.note : null),
                 date: row.date,
                 time: Value(row.date),
                 tags: Value(row.tags.isNotEmpty ? row.tags : null),

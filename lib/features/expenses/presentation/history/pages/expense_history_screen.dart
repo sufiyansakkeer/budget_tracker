@@ -250,11 +250,6 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           ),
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                tooltip: 'Back',
-                onPressed: () => Navigator.of(context).pop(),
-              ),
               Expanded(
                 child: state.isCombinedMode
                     ? _buildCombinedHeader(context, state)

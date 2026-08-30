@@ -124,10 +124,7 @@ class ResetMonthUseCase {
           await (_database.update(
             _database.expenses,
           )..where((e) => e.id.equals(expense.id))).write(
-            ExpensesCompanion(
-              budgetId: Value(newId),
-              updatedAt: Value(now),
-            ),
+            ExpensesCompanion(budgetId: Value(newId), updatedAt: Value(now)),
           );
         }
       });

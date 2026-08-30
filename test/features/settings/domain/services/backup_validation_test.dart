@@ -64,10 +64,7 @@ void main() {
         'metadata': {'schemaVersion': 4},
         'data': {
           'budgets': [
-            {
-              'id': 'budget-1',
-              'monthlyAmount': -100,
-            },
+            {'id': 'budget-1', 'monthlyAmount': -100},
           ],
         },
       };
@@ -105,11 +102,7 @@ void main() {
         'metadata': {'schemaVersion': 4},
         'data': {
           'expenses': [
-            {
-              'id': 'exp-1',
-              'amount': 100,
-              'date': 'not-a-date',
-            },
+            {'id': 'exp-1', 'amount': 100, 'date': 'not-a-date'},
           ],
         },
       };
@@ -194,10 +187,7 @@ void main() {
       final file = File('${Directory.systemTemp.path}/invalid_restore.json');
       await file.writeAsString(jsonEncode(payload));
 
-      expect(
-        () => service.restore(file.path),
-        throwsFormatException,
-      );
+      expect(() => service.restore(file.path), throwsFormatException);
     });
 
     test('successfully restores valid backup', () async {

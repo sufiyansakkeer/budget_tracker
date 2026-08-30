@@ -12,7 +12,9 @@ void main() {
 
   /// Seeds the 'food' category so expense references to it are valid.
   Future<void> seedFoodCategory() async {
-    await database.into(database.categories).insert(
+    await database
+        .into(database.categories)
+        .insert(
           CategoriesCompanion.insert(
             id: 'food',
             name: 'Food',
@@ -39,33 +41,36 @@ void main() {
       expect(result.issues, isEmpty);
     });
 
-    test('detects orphaned expenses (references non-existent budget)',
-        () async {
-      await seedFoodCategory();
+    test(
+      'detects orphaned expenses (references non-existent budget)',
+      () async {
+        await seedFoodCategory();
 
-      // Insert an expense referencing a non-existent budget.
-      await database
-          .into(database.expenses)
-          .insert(
-            ExpensesCompanion.insert(
-              id: 'exp-orphan',
-              budgetId: 'nonexistent-budget',
-              amount: 100,
-              categoryId: 'food',
-              date: DateTime(2026, 8, 1),
-            ),
-          );
+        // Insert an expense referencing a non-existent budget.
+        await database
+            .into(database.expenses)
+            .insert(
+              ExpensesCompanion.insert(
+                id: 'exp-orphan',
+                budgetId: 'nonexistent-budget',
+                amount: 100,
+                categoryId: 'food',
+                date: DateTime(2026, 8, 1),
+              ),
+            );
 
-      final result = await service.runFullCheck();
-      expect(result.passed, isFalse);
-      expect(result.hasIssues, isTrue);
+        final result = await service.runFullCheck();
+        expect(result.passed, isFalse);
+        expect(result.hasIssues, isTrue);
 
-      final orphanIssues =
-          result.issues.where((i) => i.table == 'expenses').toList();
-      expect(orphanIssues.length, 1);
-      expect(orphanIssues.first.entityId, 'exp-orphan');
-      expect(orphanIssues.first.description, contains('budget'));
-    });
+        final orphanIssues = result.issues
+            .where((i) => i.table == 'expenses')
+            .toList();
+        expect(orphanIssues.length, 1);
+        expect(orphanIssues.first.entityId, 'exp-orphan');
+        expect(orphanIssues.first.description, contains('budget'));
+      },
+    );
 
     test('detects expenses referencing non-existent categories', () async {
       // First insert a valid budget so the expense's budget reference is OK.
@@ -101,40 +106,42 @@ void main() {
 
       final catIssues = result.issues
           .where(
-            (i) =>
-                i.table == 'expenses' &&
-                i.description.contains('category'),
+            (i) => i.table == 'expenses' && i.description.contains('category'),
           )
           .toList();
       expect(catIssues.length, 1);
       expect(catIssues.first.entityId, 'exp-bad-cat');
     });
 
-    test('detects budget with invalid date range (startDate > endDate)',
-        () async {
-      await database
-          .into(database.budgets)
-          .insert(
-            BudgetsCompanion.insert(
-              id: 'budget-bad-dates',
-              name: 'Bad Dates Budget',
-              monthlyAmount: 10000,
-              remainingAmount: 10000,
-              currency: 'INR',
-              startDate: DateTime(2026, 8, 31),
-              endDate: DateTime(2026, 8, 1), // End before start!
-            ),
-          );
+    test(
+      'detects budget with invalid date range (startDate > endDate)',
+      () async {
+        await database
+            .into(database.budgets)
+            .insert(
+              BudgetsCompanion.insert(
+                id: 'budget-bad-dates',
+                name: 'Bad Dates Budget',
+                monthlyAmount: 10000,
+                remainingAmount: 10000,
+                currency: 'INR',
+                startDate: DateTime(2026, 8, 31),
+                endDate: DateTime(2026, 8, 1), // End before start!
+              ),
+            );
 
-      final result = await service.runFullCheck();
-      expect(result.passed, isFalse);
+        final result = await service.runFullCheck();
+        expect(result.passed, isFalse);
 
-      final dateIssues = result.issues
-          .where((i) => i.table == 'budgets' && i.description.contains('date'))
-          .toList();
-      expect(dateIssues.length, 1);
-      expect(dateIssues.first.entityId, 'budget-bad-dates');
-    });
+        final dateIssues = result.issues
+            .where(
+              (i) => i.table == 'budgets' && i.description.contains('date'),
+            )
+            .toList();
+        expect(dateIssues.length, 1);
+        expect(dateIssues.first.entityId, 'budget-bad-dates');
+      },
+    );
 
     test('detects expense with invalid amount (zero)', () async {
       // First insert a valid budget.

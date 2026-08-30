@@ -7,10 +7,10 @@ import '../constants/app_colors.dart';
 /// preserves each tab's navigation stack via [StatefulShellRoute.indexedStack].
 ///
 /// Tabs:
-///   1. Home  (Dashboard)
+///   0. Home  (Dashboard)
+///   1. Expenses
 ///   2. Reports
-///   3. Budget
-///   4. Settings
+///   3. Settings
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -54,14 +54,14 @@ class AppShell extends StatelessWidget {
                 label: 'Home',
               ),
               NavigationDestination(
-                icon: Icon(Icons.analytics_outlined),
-                selectedIcon: Icon(Icons.analytics_rounded),
-                label: 'Reports',
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Expenses',
               ),
               NavigationDestination(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-                label: 'Budget',
+                icon: Icon(Icons.bar_chart_outlined),
+                selectedIcon: Icon(Icons.bar_chart_rounded),
+                label: 'Reports',
               ),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),

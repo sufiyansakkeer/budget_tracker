@@ -32,10 +32,10 @@ class AppRouter {
   static const String appPath = '/app';
   static const String homePath = '/app/home';
   static const String expensesPath = '/app/expenses';
-  static const String billsPath = '/app/bills';
   static const String reportsPath = '/app/reports';
   static const String budgetsPath = '/app/budgets';
   static const String settingsPath = '/app/settings';
+  static const String billsPath = '/app/bills';
 
   static final GoRouter router = GoRouter(
     navigatorKey: UpdateDialogService.rootNavigatorKey,
@@ -65,41 +65,28 @@ class AppRouter {
       // These must come before the shell route so they match first when the
       // user pushes a secondary screen on top of the current tab.
       GoRoute(
-        path: expensesPath,
-        name: 'expenses',
-        builder: (context, state) => MultiBlocProvider(
-          providers: [
-            BlocProvider(create: (context) => getIt<ExpenseHistoryBloc>()),
-            BlocProvider(create: (context) => getIt<ExpenseBloc>()),
-          ],
-          child: const ExpenseHistoryScreen(),
-        ),
+        path: budgetsPath,
+        name: 'budgets',
+        builder: (context, state) => const BudgetListScreen(),
         routes: [
           GoRoute(
-            path: 'add',
-            name: 'addExpense',
-            builder: (context, state) => BlocProvider(
-              create: (context) => getIt<ExpenseBloc>(),
-              child: const ExpenseFormScreen(),
-            ),
-          ),
-          GoRoute(
-            path: 'edit/:id',
-            name: 'editExpense',
-            builder: (context, state) => BlocProvider(
-              create: (context) => getIt<ExpenseBloc>(),
-              child: ExpenseFormScreen(expenseId: state.pathParameters['id']),
-            ),
+            path: 'create',
+            name: 'createBudget',
+            builder: (context, state) => const BudgetFormScreen(),
           ),
           GoRoute(
             path: ':id',
-            name: 'expenseDetails',
-            builder: (context, state) => BlocProvider(
-              create: (context) => getIt<ExpenseBloc>(),
-              child: ExpenseDetailsScreen(
-                expenseId: state.pathParameters['id']!,
+            name: 'budgetDetails',
+            builder: (context, state) =>
+                BudgetDetailsScreen(budgetId: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                name: 'editBudget',
+                builder: (context, state) =>
+                    BudgetFormScreen(budgetId: state.pathParameters['id']),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -158,6 +145,54 @@ class AppRouter {
               ),
             ],
           ),
+          // Expenses
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: expensesPath,
+                name: 'expenses',
+                builder: (context, state) => MultiBlocProvider(
+                  providers: [
+                    BlocProvider(
+                      create: (context) => getIt<ExpenseHistoryBloc>(),
+                    ),
+                    BlocProvider(create: (context) => getIt<ExpenseBloc>()),
+                  ],
+                  child: const ExpenseHistoryScreen(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'add',
+                    name: 'addExpense',
+                    builder: (context, state) => BlocProvider(
+                      create: (context) => getIt<ExpenseBloc>(),
+                      child: const ExpenseFormScreen(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'edit/:id',
+                    name: 'editExpense',
+                    builder: (context, state) => BlocProvider(
+                      create: (context) => getIt<ExpenseBloc>(),
+                      child: ExpenseFormScreen(
+                        expenseId: state.pathParameters['id'],
+                      ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    name: 'expenseDetails',
+                    builder: (context, state) => BlocProvider(
+                      create: (context) => getIt<ExpenseBloc>(),
+                      child: ExpenseDetailsScreen(
+                        expenseId: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
           // Reports
           StatefulShellBranch(
             routes: [
@@ -168,39 +203,6 @@ class AppRouter {
                   create: (context) => getIt<ReportsBloc>(),
                   child: const ReportsScreen(),
                 ),
-              ),
-            ],
-          ),
-          // Budgets
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: budgetsPath,
-                name: 'budgets',
-                builder: (context, state) => const BudgetListScreen(),
-                routes: [
-                  GoRoute(
-                    path: 'create',
-                    name: 'createBudget',
-                    builder: (context, state) => const BudgetFormScreen(),
-                  ),
-                  GoRoute(
-                    path: ':id',
-                    name: 'budgetDetails',
-                    builder: (context, state) => BudgetDetailsScreen(
-                      budgetId: state.pathParameters['id']!,
-                    ),
-                    routes: [
-                      GoRoute(
-                        path: 'edit',
-                        name: 'editBudget',
-                        builder: (context, state) => BudgetFormScreen(
-                          budgetId: state.pathParameters['id'],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ),
             ],
           ),

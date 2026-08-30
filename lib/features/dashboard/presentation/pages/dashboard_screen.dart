@@ -133,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     trailing: state.recentExpenses.isNotEmpty
                         ? TextButton(
                             onPressed: () {
-                              context.push('/app/expenses');
+                              context.go('/app/expenses');
                             },
                             child: const Text('View All'),
                           )
@@ -167,7 +167,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     InfoSectionHeader(
                       title: 'Upcoming Bills',
                       trailing: TextButton(
-                        onPressed: () => context.push('/app/bills'),
+                        onPressed: () => context.go('/app/bills'),
                         child: const Text('View All'),
                       ),
                       infoContent: InfoContent(

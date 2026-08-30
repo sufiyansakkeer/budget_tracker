@@ -30,7 +30,9 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
       await (database.delete(
         database.billPayments,
       )..where((p) => p.billId.equals(id))).go();
-      await (database.delete(database.bills)..where((b) => b.id.equals(id))).go();
+      await (database.delete(
+        database.bills,
+      )..where((b) => b.id.equals(id))).go();
     });
   }
 

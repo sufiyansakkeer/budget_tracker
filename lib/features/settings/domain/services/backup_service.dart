@@ -91,10 +91,9 @@ class BackupService {
 
     final file = File(path);
     if (!await file.exists()) {
-      errors.add(const ValidationError(
-        field: 'file',
-        message: 'Backup file not found.',
-      ));
+      errors.add(
+        const ValidationError(field: 'file', message: 'Backup file not found.'),
+      );
       return errors;
     }
 
@@ -103,51 +102,58 @@ class BackupService {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, Object?>) {
-        errors.add(const ValidationError(
-          field: 'format',
-          message: 'Invalid backup format.',
-        ));
+        errors.add(
+          const ValidationError(
+            field: 'format',
+            message: 'Invalid backup format.',
+          ),
+        );
         return errors;
       }
       payload = decoded;
     } catch (e) {
-      errors.add(ValidationError(
-        field: 'format',
-        message: 'Corrupted backup file: $e',
-      ));
+      errors.add(
+        ValidationError(field: 'format', message: 'Corrupted backup file: $e'),
+      );
       return errors;
     }
 
     if (payload['type'] != 'monivo_backup') {
-      errors.add(const ValidationError(
-        field: 'type',
-        message: 'Not a valid Monivo backup.',
-      ));
+      errors.add(
+        const ValidationError(
+          field: 'type',
+          message: 'Not a valid Monivo backup.',
+        ),
+      );
     }
 
     final meta = payload['metadata'];
     if (meta is! Map<String, Object?>) {
-      errors.add(const ValidationError(
-        field: 'metadata',
-        message: 'Backup metadata missing.',
-      ));
+      errors.add(
+        const ValidationError(
+          field: 'metadata',
+          message: 'Backup metadata missing.',
+        ),
+      );
     } else {
       final schemaVersion = (meta['schemaVersion'] as num?)?.toInt() ?? 0;
       if (schemaVersion > _database.schemaVersion) {
-        errors.add(ValidationError(
-          field: 'schemaVersion',
-          message: 'Backup schema v$schemaVersion is newer than supported '
-              'v${_database.schemaVersion}.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'schemaVersion',
+            message:
+                'Backup schema v$schemaVersion is newer than supported '
+                'v${_database.schemaVersion}.',
+          ),
+        );
       }
     }
 
     final data = payload['data'];
     if (data is! Map<String, Object?>) {
-      errors.add(const ValidationError(
-        field: 'data',
-        message: 'Backup data missing.',
-      ));
+      errors.add(
+        const ValidationError(field: 'data', message: 'Backup data missing.'),
+      );
     } else {
       // Validate individual records
       _validateBudgetRecords(data, errors);
@@ -174,7 +180,8 @@ class BackupService {
 
     final file = File(path);
     final raw = await file.readAsString();
-    final Map<String, Object?> payload = jsonDecode(raw) as Map<String, Object?>;
+    final Map<String, Object?> payload =
+        jsonDecode(raw) as Map<String, Object?>;
 
     final meta = payload['metadata'] as Map<String, Object?>;
     final data = payload['data'] as Map<String, Object?>;
@@ -187,7 +194,10 @@ class BackupService {
 
     await _replaceAll(data);
 
-    developer.log('[Database] Restore completed successfully', name: 'Database');
+    developer.log(
+      '[Database] Restore completed successfully',
+      name: 'Database',
+    );
 
     return BackupMetadata(
       createdAt:
@@ -207,24 +217,30 @@ class BackupService {
     for (var i = 0; i < budgets.length; i++) {
       final item = budgets[i];
       if (item is! Map) {
-        errors.add(ValidationError(
-          field: 'budgets[$i]',
-          message: 'Invalid budget record format.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'budgets[$i]',
+            message: 'Invalid budget record format.',
+          ),
+        );
         continue;
       }
       if (item['id'] == null || (item['id'] as String).isEmpty) {
-        errors.add(ValidationError(
-          field: 'budgets[$i].id',
-          message: 'Budget record missing id.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'budgets[$i].id',
+            message: 'Budget record missing id.',
+          ),
+        );
       }
       final amount = (item['monthlyAmount'] as num?)?.toDouble();
       if (amount == null || !amount.isFinite || amount < 0) {
-        errors.add(ValidationError(
-          field: 'budgets[$i].monthlyAmount',
-          message: 'Budget has invalid amount: ${item['monthlyAmount']}.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'budgets[$i].monthlyAmount',
+            message: 'Budget has invalid amount: ${item['monthlyAmount']}.',
+          ),
+        );
       }
     }
   }
@@ -238,32 +254,40 @@ class BackupService {
     for (var i = 0; i < expenses.length; i++) {
       final item = expenses[i];
       if (item is! Map) {
-        errors.add(ValidationError(
-          field: 'expenses[$i]',
-          message: 'Invalid expense record format.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'expenses[$i]',
+            message: 'Invalid expense record format.',
+          ),
+        );
         continue;
       }
       if (item['id'] == null || (item['id'] as String).isEmpty) {
-        errors.add(ValidationError(
-          field: 'expenses[$i].id',
-          message: 'Expense record missing id.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'expenses[$i].id',
+            message: 'Expense record missing id.',
+          ),
+        );
       }
       final amount = (item['amount'] as num?)?.toDouble();
       if (amount == null || !amount.isFinite || amount <= 0) {
-        errors.add(ValidationError(
-          field: 'expenses[$i].amount',
-          message: 'Expense has invalid amount: ${item['amount']}.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'expenses[$i].amount',
+            message: 'Expense has invalid amount: ${item['amount']}.',
+          ),
+        );
       }
       if (item['date'] != null) {
         final date = DateTime.tryParse(item['date'].toString());
         if (date == null) {
-          errors.add(ValidationError(
-            field: 'expenses[$i].date',
-            message: 'Expense has invalid date: ${item['date']}.',
-          ));
+          errors.add(
+            ValidationError(
+              field: 'expenses[$i].date',
+              message: 'Expense has invalid date: ${item['date']}.',
+            ),
+          );
         }
       }
     }
@@ -278,17 +302,21 @@ class BackupService {
     for (var i = 0; i < categories.length; i++) {
       final item = categories[i];
       if (item is! Map) {
-        errors.add(ValidationError(
-          field: 'categories[$i]',
-          message: 'Invalid category record format.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'categories[$i]',
+            message: 'Invalid category record format.',
+          ),
+        );
         continue;
       }
       if (item['id'] == null || (item['id'] as String).isEmpty) {
-        errors.add(ValidationError(
-          field: 'categories[$i].id',
-          message: 'Category record missing id.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'categories[$i].id',
+            message: 'Category record missing id.',
+          ),
+        );
       }
     }
   }
@@ -302,24 +330,30 @@ class BackupService {
     for (var i = 0; i < bills.length; i++) {
       final item = bills[i];
       if (item is! Map) {
-        errors.add(ValidationError(
-          field: 'bills[$i]',
-          message: 'Invalid bill record format.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'bills[$i]',
+            message: 'Invalid bill record format.',
+          ),
+        );
         continue;
       }
       if (item['id'] == null || (item['id'] as String).isEmpty) {
-        errors.add(ValidationError(
-          field: 'bills[$i].id',
-          message: 'Bill record missing id.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'bills[$i].id',
+            message: 'Bill record missing id.',
+          ),
+        );
       }
       final amount = (item['amount'] as num?)?.toDouble();
       if (amount == null || !amount.isFinite || amount <= 0) {
-        errors.add(ValidationError(
-          field: 'bills[$i].amount',
-          message: 'Bill has invalid amount: ${item['amount']}.',
-        ));
+        errors.add(
+          ValidationError(
+            field: 'bills[$i].amount',
+            message: 'Bill has invalid amount: ${item['amount']}.',
+          ),
+        );
       }
     }
   }
@@ -329,13 +363,12 @@ class BackupService {
     final categories = await (_database.select(_database.categories)).get();
     final budgets = await (_database.select(_database.budgets)).get();
     final settings = await (_database.select(_database.settings)).get();
-    final recurringExpenses =
-        await (_database.select(_database.recurringExpenses)).get();
-    final savingsGoals =
-        await (_database.select(_database.savingsGoals)).get();
+    final recurringExpenses = await (_database.select(
+      _database.recurringExpenses,
+    )).get();
+    final savingsGoals = await (_database.select(_database.savingsGoals)).get();
     final bills = await (_database.select(_database.bills)).get();
-    final billPayments =
-        await (_database.select(_database.billPayments)).get();
+    final billPayments = await (_database.select(_database.billPayments)).get();
 
     return <String, Object?>{
       'budgets': budgets
@@ -572,7 +605,9 @@ class BackupService {
                 id: map['id'] as String,
                 title: map['title'] as String,
                 targetAmount: (map['targetAmount'] as num).toDouble(),
-                currentAmount: Value((map['currentAmount'] as num?)?.toDouble() ?? 0.0),
+                currentAmount: Value(
+                  (map['currentAmount'] as num?)?.toDouble() ?? 0.0,
+                ),
                 targetDate: DateTime.parse(map['targetDate'] as String),
               ),
             );
@@ -599,14 +634,18 @@ class BackupService {
                       : null,
                 ),
                 isRecurring: Value((map['isRecurring'] as bool?) ?? false),
-                recurrenceType:
-                    Value((map['recurrenceType'] as String?) ?? 'none'),
-                recurrenceInterval:
-                    Value((map['recurrenceInterval'] as num?)?.toInt() ?? 1),
-                reminderEnabled:
-                    Value((map['reminderEnabled'] as bool?) ?? false),
-                reminderOffsetDays:
-                    Value((map['reminderOffsetDays'] as num?)?.toInt() ?? 1),
+                recurrenceType: Value(
+                  (map['recurrenceType'] as String?) ?? 'none',
+                ),
+                recurrenceInterval: Value(
+                  (map['recurrenceInterval'] as num?)?.toInt() ?? 1,
+                ),
+                reminderEnabled: Value(
+                  (map['reminderEnabled'] as bool?) ?? false,
+                ),
+                reminderOffsetDays: Value(
+                  (map['reminderOffsetDays'] as num?)?.toInt() ?? 1,
+                ),
                 isPaid: Value((map['isPaid'] as bool?) ?? false),
                 paidDate: Value(
                   map['paidDate'] != null

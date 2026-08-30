@@ -184,11 +184,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.account_balance_outlined,
             children: [
               SettingsTile(
-                icon: Icons.receipt_long_outlined,
-                title: 'Expenses',
-                subtitle: 'View and manage all expenses',
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Budget',
+                subtitle: 'Manage your budgets',
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/app/expenses'),
+                onTap: () => context.push('/app/budgets'),
               ),
               SettingsTile(
                 icon: Icons.payments_outlined,

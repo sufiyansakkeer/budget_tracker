@@ -43,7 +43,7 @@ class DatabaseIntegrityService {
   final AppDatabase _database;
 
   DatabaseIntegrityService({required AppDatabase database})
-      : _database = database;
+    : _database = database;
 
   /// Runs all integrity checks and returns a comprehensive result.
   Future<IntegrityCheckResult> runFullCheck() async {
@@ -80,18 +80,21 @@ class DatabaseIntegrityService {
     final issues = <IntegrityIssue>[];
 
     final expenses = await (_database.select(_database.expenses)).get();
-    final budgetIds = (await (_database.select(_database.budgets)).get())
-        .map((b) => b.id)
-        .toSet();
+    final budgetIds = (await (_database.select(
+      _database.budgets,
+    )).get()).map((b) => b.id).toSet();
 
     for (final expense in expenses) {
       if (!budgetIds.contains(expense.budgetId)) {
-        issues.add(IntegrityIssue(
-          table: 'expenses',
-          description: 'Expense references non-existent budget '
-              '${expense.budgetId}',
-          entityId: expense.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'expenses',
+            description:
+                'Expense references non-existent budget '
+                '${expense.budgetId}',
+            entityId: expense.id,
+          ),
+        );
       }
     }
 
@@ -103,18 +106,21 @@ class DatabaseIntegrityService {
     final issues = <IntegrityIssue>[];
 
     final expenses = await (_database.select(_database.expenses)).get();
-    final categoryIds = (await (_database.select(_database.categories)).get())
-        .map((c) => c.id)
-        .toSet();
+    final categoryIds = (await (_database.select(
+      _database.categories,
+    )).get()).map((c) => c.id).toSet();
 
     for (final expense in expenses) {
       if (!categoryIds.contains(expense.categoryId)) {
-        issues.add(IntegrityIssue(
-          table: 'expenses',
-          description: 'Expense references non-existent category '
-              '${expense.categoryId}',
-          entityId: expense.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'expenses',
+            description:
+                'Expense references non-existent category '
+                '${expense.categoryId}',
+            entityId: expense.id,
+          ),
+        );
       }
     }
 
@@ -129,12 +135,15 @@ class DatabaseIntegrityService {
 
     for (final budget in budgets) {
       if (budget.startDate.isAfter(budget.endDate)) {
-        issues.add(IntegrityIssue(
-          table: 'budgets',
-          description: 'Budget has start date after end date '
-              '(${budget.startDate} > ${budget.endDate})',
-          entityId: budget.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'budgets',
+            description:
+                'Budget has start date after end date '
+                '(${budget.startDate} > ${budget.endDate})',
+            entityId: budget.id,
+          ),
+        );
       }
     }
 
@@ -150,11 +159,13 @@ class DatabaseIntegrityService {
     final expenses = await (_database.select(_database.expenses)).get();
     for (final expense in expenses) {
       if (!expense.amount.isFinite || expense.amount <= 0) {
-        issues.add(IntegrityIssue(
-          table: 'expenses',
-          description: 'Expense has invalid amount: ${expense.amount}',
-          entityId: expense.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'expenses',
+            description: 'Expense has invalid amount: ${expense.amount}',
+            entityId: expense.id,
+          ),
+        );
       }
     }
 
@@ -162,12 +173,15 @@ class DatabaseIntegrityService {
     final budgets = await (_database.select(_database.budgets)).get();
     for (final budget in budgets) {
       if (!budget.monthlyAmount.isFinite || budget.monthlyAmount < 0) {
-        issues.add(IntegrityIssue(
-          table: 'budgets',
-          description: 'Budget has invalid monthlyAmount: '
-              '${budget.monthlyAmount}',
-          entityId: budget.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'budgets',
+            description:
+                'Budget has invalid monthlyAmount: '
+                '${budget.monthlyAmount}',
+            entityId: budget.id,
+          ),
+        );
       }
     }
 
@@ -175,11 +189,13 @@ class DatabaseIntegrityService {
     final bills = await (_database.select(_database.bills)).get();
     for (final bill in bills) {
       if (!bill.amount.isFinite || bill.amount <= 0) {
-        issues.add(IntegrityIssue(
-          table: 'bills',
-          description: 'Bill has invalid amount: ${bill.amount}',
-          entityId: bill.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'bills',
+            description: 'Bill has invalid amount: ${bill.amount}',
+            entityId: bill.id,
+          ),
+        );
       }
     }
 
@@ -187,20 +203,26 @@ class DatabaseIntegrityService {
     final goals = await (_database.select(_database.savingsGoals)).get();
     for (final goal in goals) {
       if (!goal.targetAmount.isFinite || goal.targetAmount <= 0) {
-        issues.add(IntegrityIssue(
-          table: 'savingsGoals',
-          description: 'Savings goal has invalid targetAmount: '
-              '${goal.targetAmount}',
-          entityId: goal.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'savingsGoals',
+            description:
+                'Savings goal has invalid targetAmount: '
+                '${goal.targetAmount}',
+            entityId: goal.id,
+          ),
+        );
       }
       if (!goal.currentAmount.isFinite || goal.currentAmount < 0) {
-        issues.add(IntegrityIssue(
-          table: 'savingsGoals',
-          description: 'Savings goal has invalid currentAmount: '
-              '${goal.currentAmount}',
-          entityId: goal.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'savingsGoals',
+            description:
+                'Savings goal has invalid currentAmount: '
+                '${goal.currentAmount}',
+            entityId: goal.id,
+          ),
+        );
       }
     }
 
@@ -212,18 +234,21 @@ class DatabaseIntegrityService {
     final issues = <IntegrityIssue>[];
 
     final payments = await (_database.select(_database.billPayments)).get();
-    final billIds = (await (_database.select(_database.bills)).get())
-        .map((b) => b.id)
-        .toSet();
+    final billIds = (await (_database.select(
+      _database.bills,
+    )).get()).map((b) => b.id).toSet();
 
     for (final payment in payments) {
       if (!billIds.contains(payment.billId)) {
-        issues.add(IntegrityIssue(
-          table: 'billPayments',
-          description: 'Bill payment references non-existent bill '
-              '${payment.billId}',
-          entityId: payment.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'billPayments',
+            description:
+                'Bill payment references non-existent bill '
+                '${payment.billId}',
+            entityId: payment.id,
+          ),
+        );
       }
     }
 
@@ -231,23 +256,28 @@ class DatabaseIntegrityService {
   }
 
   /// Checks for recurring expenses that reference non-existent categories.
-  Future<List<IntegrityIssue>> _checkOrphanedRecurringExpenseCategories() async {
+  Future<List<IntegrityIssue>>
+  _checkOrphanedRecurringExpenseCategories() async {
     final issues = <IntegrityIssue>[];
 
-    final recurring =
-        await (_database.select(_database.recurringExpenses)).get();
-    final categoryIds = (await (_database.select(_database.categories)).get())
-        .map((c) => c.id)
-        .toSet();
+    final recurring = await (_database.select(
+      _database.recurringExpenses,
+    )).get();
+    final categoryIds = (await (_database.select(
+      _database.categories,
+    )).get()).map((c) => c.id).toSet();
 
     for (final rec in recurring) {
       if (!categoryIds.contains(rec.categoryId)) {
-        issues.add(IntegrityIssue(
-          table: 'recurringExpenses',
-          description: 'Recurring expense references non-existent category '
-              '${rec.categoryId}',
-          entityId: rec.id,
-        ));
+        issues.add(
+          IntegrityIssue(
+            table: 'recurringExpenses',
+            description:
+                'Recurring expense references non-existent category '
+                '${rec.categoryId}',
+            entityId: rec.id,
+          ),
+        );
       }
     }
 

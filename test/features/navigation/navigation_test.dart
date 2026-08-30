@@ -18,16 +18,16 @@ void main() {
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/app/reports',
-              builder: (_, __) => const _FakePage('Reports'),
+              path: '/app/expenses',
+              builder: (_, __) => const _FakePage('Expenses'),
             ),
           ],
         ),
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/app/budgets',
-              builder: (_, __) => const _FakePage('Budget'),
+              path: '/app/reports',
+              builder: (_, __) => const _FakePage('Reports'),
             ),
           ],
         ),
@@ -63,7 +63,7 @@ void main() {
       expect(navBar.destinations.length, 4);
     });
 
-    testWidgets('displays Home, Reports, Budget, Settings labels', (
+    testWidgets('displays Home, Expenses, Reports, Settings labels', (
       tester,
     ) async {
       await tester.pumpWidget(buildShell(0));
@@ -72,12 +72,12 @@ void main() {
       // NavigationBar may render duplicate label widgets (selected/unselected)
       // so we check for at least one of each
       expect(find.text('Home'), findsAtLeastNWidgets(1));
+      expect(find.text('Expenses'), findsAtLeastNWidgets(1));
       expect(find.text('Reports'), findsAtLeastNWidgets(1));
-      expect(find.text('Budget'), findsAtLeastNWidgets(1));
       expect(find.text('Settings'), findsAtLeastNWidgets(1));
     });
 
-    testWidgets('does NOT display Expenses or Bills labels', (tester) async {
+    testWidgets('does NOT display Budget or Bills labels', (tester) async {
       await tester.pumpWidget(buildShell(0));
       await tester.pump();
 
@@ -87,7 +87,7 @@ void main() {
           .map((d) => (d as NavigationDestination).label)
           .toList();
 
-      expect(labels, isNot(contains('Expenses')));
+      expect(labels, isNot(contains('Budget')));
       expect(labels, isNot(contains('Bills')));
     });
 
@@ -99,22 +99,22 @@ void main() {
       expect(navBar.selectedIndex, 0);
     });
 
-    testWidgets('navigates to Reports tab on tap', (tester) async {
+    testWidgets('navigates to Expenses tab on tap', (tester) async {
       await tester.pumpWidget(buildShell(0));
       await tester.pump();
 
-      await tester.tap(find.text('Reports').last);
+      await tester.tap(find.text('Expenses').last);
       await tester.pumpAndSettle();
 
       final navBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
       expect(navBar.selectedIndex, 1);
     });
 
-    testWidgets('navigates to Budget tab on tap', (tester) async {
+    testWidgets('navigates to Reports tab on tap', (tester) async {
       await tester.pumpWidget(buildShell(0));
       await tester.pump();
 
-      await tester.tap(find.text('Budget').last);
+      await tester.tap(find.text('Reports').last);
       await tester.pumpAndSettle();
 
       final navBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
@@ -136,15 +136,15 @@ void main() {
       await tester.pumpWidget(buildShell(0));
       await tester.pump();
 
-      // Home -> Reports
+      // Home -> Expenses
+      await tester.tap(find.text('Expenses').last);
+      await tester.pumpAndSettle();
+
+      // Expenses -> Reports
       await tester.tap(find.text('Reports').last);
       await tester.pumpAndSettle();
 
-      // Reports -> Budget
-      await tester.tap(find.text('Budget').last);
-      await tester.pumpAndSettle();
-
-      // Budget -> Settings
+      // Reports -> Settings
       await tester.tap(find.text('Settings').last);
       await tester.pumpAndSettle();
 
@@ -155,6 +155,24 @@ void main() {
       final navBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
       expect(navBar.selectedIndex, 0);
     });
+
+    testWidgets(
+      'correct index mapping: 0=Home, 1=Expenses, 2=Reports, 3=Settings',
+      (tester) async {
+        await tester.pumpWidget(buildShell(0));
+        await tester.pump();
+
+        final navBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+        final destinations = navBar.destinations
+            .map((d) => (d as NavigationDestination).label)
+            .toList();
+
+        expect(destinations[0], 'Home');
+        expect(destinations[1], 'Expenses');
+        expect(destinations[2], 'Reports');
+        expect(destinations[3], 'Settings');
+      },
+    );
   });
 }
 
