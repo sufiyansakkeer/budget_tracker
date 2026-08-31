@@ -70,6 +70,8 @@ Smart Monivo is a **personal finance management app** designed to help users:
 | **Customizable Reports**    | Visualize spending trends and patterns.                                                          | `fl_chart` for interactive charts and `ReportsBloc` for data aggregation.                             |
 | **Bill Management**         | Track bills, set payment reminders, and manage recurring payments.                                  | `BillEntity` and `BillBloc` for managing bills and payment reminders.                                   |
 | **Per-Budget Daily Limits**  | Automatic daily and weekly spending targets for each active budget.                                  | `BudgetDailyLimitEntity` and `GetSpendingTargetsUseCase` for per-budget calculations.                   |
+| **Home Screen Widget**        | Spending overview and budget summaries on the device home screen.                                   | `HomeWidgetService` and platform-specific widget providers for Android and iOS.                        |
+| **Database Integrity**        | Comprehensive data integrity checks, orphan detection, and automatic repair.                        | `DatabaseIntegrityService` for validating and repairing database records.                              |
 
 ### Using Recent Features
 
@@ -137,6 +139,18 @@ all selected budgets. The budget selection is preserved during screen refreshes.
 Select the information icon on an analytics card to see what the metric means,
 how it is calculated, examples where available, and notes about its status
 colors and update behavior.
+
+#### Home Screen Widget
+
+1. Long-press on your device's home screen and select **Widgets**.
+2. Find **Smart Monivo** in the widget list and drag it to your home screen.
+3. The widget displays a spending overview with budget summaries.
+4. Tap a budget in the widget to open the app directly to that budget's
+  details.
+5. The widget updates automatically when expenses are added or modified.
+
+Home screen widgets are supported on both Android (App Widgets) and iOS
+(WidgetKit).
 
 #### App Updates
 
@@ -241,7 +255,8 @@ Smart Monivo follows a **Clean Architecture** pattern with clear separation of c
 │   ├── expenses/         # Expense tracking
 │   ├── onboarding/       # First-run experience
 │   ├── reports/          # Financial reports
-│   └── settings/         # App settings and preferences
+│   ├── settings/         # App settings and preferences
+│   └── widgets/          # Home screen widget services
 │
 ├── lib/main.dart         # App entry point
 └── test/                 # Unit and integration tests
@@ -817,6 +832,8 @@ MIT License (see `LICENSE` file).
 | **App Update Checks**            | Check GitHub for newer app releases from Settings.                                      | Implemented     |
 | **Combined Expense History**     | View expenses from multiple budgets in a single unified list with sorting support.       | Implemented     |
 | **Per-Budget Daily Limits**      | Daily and weekly spending targets for each active budget.                              | Implemented     |
+| **Home Screen Widget**           | Spending overview and budget summaries on the device home screen.                      | Implemented     |
+| **Database Integrity Service**   | Data integrity checks, orphan detection, and automatic repair.                         | Implemented     |
 | **Weekly Spending Targets**      | Weekly spending tracking alongside daily limits.                                        | Implemented     |
 | **Dark Mode**                    | Full dark mode support.                                                                 | Implemented     |
 | **Multi-Currency Support**        | Enhanced currency handling and conversion.                                             | Implemented     |

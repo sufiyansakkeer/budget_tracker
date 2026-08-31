@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.2] - 2026-08-30
+## [1.2.2] - 2026-08-31
 
 ### Added
 - Combined expense history mode that lets users view and compare expenses
@@ -17,16 +17,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 	mode, with support for selecting, deselecting, and searching budgets.
 - Sort-by-amount support in expense history for ordering expenses
 	ascending or descending by amount.
+- Home screen widget for Android and iOS that displays a spending overview
+	with budget summaries directly on the device home screen.
+- `HomeWidgetService` for managing widget data updates and lifecycle events.
+- `WidgetRefreshListener` to keep widget data in sync with app state changes.
+- Database Integrity Service for comprehensive data integrity checks,
+	including orphaned record detection, referential integrity validation,
+	and automatic repair capabilities.
 
 ### Changed
 - Refactored expense history screen and BLoC to support a combined view
 	mode alongside the existing single-budget mode.
 - Enhanced expense grouping and sorting use cases to work across multiple
 	budgets in combined mode.
+- Refactored UI components across dashboard, expenses, and reports screens
+	to use centralized color schemes from `AppTheme` and improve accessibility.
+- Refactored navigation routes for expenses and budgets with updated
+	routing configuration and improved screen transitions.
+- Enhanced backup and import services with integrity-aware validation.
+- Updated widget routing logic for expense-related URIs.
 
 ### Fixed
 - Added missing INTERNET permission to AndroidManifest for GitHub release
 	checks.
+- Improved widget routing to correctly handle expense-related deep links.
 
 ### Technical
 - Added combined-mode tests covering budget selection, expense filtering,
@@ -35,6 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 	and BudgetSelectionSheet.
 - Added integration tests for sorting expenses by amount in expense history.
 - Enhanced test coverage for expense history BLoC, use cases, and data sources.
+- Added Database Integrity Service tests covering orphan detection,
+	referential integrity validation, and repair workflows.
+- Added data integrity validator tests for backup and restore operations.
+- Added expense transaction safety tests for concurrent modification
+	scenarios.
+- Enhanced sort integration tests for expense history.
+- Updated navigation and backup validation tests.
 
 ## [1.2.1] - 2026-08-26
 
