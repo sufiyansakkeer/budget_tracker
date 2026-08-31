@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
 class DashboardErrorWidget extends StatelessWidget {
@@ -16,6 +15,7 @@ class DashboardErrorWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Center(
       child: Padding(
@@ -26,18 +26,18 @@ class DashboardErrorWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.xl),
               decoration: BoxDecoration(
-                color: AppColors.dangerRed.withValues(alpha: 0.1),
+                color: colorScheme.errorContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.error_outline,
-                size: 64,
-                color: AppColors.dangerRed,
+                size: 48,
+                color: colorScheme.onErrorContainer,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Something went wrong',
+              'Unable to load your dashboard',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -47,15 +47,15 @@ class DashboardErrorWidget extends StatelessWidget {
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.lg),
-            ElevatedButton.icon(
+            FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try Again'),
             ),
           ],
         ),

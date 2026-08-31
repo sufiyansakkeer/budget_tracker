@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
 enum EmptyStateType { noBudget, noExpenses }
@@ -14,6 +13,7 @@ class EmptyDashboardState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final config = _getEmptyStateConfig();
 
     return Center(
@@ -25,10 +25,10 @@ class EmptyDashboardState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.xl),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
-              child: Icon(config.icon, size: 64, color: AppColors.primary),
+              child: Icon(config.icon, size: 56, color: colorScheme.primary),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
@@ -42,15 +42,15 @@ class EmptyDashboardState extends StatelessWidget {
             Text(
               config.message,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
               ),
               textAlign: TextAlign.center,
             ),
             if (onAction != null) ...[
               const SizedBox(height: AppSpacing.lg),
-              ElevatedButton.icon(
+              FilledButton.icon(
                 onPressed: onAction,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add_rounded, size: 18),
                 label: Text(config.actionLabel),
               ),
             ],

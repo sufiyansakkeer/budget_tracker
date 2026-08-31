@@ -26,6 +26,9 @@ class BillValidator {
     if (value == null) {
       return 'Please enter a valid number';
     }
+    if (!value.isFinite) {
+      return 'Amount must be a valid finite number';
+    }
     if (value <= 0) {
       return 'Amount must be greater than zero';
     }
@@ -40,6 +43,9 @@ class BillValidator {
   static String? validateAmountValue(double? value) {
     if (value == null) {
       return 'Amount cannot be empty';
+    }
+    if (!value.isFinite) {
+      return 'Amount must be a valid finite number';
     }
     if (value <= 0) {
       return 'Amount must be greater than zero';

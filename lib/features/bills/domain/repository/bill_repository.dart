@@ -29,4 +29,8 @@ abstract class BillRepository {
 
   /// Returns the sum of all recurring bill amounts per month.
   Future<double> getMonthlyRecurringBillsTotal();
+
+  /// Runs [action] inside a database transaction. If [action] throws, all
+  /// changes within are rolled back.
+  Future<T> transaction<T>(Future<T> Function() action);
 }

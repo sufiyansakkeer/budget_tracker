@@ -211,6 +211,9 @@ class FakeBillRepository implements BillRepository {
   Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
   @override
   Future<double> getMonthlyRecurringBillsTotal() async => 0;
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
 }
 
 final tBudgetSummary = BudgetSummaryEntity(

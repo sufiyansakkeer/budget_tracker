@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
@@ -159,9 +161,14 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (m) async {
+        developer.log(
+          '[Database] Creating schema v$schemaVersion',
+          name: 'Database',
+        );
         await m.createAll();
       },
       onUpgrade: (m, from, to) async {
+        developer.log('[Database] Migrating v$from → v$to', name: 'Database');
         if (from < 2) {
           await m.addColumn(expenses, expenses.time);
         }
@@ -206,6 +213,36 @@ class AppDatabase extends _$AppDatabase {
           // Phase 4: Bills & Reminders tables are created fresh — no backfill needed.
           await m.createTable(bills);
           await m.createTable(billPayments);
+        }
+      },
+      beforeOpen: (details) async {
+        developer.log(
+          '[Database] beforeOpen: version=${details.versionNow}, '
+          'type=${details.wasCreated ? "created" : "opened"}',
+          name: 'Database',
+        );
+
+        // Run integrity check on existing databases (not fresh ones).
+        if (!details.wasCreated) {
+          try {
+            final result = await customSelect(
+              'PRAGMA integrity_check',
+            ).getSingleOrNull();
+            final status = result?.data['integrity_check'] ?? 'unknown';
+            if (status != 'ok') {
+              developer.log(
+                '[Database] ⚠️ Integrity check failed: $status',
+                name: 'Database',
+              );
+            } else {
+              developer.log('[Database] Integrity check: OK', name: 'Database');
+            }
+          } catch (e) {
+            developer.log(
+              '[Database] ⚠️ Could not run integrity check: $e',
+              name: 'Database',
+            );
+          }
         }
       },
     );

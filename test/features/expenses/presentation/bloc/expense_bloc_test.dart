@@ -137,11 +137,23 @@ class FakeExpenseRepository implements ExpenseRepository {
     int? month,
     int? year,
   }) async {
-    return store.values.toList();
+    var result = store.values.toList();
+
+    // Filter by budget ID if provided
+    if (budgetId != null && budgetId.isNotEmpty) {
+      result = result.where((e) => e.budgetId == budgetId).toList();
+    }
+
+    return result;
   }
 
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  }) async =>
+      store.values.where((e) => budgetIds.contains(e.budgetId)).toList();
 }
 
 class FakeCreateUseCase implements CreateExpenseUseCase {
@@ -342,6 +354,79 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state.status, ExpenseBlocStatus.initial);
     expect(bloc.state.message, isNull);
+    await bloc.close();
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Regression tests for missing/overspent expenses bug
+  // NOTE: These tests verify that BudgetId is properly resolved during creation
+  // The actual refresh/reload behavior is tested in expense_history_bloc_test.dart
+  // ──────────────────────────────────────────────────────────────
+
+  test(
+    'expense creation properly assigns budgetId when not provided',
+    () async {
+      final expenseWithoutBudget = ExpenseEntity(
+        id: 'exp-test',
+        budgetId: '', // Empty budgetId
+        amount: 100.0,
+        categoryId: 'food',
+        date: DateTime(2026, 8, 5),
+        time: DateTime(2026, 8, 5, 12, 0),
+        createdAt: DateTime(2026, 8, 5),
+        updatedAt: DateTime(2026, 8, 5),
+      );
+
+      final bloc = buildBloc(repository);
+      bloc.add(ExpenseCreate(expenseWithoutBudget));
+      await Future<void>.delayed(Duration.zero);
+
+      // Should resolve budgetId from active budget and create successfully
+      expect(bloc.state.status, ExpenseBlocStatus.success);
+      expect(bloc.state.message, 'Expense added successfully');
+      expect(repository.store.containsKey('exp-test'), isTrue);
+
+      // Verify the expense now has a valid budgetId
+      final savedExpense = repository.store['exp-test'];
+      expect(savedExpense?.budgetId, isNotEmpty);
+      expect(savedExpense?.budgetId, 'budget-1');
+      await bloc.close();
+    },
+  );
+
+  test('expense creation fails gracefully if no budget is available', () async {
+    final budgetRepo = FakeBudgetRepository();
+    budgetRepo.activeId = null; // No active budget
+
+    final expenseWithoutBudget = ExpenseEntity(
+      id: 'exp-no-budget',
+      budgetId: '',
+      amount: 100.0,
+      categoryId: 'food',
+      date: DateTime(2026, 8, 5),
+      time: DateTime(2026, 8, 5, 12, 0),
+      createdAt: DateTime(2026, 8, 5),
+      updatedAt: DateTime(2026, 8, 5),
+    );
+
+    final bloc = ExpenseBloc(
+      createExpenseUseCase: FakeCreateUseCase(repository),
+      updateExpenseUseCase: FakeUpdateUseCase(repository),
+      deleteExpenseUseCase: FakeDeleteUseCase(repository),
+      getExpenseByIdUseCase: FakeGetByIdUseCase(repository),
+      getExpensesUseCase: FakeGetAllUseCase(repository),
+      getCategoriesUseCase: FakeGetCategoriesUseCase(repository),
+      repository: repository,
+      budgetRepository: budgetRepo,
+    );
+
+    bloc.add(ExpenseCreate(expenseWithoutBudget));
+    await Future<void>.delayed(Duration.zero);
+
+    // Should fail with appropriate error message
+    expect(bloc.state.status, ExpenseBlocStatus.error);
+    expect(bloc.state.message, isNotEmpty);
+    expect(repository.store.containsKey('exp-no-budget'), isFalse);
     await bloc.close();
   });
 }

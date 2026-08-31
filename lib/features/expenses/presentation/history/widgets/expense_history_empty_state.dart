@@ -75,10 +75,15 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 72,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.5,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 48, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
@@ -89,22 +94,26 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.sm),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Text(
+                  subtitle,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
               if (action != null && actionLabel != null) ...[
                 const SizedBox(height: AppSpacing.lg),
-                ElevatedButton.icon(
+                FilledButton.icon(
                   key: Key('emptyStateAction_$actionLabel'),
                   onPressed: action,
                   icon: Icon(
                     actionLabel == 'Add Your First Expense'
-                        ? Icons.add
-                        : Icons.clear_all,
+                        ? Icons.add_rounded
+                        : Icons.clear_all_rounded,
+                    size: 18,
                   ),
                   label: Text(actionLabel),
                 ),

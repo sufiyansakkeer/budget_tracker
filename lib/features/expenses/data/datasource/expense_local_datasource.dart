@@ -17,7 +17,16 @@ abstract class ExpenseLocalDataSource {
     int? year,
   });
 
+  /// Returns expenses belonging to any of the given [budgetIds].
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  });
+
   Future<List<ExpenseCategory>> getCategories();
 
   Future<void> seedDefaultCategories(List<ExpenseCategory> categories);
+
+  /// Runs [action] inside a database transaction. If [action] throws, all
+  /// changes within are rolled back.
+  Future<T> transaction<T>(Future<T> Function() action);
 }

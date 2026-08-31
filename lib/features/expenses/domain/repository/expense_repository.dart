@@ -22,6 +22,11 @@ abstract class ExpenseRepository {
     int? year,
   });
 
+  /// Returns expenses belonging to any of the given [budgetIds].
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  });
+
   /// Returns all available categories.
   Future<List<ExpenseCategory>> getCategories();
 }

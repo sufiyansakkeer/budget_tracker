@@ -9,6 +9,9 @@ import '../repository/bill_repository.dart';
 ///
 /// For recurring bills, advances to the next occurrence instead of permanently
 /// marking as paid. Creates a payment history record.
+///
+/// The payment record creation and bill update run atomically — if either
+/// fails, no partial state is left in the database.
 class MarkBillPaidUseCase {
   final BillRepository repository;
 
@@ -35,28 +38,32 @@ class MarkBillPaidUseCase {
         paidDate: now,
         createdAt: now,
       );
-      await repository.createBillPayment(payment);
 
+      BillEntity updatedBill;
       if (bill.isRecurring && bill.recurrenceType != RecurrenceType.none) {
         // For recurring bills: advance the due date, keep active.
-        final updatedBill = bill.copyWith(
+        updatedBill = bill.copyWith(
           dueDate: bill.nextDueDate,
           isPaid: false,
           clearPaidDate: true,
           updatedAt: now,
         );
-        await repository.updateBill(updatedBill);
-        return BillSuccess(updatedBill);
       } else {
         // For one-time bills: mark as paid.
-        final updatedBill = bill.copyWith(
+        updatedBill = bill.copyWith(
           isPaid: true,
           paidDate: now,
           updatedAt: now,
         );
-        await repository.updateBill(updatedBill);
-        return BillSuccess(updatedBill);
       }
+
+      // Atomic: payment record + bill update
+      await repository.transaction(() async {
+        await repository.createBillPayment(payment);
+        await repository.updateBill(updatedBill);
+      });
+
+      return BillSuccess(updatedBill);
     } catch (e) {
       return BillError(
         BillFailure(

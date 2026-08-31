@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
 /// Friendly empty state shown when there are no expenses for the period.
@@ -12,6 +11,7 @@ class EmptyReportsState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -21,13 +21,13 @@ class EmptyReportsState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.pie_chart_outline,
                 size: 48,
-                color: AppColors.primary,
+                color: colorScheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -38,18 +38,21 @@ class EmptyReportsState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Add expenses to see charts, trends, and insights for this period.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: Text(
+                'Add expenses to see charts, trends, and insights for this period.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
               ),
             ),
             if (onAddExpense != null) ...[
               const SizedBox(height: AppSpacing.lg),
-              ElevatedButton.icon(
+              FilledButton.icon(
                 onPressed: onAddExpense,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add_rounded, size: 18),
                 label: const Text('Add Expense'),
               ),
             ],

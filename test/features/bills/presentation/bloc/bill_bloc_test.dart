@@ -46,6 +46,9 @@ class FakeBillRepository implements BillRepository {
 
   @override
   Future<double> getMonthlyRecurringBillsTotal() async => 0;
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
 }
 
 class FakeBillReminderService extends BillReminderService {

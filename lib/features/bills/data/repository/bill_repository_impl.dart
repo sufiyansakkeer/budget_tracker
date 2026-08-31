@@ -51,4 +51,9 @@ class BillRepositoryImpl implements BillRepository {
   Future<double> getMonthlyRecurringBillsTotal() async {
     return localDataSource.getMonthlyRecurringBillsTotal();
   }
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) {
+    return localDataSource.transaction(action);
+  }
 }

@@ -15,22 +15,28 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
 
   @override
   Future<void> createExpense(ExpenseEntity expense) async {
-    await localDataSource.createExpense(expense);
-    await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+    await localDataSource.transaction(() async {
+      await localDataSource.createExpense(expense);
+      await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+    });
   }
 
   @override
   Future<void> updateExpense(ExpenseEntity expense) async {
-    await localDataSource.updateExpense(expense);
-    await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+    await localDataSource.transaction(() async {
+      await localDataSource.updateExpense(expense);
+      await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+    });
   }
 
   @override
   Future<void> deleteExpense(String id) async {
     final expense = await localDataSource.getExpenseById(id);
     if (expense != null) {
-      await localDataSource.deleteExpense(id);
-      await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+      await localDataSource.transaction(() async {
+        await localDataSource.deleteExpense(id);
+        await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+      });
     }
   }
 
@@ -55,5 +61,12 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
   @override
   Future<List<ExpenseCategory>> getCategories() {
     return localDataSource.getCategories();
+  }
+
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  }) {
+    return localDataSource.getExpensesForBudgets(budgetIds: budgetIds);
   }
 }

@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/app_colors.dart';
-
 /// The main application shell that hosts the Material 3 [NavigationBar] and
 /// preserves each tab's navigation stack via [StatefulShellRoute.indexedStack].
 ///
 /// Tabs:
-///   1. Home  (Dashboard)
+///   0. Home  (Dashboard)
+///   1. Expenses
 ///   2. Reports
-///   3. Budget
-///   4. Settings
+///   3. Settings
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -19,8 +17,6 @@ class AppShell extends StatelessWidget {
   void _onDestinationSelected(int index) {
     navigationShell.goBranch(
       index,
-      // Blow the stack (reset to root of the tab) only when the user taps the
-      // currently active tab; otherwise preserve the tab's navigation state.
       initialLocation: index == navigationShell.currentIndex,
     );
   }
@@ -28,14 +24,16 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          color: colorScheme.surface,
           border: Border(
             top: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+              width: 0.5,
             ),
           ),
         ),
@@ -44,8 +42,8 @@ class AppShell extends StatelessWidget {
           child: NavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: _onDestinationSelected,
-            indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-            height: 72,
+            elevation: 0,
+            height: 68,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: const [
               NavigationDestination(
@@ -54,14 +52,14 @@ class AppShell extends StatelessWidget {
                 label: 'Home',
               ),
               NavigationDestination(
-                icon: Icon(Icons.analytics_outlined),
-                selectedIcon: Icon(Icons.analytics_rounded),
-                label: 'Reports',
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Expenses',
               ),
               NavigationDestination(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-                label: 'Budget',
+                icon: Icon(Icons.bar_chart_outlined),
+                selectedIcon: Icon(Icons.bar_chart_rounded),
+                label: 'Reports',
               ),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),

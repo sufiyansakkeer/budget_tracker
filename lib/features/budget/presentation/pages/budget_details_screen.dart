@@ -464,12 +464,12 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                 _ActionButton(
                   icon: Icons.history,
                   label: 'View Expenses',
-                  onPressed: () => context.push('/app/expenses'),
+                  onPressed: () => context.go('/app/expenses'),
                 ),
                 _ActionButton(
                   icon: Icons.bar_chart,
                   label: 'Reports',
-                  onPressed: () => context.push('/app/reports'),
+                  onPressed: () => context.go('/app/reports'),
                 ),
               ],
             ),

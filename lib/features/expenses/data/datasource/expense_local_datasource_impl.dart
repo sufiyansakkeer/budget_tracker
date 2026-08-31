@@ -82,6 +82,19 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
   }
 
   @override
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  }) async {
+    if (budgetIds.isEmpty) return const [];
+
+    final query = database.select(database.expenses)
+      ..where((e) => e.budgetId.isIn(budgetIds))
+      ..orderBy([(e) => OrderingTerm.desc(e.date)]);
+    final rows = await query.get();
+    return rows.map(ExpenseModel.toEntity).toList();
+  }
+
+  @override
   Future<List<ExpenseCategory>> getCategories() async {
     final rows = await (database.select(database.categories)).get();
     if (rows.isEmpty) {
@@ -103,5 +116,10 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
             mode: InsertMode.insertOrIgnore,
           );
     }
+  }
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) {
+    return database.transaction(action);
   }
 }

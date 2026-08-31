@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/widget_background"
+    android:gravity="center_horizontal">
+
+    <!-- App Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Smart Budget Tracker"
+        android:textSize="11sp"
+        android:textColor="#888888"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Today's Safe Spending -->
+    <TextView
+        android:id="@+id/widget_safe_spending_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Today's Safe Spending"
+        android:textSize="12sp"
+        android:textColor="#666666"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_safe_spending_amount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="₹0"
+        android:textSize="28sp"
+        android:textColor="#388E3C"
+        android:textStyle="bold"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="10dp" />
+
+    <!-- Spent Today -->
+    <TextView
+        android:id="@+id/widget_spent_today_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Spent Today"
+        android:textSize="11sp"
+        android:textColor="#888888" />
+
+    <TextView
+        android:id="@+id/widget_spent_today_amount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="₹0"
+        android:textSize="18sp"
+        android:textColor="#333333"
+        android:textStyle="bold"
+        android:layout_marginTop="1dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Status -->
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="On Track"
+        android:textSize="13sp"
+        android:textColor="#388E3C"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp" />
+
+    <!-- Remaining info -->
+    <TextView
+        android:id="@+id/widget_remaining_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="10sp"
+        android:textColor="#999999"
+        android:layout_marginBottom="10dp" />
+
+    <!-- Spacer -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Add Expense Button -->
+    <TextView
+        android:id="@+id/widget_add_expense_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="+ Add Expense"
+        android:textSize="13sp"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:background="@drawable/widget_button_background"
+        android:padding="10dp"
+        android:layout_marginTop="4dp" />
+
+</LinearLayout>
+

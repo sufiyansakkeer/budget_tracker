@@ -47,6 +47,11 @@ class FakeExpenseRepository implements ExpenseRepository {
 
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBudgets({
+    required List<String> budgetIds,
+  }) async =>
+      store.values.where((e) => budgetIds.contains(e.budgetId)).toList();
 }
 
 ExpenseEntity validExpense({

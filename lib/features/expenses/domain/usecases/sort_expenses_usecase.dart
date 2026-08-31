@@ -22,10 +22,18 @@ class SortExpensesUseCase {
 
     switch (sort) {
       case ExpenseSortOption.newestFirst:
-        result.sort((a, b) => b.date.compareTo(a.date));
+        result.sort((a, b) {
+          final byDate = b.date.compareTo(a.date);
+          if (byDate != 0) return byDate;
+          return b.time.compareTo(a.time);
+        });
         break;
       case ExpenseSortOption.oldestFirst:
-        result.sort((a, b) => a.date.compareTo(b.date));
+        result.sort((a, b) {
+          final byDate = a.date.compareTo(b.date);
+          if (byDate != 0) return byDate;
+          return a.time.compareTo(b.time);
+        });
         break;
       case ExpenseSortOption.highestAmount:
         result.sort((a, b) => b.amount.compareTo(a.amount));
