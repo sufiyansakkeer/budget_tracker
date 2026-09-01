@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
@@ -12,6 +11,7 @@ import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Entry point for a selected budget: shows info, statistics, period, status
 /// and quick actions (edit, archive, duplicate, delete, set active, add expense).
@@ -492,7 +492,7 @@ class _StatusChip extends StatelessWidget {
     final label = archived ? 'Archived' : (active ? 'Active' : 'Inactive');
     final color = archived
         ? theme.disabledColor
-        : (active ? AppColors.primary : theme.hintColor);
+        : (active ? context.appColors.primary : theme.hintColor);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

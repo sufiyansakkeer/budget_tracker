@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
+import '../theme/app_colors_extension.dart';
 
 /// A reusable progress bar with semantic color derived from utilization.
 class AppProgress extends StatelessWidget {
@@ -17,22 +17,36 @@ class AppProgress extends StatelessWidget {
     this.showLabel = false,
   });
 
-  /// Returns the semantic color for a utilization value.
+  /// Returns the semantic color for a utilization value using the given colors.
   ///
   /// * < 80% → success
   /// * 80–100% → warning
   /// * > 100% → error
-  static Color colorFor(double utilization) {
-    if (utilization >= 1.0) return AppColors.error;
-    if (utilization >= 0.8) return AppColors.warning;
-    return AppColors.success;
+  static Color colorFor(
+    double utilization, {
+    Color? successColor,
+    Color? warningColor,
+    Color? errorColor,
+  }) {
+    final success = successColor ?? const Color(0xFF239B70);
+    final warning = warningColor ?? const Color(0xFFD89432);
+    final error = errorColor ?? const Color(0xFFD65C62);
+    if (utilization >= 1.0) return error;
+    if (utilization >= 0.8) return warning;
+    return success;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appColors = context.appColors;
     final clamped = value.clamp(0.0, 1.0);
-    final color = colorFor(value);
+    final color = colorFor(
+      value,
+      successColor: appColors.success,
+      warningColor: appColors.warning,
+      errorColor: appColors.error,
+    );
     final percentage = (value * 100).clamp(0.0, 100.0);
 
     return Column(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
+import '../theme/app_colors_extension.dart';
 
 /// A consistent confirmation dialog.
 class ConfirmationDialog {
@@ -17,39 +17,43 @@ class ConfirmationDialog {
     IconData icon = Icons.warning_amber_rounded,
     bool isDestructive = false,
   }) async {
+    final appColors = context.appColors;
     final result = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: Icon(
-          icon,
-          color: isDestructive
-              ? AppColors.error
-              : Theme.of(dialogContext).colorScheme.primary,
-          size: 32,
-        ),
-        title: Text(title, textAlign: TextAlign.center),
-        content: Text(message, textAlign: TextAlign.center),
-        actionsAlignment: MainAxisAlignment.center,
-        actionsPadding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.md,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(cancelLabel),
+      builder: (dialogContext) {
+        final dc = dialogContext;
+        return AlertDialog(
+          icon: Icon(
+            icon,
+            color: isDestructive
+                ? appColors.error
+                : Theme.of(dc).colorScheme.primary,
+            size: 32,
           ),
-          FilledButton(
-            style: isDestructive
-                ? FilledButton.styleFrom(backgroundColor: AppColors.error)
-                : null,
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(confirmLabel),
+          title: Text(title, textAlign: TextAlign.center),
+          content: Text(message, textAlign: TextAlign.center),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.md,
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dc).pop(false),
+              child: Text(cancelLabel),
+            ),
+            FilledButton(
+              style: isDestructive
+                  ? FilledButton.styleFrom(backgroundColor: appColors.error)
+                  : null,
+              onPressed: () => Navigator.of(dc).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
     );
     return result ?? false;
   }

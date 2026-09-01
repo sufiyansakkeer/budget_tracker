@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../domain/entities/expense_category.dart';
@@ -10,6 +9,7 @@ import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
 import '../widgets/expense_summary_card.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Lists all expenses with category info and navigation to details.
 class ExpensesListScreen extends StatefulWidget {
@@ -52,7 +52,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/app/expenses/add'),
-        backgroundColor: AppColors.primary,
+        backgroundColor: context.appColors.primary,
         icon: const Icon(Icons.add),
         label: const Text('Add Expense'),
         tooltip: 'Add a new expense',
@@ -65,7 +65,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
               ..showSnackBar(
                 SnackBar(
                   content: Text(state.message ?? 'Something went wrong'),
-                  backgroundColor: AppColors.dangerRed,
+                  backgroundColor: context.appColors.error,
                 ),
               );
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());

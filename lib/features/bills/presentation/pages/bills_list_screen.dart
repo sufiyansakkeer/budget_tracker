@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/info_content.dart';
@@ -15,6 +14,7 @@ import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
 import 'bill_widgets.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Bills dashboard screen with summary cards, filters, and bill list.
 class BillsListScreen extends StatefulWidget {
@@ -65,9 +65,9 @@ class _BillsListScreenState extends State<BillsListScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/app/bills/add'),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add Bill'),
+        backgroundColor: context.appColors.primary,
+        icon: Icon(Icons.add_rounded),
+        label: Text('Add Bill'),
         tooltip: 'Add a new bill',
       ),
     );
@@ -86,7 +86,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
           // Header
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 AppSpacing.md,
                 AppSpacing.sm,
                 AppSpacing.sm,
@@ -95,7 +95,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
+                    icon: Icon(Icons.arrow_back_rounded),
                     tooltip: 'Back',
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -131,7 +131,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
           if (state.allBills.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.only(
+                padding: EdgeInsets.only(
                   top: AppSpacing.xs,
                   right: AppSpacing.md,
                 ),
@@ -167,7 +167,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
           // Search bar
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
+              padding: EdgeInsets.symmetric(
                 horizontal: AppSpacing.md,
                 vertical: AppSpacing.sm,
               ),
@@ -175,10 +175,10 @@ class _BillsListScreenState extends State<BillsListScreen> {
                 controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Search bills...',
-                  prefixIcon: const Icon(Icons.search_rounded),
+                  prefixIcon: Icon(Icons.search_rounded),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded),
+                          icon: Icon(Icons.clear_rounded),
                           onPressed: () {
                             _searchController.clear();
                             context.read<BillBloc>().add(
@@ -188,7 +188,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
                           },
                         )
                       : null,
-                  contentPadding: const EdgeInsets.symmetric(
+                  contentPadding: EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
                     vertical: AppSpacing.smd,
                   ),
@@ -215,7 +215,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
             SliverFillRemaining(child: _buildEmptyState(context, state))
           else
             SliverPadding(
-              padding: const EdgeInsets.symmetric(
+              padding: EdgeInsets.symmetric(
                 horizontal: AppSpacing.md,
                 vertical: AppSpacing.sm,
               ),
@@ -223,7 +223,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final bill = state.filteredBills[index];
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    padding: EdgeInsets.only(bottom: AppSpacing.sm),
                     child: BillCard(
                       bill: bill,
                       currency: bill.currency,
@@ -280,16 +280,16 @@ class _BillsListScreenState extends State<BillsListScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Mark as Paid?'),
+        title: Text('Mark as Paid?'),
         content: Text('Mark "${bill.title}" as paid?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Mark Paid'),
+            child: Text('Mark Paid'),
           ),
         ],
       ),
@@ -307,34 +307,34 @@ class _BillSummaryCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Row(
         children: [
           Expanded(
             child: _SummaryTile(
               label: 'Upcoming',
               amount: state.upcomingTotal,
-              color: AppColors.primary,
+              color: context.appColors.primary,
               icon: Icons.schedule_rounded,
               count: state.upcomingBills.length,
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
+          SizedBox(width: AppSpacing.sm),
           Expanded(
             child: _SummaryTile(
               label: 'Due Today',
               amount: state.dueTodayTotal,
-              color: AppColors.warning,
+              color: context.appColors.warning,
               icon: Icons.today_rounded,
               count: state.dueTodayBills.length,
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
+          SizedBox(width: AppSpacing.sm),
           Expanded(
             child: _SummaryTile(
               label: 'Overdue',
               amount: state.overdueTotal,
-              color: AppColors.error,
+              color: context.appColors.error,
               icon: Icons.error_outline_rounded,
               count: state.overdueBills.length,
             ),
@@ -364,7 +364,7 @@ class _SummaryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.smd),
+      padding: EdgeInsets.all(AppSpacing.smd),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: AppSpacing.borderRadiusMd,
@@ -376,7 +376,7 @@ class _SummaryTile extends StatelessWidget {
           Row(
             children: [
               Icon(icon, size: 16, color: color),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               Expanded(
                 child: Text(
                   label,
@@ -389,7 +389,7 @@ class _SummaryTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           MoneyText(
             amount: amount,
             decimalDigits: 0,
@@ -399,7 +399,7 @@ class _SummaryTile extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             '$count ${count == 1 ? 'bill' : 'bills'}',
             style: theme.textTheme.labelSmall?.copyWith(
@@ -427,9 +427,9 @@ class _BillFilterChips extends StatelessWidget {
       height: 48,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
         itemCount: BillFilter.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+        separatorBuilder: (_, __) => SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, index) {
           final filter = BillFilter.values[index];
           final isSelected = currentFilter == filter;
@@ -452,7 +452,7 @@ class _BillsSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
@@ -484,30 +484,30 @@ class _BillsErrorWidget extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
+        padding: EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(AppSpacing.xl),
+              padding: EdgeInsets.all(AppSpacing.xl),
               decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
+                color: context.appColors.error.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.error_outline_rounded,
                 size: 48,
-                color: AppColors.error,
+                color: context.appColors.error,
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            SizedBox(height: AppSpacing.lg),
             Text(
               'Something went wrong',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            SizedBox(height: AppSpacing.sm),
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -515,11 +515,11 @@ class _BillsErrorWidget extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: AppSpacing.lg),
+            SizedBox(height: AppSpacing.lg),
             FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
+              icon: Icon(Icons.refresh_rounded),
+              label: Text('Try Again'),
             ),
           ],
         ),

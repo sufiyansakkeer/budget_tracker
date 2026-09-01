@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/report_period.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Horizontal period selector used to switch report periods.
 class PeriodSelector extends StatelessWidget {
@@ -32,7 +32,7 @@ class PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: isSelected,
             onSelected: (_) => onSelected(period),
-            selectedColor: AppColors.primary,
+            selectedColor: context.appColors.primary,
             labelStyle: TextStyle(
               color: isSelected ? Colors.white : null,
               fontWeight: isSelected ? FontWeight.bold : null,

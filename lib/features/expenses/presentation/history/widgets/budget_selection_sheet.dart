@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/domain/entities/budget_entity.dart';
+import '../../../../../core/theme/app_colors_extension.dart';
 
 /// Bottom sheet for selecting multiple budgets for the combined expense view.
 ///
@@ -81,9 +81,9 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
   void _apply() {
     if (_selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Select at least one budget'),
-          backgroundColor: AppColors.warning,
+          backgroundColor: context.appColors.warning,
         ),
       );
       return;
@@ -106,7 +106,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
             // Handle bar
             Center(
               child: Container(
-                margin: const EdgeInsets.only(top: AppSpacing.sm),
+                margin: EdgeInsets.only(top: AppSpacing.sm),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
@@ -117,7 +117,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
             ),
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.md,
                 AppSpacing.lg,
@@ -135,7 +135,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           '${_selected.length} of ${widget.allBudgets.length} selected',
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -159,7 +159,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   horizontal: AppSpacing.md,
                   vertical: AppSpacing.sm,
                 ),
@@ -178,7 +178,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
             // Apply button
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: EdgeInsets.fromLTRB(
                   AppSpacing.lg,
                   AppSpacing.sm,
                   AppSpacing.lg,
@@ -188,7 +188,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _apply,
-                    child: const Text('Apply'),
+                    child: Text('Apply'),
                   ),
                 ),
               ),
@@ -217,17 +217,17 @@ class _BudgetTile extends StatelessWidget {
     final spent = budget.monthlyAmount - budget.remainingAmount;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      padding: EdgeInsets.only(bottom: AppSpacing.xs),
       child: Material(
         color: isSelected
-            ? AppColors.primary.withValues(alpha: 0.08)
+            ? context.appColors.primary.withValues(alpha: 0.08)
             : Colors.transparent,
         borderRadius: AppSpacing.borderRadiusMd,
         child: InkWell(
           onTap: onTap,
           borderRadius: AppSpacing.borderRadiusMd,
           child: Container(
-            padding: const EdgeInsets.symmetric(
+            padding: EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
               vertical: AppSpacing.smd,
             ),
@@ -235,7 +235,7 @@ class _BudgetTile extends StatelessWidget {
               borderRadius: AppSpacing.borderRadiusMd,
               border: Border.all(
                 color: isSelected
-                    ? AppColors.primary
+                    ? context.appColors.primary
                     : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
               ),
             ),
@@ -244,21 +244,21 @@ class _BudgetTile extends StatelessWidget {
                 Checkbox(
                   value: isSelected,
                   onChanged: (_) => onTap(),
-                  activeColor: AppColors.primary,
+                  activeColor: context.appColors.primary,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
                 ),
-                const SizedBox(width: AppSpacing.sm),
+                SizedBox(width: AppSpacing.sm),
                 // Budget color indicator
                 Container(
                   width: 4,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: _parseColor(budget.color) ?? AppColors.primary,
+                    color: _parseColor(budget.color) ?? context.appColors.primary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.md),
+                SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +269,7 @@ class _BudgetTile extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         '${CurrencyFormatter.format(budget.monthlyAmount, decimalDigits: 0)} budget',
                         style: theme.textTheme.bodySmall?.copyWith(

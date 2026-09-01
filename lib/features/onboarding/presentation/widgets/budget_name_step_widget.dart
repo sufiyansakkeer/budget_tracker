@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class BudgetNameStepWidget extends StatefulWidget {
   final String initialValue;
@@ -44,64 +44,64 @@ class _BudgetNameStepWidgetState extends State<BudgetNameStepWidget> {
         widget.errorMessage == null && _controller.text.trim().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           IconButton(
             onPressed: widget.onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: Icon(Icons.arrow_back_rounded),
             padding: EdgeInsets.zero,
             alignment: Alignment.centerLeft,
           ),
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.md),
           Text(
             'What is your budget called?',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          SizedBox(height: AppSpacing.xs),
           Text(
             'Give your budget a name, e.g. Personal, Vacation, Business.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
             ),
           ),
-          const SizedBox(height: AppSpacing.xxl),
+          SizedBox(height: AppSpacing.xxl),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
               side: BorderSide(
                 color: widget.errorMessage != null
-                    ? AppColors.dangerRed
-                    : AppColors.primary.withValues(alpha: 0.2),
+                    ? context.appColors.error
+                    : context.appColors.primary.withValues(alpha: 0.2),
                 width: 1.5,
               ),
             ),
             elevation: 2,
             child: Padding(
-              padding: const EdgeInsets.symmetric(
+              padding: EdgeInsets.symmetric(
                 horizontal: AppSpacing.lg,
                 vertical: AppSpacing.md,
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: AppSpacing.sm,
                       vertical: AppSpacing.xs,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: context.appColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.edit_rounded,
-                      color: AppColors.primary,
+                      color: context.appColors.primary,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.md),
+                  SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: TextField(
                       key: const Key('budgetNameTextField'),
@@ -130,20 +130,20 @@ class _BudgetNameStepWidgetState extends State<BudgetNameStepWidget> {
             ),
           ),
           if (widget.errorMessage != null) ...[
-            const SizedBox(height: AppSpacing.sm),
+            SizedBox(height: AppSpacing.sm),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.error_outline_rounded,
-                  color: AppColors.dangerRed,
+                  color: context.appColors.error,
                   size: 18,
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     widget.errorMessage!,
-                    style: const TextStyle(
-                      color: AppColors.dangerRed,
+                    style: TextStyle(
+                      color: context.appColors.error,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -165,7 +165,7 @@ class _BudgetNameStepWidgetState extends State<BudgetNameStepWidget> {
                 ),
                 elevation: 4,
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
@@ -178,7 +178,7 @@ class _BudgetNameStepWidgetState extends State<BudgetNameStepWidget> {
               ),
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+          SizedBox(height: AppSpacing.xl),
         ],
       ),
     );

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import 'category_visuals.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Card displaying an expense summary with category, amount, and date.
 /// Optionally selectable to open details.
@@ -26,7 +26,7 @@ class ExpenseSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final color = category != null
         ? CategoryVisuals.colorFor(category!.colorHex)
-        : Colors.grey;
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     final icon = category != null
         ? CategoryVisuals.iconFor(category!.icon)
         : Icons.help_outline;
@@ -87,7 +87,7 @@ class ExpenseSummaryCard extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(
+                                  color: context.appColors.primary.withValues(
                                     alpha: 0.1,
                                   ),
                                   borderRadius: BorderRadius.circular(6),

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/daily_spending_point.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Card containing a smooth daily-spending line chart.
 class LineChartCard extends StatefulWidget {
@@ -144,13 +144,13 @@ class _LineChartCardState extends State<LineChartCard> {
                       ],
                       isCurved: true,
                       curveSmoothness: 0.35,
-                      color: AppColors.primary,
+                      color: context.appColors.primary,
                       barWidth: 3,
                       isStrokeCapRound: true,
                       dotData: FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: AppColors.primary.withValues(alpha: 0.15),
+                        color: context.appColors.primary.withValues(alpha: 0.15),
                       ),
                     ),
                   ],

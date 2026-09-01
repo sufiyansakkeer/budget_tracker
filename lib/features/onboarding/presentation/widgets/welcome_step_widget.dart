@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class WelcomeStepWidget extends StatelessWidget {
   final VoidCallback onContinue;
@@ -12,7 +12,7 @@ class WelcomeStepWidget extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -21,27 +21,27 @@ class WelcomeStepWidget extends StatelessWidget {
             width: 130,
             height: 130,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.primary, AppColors.secondary],
+              gradient: LinearGradient(
+                colors: [context.appColors.primary, context.appColors.secondary],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(32),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.3),
+                  color: context.appColors.primary.withValues(alpha: 0.3),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.account_balance_wallet_rounded,
               size: 68,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: AppSpacing.xxl),
+          SizedBox(height: AppSpacing.xxl),
           Text(
             'Smart Monivo',
             textAlign: TextAlign.center,
@@ -50,7 +50,7 @@ class WelcomeStepWidget extends StatelessWidget {
               letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.md),
           Text(
             'Manage your budget intelligently and know exactly how much you can safely spend every day.',
             textAlign: TextAlign.center,
@@ -71,7 +71,7 @@ class WelcomeStepWidget extends StatelessWidget {
                 ),
                 elevation: 4,
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
@@ -84,7 +84,7 @@ class WelcomeStepWidget extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+          SizedBox(height: AppSpacing.xl),
         ],
       ),
     );

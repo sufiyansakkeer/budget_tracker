@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/info_content.dart';
@@ -29,6 +28,7 @@ import '../widgets/insight_card.dart';
 import '../widgets/recent_expense_tile.dart';
 
 import '../widgets/today_spending_card.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -302,7 +302,7 @@ class _OverallBudgetCard extends StatelessWidget {
                   ),
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.success,
+                    color: context.appColors.success,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -440,7 +440,7 @@ class _DashboardFab extends StatelessWidget {
           value: 'expense',
           child: Row(
             children: [
-              Icon(Icons.add_rounded, color: AppColors.primary, size: 20),
+              Icon(Icons.add_rounded, color: context.appColors.primary, size: 20),
               const SizedBox(width: 12),
               const Text('Add Expense'),
             ],
@@ -452,7 +452,7 @@ class _DashboardFab extends StatelessWidget {
             children: [
               Icon(
                 Icons.receipt_long_rounded,
-                color: AppColors.primary,
+                color: context.appColors.primary,
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -463,7 +463,7 @@ class _DashboardFab extends StatelessWidget {
       ],
       child: FloatingActionButton.extended(
         onPressed: null, // Handled by PopupMenuButton
-        backgroundColor: AppColors.primary,
+        backgroundColor: context.appColors.primary,
         heroTag: 'dashboard_fab',
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add'),
@@ -522,16 +522,16 @@ class _UpcomingBillsList extends StatelessWidget {
         Color dueColor;
         if (isDueToday) {
           dueText = 'Due today';
-          dueColor = AppColors.warning;
+          dueColor = context.appColors.warning;
         } else if (isOverdue) {
           dueText = '${today.difference(due).inDays} days overdue';
-          dueColor = AppColors.error;
+          dueColor = context.appColors.error;
         } else if (daysUntil == 1) {
           dueText = 'Due tomorrow';
-          dueColor = AppColors.primary;
+          dueColor = context.appColors.primary;
         } else {
           dueText = 'Due in $daysUntil days';
-          dueColor = AppColors.primary;
+          dueColor = context.appColors.primary;
         }
 
         return Padding(
@@ -589,7 +589,7 @@ class _UpcomingBillsList extends StatelessWidget {
                     ),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isOverdue ? AppColors.error : null,
+                      color: isOverdue ? context.appColors.error : null,
                     ),
                   ),
                 ],

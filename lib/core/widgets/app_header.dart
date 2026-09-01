@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
 
 /// A consistent page header showing the app title and a contextual subtitle.
@@ -11,13 +10,7 @@ class AppHeader extends StatelessWidget {
   final Widget? trailing;
   final bool centerTitle;
 
-  const AppHeader({
-    super.key,
-    required this.title,
-    this.subtitle,
-    this.trailing,
-    this.centerTitle = false,
-  });
+  const AppHeader({super.key, required this.title, this.subtitle, this.trailing, this.centerTitle = false});
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +74,7 @@ class BudgetSelectorChip extends StatelessWidget {
 
   const BudgetSelectorChip({
     super.key,
-    required this.budgetName,
+    this.budgetName,
     this.startDate,
     this.endDate,
     required this.onTap,
@@ -115,7 +108,7 @@ class BudgetSelectorChip extends StatelessWidget {
               Icon(
                 Icons.account_balance_wallet_rounded,
                 size: 18,
-                color: AppColors.primary,
+                color: theme.colorScheme.primary,
               ),
               const SizedBox(width: AppSpacing.sm),
               Flexible(

@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
@@ -21,6 +20,7 @@ import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
 import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense.
 ///
@@ -274,7 +274,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               ..showSnackBar(
                 SnackBar(
                   content: Text(state.message ?? 'Something went wrong'),
-                  backgroundColor: AppColors.dangerRed,
+                  backgroundColor: context.appColors.error,
                 ),
               );
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());

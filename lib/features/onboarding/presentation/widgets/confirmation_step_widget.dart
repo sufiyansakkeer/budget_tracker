@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../bloc/onboarding_state.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class ConfirmationStepWidget extends StatelessWidget {
   final OnboardingState state;
@@ -185,7 +185,7 @@ class _SummaryRow extends StatelessWidget {
           style: isPrimary
               ? theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                 )
               : theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,

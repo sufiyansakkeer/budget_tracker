@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -19,6 +18,7 @@ import '../../../../core/di/injection.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Detailed view of a single bill.
 class BillDetailsScreen extends StatefulWidget {
@@ -84,7 +84,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               ..showSnackBar(
                 SnackBar(
                   content: Text(state.message ?? 'Something went wrong'),
-                  backgroundColor: AppColors.dangerRed,
+                  backgroundColor: context.appColors.error,
                 ),
               );
             context.read<BillBloc>().add(const BillClearMessage());
@@ -122,17 +122,17 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
             decoration: BoxDecoration(
               gradient: status == BillStatus.paid
                   ? LinearGradient(
-                      colors: [AppColors.successDark, AppColors.success],
+                      colors: [context.appColors.success, context.appColors.success],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )
                   : status == BillStatus.overdue
                   ? LinearGradient(
-                      colors: [AppColors.errorDark, AppColors.error],
+                      colors: [context.appColors.error, context.appColors.error],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )
-                  : AppColors.primaryGradient,
+                  : LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
               borderRadius: AppSpacing.borderRadiusLg,
             ),
             child: Column(
@@ -268,7 +268,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
                             Icon(
                               Icons.check_circle_rounded,
                               size: 16,
-                              color: AppColors.success,
+                              color: context.appColors.success,
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
@@ -287,7 +287,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
                               ),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.success,
+                                color: context.appColors.success,
                               ),
                             ),
                           ],
@@ -308,7 +308,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               onPressed: () => _markPaid(context, bill),
               icon: const Icon(Icons.check_circle_outline_rounded),
               label: const Text('Mark as Paid'),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+              style: FilledButton.styleFrom(backgroundColor: context.appColors.success),
             ),
             const SizedBox(height: AppSpacing.sm),
 
@@ -333,8 +333,8 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
           OutlinedButton.icon(
             onPressed: () => _confirmDelete(context, bill),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.dangerRed,
-              side: const BorderSide(color: AppColors.dangerRed),
+              foregroundColor: context.appColors.error,
+              side: BorderSide(color: context.appColors.error),
             ),
             icon: const Icon(Icons.delete_outline_rounded),
             label: const Text('Delete Bill'),
@@ -410,7 +410,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
           ..showSnackBar(
             SnackBar(
               content: Text('Bill paid, but failed to create expense: $e'),
-              backgroundColor: AppColors.warning,
+              backgroundColor: context.appColors.warning,
             ),
           );
       }
@@ -454,7 +454,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 20),
+          Icon(icon, color: context.appColors.primary, size: 20),
           const SizedBox(width: AppSpacing.md),
           SizedBox(
             width: 90,
@@ -522,13 +522,13 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (status) {
       case BillStatus.paid:
-        return StatusChipStyles.healthy('Paid');
+        return StatusChipStyles.healthy(context, 'Paid');
       case BillStatus.overdue:
-        return StatusChipStyles.danger('Overdue');
+        return StatusChipStyles.danger(context, 'Overdue');
       case BillStatus.dueToday:
-        return StatusChipStyles.warning('Due Today');
+        return StatusChipStyles.warning(context, 'Due Today');
       case BillStatus.upcoming:
-        return StatusChipStyles.info('Upcoming');
+        return StatusChipStyles.info(context, 'Upcoming');
     }
   }
 }

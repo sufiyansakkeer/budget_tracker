@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
 class QuickActionButton extends StatelessWidget {
@@ -35,7 +34,7 @@ class QuickActionButton extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: AppColors.primary, size: 28),
+            Icon(icon, color: theme.colorScheme.primary, size: 28),
             const SizedBox(height: AppSpacing.sm),
             Text(
               label,

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/app_header.dart';
 import '../../../../../core/widgets/confirmation_dialog.dart';
@@ -29,6 +28,7 @@ import '../widgets/loading_more_indicator.dart';
 import '../widgets/quick_filter_chips.dart';
 import '../widgets/sort_bottom_sheet.dart';
 import '../widgets/summary_card.dart';
+import '../../../../../core/theme/app_colors_extension.dart';
 
 /// Material 3 expense history screen with search, filters, sorting, grouping,
 /// pagination, swipe actions, pull-to-refresh, and combined multi-budget view.
@@ -168,7 +168,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                           content: Text(
                             state.errorMessage ?? 'Unable to load expenses',
                           ),
-                          backgroundColor: AppColors.dangerRed,
+                          backgroundColor: context.appColors.error,
                         ),
                       );
                   }
@@ -226,7 +226,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/app/expenses/add'),
-        backgroundColor: AppColors.primary,
+        backgroundColor: context.appColors.primary,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Expense'),
         tooltip: 'Add a new expense',
@@ -329,7 +329,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                       ? 'Select budgets'
                       : state.selectedBudgetsLabel,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.primary,
+                    color: context.appColors.primary,
                     fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
@@ -340,7 +340,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               Icon(
                 Icons.edit_rounded,
                 size: 12,
-                color: AppColors.primary.withValues(alpha: 0.7),
+                color: context.appColors.primary.withValues(alpha: 0.7),
               ),
             ],
           ),
@@ -366,22 +366,22 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         vertical: AppSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.06),
+        color: context.appColors.primary.withValues(alpha: 0.06),
         borderRadius: AppSpacing.borderRadiusMd,
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+        border: Border.all(color: context.appColors.primary.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
           Icon(
             Icons.account_balance_wallet_rounded,
             size: 18,
-            color: AppColors.primary,
+            color: context.appColors.primary,
           ),
           const SizedBox(width: AppSpacing.sm),
           Text(
             'Total spent',
             style: TextStyle(
-              color: AppColors.primary.withValues(alpha: 0.8),
+              color: context.appColors.primary.withValues(alpha: 0.8),
               fontSize: 13,
             ),
           ),
@@ -389,7 +389,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           Text(
             '\u20b9${state.combinedTotalAmount.toStringAsFixed(0)}',
             style: TextStyle(
-              color: AppColors.primary,
+              color: context.appColors.primary,
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
@@ -476,7 +476,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 alignment: Alignment.centerLeft,
                 padding: const EdgeInsets.only(left: AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                   borderRadius: AppSpacing.borderRadiusLg,
                 ),
                 child: const Icon(Icons.edit_rounded, color: Colors.white),
@@ -485,7 +485,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: AppColors.error,
+                  color: context.appColors.error,
                   borderRadius: AppSpacing.borderRadiusLg,
                 ),
                 child: const Icon(Icons.delete_rounded, color: Colors.white),

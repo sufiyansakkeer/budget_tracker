@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Reusable insight card for the reports screen. Reuses the dashboard
 /// [InsightType] and [SmartInsight] entities.
@@ -15,7 +15,7 @@ class InsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final config = _config();
+    final config = _config(context);
 
     return Semantics(
       label: message,
@@ -44,16 +44,16 @@ class InsightCard extends StatelessWidget {
     );
   }
 
-  _Config _config() {
+  _Config _config(BuildContext context) {
     switch (type) {
       case InsightType.positive:
-        return _Config(Icons.check_circle, AppColors.safeGreen);
+        return _Config(Icons.check_circle, context.appColors.success);
       case InsightType.warning:
-        return _Config(Icons.warning, AppColors.warningOrange);
+        return _Config(Icons.warning, context.appColors.warning);
       case InsightType.negative:
-        return _Config(Icons.error, AppColors.dangerRed);
+        return _Config(Icons.error, context.appColors.error);
       case InsightType.info:
-        return _Config(Icons.lightbulb, AppColors.primary);
+        return _Config(Icons.lightbulb, context.appColors.primary);
     }
   }
 }

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// A reusable dropdown that lets the user switch the active budget.
 ///
@@ -82,7 +82,7 @@ class _BudgetSwitcherState extends State<BudgetSwitcher> {
                       return ListTile(
                         leading: Icon(
                           isActive ? Icons.check_circle : Icons.circle_outlined,
-                          color: isActive ? AppColors.primary : null,
+                          color: isActive ? context.appColors.primary : null,
                         ),
                         title: Text(budget.name),
                         subtitle: Text(

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../bloc/onboarding_bloc.dart';
 import '../bloc/onboarding_state.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class CurrencyStepWidget extends StatefulWidget {
   final CurrencyItem selectedCurrency;
@@ -58,39 +58,39 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           IconButton(
             onPressed: widget.onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: Icon(Icons.arrow_back_rounded),
             padding: EdgeInsets.zero,
             alignment: Alignment.centerLeft,
           ),
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.md),
           Text(
             'Select your currency',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          SizedBox(height: AppSpacing.xs),
           Text(
             'Choose the primary currency for your budget tracking.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
             ),
           ),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: AppSpacing.lg),
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search currency (e.g. INR, USD, Euro)',
-              prefixIcon: const Icon(Icons.search_rounded),
+              prefixIcon: Icon(Icons.search_rounded),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear_rounded),
+                      icon: Icon(Icons.clear_rounded),
                       onPressed: () {
                         _searchController.clear();
                       },
@@ -98,7 +98,7 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                   : null,
               filled: true,
               fillColor: theme.cardColor,
-              contentPadding: const EdgeInsets.symmetric(
+              contentPadding: EdgeInsets.symmetric(
                 horizontal: AppSpacing.md,
                 vertical: AppSpacing.sm,
               ),
@@ -108,12 +108,12 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
               ),
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.md),
           Expanded(
             child: ListView.separated(
               itemCount: _filteredCurrencies.length,
               separatorBuilder: (context, index) =>
-                  const SizedBox(height: AppSpacing.xs),
+                  SizedBox(height: AppSpacing.xs),
               itemBuilder: (context, index) {
                 final currency = _filteredCurrencies[index];
                 final isSelected =
@@ -123,18 +123,18 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                   onTap: () => widget.onSelected(currency),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: AppSpacing.md,
                       vertical: AppSpacing.md,
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primary.withValues(alpha: 0.12)
+                          ? context.appColors.primary.withValues(alpha: 0.12)
                           : theme.cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isSelected
-                            ? AppColors.primary
+                            ? context.appColors.primary
                             : Colors.transparent,
                         width: 1.5,
                       ),
@@ -147,7 +147,7 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.primary
+                                ? context.appColors.primary
                                 : theme.colorScheme.surface,
                             shape: BoxShape.circle,
                           ),
@@ -158,11 +158,11 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                               fontWeight: FontWeight.bold,
                               color: isSelected
                                   ? Colors.white
-                                  : AppColors.primary,
+                                  : context.appColors.primary,
                             ),
                           ),
                         ),
-                        const SizedBox(width: AppSpacing.md),
+                        SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,9 +184,9 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                           ),
                         ),
                         if (isSelected)
-                          const Icon(
+                          Icon(
                             Icons.check_circle_rounded,
-                            color: AppColors.primary,
+                            color: context.appColors.primary,
                             size: 24,
                           ),
                       ],
@@ -196,7 +196,7 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
               },
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.md),
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -208,7 +208,7 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                 ),
                 elevation: 4,
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
@@ -221,7 +221,7 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
               ),
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+          SizedBox(height: AppSpacing.xl),
         ],
       ),
     );

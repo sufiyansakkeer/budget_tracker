@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
@@ -14,6 +13,7 @@ import '../../domain/entities/bill_enums.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Add/Edit bill form screen.
 class BillFormScreen extends StatefulWidget {
@@ -211,7 +211,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
               ..showSnackBar(
                 SnackBar(
                   content: Text(state.message ?? 'Something went wrong'),
-                  backgroundColor: AppColors.dangerRed,
+                  backgroundColor: context.appColors.error,
                 ),
               );
             context.read<BillBloc>().add(const BillClearMessage());

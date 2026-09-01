@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class DashboardHeader extends StatelessWidget {
   final String currency;
@@ -18,6 +18,7 @@ class DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appColors = context.appColors;
     final now = DateTime.now();
     final hour = now.hour;
     String greeting;
@@ -38,7 +39,11 @@ class DashboardHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        gradient: AppColors.headerGradient,
+        gradient: LinearGradient(
+          colors: [appColors.primaryDark, appColors.primary, appColors.secondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: AppSpacing.borderRadiusLg,
       ),
       child: Column(

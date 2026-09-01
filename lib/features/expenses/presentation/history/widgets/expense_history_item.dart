@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../widgets/category_visuals.dart';
+import '../../../../../core/theme/app_colors_extension.dart';
 
 /// Animated tile for a single expense in the history list.
 ///
@@ -40,7 +40,7 @@ class ExpenseHistoryItem extends StatelessWidget {
     final theme = Theme.of(context);
     final color = category != null
         ? CategoryVisuals.colorFor(category!.colorHex)
-        : Colors.grey;
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     final icon = category != null
         ? CategoryVisuals.iconFor(category!.icon)
         : Icons.help_outline_rounded;
@@ -91,13 +91,13 @@ class ExpenseHistoryItem extends StatelessWidget {
                           vertical: 1,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
+                          color: context.appColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           budgetName!,
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppColors.primary,
+                            color: context.appColors.primary,
                             fontWeight: FontWeight.w600,
                             fontSize: 10,
                           ),
@@ -141,7 +141,7 @@ class ExpenseHistoryItem extends StatelessWidget {
                       Icon(
                         Icons.receipt_long_rounded,
                         size: 14,
-                        color: AppColors.primary,
+                        color: context.appColors.primary,
                         semanticLabel: 'Receipt attached',
                       ),
                     ],

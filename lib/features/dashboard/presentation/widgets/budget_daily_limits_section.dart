@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_progress.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/spending_target_status.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Section that displays "Today's Spending Limits" with a separate card
 /// for each active budget. Replaces the old combined hero card.
@@ -287,10 +287,10 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       bl.budgetUtilization >= 1.0
-                          ? AppColors.error
+                          ? context.appColors.error
                           : bl.budgetUtilization >= 0.8
-                          ? AppColors.warning
-                          : AppColors.success,
+                          ? context.appColors.warning
+                          : context.appColors.success,
                     ),
                   ),
                 ),
@@ -307,7 +307,7 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
               Text(
                 '• ${bl.remainingDays}d left',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -320,9 +320,9 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
 
   Color _statusColor(SpendingTargetStatus s) {
     return switch (s) {
-      SpendingTargetStatus.onTrack => AppColors.success,
-      SpendingTargetStatus.nearLimit => AppColors.warning,
-      SpendingTargetStatus.exceeded => AppColors.error,
+      SpendingTargetStatus.onTrack => context.appColors.success,
+      SpendingTargetStatus.nearLimit => context.appColors.warning,
+      SpendingTargetStatus.exceeded => context.appColors.error,
     };
   }
 

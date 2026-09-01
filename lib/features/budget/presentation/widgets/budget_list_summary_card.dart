@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/budget_list_summary_entity.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Displays the combined remaining amount across all active budgets.
 class BudgetListSummaryCard extends StatelessWidget {
@@ -26,14 +26,14 @@ class BudgetListSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.primary.withValues(alpha: 0.1),
-            AppColors.primary.withValues(alpha: 0.05),
+            context.appColors.primary.withValues(alpha: 0.1),
+            context.appColors.primary.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        border: Border.all(color: context.appColors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,7 +42,7 @@ class BudgetListSummaryCard extends StatelessWidget {
             children: [
               Icon(
                 Icons.account_balance_wallet_rounded,
-                color: AppColors.primary,
+                color: context.appColors.primary,
                 size: 20,
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -50,7 +50,7 @@ class BudgetListSummaryCard extends StatelessWidget {
                 'Total Remaining',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                 ),
               ),
               const Spacer(),
@@ -87,7 +87,7 @@ class BudgetListSummaryCard extends StatelessWidget {
             ),
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.primary,
+              color: context.appColors.primary,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),

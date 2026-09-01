@@ -2,11 +2,11 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../../expenses/domain/entities/expense_category.dart';
 import '../../domain/entities/category_slice.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Card containing a category distribution pie chart with a legend.
 class PieChartCard extends StatelessWidget {
@@ -111,7 +111,7 @@ class _PieChart extends StatelessWidget {
           for (var i = 0; i < slices.length; i++)
             PieChartSectionData(
               value: slices[i].amount,
-              color: _colorFor(slices[i], i),
+              color: _colorFor(context, slices[i], i),
               radius: 40,
               showTitle: false,
             ),
@@ -120,22 +120,22 @@ class _PieChart extends StatelessWidget {
     );
   }
 
-  Color _colorFor(CategorySlice slice, int index) {
+  Color _colorFor(BuildContext context, CategorySlice slice, int index) {
     for (final category in categories) {
       if (category.id == slice.categoryId) {
         return CategoryVisuals.colorFor(category.colorHex);
       }
     }
-    return _palette[index % _palette.length];
+    return _palette(context)[index % _palette(context).length];
   }
 
-  static const List<Color> _palette = [
-    AppColors.primary,
-    AppColors.secondary,
-    AppColors.accent,
-    AppColors.safeGreen,
-    AppColors.warningOrange,
-    AppColors.dangerRed,
+  List<Color> _palette(BuildContext context) => [
+    context.appColors.primary,
+    context.appColors.secondary,
+    context.appColors.primary,
+    context.appColors.success,
+    context.appColors.warning,
+    context.appColors.error,
   ];
 }
 
@@ -192,7 +192,7 @@ class _LegendRow extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(color: _color(), shape: BoxShape.circle),
+          decoration: BoxDecoration(color: _color(context), shape: BoxShape.circle),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -213,21 +213,21 @@ class _LegendRow extends StatelessWidget {
     );
   }
 
-  Color _color() {
+  Color _color(BuildContext context) {
     for (final category in categories) {
       if (category.id == slice.categoryId) {
         return CategoryVisuals.colorFor(category.colorHex);
       }
     }
-    return _palette[index % _palette.length];
+    return _palette(context)[index % _palette(context).length];
   }
 
-  static const List<Color> _palette = [
-    AppColors.primary,
-    AppColors.secondary,
-    AppColors.accent,
-    AppColors.safeGreen,
-    AppColors.warningOrange,
-    AppColors.dangerRed,
+  List<Color> _palette(BuildContext context) => [
+    context.appColors.primary,
+    context.appColors.secondary,
+    context.appColors.primary,
+    context.appColors.success,
+    context.appColors.warning,
+    context.appColors.error,
   ];
 }

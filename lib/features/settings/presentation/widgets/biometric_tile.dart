@@ -42,7 +42,6 @@ class BiometricTile extends StatelessWidget {
       value: enabled,
       onChanged: isBusy ? null : onChanged,
       dense: true,
-      activeColor: Theme.of(context).colorScheme.primary,
     );
   }
 }

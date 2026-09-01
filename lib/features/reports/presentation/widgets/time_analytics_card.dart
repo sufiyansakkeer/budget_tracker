@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/time_analytics.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Displays time-based analytics: most/least active days and weekend vs
 /// weekday spending.
@@ -83,7 +83,7 @@ class TimeAnalyticsCard extends StatelessWidget {
                   label: 'Most Expensive Day',
                   value: mostExpensive == null ? '—' : _fmt(mostExpensive),
                   icon: Icons.arrow_upward,
-                  color: AppColors.dangerRed,
+                  color: context.appColors.error,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -92,7 +92,7 @@ class TimeAnalyticsCard extends StatelessWidget {
                   label: 'Most Active Day',
                   value: mostActive == null ? '—' : _fmt(mostActive),
                   icon: Icons.local_fire_department,
-                  color: AppColors.warningOrange,
+                  color: context.appColors.warning,
                 ),
               ),
             ],
@@ -109,7 +109,7 @@ class TimeAnalyticsCard extends StatelessWidget {
                     decimalDigits: 0,
                   ),
                   icon: Icons.work,
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -122,7 +122,7 @@ class TimeAnalyticsCard extends StatelessWidget {
                     decimalDigits: 0,
                   ),
                   icon: Icons.weekend,
-                  color: AppColors.secondary,
+                  color: context.appColors.secondary,
                 ),
               ),
             ],

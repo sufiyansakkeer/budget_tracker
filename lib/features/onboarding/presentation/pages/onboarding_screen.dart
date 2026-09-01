@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/router/app_router.dart';
@@ -14,6 +13,7 @@ import '../widgets/budget_step_widget.dart';
 import '../widgets/currency_step_widget.dart';
 import '../widgets/welcome_step_widget.dart';
 import '../widgets/confirmation_step_widget.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -74,7 +74,7 @@ class _OnboardingViewState extends State<_OnboardingView> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.errorMessage!),
-              backgroundColor: AppColors.dangerRed,
+              backgroundColor: context.appColors.error,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -88,10 +88,10 @@ class _OnboardingViewState extends State<_OnboardingView> {
           body: SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: AppSpacing.sm),
+                SizedBox(height: AppSpacing.sm),
                 // Animated Progress Indicator
                 Padding(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: AppSpacing.lg,
                   ),
                   child: Row(
@@ -102,28 +102,28 @@ class _OnboardingViewState extends State<_OnboardingView> {
                           child: LinearProgressIndicator(
                             value: progress,
                             minHeight: 6,
-                            backgroundColor: AppColors.primary.withValues(
+                            backgroundColor: context.appColors.primary.withValues(
                               alpha: 0.12,
                             ),
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.primary,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              context.appColors.primary,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
+                      SizedBox(width: AppSpacing.sm),
                       Text(
                         '${state.currentPageIndex + 1}/$_totalSteps',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primary.withValues(alpha: 0.8),
+                          color: context.appColors.primary.withValues(alpha: 0.8),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.md),
+                SizedBox(height: AppSpacing.md),
                 Expanded(
                   child: PageView(
                     controller: _pageController,

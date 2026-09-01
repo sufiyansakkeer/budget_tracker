@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
@@ -16,6 +15,7 @@ import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/budget_list_summary_card.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Lists all budgets and allows opening/editing/archiving/deleting them.
 class BudgetListScreen extends StatefulWidget {
@@ -110,7 +110,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       body: SafeArea(child: _buildBody()),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/app/budgets/create'),
-        backgroundColor: AppColors.primary,
+        backgroundColor: context.appColors.primary,
         icon: const Icon(Icons.add),
         label: const Text('New Budget'),
         tooltip: 'Create a new budget',

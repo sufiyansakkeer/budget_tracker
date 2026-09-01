@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_progress.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
@@ -20,8 +20,9 @@ class TodayProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appColors = context.appColors;
     final theme = Theme.of(context);
-    final statusColor = _statusColor(targets.dailyStatus);
+    final statusColor = _statusColor(targets.dailyStatus, appColors: appColors);
     final isExceeded = targets.dailyStatus == SpendingTargetStatus.exceeded;
     final statusLabel = _statusLabel(targets.dailyStatus);
     final statusIcon = _statusIcon(targets.dailyStatus);
@@ -141,11 +142,11 @@ class TodayProgressCard extends StatelessWidget {
     );
   }
 
-  Color _statusColor(SpendingTargetStatus s) {
+  Color _statusColor(SpendingTargetStatus s, {AppColorTokens? appColors}) {
     return switch (s) {
-      SpendingTargetStatus.onTrack => AppColors.success,
-      SpendingTargetStatus.nearLimit => AppColors.warning,
-      SpendingTargetStatus.exceeded => AppColors.error,
+      SpendingTargetStatus.onTrack => appColors?.success ?? appColors?.success ?? const Color(0xFF239B70),
+      SpendingTargetStatus.nearLimit => appColors?.warning ?? appColors?.warning ?? const Color(0xFFD89432),
+      SpendingTargetStatus.exceeded => appColors?.error ?? appColors?.error ?? const Color(0xFFD65C62),
     };
   }
 
@@ -174,8 +175,9 @@ class WeeklyTargetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appColors = context.appColors;
     final theme = Theme.of(context);
-    final statusColor = _statusColor(targets.weeklyStatus);
+    final statusColor = _statusColor(targets.weeklyStatus, appColors: appColors);
     final isExceeded = targets.weeklyStatus == SpendingTargetStatus.exceeded;
     final statusLabel = _statusLabel(targets.weeklyStatus);
     final statusIcon = _statusIcon(targets.weeklyStatus);
@@ -285,7 +287,7 @@ class WeeklyTargetCard extends StatelessWidget {
               label: 'Exceeded by',
               amount: targets.weeklyExceeded,
               currency: targets.currency,
-              color: AppColors.error,
+              color: context.appColors.error,
               isBold: true,
             ),
           ] else ...[
@@ -294,7 +296,7 @@ class WeeklyTargetCard extends StatelessWidget {
               label: 'Remaining',
               amount: targets.weeklyRemaining,
               currency: targets.currency,
-              color: AppColors.success,
+              color: context.appColors.success,
               isBold: true,
             ),
           ],
@@ -303,11 +305,11 @@ class WeeklyTargetCard extends StatelessWidget {
     );
   }
 
-  Color _statusColor(SpendingTargetStatus s) {
+  Color _statusColor(SpendingTargetStatus s, {AppColorTokens? appColors}) {
     return switch (s) {
-      SpendingTargetStatus.onTrack => AppColors.success,
-      SpendingTargetStatus.nearLimit => AppColors.warning,
-      SpendingTargetStatus.exceeded => AppColors.error,
+      SpendingTargetStatus.onTrack => appColors?.success ?? appColors?.success ?? const Color(0xFF239B70),
+      SpendingTargetStatus.nearLimit => appColors?.warning ?? appColors?.warning ?? const Color(0xFFD89432),
+      SpendingTargetStatus.exceeded => appColors?.error ?? appColors?.error ?? const Color(0xFFD65C62),
     };
   }
 

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/report_overview.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// A prominent hero card showing the report's total spending, with a compact
 /// set of supporting metrics below.
@@ -30,7 +30,7 @@ class ReportHeroCard extends StatelessWidget {
     );
 
     return AppCard(
-      color: AppColors.primary,
+      color: context.appColors.primary,
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,25 +166,25 @@ class ReportOverviewGrid extends StatelessWidget {
         title: 'Avg Daily',
         value: fmt(overview.averageDailySpending),
         icon: Icons.show_chart_rounded,
-        color: AppColors.safeGreen,
+        color: context.appColors.success,
       ),
       _OverviewMetric(
         title: 'Avg / Txn',
         value: fmt(overview.averageTransactionAmount),
         icon: Icons.trending_up_rounded,
-        color: AppColors.warningOrange,
+        color: context.appColors.warning,
       ),
       _OverviewMetric(
         title: 'Highest',
         value: fmt(overview.highestExpense),
         icon: Icons.arrow_upward_rounded,
-        color: AppColors.dangerRed,
+        color: context.appColors.error,
       ),
       _OverviewMetric(
         title: 'Lowest',
         value: fmt(overview.lowestExpense),
         icon: Icons.arrow_downward_rounded,
-        color: AppColors.safeGreen,
+        color: context.appColors.success,
       ),
     ].where((m) => m.value.isNotEmpty);
 

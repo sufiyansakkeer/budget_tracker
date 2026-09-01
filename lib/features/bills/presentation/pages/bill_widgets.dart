@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/status_chip.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// A card widget displaying a single bill's summary information.
 class BillCard extends StatelessWidget {
@@ -95,9 +95,9 @@ class BillCard extends StatelessWidget {
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: bill.isPaid
-                          ? AppColors.success
+                          ? context.appColors.success
                           : status == BillStatus.overdue
-                          ? AppColors.error
+                          ? context.appColors.error
                           : theme.colorScheme.onSurface,
                     ),
                   ),
@@ -122,10 +122,10 @@ class _CategoryIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = status == BillStatus.overdue
-        ? AppColors.error
+        ? context.appColors.error
         : status == BillStatus.paid
-        ? AppColors.success
-        : AppColors.primary;
+        ? context.appColors.success
+        : context.appColors.primary;
 
     return Container(
       width: 44,
@@ -194,20 +194,20 @@ class _DueText extends StatelessWidget {
 
     if (bill.isPaid) {
       text = 'Paid';
-      color = AppColors.success;
+      color = context.appColors.success;
     } else if (bill.status == BillStatus.overdue) {
       final overdueDays = today.difference(due).inDays;
       text = overdueDays == 1 ? '1 day overdue' : '$overdueDays days overdue';
-      color = AppColors.error;
+      color = context.appColors.error;
     } else if (bill.status == BillStatus.dueToday) {
       text = 'Due today';
-      color = AppColors.warning;
+      color = context.appColors.warning;
     } else if (difference == 1) {
       text = 'Due tomorrow';
-      color = AppColors.primary;
+      color = context.appColors.primary;
     } else {
       text = 'Due in $difference days';
-      color = AppColors.primary;
+      color = context.appColors.primary;
     }
 
     return Text(
@@ -229,13 +229,13 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (status) {
       case BillStatus.paid:
-        return StatusChipStyles.healthy('Paid');
+        return StatusChipStyles.healthy(context, 'Paid');
       case BillStatus.overdue:
-        return StatusChipStyles.danger('Overdue');
+        return StatusChipStyles.danger(context, 'Overdue');
       case BillStatus.dueToday:
-        return StatusChipStyles.warning('Due Today');
+        return StatusChipStyles.warning(context, 'Due Today');
       case BillStatus.upcoming:
-        return StatusChipStyles.info('Upcoming');
+        return StatusChipStyles.info(context, 'Upcoming');
     }
   }
 }

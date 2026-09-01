@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/monthly_spending_bucket.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Card containing a bar chart of spending grouped by week or month.
 class BarChartCard extends StatelessWidget {
@@ -144,7 +144,7 @@ class BarChartCard extends StatelessWidget {
                         barRods: [
                           BarChartRodData(
                             toY: buckets[i].amount,
-                            color: AppColors.primary,
+                            color: context.appColors.primary,
                             width: 18,
                             borderRadius: BorderRadius.circular(4),
                           ),

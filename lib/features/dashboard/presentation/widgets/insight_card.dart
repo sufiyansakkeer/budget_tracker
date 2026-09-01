@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../domain/entities/smart_insight_entity.dart';
 
 class InsightCard extends StatelessWidget {
@@ -13,7 +13,7 @@ class InsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final config = _getInsightConfig();
+    final config = _getInsightConfig(context);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -47,27 +47,28 @@ class InsightCard extends StatelessWidget {
     );
   }
 
-  _InsightConfig _getInsightConfig() {
+  _InsightConfig _getInsightConfig(BuildContext context) {
+    final appColors = context.appColors;
     switch (type) {
       case InsightType.positive:
         return _InsightConfig(
           icon: Icons.check_circle,
-          backgroundColor: AppColors.safeGreen,
+          backgroundColor: appColors.success,
         );
       case InsightType.warning:
         return _InsightConfig(
           icon: Icons.warning,
-          backgroundColor: AppColors.warningOrange,
+          backgroundColor: appColors.warning,
         );
       case InsightType.negative:
         return _InsightConfig(
           icon: Icons.error,
-          backgroundColor: AppColors.dangerRed,
+          backgroundColor: appColors.error,
         );
       case InsightType.info:
         return _InsightConfig(
           icon: Icons.info,
-          backgroundColor: AppColors.primary,
+          backgroundColor: appColors.primary,
         );
     }
   }

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_history_summary.dart';
+import '../../../../../core/theme/app_colors_extension.dart';
 
 /// Summary card showing statistics for the currently visible results.
 class SummaryCard extends StatelessWidget {
@@ -18,11 +18,11 @@ class SummaryCard extends StatelessWidget {
     final currency = NumberFormat.currency(symbol: '', decimalDigits: 0);
 
     return AppCard(
-      margin: const EdgeInsets.symmetric(
+      margin: EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -32,16 +32,16 @@ class SummaryCard extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: context.appColors.primary.withValues(alpha: 0.12),
                   borderRadius: AppSpacing.borderRadiusSm,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.insights_rounded,
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                   size: 18,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              SizedBox(width: AppSpacing.sm),
               Text(
                 'Summary',
                 style: theme.textTheme.titleSmall?.copyWith(
@@ -50,7 +50,7 @@ class SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.md),
           Row(
             children: [
               _summaryItem(
@@ -65,7 +65,7 @@ class SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.md),
           Row(
             children: [
               _summaryItem(
@@ -105,7 +105,7 @@ class SummaryCard extends StatelessWidget {
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             value,
             style: theme.textTheme.titleSmall?.copyWith(

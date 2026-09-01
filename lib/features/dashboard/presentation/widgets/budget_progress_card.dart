@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class BudgetProgressCard extends StatefulWidget {
   final double budgetUtilization;
@@ -53,7 +53,7 @@ class _BudgetProgressCardState extends State<BudgetProgressCard>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final percentage = (widget.budgetUtilization * 100).clamp(0.0, 100.0);
-    final color = _getProgressColor(percentage);
+    final color = _getProgressColor(context, percentage);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -137,10 +137,11 @@ class _BudgetProgressCardState extends State<BudgetProgressCard>
     );
   }
 
-  Color _getProgressColor(double percentage) {
-    if (percentage >= 100) return AppColors.dangerRed;
-    if (percentage >= 80) return AppColors.warningOrange;
-    return AppColors.safeGreen;
+  Color _getProgressColor(BuildContext context, double percentage) {
+    final appColors = context.appColors;
+    if (percentage >= 100) return appColors.error;
+    if (percentage >= 80) return appColors.warning;
+    return appColors.success;
   }
 
   IconData _getProgressIcon(double percentage) {

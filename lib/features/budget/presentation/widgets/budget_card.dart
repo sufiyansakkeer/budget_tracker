@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// A card summarizing a single budget in the list screen.
 ///
@@ -26,7 +26,7 @@ class BudgetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accentColor = _accentColor(theme.brightness);
+    final accentColor = _accentColor(context, theme.brightness);
 
     return Container(
       decoration: BoxDecoration(
@@ -134,7 +134,7 @@ class BudgetCard extends StatelessWidget {
                         ),
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                          color: context.appColors.primary,
                         ),
                       ),
                     ],
@@ -162,7 +162,7 @@ class BudgetCard extends StatelessWidget {
                         ),
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.success,
+                          color: context.appColors.success,
                         ),
                       ),
                     ],
@@ -196,10 +196,10 @@ class BudgetCard extends StatelessWidget {
     return used / budget.monthlyAmount;
   }
 
-  Color _accentColor(Brightness brightness) {
+  Color _accentColor(BuildContext context, Brightness brightness) {
     return brightness == Brightness.dark
-        ? AppColors.primaryLight
-        : AppColors.primary;
+        ? context.appColors.primaryLight
+        : context.appColors.primary;
   }
 
   String _formatPeriod(BudgetEntity budget) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
+import '../theme/app_colors_extension.dart';
 import 'app_bottom_sheet.dart';
 import 'info_content.dart';
 
@@ -70,6 +70,7 @@ class _ExplanationSheetState extends State<_ExplanationSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appColors = context.appColors;
     final textSecondary = theme.colorScheme.onSurface.withValues(alpha: 0.65);
     final topPadding = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -143,7 +144,7 @@ class _ExplanationSheetState extends State<_ExplanationSheet> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(AppSpacing.md),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.06),
+                          color: appColors.primary.withValues(alpha: 0.06),
                           borderRadius: AppSpacing.borderRadiusMd,
                         ),
                         child: Column(
@@ -152,7 +153,7 @@ class _ExplanationSheetState extends State<_ExplanationSheet> {
                             Text(
                               'Example',
                               style: theme.textTheme.labelLarge?.copyWith(
-                                color: AppColors.primary,
+                                color: appColors.primary,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -185,16 +186,16 @@ class _ExplanationSheetState extends State<_ExplanationSheet> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(AppSpacing.md),
                         decoration: BoxDecoration(
-                          color: AppColors.info.withValues(alpha: 0.08),
+                          color: appColors.info.withValues(alpha: 0.08),
                           borderRadius: AppSpacing.borderRadiusMd,
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.lock_outline_rounded,
                               size: 16,
-                              color: AppColors.info,
+                              color: appColors.info,
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
 import '../currency/currency_formatter.dart';
+import '../theme/app_colors_extension.dart';
 
 /// Formats a money value with strong visual hierarchy.
 ///
@@ -78,12 +78,25 @@ class MoneyText extends StatelessWidget {
   }
 }
 
-/// Convenience status colors for money values.
+/// Convenience status colors for money values using the active palette.
 class MoneyColor {
   MoneyColor._();
 
-  static const Color positive = AppColors.success;
-  static const Color warning = AppColors.warning;
-  static const Color negative = AppColors.error;
-  static const Color neutral = AppColors.primary;
+  /// Returns palette-aware semantic color for positive/progress values.
+  static Color positive(BuildContext context) => context.appColors.success;
+
+  /// Returns palette-aware semantic color for warning values.
+  static Color warning(BuildContext context) => context.appColors.warning;
+
+  /// Returns palette-aware semantic color for negative/expense values.
+  static Color negative(BuildContext context) => context.appColors.error;
+
+  /// Returns palette-aware primary color.
+  static Color neutral(BuildContext context) => context.appColors.primary;
+
+  /// Returns palette-aware income color.
+  static Color income(BuildContext context) => context.appColors.income;
+
+  /// Returns palette-aware expense color.
+  static Color expense(BuildContext context) => context.appColors.expense;
 }

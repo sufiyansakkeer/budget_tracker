@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/report_data.dart';
 import '../../domain/entities/report_failure.dart';
 import '../../domain/usecases/export_csv_usecase.dart';
 import '../../domain/usecases/export_pdf_usecase.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Export buttons for CSV and PDF reports.
 class ExportButtons extends StatelessWidget {
@@ -58,7 +58,7 @@ class ExportButtons extends StatelessWidget {
             icon: const Icon(Icons.table_chart),
             label: const Text('CSV'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
+              foregroundColor: context.appColors.primary,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),

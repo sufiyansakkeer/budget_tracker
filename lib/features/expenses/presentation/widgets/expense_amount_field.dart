@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Amount input field with currency prefix, decimal support, and inline validation.
 ///
@@ -39,7 +39,7 @@ class ExpenseAmountField extends StatelessWidget {
         fontWeight: FontWeight.bold,
         color: theme.colorScheme.onSurface,
       ),
-      cursorColor: AppColors.primary,
+      cursorColor: context.appColors.primary,
       decoration: InputDecoration(
         labelText: 'Amount',
         hintText: '0.00',
@@ -50,7 +50,7 @@ class ExpenseAmountField extends StatelessWidget {
         prefixText: '$currencySymbol ',
         prefixStyle: theme.textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.bold,
-          color: AppColors.primary,
+          color: context.appColors.primary,
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,

@@ -23,7 +23,6 @@ class NotificationToggle extends StatelessWidget {
       value: value,
       onChanged: onChanged,
       dense: true,
-      activeColor: Theme.of(context).colorScheme.primary,
     );
   }
 }

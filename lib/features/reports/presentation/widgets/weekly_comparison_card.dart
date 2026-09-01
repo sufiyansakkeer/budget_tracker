@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/weekly_comparison.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Compares the current week's spending with the previous week.
 class WeeklyComparisonCard extends StatelessWidget {
@@ -23,7 +23,7 @@ class WeeklyComparisonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDecrease = comparison.isDecrease;
-    final color = isDecrease ? AppColors.safeGreen : AppColors.dangerRed;
+    final color = isDecrease ? context.appColors.success : context.appColors.error;
     final icon = isDecrease ? Icons.trending_down : Icons.trending_up;
 
     return Container(

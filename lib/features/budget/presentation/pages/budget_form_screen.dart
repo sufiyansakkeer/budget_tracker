@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
@@ -13,6 +12,7 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Create or edit a budget.
 ///
@@ -313,7 +313,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                           '$_dayCount days',
                           key: const Key('budgetDaysSummary'),
                           style: theme.textTheme.titleSmall?.copyWith(
-                            color: AppColors.primary,
+                            color: context.appColors.primary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Confirmation dialog shown before deleting an expense.
 Future<bool> showDeleteExpenseDialog(
@@ -24,7 +24,7 @@ Future<bool> showDeleteExpenseDialog(
         TextButton(
           key: const Key('confirmDeleteExpense'),
           onPressed: () => Navigator.pop(context, true),
-          style: TextButton.styleFrom(foregroundColor: AppColors.dangerRed),
+          style: TextButton.styleFrom(foregroundColor: context.appColors.error),
           child: const Text('Delete'),
         ),
       ],

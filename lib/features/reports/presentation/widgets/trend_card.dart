@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/spending_trend.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Displays spending trend metrics: averages, growth, and consistency.
 class TrendCard extends StatelessWidget {
@@ -18,8 +18,8 @@ class TrendCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final growthColor = trend.growthRate <= 0
-        ? AppColors.safeGreen
-        : AppColors.dangerRed;
+        ? context.appColors.success
+        : context.appColors.error;
     final growthIcon = trend.growthRate <= 0
         ? Icons.trending_down
         : Icons.trending_up;
@@ -143,8 +143,8 @@ class TrendCard extends StatelessWidget {
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       trend.consistencyScore >= 0.6
-                          ? AppColors.safeGreen
-                          : AppColors.warningOrange,
+                          ? context.appColors.success
+                          : context.appColors.warning,
                     ),
                   ),
                 ),
@@ -165,8 +165,8 @@ class TrendCard extends StatelessWidget {
                 : 'Spending has increased in the recent period.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: trend.isImproving
-                  ? AppColors.safeGreen
-                  : AppColors.warningOrange,
+                  ? context.appColors.success
+                  : context.appColors.warning,
             ),
           ),
         ],

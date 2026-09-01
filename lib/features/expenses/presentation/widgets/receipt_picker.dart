@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../data/services/receipt_storage_service.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Receipt attachment widget supporting camera capture, gallery pick,
 /// preview, replace, and remove.
@@ -154,7 +154,7 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
         ),
         child: Column(
           children: [
-            Icon(Icons.receipt_long, color: AppColors.primary, size: 40),
+            Icon(Icons.receipt_long, color: context.appColors.primary, size: 40),
             const SizedBox(height: AppSpacing.sm),
             Text('Tap to attach a receipt', style: theme.textTheme.bodyMedium),
           ],

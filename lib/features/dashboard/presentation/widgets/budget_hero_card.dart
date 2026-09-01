@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
 import '../../domain/entities/spending_target_entity.dart';
 import '../../domain/entities/spending_target_status.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// The primary hero card on the dashboard. Displays "Today's Spending Limit"
 /// as the main number, sourced from [SpendingTargetEntity] — the single source
@@ -69,7 +69,7 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
+        gradient: LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -247,7 +247,7 @@ class BudgetOverviewCard extends StatelessWidget {
                 label: 'Remaining Budget',
                 amount: summary.remainingBudget,
                 currency: currency,
-                color: AppColors.success,
+                color: context.appColors.success,
               ),
               const _MetricDivider(),
               _Metric(
@@ -261,7 +261,7 @@ class BudgetOverviewCard extends StatelessWidget {
                 label: 'Remaining Today',
                 amount: dailyRemaining,
                 currency: currency,
-                color: AppColors.primary,
+                color: context.appColors.primary,
               ),
             ],
           ),
@@ -275,10 +275,10 @@ class BudgetOverviewCard extends StatelessWidget {
                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   valueColor: AlwaysStoppedAnimation<Color>(
                     summary.budgetUtilization >= 1.0
-                        ? AppColors.error
+                        ? context.appColors.error
                         : summary.budgetUtilization >= 0.8
-                        ? AppColors.warning
-                        : AppColors.success,
+                        ? context.appColors.warning
+                        : context.appColors.success,
                   ),
                 ),
               ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
+import '../theme/app_colors_extension.dart';
 
 /// A small pill-shaped status indicator combining an icon + label.
 ///
@@ -36,12 +36,16 @@ class StatusChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: filled ? Colors.white : color),
+          Icon(
+            icon,
+            size: 14,
+            color: filled ? theme.colorScheme.onPrimary : color,
+          ),
           const SizedBox(width: 4),
           Text(
             label,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: filled ? Colors.white : color,
+              color: filled ? theme.colorScheme.onPrimary : color,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -51,31 +55,31 @@ class StatusChip extends StatelessWidget {
   }
 }
 
-/// Factory helpers for common statuses.
+/// Factory helpers for common statuses using the active palette.
 class StatusChipStyles {
   StatusChipStyles._();
 
-  static StatusChip healthy(String label) => StatusChip(
+  static StatusChip healthy(BuildContext context, String label) => StatusChip(
     label: label,
-    color: AppColors.success,
+    color: context.appColors.success,
     icon: Icons.check_circle_rounded,
   );
 
-  static StatusChip warning(String label) => StatusChip(
+  static StatusChip warning(BuildContext context, String label) => StatusChip(
     label: label,
-    color: AppColors.warning,
+    color: context.appColors.warning,
     icon: Icons.warning_amber_rounded,
   );
 
-  static StatusChip danger(String label) => StatusChip(
+  static StatusChip danger(BuildContext context, String label) => StatusChip(
     label: label,
-    color: AppColors.error,
+    color: context.appColors.error,
     icon: Icons.error_rounded,
   );
 
-  static StatusChip info(String label) => StatusChip(
+  static StatusChip info(BuildContext context, String label) => StatusChip(
     label: label,
-    color: AppColors.primary,
+    color: context.appColors.primary,
     icon: Icons.info_rounded,
   );
 }

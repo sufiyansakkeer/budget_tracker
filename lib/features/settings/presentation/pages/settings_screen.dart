@@ -9,6 +9,7 @@ import '../../../../core/di/injection.dart' as di;
 import '../../../app_update/presentation/bloc/app_update_bloc.dart';
 import '../../../app_update/presentation/widgets/app_update_section.dart';
 import '../../domain/entities/app_settings.dart';
+import '../../domain/entities/color_palette_entity.dart';
 import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/theme_mode_entity.dart';
 import '../bloc/settings_bloc.dart';
@@ -26,6 +27,8 @@ import '../widgets/reset_confirmation_dialog.dart';
 import '../widgets/settings_section.dart';
 import '../widgets/settings_tile.dart';
 import '../widgets/theme_selector.dart';
+import '../../../../core/theme/color_palettes.dart';
+import 'palette_selection_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -213,6 +216,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context.read<ThemeBloc>().add(ThemeChanged(mode));
                   },
                 ),
+              ),
+              const Divider(height: 1),
+              _PaletteTile(
+                selectedPalette: context.watch<ThemeBloc>().state.palette,
               ),
             ],
           ),
@@ -422,6 +429,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (result != null && result > 0) {
       bloc.add(SettingsResetBudgetEvent(result));
     }
+  }
+}
+
+/// A tile that shows the current palette and navigates to the palette screen.
+class _PaletteTile extends StatelessWidget {
+  final ColorPalette selectedPalette;
+
+  const _PaletteTile({required this.selectedPalette});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currentOption = paletteOptions.firstWhere(
+      (o) => o.palette == selectedPalette,
+      orElse: () => paletteOptions.first,
+    );
+    final colors = getPaletteColors(selectedPalette);
+
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const PaletteSelectionScreen(),
+          ),
+        );
+      },
+      borderRadius: AppSpacing.borderRadiusMd,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.color_lens_outlined,
+              color: colors.lightScheme.primary,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Color Palette',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    currentOption.label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
   }
 }
 

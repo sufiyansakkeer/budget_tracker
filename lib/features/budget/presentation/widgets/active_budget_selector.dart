@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// A responsive, tappable selector that shows the active budget's name and
 /// date range. Tapping it opens a bottom sheet to switch/create/open/edit
@@ -54,7 +54,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
                   child: Text(
                     'Your Budgets',
@@ -72,7 +72,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                             isActive
                                 ? Icons.check_circle
                                 : Icons.circle_outlined,
-                            color: isActive ? AppColors.primary : null,
+                            color: isActive ? context.appColors.primary : null,
                           ),
                           title: Text(budget.name),
                           subtitle: Text(
@@ -84,7 +84,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                             context,
                           ).pop(BudgetAction.select(budget)),
                           trailing: IconButton(
-                            icon: const Icon(Icons.more_vert, size: 20),
+                            icon: Icon(Icons.more_vert, size: 20),
                             onPressed: () => Navigator.of(
                               context,
                             ).pop(BudgetAction.open(budget)),
@@ -93,8 +93,8 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                       }),
                       const Divider(height: 1),
                       ListTile(
-                        leading: const Icon(Icons.add),
-                        title: const Text('Create New Budget'),
+                        leading: Icon(Icons.add),
+                        title: Text('Create New Budget'),
                         onTap: () => Navigator.of(
                           context,
                         ).pop(const BudgetAction.create()),
@@ -141,7 +141,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
         borderRadius: BorderRadius.circular(16),
         onTap: _showSelector,
         child: Container(
-          padding: const EdgeInsets.symmetric(
+          padding: EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
             vertical: AppSpacing.sm,
           ),
@@ -153,18 +153,18 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: context.appColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.account_balance_wallet,
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                   size: 20,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,7 +187,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_drop_down),
+              Icon(Icons.arrow_drop_down),
             ],
           ),
         ),

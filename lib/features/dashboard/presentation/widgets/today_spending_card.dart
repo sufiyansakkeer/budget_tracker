@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_progress.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
@@ -21,10 +21,11 @@ class TodaySpendingCard extends StatelessWidget {
     final currency = summary.currency;
     final allowance = summary.dailySafeSpending;
     final spent = summary.todaySpending;
+    final appColors = context.appColors;
     final isOver = summary.todayOverspending > 0;
 
     final dayRatio = allowance > 0 ? (spent / allowance).clamp(0.0, 1.0) : 0.0;
-    final statusColor = _statusColor(isOver);
+    final statusColor = isOver ? appColors.error : appColors.success;
     final statusLabel = isOver ? 'Exceeded' : 'On Track';
     final statusIcon = isOver
         ? Icons.error_rounded
@@ -166,10 +167,6 @@ class TodaySpendingCard extends StatelessWidget {
       ),
     );
   }
-
-  Color _statusColor(bool isOver) {
-    return isOver ? AppColors.error : AppColors.success;
-  }
 }
 
 /// Shows the budget date range timeline with a marker at today's position and
@@ -237,7 +234,7 @@ class BudgetTimelineCard extends StatelessWidget {
               Text(
                 '$daysRemaining days remaining',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -275,7 +272,7 @@ class BudgetTimelineCard extends StatelessWidget {
                     widthFactor: progress.clamp(0.0, 1.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
+                        gradient: LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
                       ),
                     ),
                   ),
@@ -289,13 +286,13 @@ class BudgetTimelineCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
+                color: context.appColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 'Today',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.primary,
+                  color: context.appColors.primary,
                   fontWeight: FontWeight.w700,
                 ),
               ),

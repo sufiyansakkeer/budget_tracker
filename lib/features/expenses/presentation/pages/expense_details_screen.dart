@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
@@ -17,6 +16,7 @@ import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
 import '../widgets/category_visuals.dart';
 import '../widgets/delete_expense_dialog.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Dedicated detail page for a single expense.
 class ExpenseDetailsScreen extends StatefulWidget {
@@ -160,7 +160,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               '(${DateFormat('MMM d').format(start)} – '
               '${DateFormat('MMM d, yyyy').format(end)}).',
             ),
-            backgroundColor: AppColors.warningOrange,
+            backgroundColor: context.appColors.warning,
           ),
         );
       return;
@@ -215,7 +215,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               ..showSnackBar(
                 SnackBar(
                   content: Text(state.message ?? 'Something went wrong'),
-                  backgroundColor: AppColors.dangerRed,
+                  backgroundColor: context.appColors.error,
                 ),
               );
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
@@ -264,7 +264,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
+              gradient: LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
               borderRadius: AppSpacing.borderRadiusLg,
             ),
             child: Column(
@@ -406,8 +406,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               key: const Key('moveExpenseBudgetButton'),
               onPressed: () => _moveToAnotherBudget(expense),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
+                foregroundColor: context.appColors.primary,
+                side: BorderSide(color: context.appColors.primary),
               ),
               icon: const Icon(Icons.swap_horiz),
               label: const Text('Move to another budget'),
@@ -421,8 +421,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             onPressed: () =>
                 _confirmDelete(expense, _expenseBudget?.currency ?? '₹'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.dangerRed,
-              side: const BorderSide(color: AppColors.dangerRed),
+              foregroundColor: context.appColors.error,
+              side: BorderSide(color: context.appColors.error),
             ),
             icon: const Icon(Icons.delete_outline),
             label: const Text('Delete Expense'),
@@ -439,7 +439,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 20),
+          Icon(icon, color: context.appColors.primary, size: 20),
           const SizedBox(width: AppSpacing.md),
           SizedBox(
             width: 80,

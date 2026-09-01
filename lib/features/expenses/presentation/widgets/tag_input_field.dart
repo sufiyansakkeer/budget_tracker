@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/validators/expense_validator.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 /// Allows adding/removing multiple tags as chips.
 class TagInputField extends StatefulWidget {
@@ -95,7 +95,7 @@ class _TagInputFieldState extends State<TagInputField> {
                 label: Text(tag),
                 deleteIcon: const Icon(Icons.close, size: 16),
                 onDeleted: () => _removeTag(tag),
-                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                backgroundColor: context.appColors.primary.withValues(alpha: 0.1),
                 labelStyle: TextStyle(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w500,
