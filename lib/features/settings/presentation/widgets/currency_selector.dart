@@ -66,7 +66,10 @@ class _CurrencySelectorState extends State<CurrencySelector> {
                 title: Text(currency.name),
                 subtitle: Text(currency.code),
                 trailing: selected
-                    ? Icon(Icons.check_circle, color: theme.colorScheme.secondary)
+                    ? Icon(
+                        Icons.check_circle,
+                        color: theme.colorScheme.secondary,
+                      )
                     : null,
                 onTap: () {
                   widget.onSelected(currency);

@@ -267,7 +267,15 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               ..hideCurrentSnackBar()
               ..showSnackBar(SnackBar(content: Text(state.message ?? 'Saved')));
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
-            context.pop();
+            // When the Add Expense screen was opened from the home-screen
+            // widget deep-link it is the initial route — there is nothing to
+            // pop back to.  Detect this and navigate to the Dashboard instead.
+            final navigator = Navigator.of(context);
+            if (navigator.canPop()) {
+              context.pop();
+            } else {
+              context.go('/app/home');
+            }
           } else if (state.status == ExpenseBlocStatus.error) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
@@ -378,7 +386,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                     isSaving: isSaving,
                     isEditing: _isEditing,
                     onSave: _save,
-                    onCancel: () => context.pop(),
+                    onCancel: () {
+                      final navigator = Navigator.of(context);
+                      if (navigator.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/app/home');
+                      }
+                    },
                   ),
                   const SizedBox(height: AppSpacing.md),
                 ],

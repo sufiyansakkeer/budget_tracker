@@ -9,7 +9,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   group('ColorPalette entity', () {
     test('fromString parses valid palette names', () {
-      expect(ColorPalette.fromString('defaultPalette'), ColorPalette.defaultPalette);
+      expect(
+        ColorPalette.fromString('defaultPalette'),
+        ColorPalette.defaultPalette,
+      );
       expect(ColorPalette.fromString('ocean'), ColorPalette.ocean);
       expect(ColorPalette.fromString('forest'), ColorPalette.forest);
       expect(ColorPalette.fromString('sunset'), ColorPalette.sunset);
@@ -131,20 +134,23 @@ void main() {
       expect(light.colorScheme.primary, const Color(0xFF3155D4));
     });
 
-    test('every palette + theme mode combination produces readable surfaces', () {
-      for (final palette in ColorPalette.values) {
-        final light = AppTheme.buildLightTheme(palette);
-        final dark = AppTheme.buildDarkTheme(palette);
+    test(
+      'every palette + theme mode combination produces readable surfaces',
+      () {
+        for (final palette in ColorPalette.values) {
+          final light = AppTheme.buildLightTheme(palette);
+          final dark = AppTheme.buildDarkTheme(palette);
 
-        // Surfaces should be non-null
-        expect(light.colorScheme.surface, isNotNull);
-        expect(dark.colorScheme.surface, isNotNull);
+          // Surfaces should be non-null
+          expect(light.colorScheme.surface, isNotNull);
+          expect(dark.colorScheme.surface, isNotNull);
 
-        // On-surface should be set
-        expect(light.colorScheme.onSurface, isNotNull);
-        expect(dark.colorScheme.onSurface, isNotNull);
-      }
-    });
+          // On-surface should be set
+          expect(light.colorScheme.onSurface, isNotNull);
+          expect(dark.colorScheme.onSurface, isNotNull);
+        }
+      },
+    );
 
     test('legacy getters use default palette', () {
       final light = AppTheme.lightTheme;
@@ -173,8 +179,14 @@ void main() {
     });
 
     test('lerp produces intermediate colors', () {
-      final ocean = AppColorTokens.fromPalette(ColorPalette.ocean, Brightness.light);
-      final forest = AppColorTokens.fromPalette(ColorPalette.forest, Brightness.light);
+      final ocean = AppColorTokens.fromPalette(
+        ColorPalette.ocean,
+        Brightness.light,
+      );
+      final forest = AppColorTokens.fromPalette(
+        ColorPalette.forest,
+        Brightness.light,
+      );
 
       final lerped = ocean.lerp(forest, 0.5);
       expect(lerped, isA<AppColorTokens>());
@@ -188,9 +200,7 @@ void main() {
         ColorPalette.defaultPalette,
         Brightness.light,
       );
-      final modified = tokens.copyWith(
-        primary: const Color(0xFF000000),
-      );
+      final modified = tokens.copyWith(primary: const Color(0xFF000000));
       expect(modified.primary, const Color(0xFF000000));
       expect(modified.secondary, tokens.secondary);
     });

@@ -192,7 +192,10 @@ class _LegendRow extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(color: _color(context), shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: _color(context),
+            shape: BoxShape.circle,
+          ),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(

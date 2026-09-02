@@ -91,7 +91,9 @@ class ExpenseHistoryItem extends StatelessWidget {
                           vertical: 1,
                         ),
                         decoration: BoxDecoration(
-                          color: context.appColors.tertiary.withValues(alpha: 0.1),
+                          color: context.appColors.tertiary.withValues(
+                            alpha: 0.1,
+                          ),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(

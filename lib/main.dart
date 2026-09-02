@@ -135,21 +135,44 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
       ..addListener(_onCurrencyChanged);
     _appUpdateBloc = di.getIt<AppUpdateBloc>();
 
-    // Listen for widget clicks while app is in background/foreground (warm start)
+    // Listen for widget clicks while app is in background/foreground (warm start).
+    //
+    // During a cold start the GoRouter `redirect` already consumes the pending
+    // widget route and navigates via its own resolution cycle.  The listener
+    // must NOT also push the same route, otherwise two Page entries with the
+    // same key land in the Navigator → duplicate-page-key assertion.
+    //
+    // Strategy: try to consume the pending route.  If it was already consumed
+    // by the redirect (returns null) we do nothing.  If it is still pending
+    // (returns non-null) we own the navigation and push/go directly.
     _widgetClickedSubscription = HomeWidget.widgetClicked.listen((Uri? uri) {
       if (uri != null) {
         final route = resolveWidgetUriToRoute(uri);
-        if (route != null) {
+        if (route == null) return;
+
+        final lockBloc = di.getIt<AppLockBloc>();
+        if (lockBloc.state.status != AppLockStatus.unlocked) {
+          // App is locked — stash the route for later; the lock screen will
+          // re-trigger navigation once unlocked.
           setPendingWidgetRoute(route);
-          final lockBloc = di.getIt<AppLockBloc>();
-          if (lockBloc.state.status == AppLockStatus.unlocked) {
-            consumePendingWidgetRoute();
-            if (route == widgetAddExpensePath) {
-              AppRouter.router.push(widgetAddExpensePath);
-            } else {
-              AppRouter.router.go(route);
-            }
-          }
+          return;
+        }
+
+        // Stash the route so consumePendingWidgetRoute can pick it up.
+        setPendingWidgetRoute(route);
+
+        // Try to consume the pending route.
+        // • Cold start: the redirect already consumed it → returns null →
+        //   we must NOT push again (the redirect navigated).
+        // • Warm start: redirect never ran → returns non-null →
+        //   we own the navigation.
+        final pending = consumePendingWidgetRoute();
+        if (pending == null) return;
+
+        if (route == widgetAddExpensePath) {
+          AppRouter.router.push(widgetAddExpensePath);
+        } else {
+          AppRouter.router.go(route);
         }
       }
     });

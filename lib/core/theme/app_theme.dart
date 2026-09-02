@@ -81,7 +81,8 @@ class AppTheme {
   );
 
   /// Convenience getters that use the Default palette.
-  static ThemeData get lightTheme => buildLightTheme(ColorPalette.defaultPalette);
+  static ThemeData get lightTheme =>
+      buildLightTheme(ColorPalette.defaultPalette);
   static ThemeData get darkTheme => buildDarkTheme(ColorPalette.defaultPalette);
 
   /// Builds a light [ThemeData] for the given [palette].
@@ -95,25 +96,30 @@ class AppTheme {
   static ThemeData _buildTheme(Brightness brightness, ColorPalette palette) {
     final isDark = brightness == Brightness.dark;
     final colors = getPaletteColors(palette);
-    final baseScheme =
-        isDark ? colors.darkScheme : colors.lightScheme;
+    final baseScheme = isDark ? colors.darkScheme : colors.lightScheme;
 
     // Semantic token colors
     final bg = isDark
         ? AppColorTokens.fromPalette(palette, brightness).background
         : AppColorTokens.fromPalette(palette, brightness).background;
-    final surfaceContainer =
-        AppColorTokens.fromPalette(palette, brightness).surfaceContainer;
-    final surfaceContainerHigh =
-        AppColorTokens.fromPalette(palette, brightness).surfaceContainerHigh;
-    final outline =
-        AppColorTokens.fromPalette(palette, brightness).outline;
-    final dividerColor =
-        AppColorTokens.fromPalette(palette, brightness).divider;
-    final textSecondary =
-        AppColorTokens.fromPalette(palette, brightness).textSecondary;
-    final cardColor =
-        AppColorTokens.fromPalette(palette, brightness).card;
+    final surfaceContainer = AppColorTokens.fromPalette(
+      palette,
+      brightness,
+    ).surfaceContainer;
+    final surfaceContainerHigh = AppColorTokens.fromPalette(
+      palette,
+      brightness,
+    ).surfaceContainerHigh;
+    final outline = AppColorTokens.fromPalette(palette, brightness).outline;
+    final dividerColor = AppColorTokens.fromPalette(
+      palette,
+      brightness,
+    ).divider;
+    final textSecondary = AppColorTokens.fromPalette(
+      palette,
+      brightness,
+    ).textSecondary;
+    final cardColor = AppColorTokens.fromPalette(palette, brightness).card;
 
     final colorScheme = ColorScheme(
       brightness: brightness,
@@ -134,11 +140,15 @@ class AppTheme {
       outline: outline,
       outlineVariant: dividerColor,
       shadow: Colors.black,
-      inverseSurface: isDark ? colors.lightScheme.surface : colors.darkScheme.surface,
+      inverseSurface: isDark
+          ? colors.lightScheme.surface
+          : colors.darkScheme.surface,
       onInverseSurface: isDark
           ? colors.lightScheme.onSurface
           : colors.darkScheme.onSurface,
-      inversePrimary: isDark ? colors.lightScheme.primary : colors.darkScheme.primary,
+      inversePrimary: isDark
+          ? colors.lightScheme.primary
+          : colors.darkScheme.primary,
       primaryContainer: isDark
           ? surfaceContainerHigh
           : baseScheme.primary.withValues(alpha: 0.12),
@@ -177,7 +187,9 @@ class AppTheme {
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: _textTheme.titleLarge?.copyWith(color: colorScheme.onSurface),
+      titleTextStyle: _textTheme.titleLarge?.copyWith(
+        color: colorScheme.onSurface,
+      ),
       iconTheme: IconThemeData(color: colorScheme.onSurface),
     );
 
@@ -288,7 +300,9 @@ class AppTheme {
       backgroundColor: surfaceContainer,
       selectedColor: colorScheme.primaryContainer,
       disabledColor: surfaceContainer,
-      labelStyle: _textTheme.labelMedium?.copyWith(color: colorScheme.onSurface),
+      labelStyle: _textTheme.labelMedium?.copyWith(
+        color: colorScheme.onSurface,
+      ),
       secondaryLabelStyle: _textTheme.labelMedium?.copyWith(
         color: colorScheme.onPrimaryContainer,
       ),
@@ -420,7 +434,9 @@ class AppTheme {
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
       textStyle: _textTheme.bodySmall?.copyWith(
-        color: isDark ? colors.darkScheme.onSurface : colors.lightScheme.onSurface,
+        color: isDark
+            ? colors.darkScheme.onSurface
+            : colors.lightScheme.onSurface,
       ),
     );
 

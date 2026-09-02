@@ -186,10 +186,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
                 ),
                 child: SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _apply,
-                    child: Text('Apply'),
-                  ),
+                  child: FilledButton(onPressed: _apply, child: Text('Apply')),
                 ),
               ),
             ),
@@ -254,7 +251,9 @@ class _BudgetTile extends StatelessWidget {
                   width: 4,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: _parseColor(budget.color) ?? context.appColors.secondary,
+                    color:
+                        _parseColor(budget.color) ??
+                        context.appColors.secondary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

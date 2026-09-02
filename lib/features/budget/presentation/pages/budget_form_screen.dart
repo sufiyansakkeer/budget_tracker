@@ -12,6 +12,7 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
+import '../bloc/budget_bloc.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 
 /// Create or edit a budget.
@@ -154,6 +155,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           updatedAt: DateTime.now(),
         );
         await _manageBudget.update(updated);
+        BudgetRefreshBus.instance.notifyChanged();
       } else {
         final now = DateTime.now();
         final created = await _manageBudget.create(
@@ -176,6 +178,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         );
         // Make the first/just-created budget active.
         await _manageBudget.setActive(created.id);
+        BudgetRefreshBus.instance.notifyChanged();
       }
 
       if (!mounted) return;

@@ -440,7 +440,11 @@ class _DashboardFab extends StatelessWidget {
           value: 'expense',
           child: Row(
             children: [
-              Icon(Icons.add_rounded, color: context.appColors.secondary, size: 20),
+              Icon(
+                Icons.add_rounded,
+                color: context.appColors.secondary,
+                size: 20,
+              ),
               const SizedBox(width: 12),
               const Text('Add Expense'),
             ],

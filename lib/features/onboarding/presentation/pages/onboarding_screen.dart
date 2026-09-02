@@ -91,9 +91,7 @@ class _OnboardingViewState extends State<_OnboardingView> {
                 SizedBox(height: AppSpacing.sm),
                 // Animated Progress Indicator
                 Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                   child: Row(
                     children: [
                       Expanded(
@@ -102,9 +100,8 @@ class _OnboardingViewState extends State<_OnboardingView> {
                           child: LinearProgressIndicator(
                             value: progress,
                             minHeight: 6,
-                            backgroundColor: context.appColors.primary.withValues(
-                              alpha: 0.12,
-                            ),
+                            backgroundColor: context.appColors.primary
+                                .withValues(alpha: 0.12),
                             valueColor: AlwaysStoppedAnimation<Color>(
                               context.appColors.primary,
                             ),
@@ -117,7 +114,9 @@ class _OnboardingViewState extends State<_OnboardingView> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: context.appColors.primary.withValues(alpha: 0.8),
+                          color: context.appColors.primary.withValues(
+                            alpha: 0.8,
+                          ),
                         ),
                       ),
                     ],

@@ -23,7 +23,9 @@ class WeeklyComparisonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDecrease = comparison.isDecrease;
-    final color = isDecrease ? context.appColors.success : context.appColors.error;
+    final color = isDecrease
+        ? context.appColors.success
+        : context.appColors.error;
     final icon = isDecrease ? Icons.trending_down : Icons.trending_up;
 
     return Container(

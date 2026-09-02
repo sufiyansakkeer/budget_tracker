@@ -450,9 +450,7 @@ class _PaletteTile extends StatelessWidget {
     return InkWell(
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const PaletteSelectionScreen(),
-          ),
+          MaterialPageRoute(builder: (_) => const PaletteSelectionScreen()),
         );
       },
       borderRadius: AppSpacing.borderRadiusMd,
@@ -463,10 +461,7 @@ class _PaletteTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.color_lens_outlined,
-              color: colors.lightScheme.primary,
-            ),
+            Icon(Icons.color_lens_outlined, color: colors.lightScheme.primary),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(

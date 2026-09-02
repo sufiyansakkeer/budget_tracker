@@ -150,7 +150,9 @@ class _LineChartCardState extends State<LineChartCard> {
                       dotData: FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: context.appColors.secondary.withValues(alpha: 0.15),
+                        color: context.appColors.secondary.withValues(
+                          alpha: 0.15,
+                        ),
                       ),
                     ),
                   ],

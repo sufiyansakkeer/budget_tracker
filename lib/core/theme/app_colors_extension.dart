@@ -90,8 +90,9 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Brightness brightness,
   ) {
     final colors = getPaletteColors(palette);
-    final scheme =
-        brightness == Brightness.light ? colors.lightScheme : colors.darkScheme;
+    final scheme = brightness == Brightness.light
+        ? colors.lightScheme
+        : colors.darkScheme;
     final isDark = brightness == Brightness.dark;
 
     // Derive surface hierarchy from the scheme.
@@ -212,8 +213,7 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       background: background ?? this.background,
       surface: surface ?? this.surface,
       surfaceContainer: surfaceContainer ?? this.surfaceContainer,
-      surfaceContainerHigh:
-          surfaceContainerHigh ?? this.surfaceContainerHigh,
+      surfaceContainerHigh: surfaceContainerHigh ?? this.surfaceContainerHigh,
       card: card ?? this.card,
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
@@ -247,20 +247,32 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       info: Color.lerp(info, other.info, t)!,
       background: Color.lerp(background, other.background, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
-      surfaceContainer:
-          Color.lerp(surfaceContainer, other.surfaceContainer, t)!,
-      surfaceContainerHigh:
-          Color.lerp(surfaceContainerHigh, other.surfaceContainerHigh, t)!,
+      surfaceContainer: Color.lerp(
+        surfaceContainer,
+        other.surfaceContainer,
+        t,
+      )!,
+      surfaceContainerHigh: Color.lerp(
+        surfaceContainerHigh,
+        other.surfaceContainerHigh,
+        t,
+      )!,
       card: Color.lerp(card, other.card, t)!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,
       divider: Color.lerp(divider, other.divider, t)!,
       outline: Color.lerp(outline, other.outline, t)!,
-      successContainer:
-          Color.lerp(successContainer, other.successContainer, t)!,
-      warningContainer:
-          Color.lerp(warningContainer, other.warningContainer, t)!,
+      successContainer: Color.lerp(
+        successContainer,
+        other.successContainer,
+        t,
+      )!,
+      warningContainer: Color.lerp(
+        warningContainer,
+        other.warningContainer,
+        t,
+      )!,
       errorContainer: Color.lerp(errorContainer, other.errorContainer, t)!,
     );
   }
@@ -288,6 +300,5 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
 
 /// Convenience extension on [BuildContext] for accessing the semantic tokens.
 extension AppColorTokensExtension on BuildContext {
-  AppColorTokens get appColors =>
-      Theme.of(this).extension<AppColorTokens>()!;
+  AppColorTokens get appColors => Theme.of(this).extension<AppColorTokens>()!;
 }

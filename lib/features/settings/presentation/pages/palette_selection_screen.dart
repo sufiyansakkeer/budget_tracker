@@ -28,8 +28,8 @@ class PaletteSelectionScreen extends StatelessWidget {
             isSelected: isSelected,
             onTap: () {
               context.read<ThemeBloc>().add(
-                    ColorPaletteChanged(option.palette),
-                  );
+                ColorPaletteChanged(option.palette),
+              );
             },
           );
         },
@@ -104,8 +104,9 @@ class _PaletteCard extends StatelessWidget {
                     Text(
                       'Light + Dark',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant
-                            .withValues(alpha: 0.7),
+                        color: theme.colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.7,
+                        ),
                       ),
                     ),
                   ],
@@ -157,7 +158,9 @@ class _ColorSwatches extends StatelessWidget {
                   accent.label,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     fontSize: 10,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ],

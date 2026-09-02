@@ -144,9 +144,12 @@ class TodayProgressCard extends StatelessWidget {
 
   Color _statusColor(SpendingTargetStatus s, {AppColorTokens? appColors}) {
     return switch (s) {
-      SpendingTargetStatus.onTrack => appColors?.success ?? appColors?.success ?? const Color(0xFF239B70),
-      SpendingTargetStatus.nearLimit => appColors?.warning ?? appColors?.warning ?? const Color(0xFFD89432),
-      SpendingTargetStatus.exceeded => appColors?.error ?? appColors?.error ?? const Color(0xFFD65C62),
+      SpendingTargetStatus.onTrack =>
+        appColors?.success ?? appColors?.success ?? const Color(0xFF239B70),
+      SpendingTargetStatus.nearLimit =>
+        appColors?.warning ?? appColors?.warning ?? const Color(0xFFD89432),
+      SpendingTargetStatus.exceeded =>
+        appColors?.error ?? appColors?.error ?? const Color(0xFFD65C62),
     };
   }
 
@@ -177,7 +180,10 @@ class WeeklyTargetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final appColors = context.appColors;
     final theme = Theme.of(context);
-    final statusColor = _statusColor(targets.weeklyStatus, appColors: appColors);
+    final statusColor = _statusColor(
+      targets.weeklyStatus,
+      appColors: appColors,
+    );
     final isExceeded = targets.weeklyStatus == SpendingTargetStatus.exceeded;
     final statusLabel = _statusLabel(targets.weeklyStatus);
     final statusIcon = _statusIcon(targets.weeklyStatus);
@@ -307,9 +313,12 @@ class WeeklyTargetCard extends StatelessWidget {
 
   Color _statusColor(SpendingTargetStatus s, {AppColorTokens? appColors}) {
     return switch (s) {
-      SpendingTargetStatus.onTrack => appColors?.success ?? appColors?.success ?? const Color(0xFF239B70),
-      SpendingTargetStatus.nearLimit => appColors?.warning ?? appColors?.warning ?? const Color(0xFFD89432),
-      SpendingTargetStatus.exceeded => appColors?.error ?? appColors?.error ?? const Color(0xFFD65C62),
+      SpendingTargetStatus.onTrack =>
+        appColors?.success ?? appColors?.success ?? const Color(0xFF239B70),
+      SpendingTargetStatus.nearLimit =>
+        appColors?.warning ?? appColors?.warning ?? const Color(0xFFD89432),
+      SpendingTargetStatus.exceeded =>
+        appColors?.error ?? appColors?.error ?? const Color(0xFFD65C62),
     };
   }
 

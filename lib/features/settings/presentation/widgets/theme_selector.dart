@@ -71,9 +71,9 @@ class _ThemeOptionTile extends StatelessWidget {
           children: [
             Icon(
               option.icon,
-            color: selected
-                ? theme.colorScheme.secondary
-                : theme.colorScheme.onSurfaceVariant,
+              color: selected
+                  ? theme.colorScheme.secondary
+                  : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

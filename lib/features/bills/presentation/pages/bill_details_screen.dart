@@ -122,17 +122,28 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
             decoration: BoxDecoration(
               gradient: status == BillStatus.paid
                   ? LinearGradient(
-                      colors: [context.appColors.success, context.appColors.success],
+                      colors: [
+                        context.appColors.success,
+                        context.appColors.success,
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )
                   : status == BillStatus.overdue
                   ? LinearGradient(
-                      colors: [context.appColors.error, context.appColors.error],
+                      colors: [
+                        context.appColors.error,
+                        context.appColors.error,
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )
-                  : LinearGradient(colors: [context.appColors.secondaryDark, context.appColors.secondary]),
+                  : LinearGradient(
+                      colors: [
+                        context.appColors.secondaryDark,
+                        context.appColors.secondary,
+                      ],
+                    ),
               borderRadius: AppSpacing.borderRadiusLg,
             ),
             child: Column(
@@ -308,7 +319,9 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               onPressed: () => _markPaid(context, bill),
               icon: const Icon(Icons.check_circle_outline_rounded),
               label: const Text('Mark as Paid'),
-              style: FilledButton.styleFrom(backgroundColor: context.appColors.success),
+              style: FilledButton.styleFrom(
+                backgroundColor: context.appColors.success,
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
 

@@ -10,7 +10,13 @@ class AppHeader extends StatelessWidget {
   final Widget? trailing;
   final bool centerTitle;
 
-  const AppHeader({super.key, required this.title, this.subtitle, this.trailing, this.centerTitle = false});
+  const AppHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.centerTitle = false,
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -22,7 +22,10 @@ class WelcomeStepWidget extends StatelessWidget {
             height: 130,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [context.appColors.primary, context.appColors.secondary],
+                colors: [
+                  context.appColors.primary,
+                  context.appColors.secondary,
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

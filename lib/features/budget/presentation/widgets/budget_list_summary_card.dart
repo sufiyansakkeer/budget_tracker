@@ -33,7 +33,9 @@ class BudgetListSummaryCard extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: context.appColors.secondary.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: context.appColors.secondary.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

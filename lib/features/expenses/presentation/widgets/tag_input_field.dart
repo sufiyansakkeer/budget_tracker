@@ -95,7 +95,9 @@ class _TagInputFieldState extends State<TagInputField> {
                 label: Text(tag),
                 deleteIcon: const Icon(Icons.close, size: 16),
                 onDeleted: () => _removeTag(tag),
-                backgroundColor: context.appColors.tertiary.withValues(alpha: 0.1),
+                backgroundColor: context.appColors.tertiary.withValues(
+                  alpha: 0.1,
+                ),
                 labelStyle: TextStyle(
                   color: theme.colorScheme.tertiary,
                   fontWeight: FontWeight.w500,

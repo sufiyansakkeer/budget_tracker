@@ -72,7 +72,9 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                             isActive
                                 ? Icons.check_circle
                                 : Icons.circle_outlined,
-                            color: isActive ? context.appColors.secondary : null,
+                            color: isActive
+                                ? context.appColors.secondary
+                                : null,
                           ),
                           title: Text(budget.name),
                           subtitle: Text(

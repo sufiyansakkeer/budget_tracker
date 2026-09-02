@@ -264,7 +264,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [context.appColors.secondaryDark, context.appColors.secondary]),
+              gradient: LinearGradient(
+                colors: [
+                  context.appColors.secondaryDark,
+                  context.appColors.secondary,
+                ],
+              ),
               borderRadius: AppSpacing.borderRadiusLg,
             ),
             child: Column(

@@ -69,7 +69,9 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
+        gradient: LinearGradient(
+          colors: [context.appColors.primaryDark, context.appColors.primary],
+        ),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(

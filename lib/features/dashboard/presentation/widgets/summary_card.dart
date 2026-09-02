@@ -46,7 +46,9 @@ class SummaryCard extends StatelessWidget {
             if (icon != null) ...[
               Icon(
                 icon,
-                color: isHighlighted ? theme.colorScheme.secondary : valueColorValue,
+                color: isHighlighted
+                    ? theme.colorScheme.secondary
+                    : valueColorValue,
                 size: 24,
               ),
               const SizedBox(height: AppSpacing.sm),

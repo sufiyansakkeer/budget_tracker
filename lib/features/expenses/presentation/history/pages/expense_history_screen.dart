@@ -368,7 +368,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       decoration: BoxDecoration(
         color: context.appColors.secondary.withValues(alpha: 0.06),
         borderRadius: AppSpacing.borderRadiusMd,
-        border: Border.all(color: context.appColors.secondary.withValues(alpha: 0.15)),
+        border: Border.all(
+          color: context.appColors.secondary.withValues(alpha: 0.15),
+        ),
       ),
       child: Row(
         children: [
