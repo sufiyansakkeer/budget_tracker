@@ -34,7 +34,7 @@ class DataManagementCard extends StatelessWidget {
           child: Text(
             'Export & Share',
             style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
+              color: theme.colorScheme.secondary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -64,7 +64,7 @@ class DataManagementCard extends StatelessWidget {
           child: Text(
             'Import',
             style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
+              color: theme.colorScheme.secondary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -94,7 +94,7 @@ class DataManagementCard extends StatelessWidget {
           child: Text(
             'Backup & Restore',
             style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
+              color: theme.colorScheme.secondary,
               fontWeight: FontWeight.bold,
             ),
           ),

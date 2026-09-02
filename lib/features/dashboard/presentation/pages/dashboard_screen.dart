@@ -274,12 +274,12 @@ class _OverallBudgetCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
+              color: colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               Icons.account_balance_wallet_rounded,
-              color: colorScheme.primary,
+              color: colorScheme.secondary,
               size: 22,
             ),
           ),
@@ -398,10 +398,10 @@ class _QuickActionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.xs),
                 decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
+                  color: colorScheme.secondaryContainer,
                   borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                 ),
-                child: Icon(icon, size: 18, color: colorScheme.primary),
+                child: Icon(icon, size: 18, color: colorScheme.secondary),
               ),
               const SizedBox(width: AppSpacing.smd),
               Text(
@@ -440,7 +440,7 @@ class _DashboardFab extends StatelessWidget {
           value: 'expense',
           child: Row(
             children: [
-              Icon(Icons.add_rounded, color: context.appColors.primary, size: 20),
+              Icon(Icons.add_rounded, color: context.appColors.secondary, size: 20),
               const SizedBox(width: 12),
               const Text('Add Expense'),
             ],
@@ -452,7 +452,7 @@ class _DashboardFab extends StatelessWidget {
             children: [
               Icon(
                 Icons.receipt_long_rounded,
-                color: context.appColors.primary,
+                color: context.appColors.secondary,
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -528,10 +528,10 @@ class _UpcomingBillsList extends StatelessWidget {
           dueColor = context.appColors.error;
         } else if (daysUntil == 1) {
           dueText = 'Due tomorrow';
-          dueColor = context.appColors.primary;
+          dueColor = context.appColors.secondary;
         } else {
           dueText = 'Due in $daysUntil days';
-          dueColor = context.appColors.primary;
+          dueColor = context.appColors.secondary;
         }
 
         return Padding(

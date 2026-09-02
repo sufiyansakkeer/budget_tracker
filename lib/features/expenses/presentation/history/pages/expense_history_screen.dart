@@ -329,7 +329,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                       ? 'Select budgets'
                       : state.selectedBudgetsLabel,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.appColors.primary,
+                    color: context.appColors.secondary,
                     fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
@@ -340,7 +340,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               Icon(
                 Icons.edit_rounded,
                 size: 12,
-                color: context.appColors.primary.withValues(alpha: 0.7),
+                color: context.appColors.secondary.withValues(alpha: 0.7),
               ),
             ],
           ),
@@ -366,22 +366,22 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         vertical: AppSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: context.appColors.primary.withValues(alpha: 0.06),
+        color: context.appColors.secondary.withValues(alpha: 0.06),
         borderRadius: AppSpacing.borderRadiusMd,
-        border: Border.all(color: context.appColors.primary.withValues(alpha: 0.15)),
+        border: Border.all(color: context.appColors.secondary.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
           Icon(
             Icons.account_balance_wallet_rounded,
             size: 18,
-            color: context.appColors.primary,
+            color: context.appColors.secondary,
           ),
           const SizedBox(width: AppSpacing.sm),
           Text(
             'Total spent',
             style: TextStyle(
-              color: context.appColors.primary.withValues(alpha: 0.8),
+              color: context.appColors.secondary.withValues(alpha: 0.8),
               fontSize: 13,
             ),
           ),
@@ -389,7 +389,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           Text(
             '\u20b9${state.combinedTotalAmount.toStringAsFixed(0)}',
             style: TextStyle(
-              color: context.appColors.primary,
+              color: context.appColors.secondary,
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
@@ -476,7 +476,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 alignment: Alignment.centerLeft,
                 padding: const EdgeInsets.only(left: AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: context.appColors.primary,
+                  color: context.appColors.secondary,
                   borderRadius: AppSpacing.borderRadiusLg,
                 ),
                 child: const Icon(Icons.edit_rounded, color: Colors.white),

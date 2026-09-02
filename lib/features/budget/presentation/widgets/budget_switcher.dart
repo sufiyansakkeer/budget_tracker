@@ -82,7 +82,7 @@ class _BudgetSwitcherState extends State<BudgetSwitcher> {
                       return ListTile(
                         leading: Icon(
                           isActive ? Icons.check_circle : Icons.circle_outlined,
-                          color: isActive ? context.appColors.primary : null,
+                          color: isActive ? context.appColors.secondary : null,
                         ),
                         title: Text(budget.name),
                         subtitle: Text(

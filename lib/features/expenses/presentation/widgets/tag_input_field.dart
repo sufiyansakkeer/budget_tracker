@@ -95,13 +95,13 @@ class _TagInputFieldState extends State<TagInputField> {
                 label: Text(tag),
                 deleteIcon: const Icon(Icons.close, size: 16),
                 onDeleted: () => _removeTag(tag),
-                backgroundColor: context.appColors.primary.withValues(alpha: 0.1),
+                backgroundColor: context.appColors.tertiary.withValues(alpha: 0.1),
                 labelStyle: TextStyle(
-                  color: theme.colorScheme.primary,
+                  color: theme.colorScheme.tertiary,
                   fontWeight: FontWeight.w500,
                 ),
                 side: BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                  color: theme.colorScheme.tertiary.withValues(alpha: 0.3),
                 ),
               );
             }).toList(),

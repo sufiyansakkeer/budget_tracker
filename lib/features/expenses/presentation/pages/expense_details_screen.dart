@@ -264,7 +264,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
+              gradient: LinearGradient(colors: [context.appColors.secondaryDark, context.appColors.secondary]),
               borderRadius: AppSpacing.borderRadiusLg,
             ),
             child: Column(
@@ -406,8 +406,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               key: const Key('moveExpenseBudgetButton'),
               onPressed: () => _moveToAnotherBudget(expense),
               style: OutlinedButton.styleFrom(
-                foregroundColor: context.appColors.primary,
-                side: BorderSide(color: context.appColors.primary),
+                foregroundColor: context.appColors.secondary,
+                side: BorderSide(color: context.appColors.secondary),
               ),
               icon: const Icon(Icons.swap_horiz),
               label: const Text('Move to another budget'),
@@ -439,7 +439,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: context.appColors.primary, size: 20),
+          Icon(icon, color: context.appColors.secondary, size: 20),
           const SizedBox(width: AppSpacing.md),
           SizedBox(
             width: 80,

@@ -23,7 +23,7 @@ class SettingsTile extends StatelessWidget {
     final theme = Theme.of(context);
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: theme.colorScheme.primary),
+      leading: Icon(icon, color: theme.colorScheme.secondary),
       title: Text(title),
       subtitle: subtitle != null ? Text(subtitle!) : null,
       trailing: trailing,

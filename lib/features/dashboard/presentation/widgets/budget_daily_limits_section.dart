@@ -307,7 +307,7 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
               Text(
                 '• ${bl.remainingDays}d left',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: context.appColors.primary,
+                  color: context.appColors.secondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),

@@ -26,14 +26,14 @@ class BudgetListSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            context.appColors.primary.withValues(alpha: 0.1),
-            context.appColors.primary.withValues(alpha: 0.05),
+            context.appColors.secondary.withValues(alpha: 0.1),
+            context.appColors.secondary.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(color: context.appColors.primary.withValues(alpha: 0.3)),
+        border: Border.all(color: context.appColors.secondary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,7 +42,7 @@ class BudgetListSummaryCard extends StatelessWidget {
             children: [
               Icon(
                 Icons.account_balance_wallet_rounded,
-                color: context.appColors.primary,
+                color: context.appColors.secondary,
                 size: 20,
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -50,7 +50,7 @@ class BudgetListSummaryCard extends StatelessWidget {
                 'Total Remaining',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: context.appColors.primary,
+                  color: context.appColors.secondary,
                 ),
               ),
               const Spacer(),
@@ -87,7 +87,7 @@ class BudgetListSummaryCard extends StatelessWidget {
             ),
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: context.appColors.primary,
+              color: context.appColors.secondary,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),

@@ -72,7 +72,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                             isActive
                                 ? Icons.check_circle
                                 : Icons.circle_outlined,
-                            color: isActive ? context.appColors.primary : null,
+                            color: isActive ? context.appColors.secondary : null,
                           ),
                           title: Text(budget.name),
                           subtitle: Text(
@@ -155,12 +155,12 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
               Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: context.appColors.primary.withValues(alpha: 0.12),
+                  color: context.appColors.secondary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   Icons.account_balance_wallet,
-                  color: context.appColors.primary,
+                  color: context.appColors.secondary,
                   size: 20,
                 ),
               ),

@@ -295,8 +295,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
             Text(
               '$currency${budget.monthlyAmount.toStringAsFixed(0)}',
               style: theme.textTheme.headlineMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.secondary,
               ),
             ),
             if (budget.notes != null && budget.notes!.isNotEmpty) ...[
@@ -396,7 +395,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                       '$percent%',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
+                        color: theme.colorScheme.secondary,
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -433,7 +432,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                 value: utilization,
                 minHeight: 10,
                 backgroundColor: theme.disabledColor.withValues(alpha: 0.2),
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.secondary,
               ),
             ),
           ],
@@ -492,7 +491,7 @@ class _StatusChip extends StatelessWidget {
     final label = archived ? 'Archived' : (active ? 'Active' : 'Inactive');
     final color = archived
         ? theme.disabledColor
-        : (active ? context.appColors.primary : theme.hintColor);
+        : (active ? context.appColors.secondary : theme.hintColor);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -526,7 +525,7 @@ class _StatCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Column(
           children: [
-            Icon(icon, color: theme.colorScheme.primary, size: 22),
+            Icon(icon, color: theme.colorScheme.secondary, size: 22),
             const SizedBox(height: AppSpacing.xs),
             Text(
               value,

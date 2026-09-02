@@ -132,7 +132,7 @@ class _PieChart extends StatelessWidget {
   List<Color> _palette(BuildContext context) => [
     context.appColors.primary,
     context.appColors.secondary,
-    context.appColors.primary,
+    context.appColors.tertiary,
     context.appColors.success,
     context.appColors.warning,
     context.appColors.error,
@@ -225,7 +225,7 @@ class _LegendRow extends StatelessWidget {
   List<Color> _palette(BuildContext context) => [
     context.appColors.primary,
     context.appColors.secondary,
-    context.appColors.primary,
+    context.appColors.tertiary,
     context.appColors.success,
     context.appColors.warning,
     context.appColors.error,

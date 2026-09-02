@@ -32,7 +32,7 @@ class PeriodSelector extends StatelessWidget {
             label: Text(period.label),
             selected: isSelected,
             onSelected: (_) => onSelected(period),
-            selectedColor: context.appColors.primary,
+            selectedColor: context.appColors.secondary,
             labelStyle: TextStyle(
               color: isSelected ? Colors.white : null,
               fontWeight: isSelected ? FontWeight.bold : null,

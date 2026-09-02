@@ -28,13 +28,13 @@ class SettingsSection extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: theme.colorScheme.primary),
+              Icon(icon, size: 18, color: theme.colorScheme.secondary),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
+                  color: theme.colorScheme.secondary,
                 ),
               ),
             ],

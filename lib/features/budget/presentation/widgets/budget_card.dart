@@ -134,7 +134,7 @@ class BudgetCard extends StatelessWidget {
                         ),
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: context.appColors.primary,
+                          color: context.appColors.secondary,
                         ),
                       ),
                     ],

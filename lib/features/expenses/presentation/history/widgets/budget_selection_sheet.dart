@@ -220,7 +220,7 @@ class _BudgetTile extends StatelessWidget {
       padding: EdgeInsets.only(bottom: AppSpacing.xs),
       child: Material(
         color: isSelected
-            ? context.appColors.primary.withValues(alpha: 0.08)
+            ? context.appColors.secondary.withValues(alpha: 0.08)
             : Colors.transparent,
         borderRadius: AppSpacing.borderRadiusMd,
         child: InkWell(
@@ -235,7 +235,7 @@ class _BudgetTile extends StatelessWidget {
               borderRadius: AppSpacing.borderRadiusMd,
               border: Border.all(
                 color: isSelected
-                    ? context.appColors.primary
+                    ? context.appColors.secondary
                     : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
               ),
             ),
@@ -244,7 +244,7 @@ class _BudgetTile extends StatelessWidget {
                 Checkbox(
                   value: isSelected,
                   onChanged: (_) => onTap(),
-                  activeColor: context.appColors.primary,
+                  activeColor: context.appColors.secondary,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
                 ),
@@ -254,7 +254,7 @@ class _BudgetTile extends StatelessWidget {
                   width: 4,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: _parseColor(budget.color) ?? context.appColors.primary,
+                    color: _parseColor(budget.color) ?? context.appColors.secondary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

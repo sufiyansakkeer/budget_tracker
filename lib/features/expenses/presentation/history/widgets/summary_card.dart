@@ -32,12 +32,12 @@ class SummaryCard extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: context.appColors.primary.withValues(alpha: 0.12),
+                  color: context.appColors.tertiary.withValues(alpha: 0.12),
                   borderRadius: AppSpacing.borderRadiusSm,
                 ),
                 child: Icon(
                   Icons.insights_rounded,
-                  color: context.appColors.primary,
+                  color: context.appColors.tertiary,
                   size: 18,
                 ),
               ),

@@ -154,7 +154,7 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
         ),
         child: Column(
           children: [
-            Icon(Icons.receipt_long, color: context.appColors.primary, size: 40),
+            Icon(Icons.receipt_long, color: context.appColors.secondary, size: 40),
             const SizedBox(height: AppSpacing.sm),
             Text('Tap to attach a receipt', style: theme.textTheme.bodyMedium),
           ],

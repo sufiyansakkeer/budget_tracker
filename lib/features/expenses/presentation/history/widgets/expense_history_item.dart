@@ -91,13 +91,13 @@ class ExpenseHistoryItem extends StatelessWidget {
                           vertical: 1,
                         ),
                         decoration: BoxDecoration(
-                          color: context.appColors.primary.withValues(alpha: 0.1),
+                          color: context.appColors.tertiary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           budgetName!,
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: context.appColors.primary,
+                            color: context.appColors.tertiary,
                             fontWeight: FontWeight.w600,
                             fontSize: 10,
                           ),
@@ -141,7 +141,7 @@ class ExpenseHistoryItem extends StatelessWidget {
                       Icon(
                         Icons.receipt_long_rounded,
                         size: 14,
-                        color: context.appColors.primary,
+                        color: context.appColors.secondary,
                         semanticLabel: 'Receipt attached',
                       ),
                     ],

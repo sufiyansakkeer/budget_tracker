@@ -109,7 +109,7 @@ class TimeAnalyticsCard extends StatelessWidget {
                     decimalDigits: 0,
                   ),
                   icon: Icons.work,
-                  color: context.appColors.primary,
+                  color: context.appColors.tertiary,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),

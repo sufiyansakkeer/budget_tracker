@@ -234,7 +234,7 @@ class BudgetTimelineCard extends StatelessWidget {
               Text(
                 '$daysRemaining days remaining',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: context.appColors.primary,
+                  color: context.appColors.secondary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -272,7 +272,7 @@ class BudgetTimelineCard extends StatelessWidget {
                     widthFactor: progress.clamp(0.0, 1.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
+                        gradient: LinearGradient(colors: [context.appColors.secondaryDark, context.appColors.secondary]),
                       ),
                     ),
                   ),
@@ -285,14 +285,13 @@ class BudgetTimelineCard extends StatelessWidget {
             alignment: Alignment(progress.clamp(0.0, 1.0) * 2 - 1, 0),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: context.appColors.primary.withValues(alpha: 0.12),
+              decoration: BoxDecoration(                  color: context.appColors.secondary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 'Today',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: context.appColors.primary,
+                  color: context.appColors.secondary,
                   fontWeight: FontWeight.w700,
                 ),
               ),

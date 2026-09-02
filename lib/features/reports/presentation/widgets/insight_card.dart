@@ -53,7 +53,7 @@ class InsightCard extends StatelessWidget {
       case InsightType.negative:
         return _Config(Icons.error, context.appColors.error);
       case InsightType.info:
-        return _Config(Icons.lightbulb, context.appColors.primary);
+        return _Config(Icons.lightbulb, context.appColors.tertiary);
     }
   }
 }

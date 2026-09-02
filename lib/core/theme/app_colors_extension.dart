@@ -9,14 +9,20 @@ import 'color_palettes.dart';
 /// Access via `context.appColors` after importing this file.
 @immutable
 class AppColorTokens extends ThemeExtension<AppColorTokens> {
-  // Brand
+  // Brand — Primary
   final Color primary;
   final Color primaryLight;
   final Color primaryDark;
 
+  // Brand — Secondary
   final Color secondary;
   final Color secondaryLight;
   final Color secondaryDark;
+
+  // Brand — Tertiary
+  final Color tertiary;
+  final Color tertiaryLight;
+  final Color tertiaryDark;
 
   // Semantic
   final Color income;
@@ -54,6 +60,9 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.secondary,
     required this.secondaryLight,
     required this.secondaryDark,
+    required this.tertiary,
+    required this.tertiaryLight,
+    required this.tertiaryDark,
     required this.income,
     required this.expense,
     required this.success,
@@ -106,6 +115,9 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       secondary: scheme.secondary,
       secondaryLight: _lighten(scheme.secondary, 0.12),
       secondaryDark: _darken(scheme.secondary, 0.12),
+      tertiary: scheme.tertiary,
+      tertiaryLight: _lighten(scheme.tertiary, 0.12),
+      tertiaryDark: _darken(scheme.tertiary, 0.12),
       income: colors.income(brightness),
       expense: colors.expense(brightness),
       success: colors.success(brightness),
@@ -158,6 +170,9 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? secondary,
     Color? secondaryLight,
     Color? secondaryDark,
+    Color? tertiary,
+    Color? tertiaryLight,
+    Color? tertiaryDark,
     Color? income,
     Color? expense,
     Color? success,
@@ -185,6 +200,9 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       secondary: secondary ?? this.secondary,
       secondaryLight: secondaryLight ?? this.secondaryLight,
       secondaryDark: secondaryDark ?? this.secondaryDark,
+      tertiary: tertiary ?? this.tertiary,
+      tertiaryLight: tertiaryLight ?? this.tertiaryLight,
+      tertiaryDark: tertiaryDark ?? this.tertiaryDark,
       income: income ?? this.income,
       expense: expense ?? this.expense,
       success: success ?? this.success,
@@ -218,6 +236,9 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       secondary: Color.lerp(secondary, other.secondary, t)!,
       secondaryLight: Color.lerp(secondaryLight, other.secondaryLight, t)!,
       secondaryDark: Color.lerp(secondaryDark, other.secondaryDark, t)!,
+      tertiary: Color.lerp(tertiary, other.tertiary, t)!,
+      tertiaryLight: Color.lerp(tertiaryLight, other.tertiaryLight, t)!,
+      tertiaryDark: Color.lerp(tertiaryDark, other.tertiaryDark, t)!,
       income: Color.lerp(income, other.income, t)!,
       expense: Color.lerp(expense, other.expense, t)!,
       success: Color.lerp(success, other.success, t)!,

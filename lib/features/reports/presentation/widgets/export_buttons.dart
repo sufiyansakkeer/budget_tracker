@@ -58,7 +58,7 @@ class ExportButtons extends StatelessWidget {
             icon: const Icon(Icons.table_chart),
             label: const Text('CSV'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: context.appColors.primary,
+              foregroundColor: context.appColors.secondary,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),

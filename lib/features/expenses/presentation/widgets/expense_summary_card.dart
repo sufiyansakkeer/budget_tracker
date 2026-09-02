@@ -87,7 +87,7 @@ class ExpenseSummaryCard extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: context.appColors.primary.withValues(
+                                  color: context.appColors.tertiary.withValues(
                                     alpha: 0.1,
                                   ),
                                   borderRadius: BorderRadius.circular(6),
@@ -95,7 +95,7 @@ class ExpenseSummaryCard extends StatelessWidget {
                                 child: Text(
                                   tag,
                                   style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.primary,
+                                    color: theme.colorScheme.tertiary,
                                   ),
                                 ),
                               ),

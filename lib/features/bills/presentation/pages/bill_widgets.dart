@@ -125,7 +125,7 @@ class _CategoryIcon extends StatelessWidget {
         ? context.appColors.error
         : status == BillStatus.paid
         ? context.appColors.success
-        : context.appColors.primary;
+        : context.appColors.secondary;
 
     return Container(
       width: 44,
@@ -204,10 +204,10 @@ class _DueText extends StatelessWidget {
       color = context.appColors.warning;
     } else if (difference == 1) {
       text = 'Due tomorrow';
-      color = context.appColors.primary;
+      color = context.appColors.secondary;
     } else {
       text = 'Due in $difference days';
-      color = context.appColors.primary;
+      color = context.appColors.secondary;
     }
 
     return Text(

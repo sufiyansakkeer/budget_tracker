@@ -30,7 +30,7 @@ class ReportHeroCard extends StatelessWidget {
     );
 
     return AppCard(
-      color: context.appColors.primary,
+      color: context.appColors.secondary,
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

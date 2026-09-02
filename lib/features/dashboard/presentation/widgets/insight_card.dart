@@ -68,7 +68,7 @@ class InsightCard extends StatelessWidget {
       case InsightType.info:
         return _InsightConfig(
           icon: Icons.info,
-          backgroundColor: appColors.primary,
+          backgroundColor: appColors.tertiary,
         );
     }
   }

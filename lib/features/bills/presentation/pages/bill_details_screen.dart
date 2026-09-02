@@ -132,7 +132,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )
-                  : LinearGradient(colors: [context.appColors.primaryDark, context.appColors.primary]),
+                  : LinearGradient(colors: [context.appColors.secondaryDark, context.appColors.secondary]),
               borderRadius: AppSpacing.borderRadiusLg,
             ),
             child: Column(
@@ -454,7 +454,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: context.appColors.primary, size: 20),
+          Icon(icon, color: context.appColors.secondary, size: 20),
           const SizedBox(width: AppSpacing.md),
           SizedBox(
             width: 90,

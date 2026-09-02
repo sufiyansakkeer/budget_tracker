@@ -8,6 +8,8 @@ import 'package:equatable/equatable.dart';
 enum ColorPalette {
   defaultPalette,
   ocean,
+  blossomVapor,
+  mahoganyBlaze,
   forest,
   sunset,
   violet,
@@ -44,6 +46,16 @@ const List<PaletteOption> paletteOptions = [
     palette: ColorPalette.defaultPalette,
     label: 'Default',
     description: 'Classic blue & teal',
+  ),
+  PaletteOption(
+    palette: ColorPalette.blossomVapor,
+    label: 'Blossom Vapor',
+    description: 'lavender & Coral Rush',
+  ),
+  PaletteOption(
+    palette: ColorPalette.mahoganyBlaze,
+    label: 'Mahogany Blaze',
+    description: 'Ignite Orange & Glaze Blue',
   ),
   PaletteOption(
     palette: ColorPalette.ocean,

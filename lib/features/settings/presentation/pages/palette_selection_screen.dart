@@ -135,46 +135,43 @@ class _ColorSwatches extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = getPaletteColors(palette);
     final lightScheme = colors.lightScheme;
-    final darkScheme = colors.darkScheme;
 
-    final swatchColors = [
-      lightScheme.primary,
-      lightScheme.secondary,
-      lightScheme.tertiary,
-      darkScheme.primary,
-      darkScheme.secondary,
-      darkScheme.tertiary,
+    final accentColors = [
+      _AccentColor('Primary', lightScheme.primary),
+      _AccentColor('Secondary', lightScheme.secondary),
+      _AccentColor('Tertiary', lightScheme.tertiary),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Light row
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final c in swatchColors.take(3))
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: _SwatchDot(color: c),
-              ),
-          ],
-        ),
-        const SizedBox(height: 3),
-        // Dark row
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final c in swatchColors.skip(3))
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: _SwatchDot(color: c),
-              ),
-          ],
-        ),
+        for (final accent in accentColors)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SwatchDot(color: accent.color),
+                const SizedBox(width: 6),
+                Text(
+                  accent.label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 10,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
+}
+
+class _AccentColor {
+  final String label;
+  final Color color;
+  _AccentColor(this.label, this.color);
 }
 
 class _SwatchDot extends StatelessWidget {

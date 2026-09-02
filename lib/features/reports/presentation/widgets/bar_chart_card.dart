@@ -144,7 +144,7 @@ class BarChartCard extends StatelessWidget {
                         barRods: [
                           BarChartRodData(
                             toY: buckets[i].amount,
-                            color: context.appColors.primary,
+                            color: context.appColors.secondary,
                             width: 18,
                             borderRadius: BorderRadius.circular(4),
                           ),

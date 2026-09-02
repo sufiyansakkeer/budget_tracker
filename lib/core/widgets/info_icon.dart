@@ -144,7 +144,7 @@ class _ExplanationSheetState extends State<_ExplanationSheet> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(AppSpacing.md),
                         decoration: BoxDecoration(
-                          color: appColors.primary.withValues(alpha: 0.06),
+                          color: appColors.tertiary.withValues(alpha: 0.06),
                           borderRadius: AppSpacing.borderRadiusMd,
                         ),
                         child: Column(
@@ -153,7 +153,7 @@ class _ExplanationSheetState extends State<_ExplanationSheet> {
                             Text(
                               'Example',
                               style: theme.textTheme.labelLarge?.copyWith(
-                                color: appColors.primary,
+                                color: appColors.tertiary,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),

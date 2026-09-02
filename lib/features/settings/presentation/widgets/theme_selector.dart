@@ -55,7 +55,7 @@ class _ThemeOptionTile extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: selected
-              ? theme.colorScheme.primary.withValues(alpha: 0.12)
+              ? theme.colorScheme.secondary.withValues(alpha: 0.12)
               : theme.colorScheme.surfaceContainerHighest.withValues(
                   alpha: 0.4,
                 ),
@@ -71,9 +71,9 @@ class _ThemeOptionTile extends StatelessWidget {
           children: [
             Icon(
               option.icon,
-              color: selected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
+            color: selected
+                ? theme.colorScheme.secondary
+                : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -96,7 +96,7 @@ class _ThemeOptionTile extends StatelessWidget {
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle, color: theme.colorScheme.primary),
+              Icon(Icons.check_circle, color: theme.colorScheme.secondary),
           ],
         ),
       ),
