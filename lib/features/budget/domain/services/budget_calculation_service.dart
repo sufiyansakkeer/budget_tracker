@@ -93,7 +93,7 @@ class BudgetCalculationService {
     return totalSpent / monthlyAmount;
   }
 
-  /// Percentage of the monthly budget that has been spent.
+  /// Percentage of the budget amount that has been spent.
   double calculateSpendingPercentage({
     required double totalSpent,
     required double monthlyAmount,
@@ -102,7 +102,7 @@ class BudgetCalculationService {
     return (totalSpent / monthlyAmount) * 100;
   }
 
-  /// Percentage of the monthly budget still remaining.
+  /// Percentage of the budget amount still remaining.
   double calculateRemainingPercentage({
     required double remainingBudget,
     required double monthlyAmount,
@@ -111,7 +111,7 @@ class BudgetCalculationService {
     return (remainingBudget / monthlyAmount) * 100;
   }
 
-  /// Average daily spending based on days passed in the month.
+  /// Average daily spending based on days passed in the budget period.
   double calculateAverageDailySpending({
     required double totalSpent,
     required int daysPassed,

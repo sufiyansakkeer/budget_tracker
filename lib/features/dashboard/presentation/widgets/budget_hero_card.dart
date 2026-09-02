@@ -97,11 +97,13 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
                       content: InfoContent(
                         title: "Today's Spending Limit",
                         whatIsThis:
-                            "This is the maximum amount you can spend today "
-                            "while staying on track with your active budgets.",
+                            "This is the combined daily spending limit across "
+                            "all your active budgets. Individual per-budget "
+                            "limits are shown separately below.",
                         howIsItCalculated:
-                            'For each active budget: Remaining budget ÷ Remaining days\n'
-                            'Then all active budgets are combined.',
+                            'For each active budget:\n'
+                            '  Daily limit = Remaining budget ÷ Remaining days\n\n'
+                            'Then all active budgets\' daily limits are added together.',
                         example:
                             'Budget A remaining: ₹21,000 (20 days left)\n'
                             'Daily limit A: ₹1,050\n\n'
@@ -109,11 +111,11 @@ class _BudgetHeroCardState extends State<BudgetHeroCard>
                             'Daily limit B: ₹500\n\n'
                             'Combined limit: ₹1,550',
                         additionalNotes:
-                            '• Today is included in the remaining days\n'
-                            '• The limit adjusts each day\n'
-                            '• Adding expenses reduces the remaining budget, '
-                            'lowering the limit\n'
-                            '• Unused allowance rolls into the next day',
+                            '• Each budget\'s daily limit is calculated independently\n'
+                            '• This combined total is for quick reference\n'
+                            '• See individual budget cards below for per-budget details\n'
+                            '• Unused allowance rolls into the next day\n'
+                            '• Each budget can have its own start and end date',
                         privacyNote:
                             'Your financial data is stored locally on your device.',
                       ),

@@ -203,11 +203,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                             'expense data to identify spending patterns, '
                             'budget progress, and unusual behavior.',
                         howIsItCalculated:
-                            'The insights engine examines your current budget '
+                            'The insights engine examines your current budgets\' '
                             'status, daily spending pace, weekly targets, '
                             'projected spending, and category behavior. '
                             'Up to 3 insights are shown, prioritized by '
-                            'severity.',
+                            'severity. This is a rule-based system — no '
+                            'AI or external services are used.',
                         additionalNotes:
                             'Types of analysis include:\n'
                             '• Critical overspending alerts\n'

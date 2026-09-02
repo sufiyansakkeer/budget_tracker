@@ -298,7 +298,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 whatIsThis:
                     'Analysis of your local budget and expense data '
                     'to identify spending patterns, budget progress, '
-                    'and unusual behavior.',
+                    'and unusual behavior. This is a rule-based '
+                    'system — no AI or external services are used.',
                 howIsItCalculated:
                     'Insights are generated from your actual budget '
                     'and expense data, including:\n'

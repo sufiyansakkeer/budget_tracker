@@ -6,6 +6,6 @@ enum BudgetStatus {
   /// Spending is between near-limit and over-budget thresholds (default: 80–100%).
   nearLimit,
 
-  /// Spending exceeds the monthly budget (default: above 100%).
+  /// Spending exceeds the budget amount (default: above 100%).
   overBudget,
 }

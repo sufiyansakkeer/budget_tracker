@@ -58,14 +58,17 @@ class TodaySpendingCard extends StatelessWidget {
                 content: InfoContent(
                   title: "Today's Safe Spending",
                   whatIsThis:
-                      'The amount you can spend today while remaining '
-                      'within your budget plan.',
+                      'The amount you can safely spend today while remaining '
+                      'within your active budget. Each budget has its own '
+                      'daily safe spending calculation.',
                   howIsItCalculated:
                       'Remaining budget ÷ Remaining days\n\n'
                       'Remaining budget = Budget amount − Total spent\n'
-                      'Remaining days = Budget end date − Today + 1',
+                      'Remaining days = Budget end date − Today + 1\n\n'
+                      'This calculation uses your active budget\'s '
+                      'amount, total expenses, and budget period dates.',
                   example:
-                      'Budget: ₹30,000\n'
+                      'Budget: ₹30,000 (30-day period)\n'
                       'Spent: ₹9,000\n'
                       'Remaining: ₹21,000\n'
                       'Days left: 20\n\n'
@@ -73,7 +76,9 @@ class TodaySpendingCard extends StatelessWidget {
                   additionalNotes:
                       '• Status shown: On Track / Near Limit / Exceeded\n'
                       '• Updates as you add or edit expenses\n'
-                      '• Unused allowance carries over to the next day',
+                      '• Unused allowance carries over to the next day\n'
+                      '• Each budget\'s safe spending is independent\n'
+                      '• The budget period can be any custom date range',
                 ),
               ),
               Container(

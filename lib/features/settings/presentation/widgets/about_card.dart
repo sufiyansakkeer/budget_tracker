@@ -39,9 +39,10 @@ class AboutCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'This app works 100% offline. All your data — expenses, budget, '
-              'and settings — are stored locally on your device. No data is '
-              'collected, shared, or transmitted to any server.',
+              'All your data — expenses, budgets, bills, and settings — are '
+              'stored locally on your device. No data is collected, shared, '
+              'or transmitted to any server. The only feature that requires '
+              'internet access is checking for app updates.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

@@ -348,15 +348,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               SettingsTile(
                 icon: Icons.replay,
-                title: 'Reset Current Month',
-                subtitle: 'Archive this month and start a new one',
+                title: 'Reset Budget Period',
+                subtitle: 'Archive current budget and start a new period',
                 onTap: () async {
                   final confirm = await ResetConfirmationDialog.show(
                     context,
-                    title: 'Reset Month?',
+                    title: 'Reset Budget Period?',
                     message:
-                        'This will create a new month budget and roll '
-                        'over your current period. Continue?',
+                        'This will archive your current budget and create '
+                        'a new budget period. Continue?',
                     confirmLabel: 'Reset',
                   );
                   if (confirm) bloc.add(const SettingsResetMonthEvent());
@@ -365,7 +365,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SettingsTile(
                 icon: Icons.auto_fix_high,
                 title: 'Reset Budget Amount',
-                subtitle: 'Set a new budget for this month',
+                subtitle: 'Set a new budget amount',
                 onTap: () => _showBudgetAmountDialog(context, bloc),
               ),
             ],
@@ -407,8 +407,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Monthly budget',
+          decoration: const InputDecoration(                    labelText: 'Budget amount',
             prefixText: '₹ ',
           ),
         ),

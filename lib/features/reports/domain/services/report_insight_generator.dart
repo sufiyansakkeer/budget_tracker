@@ -122,7 +122,7 @@ class ReportInsightGenerator {
           id: 'projected_savings',
           message:
               'You are likely to save ${_money(projectedSavings, data)} '
-              'this month.',
+              'during this budget period.',
           type: InsightType.positive,
         ),
       );
@@ -132,7 +132,7 @@ class ReportInsightGenerator {
         SmartInsight(
           id: 'budget_exceeded',
           message:
-              'You\'ve exceeded your monthly budget by '
+              'You\'ve exceeded your budget by '
               '${_money(overspent, data)}.',
           type: InsightType.negative,
         ),
