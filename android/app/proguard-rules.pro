@@ -1,10 +1,10 @@
-# Keep generic type metadata used by older flutter_local_notifications/Gson
-# combinations when a device upgrades from an older release.
--keepattributes Signature
--keep,allowobfuscation,allowoptimization class com.google.gson.reflect.TypeToken { *; }
--keep,allowobfuscation,allowoptimization class com.dexterous.flutterlocalnotifications.models.** { *; }
+# Add project specific ProGuard rules here.
+# By default, the flags in this file are appended to flags specified
+# in /usr/local/Cellar/android-sdk/24.3.3/tools/proguard/proguard-android.txt
+# You can edit the include path and order by changing the proguardFiles
+# directive in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Keep the home-screen widget provider — referenced by AndroidManifest.xml
-# and must survive R8 shrinking in release builds.
--keep class com.example.monivo.HomeScreenWidgetProvider { *; }
--keep class es.antonborri.home_widget.** { *; }
+# Add any project specific keep options here:

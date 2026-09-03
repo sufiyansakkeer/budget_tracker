@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_description">Shows your daily safe spending, amount spent today, and budget status at a glance.</string>
+    <string name="app_name">budget_tracker</string>
 </resources>
