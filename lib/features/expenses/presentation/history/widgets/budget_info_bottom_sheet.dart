@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/domain/entities/budget_entity.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_entity.dart';
 
 /// Lightweight bottom sheet that shows budget & expense details when the user
@@ -20,22 +22,15 @@ class BudgetInfoBottomSheet extends StatelessWidget {
     this.categoryName,
   });
 
-  /// Shows the bottom sheet. Safe for SafeArea — uses no wrapper.
+  /// Shows the bottom sheet.
   static void show({
     required BuildContext context,
     required ExpenseEntity expense,
     required BudgetEntity? budget,
     String? categoryName,
   }) {
-    showModalBottomSheet(
+    AppBottomSheet.show<void>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
-      ),
       builder: (_) => BudgetInfoBottomSheet(
         expense: expense,
         budget: budget,
@@ -47,138 +42,119 @@ class BudgetInfoBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dateFmt = DateFormat('d MMM yyyy');
+    final dateFmt = DateFormat('EEE, d MMM yyyy');
     final timeFmt = DateFormat('h:mm a');
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
-        AppSpacing.lg,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle bar
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: AppSpacing.md),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          // Title
-          Text(
-            'Expense Information',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Budget
-          _infoRow(
-            context,
-            label: 'Budget',
-            value: budget?.name ?? 'Unknown',
-            icon: Icons.account_balance_wallet_rounded,
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Category
-          if (categoryName != null) ...[
-            _infoRow(
-              context,
-              label: 'Category',
-              value: categoryName!,
-              icon: Icons.category_rounded,
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-
-          // Amount
-          _infoRow(
-            context,
-            label: 'Amount',
-            value: CurrencyFormatter.format(expense.amount),
-            icon: Icons.payments_rounded,
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Date
-          _infoRow(
-            context,
-            label: 'Date',
-            value: dateFmt.format(expense.date),
-            icon: Icons.calendar_today_rounded,
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Time
-          _infoRow(
-            context,
-            label: 'Time',
-            value: timeFmt.format(expense.time),
-            icon: Icons.access_time_rounded,
-          ),
-
-          const SizedBox(height: AppSpacing.lg),
-
-          // Close button
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(
-    BuildContext context, {
-    required String label,
-    required String value,
-    required IconData icon,
-  }) {
-    final theme = Theme.of(context);
-    return Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(
-          icon,
-          size: 20,
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+        const AppSheetHeader(
+          title: 'Expense Information',
+          subtitle: 'This expense belongs to one budget only.',
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              _InfoRow(
+                icon: Icons.account_balance_wallet_rounded,
+                label: 'Budget',
+                value: budget?.name ?? 'Unknown budget',
+                color: theme.colorScheme.primary,
+              ),
+              if (categoryName != null)
+                _InfoRow(
+                  icon: Icons.category_rounded,
+                  label: 'Category',
+                  value: categoryName!,
+                ),
+              _InfoRow(
+                icon: Icons.payments_rounded,
+                label: 'Amount',
+                value: CurrencyFormatter.format(
+                  expense.amount,
+                  code: budget?.currency,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+              _InfoRow(
+                icon: Icons.calendar_today_rounded,
+                label: 'Date',
+                value: dateFmt.format(expense.date),
+              ),
+              _InfoRow(
+                icon: Icons.access_time_rounded,
+                label: 'Time',
+                value: timeFmt.format(expense.time),
               ),
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.md,
+          ),
+          child: OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? color;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          IconTile(
+            icon: icon,
+            color: color ?? theme.colorScheme.onSurfaceVariant,
+            size: AppSizes.avatarSm,
+          ),
+          const SizedBox(width: AppSpacing.smd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  value,
+                  style: theme.textTheme.titleSmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -121,6 +121,7 @@ class ExpenseHistoryState extends Equatable {
     bool? hasMore,
     String? budgetId,
     String? budgetName,
+    bool clearBudgetScope = false,
     String? errorMessage,
     bool clearError = false,
     ExpenseViewMode? viewMode,
@@ -141,8 +142,8 @@ class ExpenseHistoryState extends Equatable {
       summary: summary ?? this.summary,
       loadedCount: loadedCount ?? this.loadedCount,
       hasMore: hasMore ?? this.hasMore,
-      budgetId: budgetId ?? this.budgetId,
-      budgetName: budgetName ?? this.budgetName,
+      budgetId: clearBudgetScope ? null : (budgetId ?? this.budgetId),
+      budgetName: clearBudgetScope ? null : (budgetName ?? this.budgetName),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       viewMode: viewMode ?? this.viewMode,
       selectedBudgetIds: selectedBudgetIds ?? this.selectedBudgetIds,
@@ -187,5 +188,6 @@ class ExpenseHistoryState extends Equatable {
     viewMode,
     selectedBudgetIds,
     allBudgets,
+    budgetMap,
   ];
 }

@@ -5,219 +5,163 @@ import '../theme/app_colors_extension.dart';
 import 'app_bottom_sheet.dart';
 import 'info_content.dart';
 
-/// A subtle ⓘ icon that opens an explanation bottom sheet.
+/// A subtle ⓘ button that opens an explanation bottom sheet.
 ///
 /// Drop this widget beside any section title or metric to give users
-/// contextual help without cluttering the UI.
+/// contextual help without cluttering the UI. The visual icon is small but
+/// the tap target meets the 48 dp minimum.
 class InfoIcon extends StatelessWidget {
   /// The explanation content displayed when tapped.
   final InfoContent content;
 
-  const InfoIcon({super.key, required this.content});
+  /// Icon color override (defaults to a muted on-surface tone).
+  final Color? color;
 
-  /// Convenience: tap anywhere on this widget opens the sheet.
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  const InfoIcon({super.key, required this.content, this.color});
 
-    return Semantics(
-      label: 'Learn more about ${content.title}',
-      button: true,
-      child: InkWell(
-        onTap: () => _showExplanation(context),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(
-            Icons.info_outline_rounded,
-            size: 18,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
-          ),
-        ),
-      ),
+  /// Opens the explanation sheet for [content] from any context.
+  static Future<void> showSheet(BuildContext context, InfoContent content) {
+    return AppBottomSheet.show<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => _ExplanationSheet(content: content),
     );
   }
 
-  void _showExplanation(BuildContext context) {
-    AppBottomSheet.show(
-      context: context,
-      showDragHandle: false,
-      builder: (context) => _ExplanationSheet(content: content),
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return IconButton(
+      onPressed: () => showSheet(context, content),
+      tooltip: 'About ${content.title}',
+      visualDensity: VisualDensity.compact,
+      iconSize: AppSizes.iconSm + 2,
+      icon: Icon(
+        Icons.info_outline_rounded,
+        color: color ?? theme.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
 
 // ── Bottom Sheet ─────────────────────────────────────────────────────────────
 
-class _ExplanationSheet extends StatefulWidget {
+class _ExplanationSheet extends StatelessWidget {
   final InfoContent content;
 
   const _ExplanationSheet({required this.content});
 
   @override
-  State<_ExplanationSheet> createState() => _ExplanationSheetState();
-}
-
-class _ExplanationSheetState extends State<_ExplanationSheet> {
-  final _sheetController = DraggableScrollableController();
-
-  @override
-  void dispose() {
-    _sheetController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final appColors = context.appColors;
-    final textSecondary = theme.colorScheme.onSurface.withValues(alpha: 0.65);
-    final topPadding = MediaQuery.of(context).padding.top;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: DraggableScrollableSheet(
-        controller: _sheetController,
-        expand: false,
-        minChildSize: 0.25,
-        initialChildSize: 0.55,
-        maxChildSize: 0.9,
-        snap: true,
-        snapSizes: const [0.25, 0.55, 0.9],
-        builder: (context, scrollController) {
-          return Column(
-            children: [
-              // ── Drag Handle ──
-              Padding(
-                padding: EdgeInsets.only(
-                  top: topPadding > 0 ? AppSpacing.sm : AppSpacing.lg,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.info_rounded,
+                  size: AppSizes.iconMd,
+                  color: theme.colorScheme.primary,
                 ),
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      content.title,
+                      style: theme.textTheme.titleLarge,
                     ),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            _Section(heading: 'What is this?', body: content.whatIsThis),
+
+            if (content.howIsItCalculated != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _Section(
+                heading: 'How is it calculated?',
+                body: content.howIsItCalculated!,
               ),
+            ],
+
+            if (content.example != null) ...[
               const SizedBox(height: AppSpacing.md),
-              // ── Scrollable Content ──
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                  ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainer,
+                  borderRadius: AppSpacing.borderRadiusMd,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Title ──
                     Text(
-                      'ℹ️  ${widget.content.title}',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      'Example',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.primary,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── What is this? ──
-                    _Section(
-                      heading: 'What is this?',
-                      body: widget.content.whatIsThis,
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      content.example!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.6,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
-
-                    // ── How is it calculated? ──
-                    if (widget.content.howIsItCalculated != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      _Section(
-                        heading: 'How is it calculated?',
-                        body: widget.content.howIsItCalculated!,
-                      ),
-                    ],
-
-                    // ── Example ──
-                    if (widget.content.example != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: appColors.tertiary.withValues(alpha: 0.06),
-                          borderRadius: AppSpacing.borderRadiusMd,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Example',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: appColors.tertiary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              widget.content.example!,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface,
-                                height: 1.6,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // ── Additional Notes ──
-                    if (widget.content.additionalNotes != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      _Section(
-                        heading: 'What affects it?',
-                        body: widget.content.additionalNotes!,
-                      ),
-                    ],
-
-                    // ── Privacy Note ──
-                    if (widget.content.privacyNote != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: appColors.info.withValues(alpha: 0.08),
-                          borderRadius: AppSpacing.borderRadiusMd,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.lock_outline_rounded,
-                              size: 16,
-                              color: appColors.info,
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Text(
-                                widget.content.privacyNote!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: textSecondary,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.md),
                   ],
                 ),
               ),
             ],
-          );
-        },
+
+            if (content.additionalNotes != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _Section(heading: 'Good to know', body: content.additionalNotes!),
+            ],
+
+            if (content.privacyNote != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: AppSizes.iconSm,
+                    color: appColors.info,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      content.privacyNote!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -235,17 +179,12 @@ class _Section extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          heading,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
+        Text(heading, style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           body,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
             height: 1.6,
           ),
         ),

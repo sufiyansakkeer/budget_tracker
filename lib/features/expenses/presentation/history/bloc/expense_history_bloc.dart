@@ -62,6 +62,7 @@ class ExpenseHistoryBloc
     on<ExpenseHistoryClearFilters>(_onClearFilters);
     on<ExpenseHistoryToggleViewMode>(_onToggleViewMode);
     on<ExpenseHistoryToggleBudgetSelection>(_onToggleBudgetSelection);
+    on<ExpenseHistorySetBudgetSelection>(_onSetBudgetSelection);
     on<ExpenseHistorySelectAllBudgets>(_onSelectAllBudgets);
     on<ExpenseHistoryClearBudgetSelection>(_onClearBudgetSelection);
     on<ExpenseHistoryApplyCombinedView>(_onApplyCombinedView);
@@ -219,6 +220,15 @@ class ExpenseHistoryBloc
     emit(state.copyWith(selectedBudgetIds: current));
   }
 
+  Future<void> _onSetBudgetSelection(
+    ExpenseHistorySetBudgetSelection event,
+    Emitter<ExpenseHistoryState> emit,
+  ) async {
+    final known = state.allBudgets.map((b) => b.id).toSet();
+    final next = event.budgetIds.where(known.contains).toList();
+    emit(state.copyWith(selectedBudgetIds: next));
+  }
+
   Future<void> _onSelectAllBudgets(
     ExpenseHistorySelectAllBudgets event,
     Emitter<ExpenseHistoryState> emit,
@@ -242,7 +252,12 @@ class ExpenseHistoryBloc
     Emitter<ExpenseHistoryState> emit,
   ) async {
     if (state.selectedBudgetIds.isEmpty) {
-      emit(state.copyWith(status: ExpenseHistoryStatus.error));
+      emit(
+        state.copyWith(
+          status: ExpenseHistoryStatus.error,
+          errorMessage: 'Select at least one budget to combine.',
+        ),
+      );
       return;
     }
 
@@ -294,10 +309,10 @@ class ExpenseHistoryBloc
     emit(
       state.copyWith(
         status: ExpenseHistoryStatus.loaded,
+        viewMode: ExpenseViewMode.combined,
         allExpenses: expenses,
         categories: categories,
-        budgetId: null,
-        budgetName: null,
+        clearBudgetScope: true,
       ),
     );
 
@@ -409,8 +424,9 @@ class ExpenseHistoryBloc
         status: ExpenseHistoryStatus.loaded,
         allExpenses: expenses,
         categories: categories,
-        budgetId: isCombined ? null : budgetId,
-        budgetName: isCombined ? null : budgetName,
+        budgetId: budgetId,
+        budgetName: budgetName,
+        clearBudgetScope: isCombined,
       ),
     );
 

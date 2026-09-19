@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
+import '../../../settings/presentation/widgets/settings_section.dart';
 import '../../domain/entities/app_update_result.dart';
 import '../bloc/app_update_bloc.dart';
 import '../bloc/app_update_event.dart';
 import '../bloc/app_update_state.dart';
 import 'update_dialog_service.dart';
 
-/// A self-contained Settings section for App Updates.
+/// Settings section for App Updates.
 ///
 /// Reads [AppUpdateBloc] from the widget tree. Place it inside a
 /// [BlocProvider<AppUpdateBloc>] higher up.
@@ -18,109 +21,97 @@ class AppUpdateSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return SettingsSection(
+      title: 'Updates',
+      icon: Icons.system_update_outlined,
+      description:
+          'Compares your installed version with the latest GitHub release. '
+          'Nothing installs automatically.',
       children: [
-        // Section header
         Padding(
-          padding: const EdgeInsets.only(
-            left: AppSpacing.xs,
-            bottom: AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.system_update_outlined,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                'App Updates',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: BlocBuilder<AppUpdateBloc, AppUpdateState>(
-              builder: (context, state) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildCurrentVersion(context, state),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Compares your installed version with the latest '
-                      'release on GitHub. This needs an internet connection. '
-                      'Updates are never installed automatically: "View '
-                      'Update" opens the release page in your browser, where '
-                      'you can download the new version.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: BlocBuilder<AppUpdateBloc, AppUpdateState>(
+            builder: (context, state) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _VersionRow(state: state),
+                  const SizedBox(height: AppSpacing.smd),
+                  AnimatedSize(
+                    duration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.standard,
+                    ),
+                    curve: AppMotion.standardCurve,
+                    alignment: Alignment.topCenter,
+                    child: AnimatedSwitcher(
+                      duration: AppMotion.respectReducedMotion(
+                        context,
+                        AppMotion.standard,
+                      ),
+                      child: KeyedSubtree(
+                        key: ValueKey(state.runtimeType),
+                        child: _StatusContent(state: state, theme: theme),
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildStatusContent(context, state),
-                  ],
-                );
-              },
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VersionRow extends StatelessWidget {
+  final AppUpdateState state;
+  const _VersionRow({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    String version = '—';
+    if (state is AppUpdateAvailable) {
+      version = 'v${(state as AppUpdateAvailable).result.currentVersion}';
+    } else if (state is AppUpdateUpToDate) {
+      version = 'v${(state as AppUpdateUpToDate).result.currentVersion}';
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Current Version',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        Text(version, style: theme.textTheme.titleSmall),
       ],
     );
   }
+}
 
-  Widget _buildCurrentVersion(BuildContext context, AppUpdateState state) {
-    final theme = Theme.of(context);
-    // Use the version from the state if available, otherwise show a placeholder.
-    String version = '—';
-    if (state is AppUpdateAvailable) {
-      version = 'v${state.result.currentVersion}';
-    } else if (state is AppUpdateUpToDate) {
-      version = 'v${state.result.currentVersion}';
-    } else if (state is AppUpdateCheckFailed) {
-      version = '—';
-    }
+class _StatusContent extends StatelessWidget {
+  final AppUpdateState state;
+  final ThemeData theme;
+  const _StatusContent({required this.state, required this.theme});
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          'Current Version',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        Text(
-          version,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
     );
-  }
-
-  Widget _buildStatusContent(BuildContext context, AppUpdateState state) {
-    final theme = Theme.of(context);
 
     if (state is AppUpdateChecking) {
       return Row(
         children: [
           const SizedBox(
-            width: 16,
-            height: 16,
+            width: AppSizes.iconSm,
+            height: AppSizes.iconSm,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -135,47 +126,51 @@ class AppUpdateSection extends StatelessWidget {
     }
 
     if (state is AppUpdateAvailable) {
-      return _UpdateAvailableContent(result: state.result);
+      return _UpdateAvailableContent(
+        result: (state as AppUpdateAvailable).result,
+      );
     }
 
     if (state is AppUpdateUpToDate) {
+      final result = (state as AppUpdateUpToDate).result;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Icon(
-                Icons.check_circle_outline,
-                size: 18,
-                color: theme.colorScheme.primary,
+                Icons.check_circle_rounded,
+                size: AppSizes.iconSm + 2,
+                color: colors.success,
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                "You're up to date",
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.primary,
+              Expanded(
+                child: Text(
+                  "You're up to date",
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: colors.success,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Your installed version is the latest version released on '
-            'GitHub.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+            'Your installed version is the latest version released on GitHub'
+            '${result.latestVersion.isNotEmpty ? ' (v${result.latestVersion})' : ''}.',
+            style: muted,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => context.read<AppUpdateBloc>().add(
+                const AppUpdateManualCheck(),
+              ),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Check again'),
             ),
           ),
-          if (state.result.latestVersion.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'v${state.result.latestVersion}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
         ],
       );
     }
@@ -187,8 +182,8 @@ class AppUpdateSection extends StatelessWidget {
           Row(
             children: [
               Icon(
-                Icons.error_outline,
-                size: 18,
+                Icons.error_outline_rounded,
+                size: AppSizes.iconSm + 2,
                 color: theme.colorScheme.error,
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -196,7 +191,6 @@ class AppUpdateSection extends StatelessWidget {
                 child: Text(
                   "Couldn't check for updates.",
                   style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
                     color: theme.colorScheme.error,
                   ),
                 ),
@@ -207,35 +201,25 @@ class AppUpdateSection extends StatelessWidget {
           Text(
             'The GitHub release check needs an internet connection. '
             'Everything else in the app keeps working offline.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: muted,
           ),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                context.read<AppUpdateBloc>().add(const AppUpdateManualCheck());
-              },
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Try Again'),
-            ),
+          const SizedBox(height: AppSpacing.smd),
+          OutlinedButton.icon(
+            onPressed: () =>
+                context.read<AppUpdateBloc>().add(const AppUpdateManualCheck()),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try Again'),
           ),
         ],
       );
     }
 
-    // Initial or unknown state — show check button.
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          context.read<AppUpdateBloc>().add(const AppUpdateManualCheck());
-        },
-        icon: const Icon(Icons.refresh, size: 18),
-        label: const Text('Check for Updates'),
-      ),
+    // Initial / unknown state.
+    return OutlinedButton.icon(
+      onPressed: () =>
+          context.read<AppUpdateBloc>().add(const AppUpdateManualCheck()),
+      icon: const Icon(Icons.refresh_rounded),
+      label: const Text('Check for Updates'),
     );
   }
 }
@@ -256,37 +240,28 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
 
   Future<void> _launchReleaseUrl() async {
     if (_isLaunching) return;
-
     final url = widget.result.releaseUrl.trim();
     if (url.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No update URL available.'),
-            behavior: SnackBarBehavior.floating,
-          ),
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('No update page is available.')),
         );
-      }
       return;
     }
-
     setState(() => _isLaunching = true);
-
     try {
       await UpdateDialogService.viewRelease(widget.result);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to open the release page.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(content: Text('Unable to open the release page.')),
+          );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLaunching = false);
-      }
+      if (mounted) setState(() => _isLaunching = false);
     }
   }
 
@@ -301,16 +276,17 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
         Row(
           children: [
             Icon(
-              Icons.new_releases_outlined,
-              size: 18,
+              Icons.new_releases_rounded,
+              size: AppSizes.iconSm + 2,
               color: theme.colorScheme.primary,
             ),
             const SizedBox(width: AppSpacing.sm),
-            Text(
-              'Update Available',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.primary,
+            Expanded(
+              child: Text(
+                'Update Available',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
           ],
@@ -322,23 +298,17 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: _isLaunching ? null : _launchReleaseUrl,
-            icon: _isLaunching
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.open_in_new, size: 18),
-            label: const Text('View Update'),
-          ),
+        const SizedBox(height: AppSpacing.smd),
+        FilledButton.icon(
+          onPressed: _isLaunching ? null : _launchReleaseUrl,
+          icon: _isLaunching
+              ? const SizedBox(
+                  width: AppSizes.iconSm,
+                  height: AppSizes.iconSm,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.open_in_new_rounded),
+          label: const Text('View Update'),
         ),
       ],
     );

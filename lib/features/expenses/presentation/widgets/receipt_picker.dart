@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../data/services/receipt_storage_service.dart';
-import '../../../../core/theme/app_colors_extension.dart';
 
 /// Receipt attachment widget supporting camera capture, gallery pick,
 /// preview, replace, and remove.
@@ -35,9 +37,7 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
   @override
   void didUpdateWidget(covariant ReceiptPicker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.receiptPath != widget.receiptPath) {
-      _checkFile();
-    }
+    if (oldWidget.receiptPath != widget.receiptPath) _checkFile();
   }
 
   void _checkFile() {
@@ -51,48 +51,35 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
 
   Future<void> _pick(ImageSourceOption option) async {
     final service = ReceiptStorageService.instance;
-    String? path;
-    switch (option) {
-      case ImageSourceOption.camera:
-        path = await service.captureReceipt();
-      case ImageSourceOption.gallery:
-        path = await service.pickReceiptFromGallery();
-    }
-    if (path != null) {
-      widget.onChanged(path);
-    }
-  }
-
-  void _remove() {
-    widget.onChanged(null);
+    final path = switch (option) {
+      ImageSourceOption.camera => await service.captureReceipt(),
+      ImageSourceOption.gallery => await service.pickReceiptFromGallery(),
+    };
+    if (path != null) widget.onChanged(path);
   }
 
   Future<void> _showPicker() async {
-    final option = await showModalBottomSheet<ImageSourceOption>(
+    final option = await AppBottomSheet.show<ImageSourceOption>(
       context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Capture from camera'),
-              onTap: () => Navigator.pop(context, ImageSourceOption.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Pick from gallery'),
-              onTap: () => Navigator.pop(context, ImageSourceOption.gallery),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-        ),
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppSheetHeader(title: 'Attach a receipt'),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Take a photo'),
+            onTap: () => Navigator.pop(context, ImageSourceOption.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Choose from gallery'),
+            onTap: () => Navigator.pop(context, ImageSourceOption.gallery),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
       ),
     );
-    if (option != null) {
-      await _pick(option);
-    }
+    if (option != null) await _pick(option);
   }
 
   @override
@@ -100,98 +87,112 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
     final theme = Theme.of(context);
     final hasReceipt = widget.receiptPath != null && _exists;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: AppSpacing.borderRadiusMd,
+    final Widget content;
+    if (_checking) {
+      content = const SizedBox(
+        key: ValueKey('checking'),
+        height: AppSizes.touchTarget,
+        child: Center(
+          child: SizedBox(
+            width: AppSizes.iconMd,
+            height: AppSizes.iconMd,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    } else if (hasReceipt) {
+      content = _buildPreview(theme, key: const ValueKey('preview'));
+    } else if (widget.receiptPath != null) {
+      content = _buildMissing(theme, key: const ValueKey('missing'));
+    } else {
+      content = _buildEmpty(theme, key: const ValueKey('empty'));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Receipt', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        AnimatedSwitcher(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+          child: content,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmpty(ThemeData theme, {Key? key}) {
+    return AppCard(
+      key: key,
+      onTap: _showPicker,
+      color: theme.colorScheme.surfaceContainer,
+      showBorder: false,
+      borderRadius: AppSpacing.borderRadiusMd,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.smd,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        key: const Key('receiptPicker'),
         children: [
-          Text(
-            'Receipt (optional)',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
+          IconTile(
+            icon: Icons.receipt_long_rounded,
+            color: theme.colorScheme.primary,
+            size: AppSizes.avatarSm,
+          ),
+          const SizedBox(width: AppSpacing.smd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tap to attach a receipt',
+                  style: theme.textTheme.titleSmall,
+                ),
+                Text(
+                  'Photo or image from your gallery',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          if (_checking)
-            const SizedBox(
-              height: 40,
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else if (hasReceipt)
-            _buildReceiptPreview(theme)
-          else if (widget.receiptPath != null)
-            _buildMissingFile(theme)
-          else
-            _buildEmpty(theme),
+          Icon(
+            Icons.add_a_photo_outlined,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildEmpty(ThemeData theme) {
-    return InkWell(
-      key: const Key('receiptPicker'),
-      onTap: _showPicker,
-      borderRadius: AppSpacing.borderRadiusMd,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: theme.colorScheme.surfaceContainerHighest,
-            width: 1.5,
-          ),
-          borderRadius: AppSpacing.borderRadiusMd,
-        ),
-        child: Column(
-          children: [
-            Icon(
-              Icons.receipt_long,
-              color: context.appColors.secondary,
-              size: 40,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text('Tap to attach a receipt', style: theme.textTheme.bodyMedium),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReceiptPreview(ThemeData theme) {
+  Widget _buildPreview(ThemeData theme, {Key? key}) {
     return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ClipRRect(
           borderRadius: AppSpacing.borderRadiusMd,
           child: Image.file(
             File(widget.receiptPath!),
             height: 180,
-            width: double.infinity,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildMissingFile(theme),
+            errorBuilder: (_, __, ___) => _buildMissing(theme),
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.xs),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             TextButton.icon(
               onPressed: _showPicker,
-              icon: const Icon(Icons.swap_horiz),
+              icon: const Icon(Icons.swap_horiz_rounded),
               label: const Text('Replace'),
             ),
             TextButton.icon(
-              onPressed: _remove,
-              icon: const Icon(Icons.delete_outline),
+              onPressed: () => widget.onChanged(null),
+              icon: const Icon(Icons.delete_outline_rounded),
               label: const Text('Remove'),
             ),
           ],
@@ -200,24 +201,34 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
     );
   }
 
-  Widget _buildMissingFile(ThemeData theme) {
-    return Column(
-      children: [
-        Icon(Icons.error_outline, color: theme.colorScheme.error, size: 36),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          'Receipt file is missing',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.error,
+  Widget _buildMissing(ThemeData theme, {Key? key}) {
+    return AppCard(
+      key: key,
+      color: theme.colorScheme.errorContainer,
+      showBorder: false,
+      borderRadius: AppSpacing.borderRadiusMd,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.smd,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: theme.colorScheme.error),
+          const SizedBox(width: AppSpacing.smd),
+          Expanded(
+            child: Text(
+              'Receipt file is missing',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextButton.icon(
-          onPressed: _showPicker,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Choose another'),
-        ),
-      ],
+          TextButton(
+            onPressed: _showPicker,
+            child: const Text('Choose another'),
+          ),
+        ],
+      ),
     );
   }
 }

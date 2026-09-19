@@ -2,16 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 
-/// A labelled group of settings tiles used to structure the settings screen.
+/// A labelled group of settings rows.
+///
+/// Header: small icon + title (+ optional description). Body: one card with
+/// the rows separated by hairlines, so every group on the screen reads the
+/// same way.
 class SettingsSection extends StatelessWidget {
   final String title;
   final IconData icon;
+  final String? description;
   final List<Widget> children;
 
   const SettingsSection({
     super.key,
     required this.title,
     required this.icon,
+    this.description,
     required this.children,
   });
 
@@ -27,14 +33,33 @@ class SettingsSection extends StatelessWidget {
             bottom: AppSpacing.sm,
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 18, color: theme.colorScheme.secondary),
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                child: Icon(
+                  icon,
+                  size: AppSizes.iconSm + 2,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.secondary,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(title, style: theme.textTheme.titleMedium),
+                    ),
+                    if (description != null)
+                      Text(
+                        description!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -52,10 +77,9 @@ class SettingsSection extends StatelessWidget {
                 for (var i = 0; i < children.length; i++) ...[
                   if (i > 0)
                     Divider(
-                      height: 1,
-                      indent: 8,
-                      endIndent: 8,
-                      color: theme.dividerColor.withValues(alpha: 0.4),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.5,
+                      ),
                     ),
                   children[i],
                 ],

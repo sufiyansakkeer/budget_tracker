@@ -4,20 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_provider.dart';
-import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/animated_amount.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
+import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/widgets/status_chip.dart';
 import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
-import '../../../../core/theme/app_colors_extension.dart';
+import '../widgets/budget_visuals.dart';
 
-/// Entry point for a selected budget: shows info, statistics, period, status
-/// and quick actions (edit, archive, duplicate, delete, set active, add expense).
+/// Entry point for a selected budget: amount, progress, period, status and
+/// actions (edit, set active, archive, duplicate, delete, add expense).
 class BudgetDetailsScreen extends StatefulWidget {
   final String budgetId;
 
@@ -36,6 +46,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   bool _isActive = false;
   bool _loading = true;
   bool _busy = false;
+  String? _error;
   StreamSubscription<void>? _expenseSubscription;
   StreamSubscription<void>? _budgetSubscription;
 
@@ -43,19 +54,11 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   void initState() {
     super.initState();
     _load();
-
-    // Reload after an expense is added/edited/deleted (e.g. via Add Expense).
     _expenseSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
-      if (!mounted) return;
-      _load();
+      if (mounted) _load(silent: true);
     });
-
-    // Reload after this (or any) budget is edited, archived, switched, etc.,
-    // so returning from the edit screen shows the current amount and the
-    // remaining/progress values derived from it.
     _budgetSubscription = BudgetRefreshBus.instance.changes.listen((_) {
-      if (!mounted) return;
-      _load();
+      if (mounted) _load(silent: true);
     });
   }
 
@@ -66,142 +69,161 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final activeId = await _manageBudget.activeBudgetId();
-    final budget = await _manageBudget.getById(widget.budgetId);
-    final stats = budget == null
-        ? MonthlyStatisticsEntity.empty
-        : await _budgetRepository.getBudgetStatistics(
-            budget.id,
-            referenceDate: DateTime.now(),
-          );
-    if (!mounted) return;
-    setState(() {
-      _budget = budget;
-      _stats = stats;
-      _isActive = budget?.id == activeId;
-      _loading = false;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (!silent || _budget == null) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final activeId = await _manageBudget.activeBudgetId();
+      final budget = await _manageBudget.getById(widget.budgetId);
+      final stats = budget == null
+          ? MonthlyStatisticsEntity.empty
+          : await _budgetRepository.getBudgetStatistics(
+              budget.id,
+              referenceDate: DateTime.now(),
+            );
+      if (!mounted) return;
+      setState(() {
+        _budget = budget;
+        _stats = stats;
+        _isActive = budget != null && budget.id == activeId;
+        _loading = false;
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = "Couldn't load this budget.";
+      });
+    }
   }
 
-  Future<void> _setActive() async {
+  void _notify(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) _notify("Something went wrong. Please try again.");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setActive() => _run(() async {
     await _manageBudget.setActive(widget.budgetId);
     BudgetRefreshBus.instance.notifyChanged();
     if (!mounted) return;
     setState(() => _isActive = true);
-  }
+    _notify('${_budget?.name ?? 'Budget'} is now your active budget');
+  });
 
-  Future<void> _archive() async {
-    setState(() => _busy = true);
+  Future<void> _archive() => _run(() async {
     await _manageBudget.archive(widget.budgetId, archived: true);
     BudgetRefreshBus.instance.notifyChanged();
     if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _budget = _budget?.copyWith(isArchived: true);
-    });
-  }
+    setState(() => _budget = _budget?.copyWith(isArchived: true));
+    _notify('Budget archived');
+  });
 
-  Future<void> _restore() async {
-    setState(() => _busy = true);
+  Future<void> _restore() => _run(() async {
     await _manageBudget.archive(widget.budgetId, archived: false);
     BudgetRefreshBus.instance.notifyChanged();
     if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _budget = _budget?.copyWith(isArchived: false);
-    });
-  }
+    setState(() => _budget = _budget?.copyWith(isArchived: false));
+    _notify('Budget restored');
+  });
 
   Future<void> _duplicate() async {
     final nameController = TextEditingController(
       text: '${_budget!.name} (Copy)',
     );
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Duplicate Budget'),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'New budget name'),
+    try {
+      final name = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Duplicate budget'),
+          content: TextField(
+            controller: nameController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'New budget name'),
+            onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(nameController.text.trim()),
+              child: const Text('Duplicate'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Duplicate'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _busy = true);
-    await _manageBudget.duplicate(
-      widget.budgetId,
-      newName: nameController.text.trim(),
-    );
-    nameController.dispose();
-    if (!mounted) return;
-    setState(() => _busy = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Budget duplicated')));
+      );
+      if (name == null || name.isEmpty || !mounted) return;
+      await _run(() async {
+        await _manageBudget.duplicate(widget.budgetId, newName: name);
+        BudgetRefreshBus.instance.notifyChanged();
+        if (mounted) _notify('Created "$name"');
+      });
+    } finally {
+      nameController.dispose();
+    }
   }
 
   Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await ConfirmationDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Budget'),
-        content: const Text(
-          'This will permanently delete the budget and ALL its expenses. '
-          'This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Delete this budget?',
+      message:
+          'This permanently deletes "${_budget?.name}" and every expense '
+          'recorded in it. This cannot be undone.',
+      confirmLabel: 'Delete',
+      icon: Icons.delete_forever_rounded,
+      isDestructive: true,
     );
-    if (confirmed != true || !mounted) return;
-
-    await _manageBudget.delete(widget.budgetId);
-    BudgetRefreshBus.instance.notifyChanged();
-    if (!mounted) return;
-    context.pop(true);
+    if (!confirmed || !mounted) return;
+    await _run(() async {
+      await _manageBudget.delete(widget.budgetId);
+      BudgetRefreshBus.instance.notifyChanged();
+      if (!mounted) return;
+      _notify('Budget deleted');
+      context.pop(true);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final currency = getIt<CurrencyProvider>().currencySymbol;
-
+    final budget = _budget;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget Details'),
+        title: const Text('Budget'),
         actions: [
-          if (_budget != null)
+          if (budget != null) ...[
+            IconButton(
+              tooltip: 'Edit budget',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: _busy
+                  ? null
+                  : () => context.push('/app/budgets/${widget.budgetId}/edit'),
+            ),
             PopupMenuButton<String>(
               enabled: !_busy,
+              tooltip: 'More actions',
               onSelected: (value) {
                 switch (value) {
-                  case 'edit':
-                    context.push('/app/budgets/${widget.budgetId}/edit');
                   case 'setActive':
                     _setActive();
                   case 'archive':
@@ -215,394 +237,471 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                if (!_isActive)
+                if (!_isActive && !budget.isArchived)
                   const PopupMenuItem(
                     value: 'setActive',
-                    child: Text('Set Active'),
+                    child: ListTile(
+                      leading: Icon(Icons.check_circle_outline_rounded),
+                      title: Text('Set as active'),
+                    ),
                   ),
-                if (_budget?.isArchived == false)
-                  const PopupMenuItem(value: 'archive', child: Text('Archive')),
-                if (_budget?.isArchived == true)
-                  const PopupMenuItem(value: 'restore', child: Text('Restore')),
+                PopupMenuItem(
+                  value: budget.isArchived ? 'restore' : 'archive',
+                  child: ListTile(
+                    leading: Icon(
+                      budget.isArchived
+                          ? Icons.unarchive_outlined
+                          : Icons.archive_outlined,
+                    ),
+                    title: Text(budget.isArchived ? 'Restore' : 'Archive'),
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'duplicate',
-                  child: Text('Duplicate'),
+                  child: ListTile(
+                    leading: Icon(Icons.copy_rounded),
+                    title: Text('Duplicate'),
+                  ),
                 ),
-                const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.delete_outline_rounded,
+                      color: context.appColors.error,
+                    ),
+                    title: Text(
+                      'Delete',
+                      style: TextStyle(color: context.appColors.error),
+                    ),
+                  ),
+                ),
               ],
             ),
+          ],
         ],
       ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _budget == null
-            ? const Center(child: Text('Budget not found'))
-            : _buildContent(theme, currency),
-      ),
+      body: SafeArea(bottom: false, child: AppStateSwitcher(child: _body())),
+      floatingActionButton: budget != null && !budget.isArchived
+          ? FloatingActionButton.extended(
+              heroTag: 'budget_details_fab',
+              onPressed: _busy ? null : () => context.push('/app/expenses/add'),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add expense'),
+            )
+          : null,
     );
   }
 
-  Widget _buildContent(ThemeData theme, String currency) {
-    final budget = _budget!;
-    final today = DateTime.now();
-    final remaining = budget.daysRemaining(today);
-    final spent = _stats.totalSpent;
+  Widget _body() {
+    if (_loading) return const FormSkeleton(key: ValueKey('loading'), rows: 4);
+    if (_error != null) {
+      return ErrorState(
+        key: const ValueKey('error'),
+        message: _error!,
+        onRetry: _load,
+      );
+    }
+    final budget = _budget;
+    if (budget == null) {
+      return EmptyState(
+        key: const ValueKey('missing'),
+        icon: Icons.search_off_rounded,
+        title: 'Budget not found',
+        message: 'It may have been deleted.',
+        actionLabel: 'Back to budgets',
+        actionIcon: Icons.arrow_back_rounded,
+        onAction: () =>
+            context.canPop() ? context.pop() : context.go('/app/budgets'),
+      );
+    }
+    return _Content(
+      key: const ValueKey('content'),
+      budget: budget,
+      stats: _stats,
+      isActive: _isActive,
+      busy: _busy,
+      onSetActive: _setActive,
+      onRestore: _restore,
+    );
+  }
+}
+
+class _Content extends StatelessWidget {
+  final BudgetEntity budget;
+  final MonthlyStatisticsEntity stats;
+  final bool isActive;
+  final bool busy;
+  final VoidCallback onSetActive;
+  final VoidCallback onRestore;
+
+  const _Content({
+    super.key,
+    required this.budget,
+    required this.stats,
+    required this.isActive,
+    required this.busy,
+    required this.onSetActive,
+    required this.onRestore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    final accent = BudgetVisuals.colorFor(context, budget);
+    final now = DateTime.now();
+    final phase = budget.phaseOn(now);
+    final spent = stats.totalSpent;
+    final remaining = budget.monthlyAmount - spent;
     final utilization = budget.monthlyAmount <= 0
         ? 0.0
         : spent / budget.monthlyAmount;
+    final overBudget = remaining < 0;
+    final totalDays = budget.totalDays < 1 ? 1 : budget.totalDays;
+    final daysLeft = budget.daysRemaining(now);
+    final dayNumber = (totalDays - daysLeft + 1).clamp(1, totalDays);
+    final s = CurrencyFormatter.symbolFor(budget.currency);
+    String money(double v) =>
+        CurrencyFormatter.format(v, code: budget.currency, decimalDigits: 0);
 
     return ListView(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: AppSpacing.pagePaddingWithFab,
       children: [
-        _buildHeaderCard(theme, budget, currency),
-        const SizedBox(height: AppSpacing.md),
-        if (!_isActive || budget.isArchived) _buildActiveBanner(theme, budget),
-        const SizedBox(height: AppSpacing.md),
-        _buildStatGrid(theme, currency, budget, spent, utilization, remaining),
-        const SizedBox(height: AppSpacing.md),
-        _buildProgressCard(theme, budget, utilization),
-        const SizedBox(height: AppSpacing.md),
-        _buildQuickActions(theme, currency, remaining),
-      ],
-    );
-  }
-
-  Widget _buildHeaderCard(
-    ThemeData theme,
-    BudgetEntity budget,
-    String currency,
-  ) {
-    String fmt(DateTime d) {
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${d.day} ${months[d.month - 1]} ${d.year}';
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    budget.name,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+        // Header
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.mlg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  IconTile(
+                    icon: BudgetVisuals.iconFor(budget.icon),
+                    color: accent,
+                    size: AppSizes.avatarLg,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          budget.name,
+                          style: theme.textTheme.titleLarge,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: AppSpacing.xxs),
+                        Text(
+                          formatDateRange(budget.startDate, budget.endDate),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: AppSpacing.sm),
+                  _statusChip(context, phase),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                overBudget ? 'Over budget by' : 'Remaining',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-                _StatusChip(archived: budget.isArchived, active: _isActive),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              '${fmt(budget.startDate)} → ${fmt(budget.endDate)}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.hintColor,
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              '$currency${budget.monthlyAmount.toStringAsFixed(0)}',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: theme.colorScheme.secondary,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: AnimatedAmount(
+                      amount: remaining.abs(),
+                      currency: budget.currency,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: overBudget
+                            ? colors.error
+                            : theme.colorScheme.onSurface,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'of ${money(budget.monthlyAmount)}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            if (budget.notes != null && budget.notes!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(budget.notes!, style: theme.textTheme.bodySmall),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActiveBanner(ThemeData theme, BudgetEntity budget) {
-    final message = budget.isArchived
-        ? 'This budget is archived. Restore it to use it again.'
-        : 'This is not the active budget. The Dashboard, Expenses and '
-              'Reports show the active budget.';
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            budget.isArchived ? Icons.archive : Icons.info_outline,
-            size: 20,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(child: Text(message)),
-          if (!budget.isArchived)
-            TextButton(onPressed: _setActive, child: const Text('Make Active')),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatGrid(
-    ThemeData theme,
-    String currency,
-    BudgetEntity budget,
-    double spent,
-    double utilization,
-    int remaining,
-  ) {
-    final remainingBudget = budget.monthlyAmount - spent;
-
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.payments,
-            label: 'Total Spent',
-            value: '$currency${spent.toStringAsFixed(0)}',
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.savings,
-            label: 'Remaining Budget',
-            value: '$currency${remainingBudget.toStringAsFixed(0)}',
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.av_timer,
-            label: 'Days Left',
-            value: '$remaining',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressCard(
-    ThemeData theme,
-    BudgetEntity budget,
-    double utilization,
-  ) {
-    final percent = (utilization * 100).clamp(0, 100).toInt();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+              const SizedBox(height: AppSpacing.smd),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppProgress(
+                      value: utilization,
+                      semanticLabel: 'Budget used',
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    '${(utilization * 100).clamp(0, 999).toStringAsFixed(0)}%',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: overBudget
+                          ? colors.error
+                          : AppProgress.colorFor(context, utilization),
+                    ),
+                  ),
+                  InfoIcon(
+                    content: InfoContent(
+                      title: 'Budget progress',
+                      whatIsThis:
+                          "How much of this budget's total amount has been "
+                          "spent so far in its period. This is different from "
+                          "Today's Safe Spending, which only looks at today.",
+                      howIsItCalculated:
+                          'Progress = Total spent ÷ Budget amount\n'
+                          'Remaining = Budget amount − Total spent\n\n'
+                          'Total spent counts every expense recorded in this '
+                          'budget.',
+                      example:
+                          'Budget amount: ${s}30,000\n'
+                          'Total spent: ${s}18,000\n'
+                          'Progress: 60% · Remaining: ${s}12,000',
+                      additionalNotes:
+                          "• Uses this budget's own amount and expenses only\n"
+                          '• The period runs from the start date to the end '
+                          'date you chose; it does not have to be a calendar '
+                          'month\n'
+                          '• The bar stops at 100% even if you spend more '
+                          'than the budget amount',
+                    ),
+                  ),
+                ],
+              ),
+              if (budget.notes != null && budget.notes!.trim().isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Overall Budget Progress',
-                  style: theme.textTheme.titleMedium,
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '$percent%',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.secondary,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    InfoIcon(
-                      content: InfoContent(
-                        title: 'Overall Budget Progress',
-                        whatIsThis:
-                            'How much of this budget\'s total amount has '
-                            'been spent so far in its period. This is '
-                            'different from Today\'s Safe Spending, which '
-                            'only looks at today.',
-                        howIsItCalculated:
-                            'Overall Budget Progress = Total spent ÷ Budget '
-                            'amount × 100\n'
-                            'Remaining Budget = Budget amount − Total spent\n\n'
-                            'Total spent counts every expense recorded in '
-                            'this budget.',
-                        example:
-                            'Budget amount: ₹30,000\n'
-                            'Total spent: ₹18,000\n'
-                            'Progress: 18,000 ÷ 30,000 = 60%\n'
-                            'Remaining Budget: ₹12,000',
-                        additionalNotes:
-                            '• Uses this budget\'s own amount and expenses '
-                            'only\n'
-                            '• The budget period runs from the start date to '
-                            'the end date you chose; it does not have to be a '
-                            'calendar month\n'
-                            '• The bar stops at 100% even if you spend more '
-                            'than the budget amount',
-                      ),
-                    ),
-                  ],
+                  budget.notes!.trim(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: utilization,
-                minHeight: 10,
-                backgroundColor: theme.disabledColor.withValues(alpha: 0.2),
-                color: theme.colorScheme.secondary,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
 
-  Widget _buildQuickActions(ThemeData theme, String currency, int remaining) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Quick Actions', style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
+        // Not-active / archived banner
+        if (budget.isArchived || !isActive) ...[
+          const SizedBox(height: AppSpacing.smd),
+          StatusCard(
+            color: budget.isArchived
+                ? theme.colorScheme.onSurfaceVariant
+                : colors.info,
+            icon: budget.isArchived
+                ? Icons.archive_outlined
+                : Icons.info_outline_rounded,
+            message: budget.isArchived
+                ? 'This budget is archived. Restore it to record expenses '
+                      'again.'
+                : 'Not the active budget. Home, Expenses and Reports show '
+                      'the active budget.',
+            trailing: budget.isArchived
+                ? TextButton(
+                    onPressed: busy ? null : onRestore,
+                    child: const Text('Restore'),
+                  )
+                : TextButton(
+                    onPressed: busy ? null : onSetActive,
+                    child: const Text('Make active'),
+                  ),
+          ),
+        ],
+
+        // Stats
+        const SizedBox(height: AppSpacing.md),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final tiles = [
+              _StatTile(
+                icon: Icons.payments_outlined,
+                label: 'Spent',
+                value: money(spent),
+              ),
+              _StatTile(
+                icon: Icons.today_outlined,
+                label: 'Spent today',
+                value: money(stats.todaySpending),
+              ),
+              _StatTile(
+                icon: Icons.receipt_long_outlined,
+                label: 'Expenses',
+                value: '${stats.expenseCount}',
+              ),
+              _StatTile(
+                icon: Icons.timelapse_rounded,
+                label: phase == BudgetPhase.running
+                    ? 'Days left'
+                    : phase == BudgetPhase.upcoming
+                    ? 'Starts in'
+                    : 'Period',
+                value: phase == BudgetPhase.running
+                    ? '$daysLeft'
+                    : phase == BudgetPhase.upcoming
+                    ? '${budget.startDate.difference(now).inDays + 1} days'
+                    : 'Ended',
+                caption: phase == BudgetPhase.running
+                    ? 'Day $dayNumber of $totalDays'
+                    : null,
+              ),
+            ];
+            final columns = constraints.maxWidth >= 520 ? 4 : 2;
+            final width =
+                (constraints.maxWidth - AppSpacing.sm * (columns - 1)) /
+                columns;
+            return Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,
               children: [
-                if (!_budget!.isArchived)
-                  _ActionButton(
-                    icon: Icons.add,
-                    label: 'Add Expense',
-                    onPressed: () => context.push('/app/expenses/add'),
-                  ),
-                _ActionButton(
-                  icon: Icons.history,
-                  label: 'View Expenses',
-                  onPressed: () => context.go('/app/expenses'),
-                ),
-                _ActionButton(
-                  icon: Icons.bar_chart,
-                  label: 'Reports',
-                  onPressed: () => context.go('/app/reports'),
-                ),
+                for (final t in tiles) SizedBox(width: width, child: t),
               ],
-            ),
-          ],
+            );
+          },
         ),
-      ),
+
+        // Navigation to this budget's data (only meaningful when active).
+        if (isActive && !budget.isArchived) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go('/app/expenses'),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('Expenses'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go('/app/reports'),
+                  icon: const Icon(Icons.insights_outlined),
+                  label: const Text('Reports'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
-}
 
-class _StatusChip extends StatelessWidget {
-  final bool archived;
-  final bool active;
-
-  const _StatusChip({required this.archived, required this.active});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _statusChip(BuildContext context, BudgetPhase phase) {
     final theme = Theme.of(context);
-    final label = archived ? 'Archived' : (active ? 'Active' : 'Inactive');
-    final color = archived
-        ? theme.disabledColor
-        : (active ? context.appColors.secondary : theme.hintColor);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+    final colors = context.appColors;
+    if (budget.isArchived) {
+      return StatusChip(
+        label: 'Archived',
+        color: theme.colorScheme.onSurfaceVariant,
+        icon: Icons.archive_rounded,
+      );
+    }
+    if (isActive) {
+      return StatusChip(
+        label: 'Active',
+        color: theme.colorScheme.primary,
+        icon: Icons.check_circle_rounded,
+      );
+    }
+    return switch (phase) {
+      BudgetPhase.upcoming => StatusChip(
+        label: 'Upcoming',
+        color: colors.info,
+        icon: Icons.schedule_rounded,
       ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(color: color),
+      BudgetPhase.ended => StatusChip(
+        label: 'Ended',
+        color: theme.colorScheme.onSurfaceVariant,
+        icon: Icons.event_busy_rounded,
       ),
-    );
+      _ => StatusChip(
+        label: 'Inactive',
+        color: theme.colorScheme.onSurfaceVariant,
+        icon: Icons.radio_button_off_rounded,
+      ),
+    };
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _StatTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final String? caption;
 
-  const _StatCard({
+  const _StatTile({
     required this.icon,
     required this.label,
     required this.value,
+    this.caption,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Column(
-          children: [
-            Icon(icon, color: theme.colorScheme.secondary, size: 22),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.smd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: AppSizes.iconSm,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
               value,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
+              maxLines: 1,
+            ),
+          ),
+          if (caption != null)
+            Text(
+              caption!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.hintColor,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
     );
   }
 }

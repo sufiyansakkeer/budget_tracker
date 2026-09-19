@@ -1,24 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/currency_provider.dart';
-import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
+import '../../../expenses/presentation/widgets/form_field_error.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
-import '../../../../core/theme/app_colors_extension.dart';
+import '../widgets/budget_visuals.dart';
 
 /// Create or edit a budget.
 ///
-/// Fields are grouped into labelled sections for an easier, less dense layout,
-/// and the date range shows a live duration summary.
+/// Order of fields follows what the user needs to decide: name → amount and
+/// currency → period → optional look and notes. The save action is pinned to
+/// the bottom so it is never hidden behind the keyboard.
 class BudgetFormScreen extends StatefulWidget {
   /// When [budgetId] is provided, this screen edits that budget; otherwise it
   /// creates a new one.
@@ -33,10 +39,11 @@ class BudgetFormScreen extends StatefulWidget {
 class _BudgetFormScreenState extends State<BudgetFormScreen> {
   late final ManageBudgetUseCase _manageBudget = getIt<ManageBudgetUseCase>();
   final _formKey = GlobalKey<FormState>();
+  final _dateKey = GlobalKey();
 
-  late final TextEditingController _nameController;
-  late final TextEditingController _amountController;
-  late final TextEditingController _notesController;
+  final _nameController = TextEditingController();
+  final _amountController = TextEditingController();
+  final _notesController = TextEditingController();
 
   BudgetEntity? _budget;
   late DateTime _startDate;
@@ -46,47 +53,58 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   String? _icon;
   bool _saving = false;
   bool _loading = false;
-  String? _error;
+  bool _notFound = false;
+  String? _dateError;
+  String? _saveError;
 
   bool get _isEditing => _budget != null;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController();
-    _amountController = TextEditingController();
-    _notesController = TextEditingController();
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day);
     _endDate = _startDate.add(const Duration(days: 30));
     _currency = getIt<CurrencyProvider>().currencyCode;
-    if (widget.budgetId != null) {
-      _loadBudget();
-    }
+    if (widget.budgetId != null) _loadBudget();
   }
 
   Future<void> _loadBudget() async {
     setState(() => _loading = true);
-    final budget = await _manageBudget.getById(widget.budgetId!);
-    if (!mounted) return;
-    if (budget == null) {
+    try {
+      final budget = await _manageBudget.getById(widget.budgetId!);
+      if (!mounted) return;
+      if (budget == null) {
+        setState(() {
+          _loading = false;
+          _notFound = true;
+        });
+        return;
+      }
+      setState(() {
+        _nameController.text = budget.name;
+        _amountController.text = _formatAmount(budget.monthlyAmount);
+        _notesController.text = budget.notes ?? '';
+        _budget = budget;
+        _startDate = budget.startDate;
+        _endDate = budget.endDate;
+        _currency = budget.currency;
+        _color = budget.color;
+        _icon = budget.icon;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Budget not found.';
+        _notFound = true;
       });
-      return;
     }
-    _nameController.text = budget.name;
-    _amountController.text = budget.monthlyAmount.toString();
-    _notesController.text = budget.notes ?? '';
-    _budget = budget;
-    _startDate = budget.startDate;
-    _endDate = budget.endDate;
-    _currency = budget.currency;
-    _color = budget.color;
-    _icon = budget.icon;
-    setState(() => _loading = false);
   }
+
+  String _formatAmount(double amount) => amount == amount.roundToDouble()
+      ? amount.toStringAsFixed(0)
+      : amount.toStringAsFixed(2);
 
   @override
   void dispose() {
@@ -101,26 +119,46 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate: current,
-      firstDate: DateTime(2000),
+      firstDate: isStart ? DateTime(2000) : _startDate,
       lastDate: DateTime(2100),
-      helpText: isStart ? 'Select start date' : 'Select end date',
+      helpText: isStart ? 'Budget start date' : 'Budget end date',
     );
-    if (picked == null) return;
+    if (picked == null || !mounted) return;
     setState(() {
+      _dateError = null;
       if (isStart) {
+        final length = _endDate.difference(_startDate);
         _startDate = picked;
-        if (_endDate.isBefore(picked)) {
-          _endDate = picked.add(const Duration(days: 30));
-        }
+        // Keep the same duration when the start moves.
+        _endDate = picked.add(length);
       } else {
         _endDate = picked;
       }
     });
   }
 
+  int get _dayCount => _endDate.difference(_startDate).inDays + 1;
+
+  List<CurrencyEntity> get _currencies {
+    final byCode = <String, CurrencyEntity>{};
+    for (final currency in availableCurrencies) {
+      byCode.putIfAbsent(currency.code, () => currency);
+    }
+    return byCode.values.toList();
+  }
+
+  String? get _selectedCurrencyCode =>
+      _currencies.where((c) => c.code == _currency).length == 1
+      ? _currency
+      : null;
+
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _saveError = null;
+      _dateError = null;
+    });
+    final fieldsOk = _formKey.currentState!.validate();
 
     final amount = double.tryParse(_amountController.text) ?? 0;
     final error = _manageBudget.validate(
@@ -129,15 +167,26 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       _startDate,
       _endDate,
     );
+    if (!fieldsOk) return;
     if (error != null) {
-      setState(() => _error = error);
+      // Name/amount are already handled by field validators, so a remaining
+      // error concerns the dates.
+      setState(() => _dateError = error);
+      final ctx = _dateKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: AppMotion.medium,
+          curve: AppMotion.standardCurve,
+        );
+      }
       return;
     }
 
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+    setState(() => _saving = true);
+    final notes = _notesController.text.trim().isEmpty
+        ? null
+        : _notesController.text.trim();
 
     try {
       if (_isEditing) {
@@ -149,13 +198,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           endDate: _endDate,
           color: _color,
           icon: _icon,
-          notes: _notesController.text.trim().isEmpty
-              ? null
-              : _notesController.text.trim(),
+          notes: notes,
           updatedAt: DateTime.now(),
         );
         await _manageBudget.update(updated);
-        BudgetRefreshBus.instance.notifyChanged();
       } else {
         final now = DateTime.now();
         final created = await _manageBudget.create(
@@ -169,336 +215,392 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             endDate: _endDate,
             color: _color,
             icon: _icon,
-            notes: _notesController.text.trim().isEmpty
-                ? null
-                : _notesController.text.trim(),
+            notes: notes,
             createdAt: now,
             updatedAt: now,
           ),
         );
-        // Make the first/just-created budget active.
+        // A newly created budget becomes the active one.
         await _manageBudget.setActive(created.id);
-        BudgetRefreshBus.instance.notifyChanged();
       }
-
+      BudgetRefreshBus.instance.notifyChanged();
       if (!mounted) return;
+      HapticFeedback.lightImpact();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              _isEditing ? 'Budget updated' : 'Budget created and set active',
+            ),
+          ),
+        );
       context.pop(true);
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = _isEditing
-            ? 'Could not update the budget.'
-            : 'Could not create the budget.';
+        _saveError = _isEditing
+            ? "Couldn't save your changes. Please try again."
+            : "Couldn't create the budget. Please try again.";
       });
     }
-  }
-
-  int get _dayCount => _endDate.difference(_startDate).inDays + 1;
-
-  List<CurrencyEntity> get _currencies {
-    final currenciesByCode = <String, CurrencyEntity>{};
-    for (final currency in availableCurrencies) {
-      currenciesByCode.putIfAbsent(currency.code, () => currency);
-    }
-    return currenciesByCode.values.toList();
-  }
-
-  String? get _selectedCurrencyCode {
-    final matches = _currencies.where((currency) => currency.code == _currency);
-    return matches.length == 1 ? _currency : null;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final title = _isEditing ? 'Edit budget' : 'New budget';
+
+    if (_notFound) {
+      return Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: EmptyState(
+          icon: Icons.search_off_rounded,
+          title: 'Budget not found',
+          message: 'It may have been deleted.',
+          actionLabel: 'Back to budgets',
+          actionIcon: Icons.arrow_back_rounded,
+          onAction: () =>
+              context.canPop() ? context.pop() : context.go('/app/budgets'),
+        ),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Edit Budget' : 'New Budget')),
-      body: SafeArea(
-        child: _loading
-            ? const _BudgetFormSkeleton()
-            : Form(
+      appBar: AppBar(title: Text(title)),
+      body: _loading
+          ? const FormSkeleton(rows: 5)
+          : AbsorbPointer(
+              absorbing: _saving,
+              child: Form(
                 key: _formKey,
                 child: ListView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
+                  padding: AppSpacing.pagePadding,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   children: [
-                    AppHeader(
-                      title: _isEditing ? 'Edit Budget' : 'New Budget',
-                      subtitle: _isEditing
-                          ? 'Update your budget details'
-                          : 'Set up a new budget in a few steps',
+                    // Name
+                    TextFormField(
+                      controller: _nameController,
+                      textInputAction: TextInputAction.next,
+                      textCapitalization: TextCapitalization.words,
+                      autofocus: !_isEditing,
+                      decoration: const InputDecoration(
+                        labelText: 'Budget name',
+                        hintText: 'e.g. Personal, Vacation, Wedding',
+                        prefixIcon: Icon(Icons.label_outline_rounded),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Give your budget a name.';
+                        }
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _FormSection(
-                      title: 'General',
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Amount + currency
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        TextFormField(
-                          controller: _nameController,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Budget Name',
-                            hintText: 'e.g. Personal, Vacation, Wedding',
-                            prefixIcon: Icon(
-                              Icons.account_balance_wallet_rounded,
+                        Expanded(
+                          child: TextFormField(
+                            controller: _amountController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
                             ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Budget name cannot be empty.';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _amountController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'[0-9.]'),
-                                  ),
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: 'Budget Amount',
-                                  prefixIcon: Icon(
-                                    Icons.currency_rupee_rounded,
-                                  ),
-                                ),
-                                validator: (value) {
-                                  final amount = double.tryParse(value ?? '');
-                                  if (amount == null || amount <= 0) {
-                                    return 'Enter an amount greater than zero.';
-                                  }
-                                  return null;
-                                },
+                            textInputAction: TextInputAction.done,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d{0,2}'),
                               ),
+                            ],
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
                             ),
-                            const SizedBox(width: AppSpacing.sm),
-                            DropdownButton<String>(
+                            decoration: InputDecoration(
+                              labelText: 'Budget amount',
+                              prefixText:
+                                  '${CurrencyFormatter.symbolFor(_currency)} ',
+                              prefixStyle: theme.textTheme.titleLarge?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                              helperText:
+                                  'The total for the whole budget period',
+                            ),
+                            validator: (value) {
+                              final amount = double.tryParse(value ?? '');
+                              if (amount == null || amount <= 0) {
+                                return 'Enter an amount greater than zero.';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Semantics(
+                          label: 'Currency',
+                          child: Container(
+                            height: 56,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.smd,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainer,
+                              borderRadius: AppSpacing.borderRadiusMd,
+                            ),
+                            child: DropdownButton<String>(
                               value: _selectedCurrencyCode,
+                              hint: const Text('Currency'),
+                              underline: const SizedBox.shrink(),
+                              borderRadius: AppSpacing.borderRadiusMd,
                               onChanged: (value) {
                                 if (value != null) {
                                   setState(() => _currency = value);
                                 }
                               },
-                              items: _currencies
-                                  .map(
-                                    (currency) => DropdownMenuItem<String>(
-                                      value: currency.code,
-                                      child: Text(currency.symbol),
+                              items: [
+                                for (final currency in _currencies)
+                                  DropdownMenuItem<String>(
+                                    value: currency.code,
+                                    child: Text(
+                                      '${currency.symbol}  ${currency.code}',
                                     ),
-                                  )
-                                  .toList(),
+                                  ),
+                              ],
+                              selectedItemBuilder: (context) => [
+                                for (final currency in _currencies)
+                                  Center(
+                                    child: Text(
+                                      currency.code,
+                                      style: theme.textTheme.labelLarge,
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _FormSection(
-                      title: 'Date Range',
-                      children: [
-                        _DateRangePicker(
-                          startDate: _startDate,
-                          endDate: _endDate,
-                          onPickStart: () => _pickDate(isStart: true),
-                          onPickEnd: () => _pickDate(isStart: false),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          '$_dayCount days',
-                          key: const Key('budgetDaysSummary'),
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: context.appColors.primary,
-                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    _FormSection(
-                      title: 'Style',
-                      children: [
-                        _IconAndColorPicker(
-                          selectedIcon: _icon,
-                          selectedColor: _color,
-                          onIconSelected: (icon) =>
-                              setState(() => _icon = icon),
-                          onColorSelected: (color) =>
-                              setState(() => _color = color),
-                        ),
-                      ],
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // Period
+                    KeyedSubtree(
+                      key: _dateKey,
+                      child: _PeriodSection(
+                        startDate: _startDate,
+                        endDate: _endDate,
+                        dayCount: _dayCount,
+                        errorText: _dateError,
+                        onPickStart: () => _pickDate(isStart: true),
+                        onPickEnd: () => _pickDate(isStart: false),
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    _FormSection(
-                      title: 'Notes',
-                      children: [
-                        TextFormField(
-                          controller: _notesController,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: 'Notes (optional)',
-                            prefixIcon: Icon(Icons.notes_rounded),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // Look
+                    Text('Look', style: theme.textTheme.titleSmall),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Optional. Helps you tell budgets apart in lists.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                    if (_error != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _IconAndColorPicker(
+                      selectedIcon: _icon,
+                      selectedColor: _color,
+                      onIconSelected: (icon) =>
+                          setState(() => _icon = _icon == icon ? null : icon),
+                      onColorSelected: (color) => setState(
+                        () => _color = _color == color ? null : color,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // Notes
+                    TextFormField(
+                      controller: _notesController,
+                      maxLines: 3,
+                      minLines: 1,
+                      keyboardType: TextInputType.multiline,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes',
+                        hintText: 'Anything to remember about this budget',
+                        alignLabelWithHint: true,
+                        prefixIcon: Icon(Icons.notes_rounded),
+                      ),
+                    ),
+                    if (_saveError != null) ...[
                       const SizedBox(height: AppSpacing.md),
-                      Text(
-                        _error!,
-                        style: TextStyle(color: theme.colorScheme.error),
+                      StatusCard(
+                        color: theme.colorScheme.error,
+                        icon: Icons.error_outline_rounded,
+                        message: _saveError!,
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
-                    PrimaryButton(
-                      onPressed: _saving ? null : _save,
-                      isLoading: _saving,
-                      label: _isEditing ? 'Save Changes' : 'Create Budget',
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
                   ],
                 ),
               ),
-      ),
+            ),
+      bottomNavigationBar: _loading
+          ? null
+          : SafeArea(
+              minimum: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.md,
+              ),
+              child: PrimaryButton(
+                onPressed: _saving ? null : _save,
+                isLoading: _saving,
+                icon: _isEditing ? Icons.check_rounded : Icons.add_rounded,
+                label: _isEditing ? 'Save changes' : 'Create budget',
+              ),
+            ),
     );
   }
 }
 
-class _FormSection extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _FormSection({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.primary,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        AppCard(child: Column(children: children)),
-      ],
-    );
-  }
-}
-
-class _BudgetFormSkeleton extends StatelessWidget {
-  const _BudgetFormSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      children: const [
-        SkeletonBox(width: 180, height: 24),
-        SizedBox(height: AppSpacing.lg),
-        SkeletonBox(width: double.infinity, height: 72),
-        SizedBox(height: AppSpacing.lg),
-        SkeletonBox(width: double.infinity, height: 120),
-        SizedBox(height: AppSpacing.lg),
-        SkeletonBox(width: double.infinity, height: 140),
-        SizedBox(height: AppSpacing.lg),
-        SkeletonBox(width: double.infinity, height: 96),
-      ],
-    );
-  }
-}
-
-class _DateRangePicker extends StatelessWidget {
+class _PeriodSection extends StatelessWidget {
   final DateTime startDate;
   final DateTime endDate;
+  final int dayCount;
+  final String? errorText;
   final VoidCallback onPickStart;
   final VoidCallback onPickEnd;
 
-  const _DateRangePicker({
+  const _PeriodSection({
     required this.startDate,
     required this.endDate,
+    required this.dayCount,
+    required this.errorText,
     required this.onPickStart,
     required this.onPickEnd,
   });
 
-  String _fmt(DateTime d) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(d.day)}/${two(d.month)}/${d.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final start = _DateField(
-          label: 'Start',
-          value: _fmt(startDate),
-          onTap: onPickStart,
-        );
-        final end = _DateField(
-          label: 'End',
-          value: _fmt(endDate),
-          onTap: onPickEnd,
-        );
-
-        if (constraints.maxWidth >= 420) {
-          return Row(
+    final theme = Theme.of(context);
+    final valid = dayCount > 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Period', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final start = _DateField(
+              label: 'Starts',
+              date: startDate,
+              onTap: onPickStart,
+              hasError: errorText != null,
+            );
+            final end = _DateField(
+              label: 'Ends',
+              date: endDate,
+              onTap: onPickEnd,
+              hasError: errorText != null,
+            );
+            if (constraints.maxWidth < 340) {
+              return Column(
+                children: [
+                  start,
+                  const SizedBox(height: AppSpacing.sm),
+                  end,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: start),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: end),
+              ],
+            );
+          },
+        ),
+        if (errorText != null)
+          FormFieldError(message: errorText!)
+        else ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
             children: [
-              Expanded(child: start),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                child: Icon(Icons.arrow_forward_rounded),
+              Icon(
+                Icons.timelapse_rounded,
+                size: AppSizes.iconSm,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              Expanded(child: end),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  valid
+                      ? '$dayCount ${dayCount == 1 ? 'day' : 'days'} · '
+                            '${formatDateRange(startDate, endDate)}'
+                      : 'The end date must be after the start date',
+                  key: const Key('budgetDaysSummary'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
-          );
-        }
-        return Column(
-          children: [
-            start,
-            const SizedBox(height: AppSpacing.sm),
-            end,
-          ],
-        );
-      },
+          ),
+        ],
+      ],
     );
   }
 }
 
 class _DateField extends StatelessWidget {
   final String label;
-  final String value;
+  final DateTime date;
   final VoidCallback onTap;
+  final bool hasError;
 
   const _DateField({
     required this.label,
-    required this.value,
+    required this.date,
     required this.onTap,
+    required this.hasError,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: const Icon(Icons.event_rounded),
+    final theme = Theme.of(context);
+    final text = DateFormat('d MMM yyyy').format(date);
+    return Semantics(
+      button: true,
+      label: '$label $text',
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppSpacing.borderRadiusMd,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: label,
+              prefixIcon: const Icon(Icons.event_rounded),
+              enabledBorder: hasError
+                  ? theme.inputDecorationTheme.errorBorder
+                  : null,
+            ),
+            child: Text(
+              text,
+              style: theme.textTheme.bodyLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ),
-        child: Text(value),
       ),
     );
   }
@@ -517,100 +619,102 @@ class _IconAndColorPicker extends StatelessWidget {
     required this.onColorSelected,
   });
 
-  static const _icons = [
-    'personal',
-    'family',
-    'vacation',
-    'wedding',
-    'business',
-    'travel',
-    'home',
-  ];
-
-  static const _colors = [
-    '0xFF2196F3',
-    '0xFF4CAF50',
-    '0xFFFF9800',
-    '0xFFF44336',
-    '0xFF9C27B0',
-    '0xFF009688',
-  ];
-
-  IconData _iconFor(String name) {
-    switch (name) {
-      case 'personal':
-        return Icons.person_rounded;
-      case 'family':
-        return Icons.family_restroom_rounded;
-      case 'vacation':
-        return Icons.beach_access_rounded;
-      case 'wedding':
-        return Icons.favorite_rounded;
-      case 'business':
-        return Icons.business_center_rounded;
-      case 'travel':
-        return Icons.flight_takeoff_rounded;
-      case 'home':
-        return Icons.home_rounded;
-      default:
-        return Icons.account_balance_wallet_rounded;
-    }
-  }
-
-  Color _colorFor(String hex) {
-    final value = int.tryParse(hex.replaceFirst('0x', ''), radix: 16) ?? 0;
-    return Color(value);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Icon'),
-        const SizedBox(height: AppSpacing.xs),
         Wrap(
-          spacing: 8,
-          children: _icons
-              .map(
-                (icon) => ChoiceChip(
-                  avatar: Icon(_iconFor(icon), size: 18),
-                  label: const SizedBox.shrink(),
-                  selected: selectedIcon == icon,
-                  onSelected: (_) => onIconSelected(icon),
-                ),
-              )
-              .toList(),
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final (id, label, icon) in BudgetVisuals.iconOptions)
+              ChoiceChip(
+                avatar: Icon(icon, size: AppSizes.iconSm + 2),
+                label: Text(label),
+                selected: selectedIcon == id,
+                onSelected: (_) => onIconSelected(id),
+              ),
+          ],
         ),
-        const SizedBox(height: AppSpacing.sm),
-        const Text('Color'),
-        const SizedBox(height: AppSpacing.xs),
+        const SizedBox(height: AppSpacing.smd),
         Wrap(
-          spacing: 8,
-          children: _colors
-              .map(
-                (color) => InkWell(
-                  onTap: () => onColorSelected(color),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: _colorFor(color),
-                      shape: BoxShape.circle,
-                      border: selectedColor == color
-                          ? Border.all(width: 3, color: Colors.black54)
-                          : null,
-                    ),
-                    child: selectedColor == color
-                        ? const Icon(Icons.check, color: Colors.white, size: 18)
-                        : null,
-                  ),
-                ),
-              )
-              .toList(),
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final (hex, name) in BudgetVisuals.colorOptions)
+              _ColorSwatch(
+                color: BudgetVisuals.rawColor(hex),
+                name: name,
+                selected: selectedColor == hex,
+                onTap: () => onColorSelected(hex),
+                surface: theme.colorScheme.surface,
+              ),
+          ],
         ),
       ],
+    );
+  }
+}
+
+class _ColorSwatch extends StatelessWidget {
+  final Color color;
+  final String name;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color surface;
+
+  const _ColorSwatch({
+    required this.color,
+    required this.name,
+    required this.selected,
+    required this.onTap,
+    required this.surface,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onColor =
+        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+        ? Colors.white
+        : Colors.black;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$name colour',
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: AppSizes.touchTarget,
+            height: AppSizes.touchTarget,
+            child: Center(
+              child: AnimatedContainer(
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.fast,
+                ),
+                width: selected ? 36 : 30,
+                height: selected ? 36 : 30,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: selected ? theme.colorScheme.onSurface : surface,
+                    width: 2,
+                  ),
+                ),
+                child: selected
+                    ? Icon(Icons.check_rounded, color: onColor, size: 18)
+                    : null,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

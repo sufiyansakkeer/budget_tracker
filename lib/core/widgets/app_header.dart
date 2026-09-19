@@ -3,7 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../constants/app_spacing.dart';
 
-/// A consistent page header showing the app title and a contextual subtitle.
+/// A consistent page header showing the screen title and a contextual
+/// subtitle, used by tab screens that have no [AppBar].
 class AppHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -31,19 +32,24 @@ class AppHeader extends StatelessWidget {
                   ? CrossAxisAlignment.center
                   : CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.xxs),
                   Text(
                     subtitle!,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ],
@@ -59,95 +65,16 @@ class AppHeader extends StatelessWidget {
   }
 }
 
-/// Formats a date range like "01 Aug – 31 Aug".
+/// Formats a date range like "1 Aug – 31 Aug 2026".
 String formatDateRange(DateTime start, DateTime end) {
-  final startFmt = DateFormat('d MMM');
-  final endFmt = (start.year == end.year && start.month == end.month)
-      ? DateFormat('d MMM yyyy')
-      : DateFormat('d MMM yyyy');
+  final sameYear = start.year == end.year;
+  final startFmt = sameYear ? DateFormat('d MMM') : DateFormat('d MMM yyyy');
+  final endFmt = DateFormat('d MMM yyyy');
   return '${startFmt.format(start)} – ${endFmt.format(end)}';
 }
 
-/// A tappable pill showing the active budget name + date range.
-///
-/// Used as a deliberate control (not a plain label) to open the budget
-/// switcher. Reuses the same visual language as [AppHeader].
-class BudgetSelectorChip extends StatelessWidget {
-  final String? budgetName;
-  final DateTime? startDate;
-  final DateTime? endDate;
-  final VoidCallback onTap;
-
-  const BudgetSelectorChip({
-    super.key,
-    this.budgetName,
-    this.startDate,
-    this.endDate,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final name = budgetName ?? 'Select Budget';
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHigh.withValues(
-              alpha: 0.6,
-            ),
-            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.account_balance_wallet_rounded,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      name,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (startDate != null && endDate != null)
-                      Text(
-                        formatDateRange(startDate!, endDate!),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              const Icon(Icons.arrow_drop_down_rounded, size: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+/// Formats a short date range like "1 Aug – 31 Aug" (no year).
+String formatShortDateRange(DateTime start, DateTime end) {
+  final fmt = DateFormat('d MMM');
+  return '${fmt.format(start)} – ${fmt.format(end)}';
 }

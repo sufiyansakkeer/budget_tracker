@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../domain/entities/expense_history_sort.dart';
 
 /// Bottom sheet for selecting a sort option.
@@ -12,60 +13,53 @@ class SortBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Sort by',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Expenses stay grouped by day, newest day first. The sort '
-              'order applies to the expenses within each day.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            ...ExpenseSortOption.values.map((option) {
-              return ListTile(
-                key: Key('sort_${option.name}'),
-                leading: Icon(_iconFor(option)),
-                title: Text(option.label),
-                trailing: option == current
-                    ? Icon(Icons.check, color: theme.colorScheme.primary)
-                    : null,
-                selected: option == current,
-                onTap: () => Navigator.pop(context, option),
-              );
-            }),
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppSheetHeader(
+          title: 'Sort by',
+          subtitle:
+              'Expenses stay grouped by day, newest day first. Sorting '
+              'applies within each day.',
         ),
-      ),
+        for (final option in ExpenseSortOption.values)
+          RadioListTile<ExpenseSortOption>(
+            key: Key('sort_${option.name}'),
+            value: option,
+            groupValue: current,
+            onChanged: (value) => Navigator.pop(context, value),
+            controlAffinity: ListTileControlAffinity.trailing,
+            secondary: Icon(
+              _iconFor(option),
+              color: option == current
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            title: Text(option.label),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+            ),
+          ),
+        const SizedBox(height: AppSpacing.sm),
+      ],
     );
   }
 
   IconData _iconFor(ExpenseSortOption option) {
     switch (option) {
       case ExpenseSortOption.newestFirst:
-        return Icons.arrow_downward;
+        return Icons.arrow_downward_rounded;
       case ExpenseSortOption.oldestFirst:
-        return Icons.arrow_upward;
+        return Icons.arrow_upward_rounded;
       case ExpenseSortOption.highestAmount:
-        return Icons.trending_down;
+        return Icons.trending_down_rounded;
       case ExpenseSortOption.lowestAmount:
-        return Icons.trending_up;
+        return Icons.trending_up_rounded;
       case ExpenseSortOption.category:
-        return Icons.category;
+        return Icons.category_rounded;
       case ExpenseSortOption.alphabetical:
-        return Icons.sort_by_alpha;
+        return Icons.sort_by_alpha_rounded;
     }
   }
 }
@@ -75,14 +69,8 @@ Future<ExpenseSortOption?> showSortBottomSheet(
   BuildContext context, {
   required ExpenseSortOption current,
 }) {
-  return showModalBottomSheet<ExpenseSortOption>(
+  return AppBottomSheet.show<ExpenseSortOption>(
     context: context,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(
-        top: Radius.circular(AppSpacing.radiusLg),
-      ),
-    ),
     builder: (context) => SortBottomSheet(current: current),
   );
 }

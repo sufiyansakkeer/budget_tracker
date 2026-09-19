@@ -22,10 +22,18 @@ class ExpenseNoteField extends StatelessWidget {
       maxLines: 4,
       minLines: 2,
       maxLength: ExpenseValidator.maxNoteLength,
-      decoration: const InputDecoration(
-        labelText: 'Note (optional)',
-        hintText: 'Add a note about this expense...',
+      keyboardType: TextInputType.multiline,
+      textCapitalization: TextCapitalization.sentences,
+      textInputAction: TextInputAction.newline,
+      decoration: InputDecoration(
+        labelText: 'Note',
+        hintText: 'What was this for?',
         alignLabelWithHint: true,
+        prefixIcon: const Padding(
+          padding: EdgeInsets.only(bottom: 40),
+          child: Icon(Icons.notes_rounded),
+        ),
+        errorText: errorText,
       ),
       onChanged: onChanged,
       validator: (_) => errorText,

@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/validators/expense_validator.dart';
@@ -20,13 +26,14 @@ import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
 import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
-import '../../../../core/theme/app_colors_extension.dart';
 
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense.
 ///
-/// The form is budget-aware: it shows a budget picker (defaulting to the
-/// active budget), uses the selected budget's currency, and validates that the
-/// expense date falls within the selected budget's period.
+/// Priority order on screen: amount → category → date & time → optional
+/// details (budget, note, tags, receipt). Date and time are pre-filled by the
+/// BLoC for new expenses and stay editable. The budget picker defaults to the
+/// active budget, drives the currency symbol, and the expense date must fall
+/// inside the selected budget's period.
 class ExpenseFormScreen extends StatefulWidget {
   final String? expenseId;
 
@@ -42,6 +49,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
 
+  // Anchors for scroll-to-first-error.
+  final _amountKey = GlobalKey();
+  final _categoryKey = GlobalKey();
+  final _dateKey = GlobalKey();
+  final _budgetKey = GlobalKey();
+
   List<String> _tags = [];
   String? _selectedCategoryId;
   String? _amountError;
@@ -53,73 +66,23 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   List<BudgetEntity> _budgets = [];
   String? _selectedBudgetId;
-  String? _budgetCurrencyCode = 'INR';
   String? _budgetError;
   bool _loadingBudgets = true;
+  bool _budgetsFailed = false;
+  bool _populated = false;
+  bool _justSaved = false;
 
   bool get _isEditing => widget.expenseId != null;
 
   @override
   void initState() {
     super.initState();
-    context.read<ExpenseBloc>().add(const ExpenseLoadCategories());
-    // Initialize the default date/time defaults only for new expenses. The
-    // values are captured once by the BLoC and kept in state.
-    if (!_isEditing) {
-      context.read<ExpenseBloc>().add(const ExpenseInitialize());
-    }
+    final bloc = context.read<ExpenseBloc>();
+    bloc.add(const ExpenseLoadCategories());
+    // Default date/time are captured once by the BLoC and kept in state.
+    if (!_isEditing) bloc.add(const ExpenseInitialize());
     _loadBudgets();
-    if (_isEditing) {
-      context.read<ExpenseBloc>().add(ExpenseLoadById(widget.expenseId!));
-    }
-  }
-
-  Future<void> _loadBudgets() async {
-    final budgets = await _manageBudget.getAll();
-    final activeId = await _manageBudget.activeBudgetId();
-    if (!mounted) return;
-    setState(() {
-      _budgets = budgets.where((b) => !b.isArchived).toList();
-      _selectedBudgetId ??= activeId;
-      _loadingBudgets = false;
-    });
-    _applyBudgetCurrency();
-  }
-
-  void _applyBudgetCurrency() {
-    final budget = _selectedBudget();
-    if (budget != null) {
-      setState(() => _budgetCurrencyCode = budget.currency);
-    }
-  }
-
-  BudgetEntity? _selectedBudget() {
-    if (_selectedBudgetId == null) return null;
-    for (final b in _budgets) {
-      if (b.id == _selectedBudgetId) return b;
-    }
-    return null;
-  }
-
-  String _currencySymbol() {
-    switch (_budgetCurrencyCode) {
-      case 'INR':
-        return '₹';
-      case 'USD':
-        return '\$';
-      case 'EUR':
-        return '€';
-      case 'GBP':
-        return '£';
-      case 'JPY':
-        return '¥';
-      case 'AED':
-        return 'د.إ';
-      case 'SAR':
-        return 'ر.س';
-      default:
-        return '₹';
-    }
+    if (_isEditing) bloc.add(ExpenseLoadById(widget.expenseId!));
   }
 
   @override
@@ -129,49 +92,61 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     super.dispose();
   }
 
+  Future<void> _loadBudgets() async {
+    setState(() {
+      _loadingBudgets = true;
+      _budgetsFailed = false;
+    });
+    try {
+      final budgets = await _manageBudget.getAll();
+      final activeId = await _manageBudget.activeBudgetId();
+      if (!mounted) return;
+      setState(() {
+        _budgets = budgets.where((b) => !b.isArchived).toList();
+        _selectedBudgetId ??= activeId;
+        _loadingBudgets = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingBudgets = false;
+        _budgetsFailed = true;
+      });
+    }
+  }
+
+  BudgetEntity? get _selectedBudget {
+    for (final b in _budgets) {
+      if (b.id == _selectedBudgetId) return b;
+    }
+    return null;
+  }
+
+  String get _currencySymbol =>
+      CurrencyFormatter.symbolFor(_selectedBudget?.currency);
+
   void _populateFromExpense(ExpenseEntity expense) {
-    _amountController.text = expense.amount.toString();
-    _noteController.text = expense.note ?? '';
-    _selectedCategoryId = expense.categoryId;
-    _date = expense.date;
-    _time = TimeOfDay(hour: expense.time.hour, minute: expense.time.minute);
-    _receiptPath = expense.receiptImagePath;
-    _tags = List.of(expense.tags);
-    _selectedBudgetId = expense.budgetId;
-  }
-
-  void _onAmountChanged(String value) {
     setState(() {
-      _amountError = ExpenseValidator.validateAmount(value);
+      _amountController.text = _formatAmountForInput(expense.amount);
+      _noteController.text = expense.note ?? '';
+      _selectedCategoryId = expense.categoryId;
+      _date = expense.date;
+      _time = TimeOfDay(hour: expense.time.hour, minute: expense.time.minute);
+      _receiptPath = expense.receiptImagePath;
+      _tags = List.of(expense.tags);
+      _selectedBudgetId = expense.budgetId;
+      _populated = true;
     });
   }
 
-  void _onCategoryChanged(String categoryId) {
-    setState(() {
-      _selectedCategoryId = categoryId;
-      _categoryError = null;
-    });
-  }
-
-  void _onBudgetChanged(String? budgetId) {
-    setState(() {
-      _selectedBudgetId = budgetId;
-      _budgetError = null;
-      _dateError = null;
-    });
-    _applyBudgetCurrency();
-  }
-
-  void _onDateChanged(DateTime? date) {
-    setState(() {
-      _date = date;
-      _dateError = null;
-    });
+  String _formatAmountForInput(double amount) {
+    if (amount == amount.roundToDouble()) return amount.toStringAsFixed(0);
+    return amount.toStringAsFixed(2);
   }
 
   String? _validateDateInBudget(DateTime? date) {
     if (date == null) return null;
-    final budget = _selectedBudget();
+    final budget = _selectedBudget;
     if (budget == null) return null;
 
     final day = DateTime(date.year, date.month, date.day);
@@ -186,9 +161,21 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       budget.endDate.day,
     );
     if (day.isBefore(start) || day.isAfter(end)) {
-      return 'This expense date is outside the selected budget period.';
+      return 'Outside the ${budget.name} budget period '
+          '(${formatShortDateRange(budget.startDate, budget.endDate)}).';
     }
     return null;
+  }
+
+  void _scrollTo(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: AppMotion.medium,
+      curve: AppMotion.standardCurve,
+      alignment: 0.1,
+    );
   }
 
   void _save() {
@@ -196,28 +183,26 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
     final amountError = ExpenseValidator.validateAmount(_amountController.text);
     final categoryError = _selectedCategoryId == null
-        ? 'Please select a category'
+        ? 'Choose a category for this expense.'
         : null;
-    final futureDateError = ExpenseValidator.validateDate(_date);
-    final inBudgetError = _validateDateInBudget(_date);
+    final dateError =
+        ExpenseValidator.validateDate(_date) ?? _validateDateInBudget(_date);
     final budgetError = _selectedBudgetId == null
-        ? 'Please select a budget'
+        ? 'Choose the budget this expense belongs to.'
         : null;
 
     setState(() {
       _amountError = amountError;
       _categoryError = categoryError;
-      _dateError = futureDateError ?? inBudgetError;
+      _dateError = dateError;
       _budgetError = budgetError;
     });
+    _formKey.currentState?.validate();
 
-    if (!_formKey.currentState!.validate()) return;
-    if (_amountError != null ||
-        _categoryError != null ||
-        _dateError != null ||
-        _budgetError != null) {
-      return;
-    }
+    if (amountError != null) return _scrollTo(_amountKey);
+    if (categoryError != null) return _scrollTo(_categoryKey);
+    if (dateError != null) return _scrollTo(_dateKey);
+    if (budgetError != null) return _scrollTo(_budgetKey);
 
     final amount = double.parse(_amountController.text.trim());
     final now = DateTime.now();
@@ -247,132 +232,145 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       updatedAt: now,
     );
 
-    if (_isEditing) {
-      context.read<ExpenseBloc>().add(ExpenseUpdate(expense));
+    final bloc = context.read<ExpenseBloc>();
+    bloc.add(_isEditing ? ExpenseUpdate(expense) : ExpenseCreate(expense));
+  }
+
+  void _close() {
+    if (Navigator.of(context).canPop()) {
+      context.pop();
     } else {
-      context.read<ExpenseBloc>().add(ExpenseCreate(expense));
+      // Opened from the home-screen widget deep link: nothing to pop.
+      context.go('/app/home');
     }
+  }
+
+  Future<void> _onSaved(String? message) async {
+    HapticFeedback.lightImpact();
+    setState(() => _justSaved = true);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message ?? 'Saved')));
+    // Let the check mark land before leaving the screen.
+    await Future<void>.delayed(
+      AppMotion.respectReducedMotion(context, AppMotion.emphasized),
+    );
+    if (!mounted) return;
+    _close();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Edit Expense' : 'Add Expense')),
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit expense' : 'Add expense'),
+        leading: IconButton(
+          tooltip: 'Close',
+          icon: const Icon(Icons.close_rounded),
+          onPressed: _close,
+        ),
+      ),
       body: BlocConsumer<ExpenseBloc, ExpenseState>(
         listener: (context, state) {
-          if (state.isBusy) return;
-
-          if (state.status == ExpenseBlocStatus.success) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.message ?? 'Saved')));
+          if (state.status == ExpenseBlocStatus.success && !_justSaved) {
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
-            // When the Add Expense screen was opened from the home-screen
-            // widget deep-link it is the initial route — there is nothing to
-            // pop back to.  Detect this and navigate to the Dashboard instead.
-            final navigator = Navigator.of(context);
-            if (navigator.canPop()) {
-              context.pop();
-            } else {
-              context.go('/app/home');
-            }
+            _onSaved(state.message);
           } else if (state.status == ExpenseBlocStatus.error) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
-                  content: Text(state.message ?? 'Something went wrong'),
-                  backgroundColor: context.appColors.error,
+                  content: Text(state.message ?? "Couldn't save the expense"),
+                  action: SnackBarAction(label: 'Retry', onPressed: _save),
                 ),
               );
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
           }
 
-          // Populate fields once the expense loads for editing.
-          if (state.expense != null &&
-              _isEditing &&
-              _amountController.text.isEmpty) {
+          // Populate once the expense loads for editing.
+          if (_isEditing && !_populated && state.expense != null) {
             _populateFromExpense(state.expense!);
           }
 
           // Apply the BLoC-provided default date/time for new expenses.
-          if (!_isEditing && _date == null) {
-            if (state.initialDate != null) {
-              _date = state.initialDate;
-            }
-            if (state.initialTime != null && _time == null) {
-              _time = TimeOfDay(
-                hour: state.initialTime!.hour,
-                minute: state.initialTime!.minute,
-              );
-            }
+          if (!_isEditing && (_date == null || _time == null)) {
+            setState(() {
+              _date ??= state.initialDate;
+              if (_time == null && state.initialTime != null) {
+                _time = TimeOfDay(
+                  hour: state.initialTime!.hour,
+                  minute: state.initialTime!.minute,
+                );
+              }
+            });
           }
         },
         builder: (context, state) {
           final isSaving = state.isBusy;
 
-          // If editing and still loading without data yet.
-          if (_isEditing && state.status == ExpenseBlocStatus.loading) {
-            return const Center(child: CircularProgressIndicator());
+          if (_isEditing &&
+              !_populated &&
+              state.status == ExpenseBlocStatus.loading) {
+            return const FormSkeleton(rows: 5);
           }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.md),
+          return AbsorbPointer(
+            absorbing: isSaving || _justSaved,
             child: Form(
               key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: ListView(
+                padding: AppSpacing.pagePadding,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 children: [
-                  ExpenseAmountField(
-                    controller: _amountController,
-                    currencySymbol: _currencySymbol(),
-                    errorText: _amountError,
-                    onChanged: _onAmountChanged,
+                  // 1. Amount
+                  KeyedSubtree(
+                    key: _amountKey,
+                    child: ExpenseAmountField(
+                      controller: _amountController,
+                      currencySymbol: _currencySymbol,
+                      errorText: _amountError,
+                      autofocus: !_isEditing,
+                      onChanged: (value) => setState(() {
+                        _amountError = value.isEmpty
+                            ? null
+                            : ExpenseValidator.validateAmount(value);
+                      }),
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  _buildBudgetPicker(),
-                  if (_budgetError != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _budgetError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontSize: 12,
-                      ),
+
+                  // 2. Category
+                  KeyedSubtree(
+                    key: _categoryKey,
+                    child: CategoryPicker(
+                      categories: state.categories,
+                      selectedCategoryId: _selectedCategoryId,
+                      errorText: _categoryError,
+                      onSelected: (id) => setState(() {
+                        _selectedCategoryId = id;
+                        _categoryError = null;
+                      }),
                     ),
-                  ],
-                  const SizedBox(height: AppSpacing.lg),
-                  CategoryPicker(
-                    categories: state.categories,
-                    selectedCategoryId: _selectedCategoryId,
-                    onSelected: _onCategoryChanged,
                   ),
-                  if (_categoryError != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _categoryError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: AppSpacing.lg),
-                  _buildDateTimeRow(),
-                  if (_dateError != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _dateError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+
+                  // 3. Date & time
+                  KeyedSubtree(key: _dateKey, child: _buildDateTimeRow()),
                   const SizedBox(height: AppSpacing.lg),
+
+                  // 4. Details
+                  Text(
+                    'Details',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  KeyedSubtree(key: _budgetKey, child: _buildBudgetPicker()),
+                  const SizedBox(height: AppSpacing.md),
                   ExpenseNoteField(controller: _noteController),
                   const SizedBox(height: AppSpacing.md),
                   TagInputField(
+                    key: ValueKey('tags_$_populated'),
                     initialTags: _tags,
                     onTagsChanged: (tags) => setState(() => _tags = tags),
                   ),
@@ -382,93 +380,125 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                     onChanged: (path) => setState(() => _receiptPath = path),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  ExpenseFormActions(
-                    isSaving: isSaving,
-                    isEditing: _isEditing,
-                    onSave: _save,
-                    onCancel: () {
-                      final navigator = Navigator.of(context);
-                      if (navigator.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go('/app/home');
-                      }
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.md),
                 ],
               ),
             ),
           );
         },
       ),
+      // Sticky action bar: always visible, sits above the keyboard.
+      bottomNavigationBar: BlocBuilder<ExpenseBloc, ExpenseState>(
+        buildWhen: (a, b) => a.isBusy != b.isBusy,
+        builder: (context, state) => SafeArea(
+          minimum: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.md,
+          ),
+          child: ExpenseFormActions(
+            isSaving: state.isBusy,
+            isSaved: _justSaved,
+            isEditing: _isEditing,
+            onSave: _save,
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildBudgetPicker() {
+    final theme = Theme.of(context);
     if (_loadingBudgets) {
-      return const LinearProgressIndicator();
+      return const Shimmer(
+        child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
+      );
+    }
+    if (_budgetsFailed) {
+      return StatusCard(
+        color: theme.colorScheme.error,
+        icon: Icons.error_outline_rounded,
+        message: "Couldn't load your budgets.",
+        trailing: TextButton(
+          onPressed: _loadBudgets,
+          child: const Text('Retry'),
+        ),
+      );
     }
     if (_budgets.isEmpty) {
-      return Text(
-        'No budgets available. Create a budget first.',
-        style: TextStyle(color: Theme.of(context).colorScheme.error),
+      return StatusCard(
+        color: theme.colorScheme.error,
+        icon: Icons.account_balance_wallet_outlined,
+        title: 'No budget yet',
+        message: 'Create a budget before adding expenses.',
+        trailing: TextButton(
+          onPressed: () async {
+            await context.push('/app/budgets/create');
+            if (mounted) _loadBudgets();
+          },
+          child: const Text('Create'),
+        ),
       );
     }
     return DropdownButtonFormField<String>(
-      value: _selectedBudgetId,
-      decoration: const InputDecoration(
+      value: _budgets.any((b) => b.id == _selectedBudgetId)
+          ? _selectedBudgetId
+          : null,
+      isExpanded: true,
+      decoration: InputDecoration(
         labelText: 'Budget',
-        prefixIcon: Icon(Icons.account_balance_wallet_rounded),
+        prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+        errorText: _budgetError,
       ),
-      items: _budgets
-          .map(
-            (b) => DropdownMenuItem(
-              value: b.id,
-              child: Text(
-                '${b.name} (${_fmtRange(b.startDate, b.endDate)})',
-                overflow: TextOverflow.ellipsis,
-              ),
+      items: [
+        for (final b in _budgets)
+          DropdownMenuItem(
+            value: b.id,
+            child: Text(
+              '${b.name} · ${formatShortDateRange(b.startDate, b.endDate)}',
+              overflow: TextOverflow.ellipsis,
             ),
-          )
-          .toList(),
-      onChanged: _onBudgetChanged,
+          ),
+      ],
+      onChanged: (id) => setState(() {
+        _selectedBudgetId = id;
+        _budgetError = null;
+        _dateError = null;
+      }),
     );
   }
 
-  String _fmtRange(DateTime start, DateTime end) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    String d(DateTime x) => '${two(x.day)}/${two(x.month)}';
-    return '${d(start)} → ${d(end)}';
-  }
-
   Widget _buildDateTimeRow() {
+    final datePicker = ExpenseDatePicker(
+      date: _date,
+      errorText: _dateError,
+      onChanged: (date) => setState(() {
+        _date = date;
+        _dateError = null;
+      }),
+    );
+    final timePicker = ExpenseTimePicker(
+      time: _time,
+      onChanged: (t) => setState(() => _time = t),
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 600;
-        final datePicker = ExpenseDatePicker(
-          date: _date,
-          onChanged: _onDateChanged,
-        );
-        final timePicker = ExpenseTimePicker(
-          time: _time,
-          onChanged: (t) => setState(() => _time = t),
-        );
-
-        if (isWide) {
-          return Row(
+        if (constraints.maxWidth < 340) {
+          return Column(
             children: [
-              Expanded(child: datePicker),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(child: timePicker),
+              datePicker,
+              const SizedBox(height: AppSpacing.md),
+              timePicker,
             ],
           );
         }
-        return Column(
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            datePicker,
-            const SizedBox(height: AppSpacing.md),
-            timePicker,
+            Expanded(flex: 3, child: datePicker),
+            const SizedBox(width: AppSpacing.smd),
+            Expanded(flex: 2, child: timePicker),
           ],
         );
       },

@@ -82,7 +82,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     DashboardRefresh event,
     Emitter<DashboardState> emit,
   ) async {
-    emit(const DashboardLoading());
+    // Keep the current content on screen while refreshing so the dashboard
+    // never flashes back to a skeleton after adding an expense. Only the
+    // first load shows the skeleton.
+    if (state is! DashboardLoaded) {
+      emit(const DashboardLoading());
+    }
     await _load(emit);
   }
 
@@ -148,6 +153,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             upcomingBills: upcomingBills,
             spendingTarget: spendingTarget,
             budgetDailyLimits: budgetDailyLimits,
+            activeBudgetId: activeId,
           ),
         );
     }

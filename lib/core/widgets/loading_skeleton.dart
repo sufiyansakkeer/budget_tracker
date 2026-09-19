@@ -1,6 +1,87 @@
 import 'package:flutter/material.dart';
 
-/// A shimmering placeholder used to build skeleton loading states.
+import '../constants/app_motion.dart';
+import '../constants/app_spacing.dart';
+
+/// Wraps skeleton placeholders in a single, shared shimmer sweep.
+///
+/// One [AnimationController] drives every [SkeletonBox] beneath it, so a whole
+/// loading layout costs one ticker. Honors reduced-motion settings by
+/// rendering static placeholders.
+class Shimmer extends StatefulWidget {
+  final Widget child;
+
+  const Shimmer({super.key, required this.child});
+
+  @override
+  State<Shimmer> createState() => _ShimmerState();
+}
+
+class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppMotion.shimmer,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.maybeDisableAnimationsOf(context) == true) {
+      return widget.child;
+    }
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.surfaceContainerHigh;
+    final highlight = theme.brightness == Brightness.dark
+        ? Color.lerp(base, theme.colorScheme.surface, -0.25)!
+        : Color.lerp(base, Colors.white, 0.6)!;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final t = _controller.value;
+        return ShaderMask(
+          blendMode: BlendMode.srcATop,
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [base, highlight, base],
+              stops: const [0.35, 0.5, 0.65],
+              transform: _SlideGradientTransform(t * 2 - 1),
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+class _SlideGradientTransform extends GradientTransform {
+  final double percent;
+  const _SlideGradientTransform(this.percent);
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * percent, 0, 0);
+  }
+}
+
+/// A placeholder block used to build skeleton loading states.
+///
+/// Place inside a [Shimmer] to animate.
 class SkeletonBox extends StatelessWidget {
   final double? width;
   final double height;
@@ -10,7 +91,7 @@ class SkeletonBox extends StatelessWidget {
     super.key,
     this.width,
     required this.height,
-    this.radius = 8,
+    this.radius = AppSpacing.radiusSm,
   });
 
   @override
@@ -27,48 +108,80 @@ class SkeletonBox extends StatelessWidget {
   }
 }
 
-/// Skeleton layout for the dashboard hero + summary while loading.
+/// A single skeleton row shaped like a list tile (avatar + two lines + amount).
+class SkeletonListTile extends StatelessWidget {
+  const SkeletonListTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.smd),
+      child: Row(
+        children: [
+          SkeletonBox(
+            width: AppSizes.avatarMd,
+            height: AppSizes.avatarMd,
+            radius: AppSpacing.radiusSmd,
+          ),
+          SizedBox(width: AppSpacing.smd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonBox(width: 140, height: 14),
+                SizedBox(height: AppSpacing.sm),
+                SkeletonBox(width: 90, height: 12),
+              ],
+            ),
+          ),
+          SizedBox(width: AppSpacing.smd),
+          SkeletonBox(width: 64, height: 14),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton layout for the dashboard while loading.
 class DashboardSkeleton extends StatelessWidget {
   const DashboardSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      children: const [
-        // Active budget selector
-        SkeletonBox(height: 56, radius: 16),
-        SizedBox(height: 16),
-        // Hero card
-        SkeletonBox(height: 180, radius: 24),
-        SizedBox(height: 16),
-        // Summary row
-        Row(
-          children: [
-            Expanded(child: SkeletonBox(height: 90, radius: 16)),
-            SizedBox(width: 12),
-            Expanded(child: SkeletonBox(height: 90, radius: 16)),
-          ],
-        ),
-        SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(child: SkeletonBox(height: 90, radius: 16)),
-            SizedBox(width: 12),
-            Expanded(child: SkeletonBox(height: 90, radius: 16)),
-          ],
-        ),
-        SizedBox(height: 24),
-        // Recent expenses skeleton
-        SkeletonBox(height: 20, width: 140),
-        SizedBox(height: 12),
-        SkeletonBox(height: 72, radius: 16),
-        SizedBox(height: 8),
-        SkeletonBox(height: 72, radius: 16),
-        SizedBox(height: 8),
-        SkeletonBox(height: 72, radius: 16),
-      ],
+    return Shimmer(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: AppSpacing.pagePadding,
+        children: const [
+          // Greeting + budget chip
+          SkeletonBox(width: 180, height: 20),
+          SizedBox(height: AppSpacing.sm),
+          SkeletonBox(width: 220, height: 36, radius: AppSpacing.radiusFull),
+          SizedBox(height: AppSpacing.lg),
+          // Hero card
+          SkeletonBox(height: 220, radius: AppSpacing.radiusLg),
+          SizedBox(height: AppSpacing.md),
+          // Overview row
+          Row(
+            children: [
+              Expanded(
+                child: SkeletonBox(height: 96, radius: AppSpacing.radiusLg),
+              ),
+              SizedBox(width: AppSpacing.smd),
+              Expanded(
+                child: SkeletonBox(height: 96, radius: AppSpacing.radiusLg),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.lg),
+          // Recent list
+          SkeletonBox(width: 160, height: 18),
+          SizedBox(height: AppSpacing.xs),
+          SkeletonListTile(),
+          SkeletonListTile(),
+          SkeletonListTile(),
+        ],
+      ),
     );
   }
 }
@@ -81,30 +194,38 @@ class ExpenseListSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      itemCount: itemCount,
-      itemBuilder: (context, index) => const Padding(
-        padding: EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            SkeletonBox(width: 44, height: 44, radius: 12),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SkeletonBox(width: 120, height: 14),
-                  SizedBox(height: 8),
-                  SkeletonBox(width: 80, height: 12),
-                ],
-              ),
-            ),
-            SizedBox(width: 12),
-            SkeletonBox(width: 60, height: 14),
+    return Shimmer(
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: AppSpacing.pagePadding,
+        itemCount: itemCount,
+        itemBuilder: (context, index) => const SkeletonListTile(),
+      ),
+    );
+  }
+}
+
+/// Generic skeleton for a form or detail page: a header block followed by
+/// several field-height rows.
+class FormSkeleton extends StatelessWidget {
+  final int rows;
+
+  const FormSkeleton({super.key, this.rows = 4});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: AppSpacing.pagePadding,
+        children: [
+          const SkeletonBox(width: 200, height: 24),
+          const SizedBox(height: AppSpacing.lg),
+          for (var i = 0; i < rows; i++) ...[
+            const SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
+            const SizedBox(height: AppSpacing.md),
           ],
-        ),
+        ],
       ),
     );
   }

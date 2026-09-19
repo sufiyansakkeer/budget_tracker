@@ -300,5 +300,17 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
 
 /// Convenience extension on [BuildContext] for accessing the semantic tokens.
 extension AppColorTokensExtension on BuildContext {
-  AppColorTokens get appColors => Theme.of(this).extension<AppColorTokens>()!;
+  /// Semantic color tokens for the current theme.
+  ///
+  /// Falls back to the default palette when the enclosing [ThemeData] was not
+  /// built by `AppTheme` (e.g. in isolated widget tests), so widgets never
+  /// throw for a missing extension.
+  AppColorTokens get appColors {
+    final theme = Theme.of(this);
+    return theme.extension<AppColorTokens>() ??
+        AppColorTokens.fromPalette(
+          ColorPalette.defaultPalette,
+          theme.brightness,
+        );
+  }
 }

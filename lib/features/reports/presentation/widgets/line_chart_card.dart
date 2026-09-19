@@ -1,14 +1,16 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/currency/currency_formatter.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/info_content.dart';
 import '../../domain/entities/daily_spending_point.dart';
-import '../../../../core/theme/app_colors_extension.dart';
+import 'chart_card.dart';
 
-/// Card containing a smooth daily-spending line chart.
-class LineChartCard extends StatefulWidget {
+/// Daily spending over the period as a smooth line.
+class LineChartCard extends StatelessWidget {
   final List<DailySpendingPoint> points;
   final String currency;
 
@@ -19,198 +21,195 @@ class LineChartCard extends StatefulWidget {
   });
 
   @override
-  State<LineChartCard> createState() => _LineChartCardState();
-}
-
-class _LineChartCardState extends State<LineChartCard> {
-  int _touchedIndex = -1;
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final empty =
-        widget.points.isEmpty || widget.points.every((p) => p.amount <= 0);
+    final colorScheme = theme.colorScheme;
+    final activeDays = points.where((p) => p.amount > 0).length;
+    final total = points.fold<double>(0, (s, p) => s + p.amount);
+    DailySpendingPoint? peak;
+    for (final p in points) {
+      if (peak == null || p.amount > peak.amount) peak = p;
+    }
+    String money(double v) =>
+        CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
 
-    return _ChartCardContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Daily Spending',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (empty)
-            _EmptyChartLabel()
-          else
-            SizedBox(
-              height: 220,
-              child: LineChart(
-                LineChartData(
-                  minY: 0,
-                  lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (_) => theme.colorScheme.surface,
-                      getTooltipItems: (spots) => spots
-                          .map(
-                            (spot) => LineTooltipItem(
-                              CurrencyFormatter.format(
-                                spot.y,
-                                code: widget.currency,
-                                decimalDigits: 0,
-                              ),
-                              TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    touchCallback: (event, response) {
-                      if (response != null && response.lineBarSpots != null) {
-                        final index = response.lineBarSpots!.first.x.toInt();
-                        if (index != _touchedIndex) {
-                          setState(() => _touchedIndex = index);
-                        }
-                      }
-                    },
+    final String? caption;
+    if (activeDays == 0 || total <= 0) {
+      caption = null;
+    } else if (peak != null && peak.amount > 0) {
+      caption =
+          'Highest day: ${DateFormat('EEE d MMM').format(peak.date)} · '
+          '${money(peak.amount)}';
+    } else {
+      caption = null;
+    }
+
+    return ChartCard(
+      title: 'Spending by day',
+      caption: caption,
+      info: InfoContent(
+        title: 'Spending by day',
+        whatIsThis:
+            "Your active budget's total spending on each day of the "
+            'selected period.',
+        howIsItCalculated:
+            'Expenses are grouped by their recorded date and added up per '
+            'day. Days with no expenses show as zero.',
+        additionalNotes: '• Tap or drag on the chart to see a day\'s total',
+      ),
+      child: activeDays == 0
+          ? const ChartPlaceholder(message: 'No spending in this period yet')
+          : activeDays < 2
+          ? ChartPlaceholder(
+              icon: Icons.timeline_rounded,
+              message:
+                  'Spending recorded on one day so far. A trend line '
+                  'appears once you spend on more days.',
+            )
+          : SizedBox(
+              height: AppSizes.chartHeight,
+              child: Semantics(
+                label:
+                    'Line chart of daily spending, ${points.length} days, '
+                    'total ${money(total)}',
+                child: LineChart(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.emphasized,
                   ),
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (_) => FlLine(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      strokeWidth: 1,
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 44,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            NumberFormat.compact().format(value),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(
-                                alpha: 0.6,
+                  curve: AppMotion.value,
+                  LineChartData(
+                    minY: 0,
+                    lineTouchData: LineTouchData(
+                      touchTooltipData: LineTouchTooltipData(
+                        getTooltipColor: (_) => colorScheme.inverseSurface,
+                        getTooltipItems: (spots) => [
+                          for (final spot in spots)
+                            LineTooltipItem(
+                              '${DateFormat('d MMM').format(points[spot.x.toInt()].date)}\n',
+                              theme.textTheme.labelSmall!.copyWith(
+                                color: colorScheme.onInverseSurface,
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 28,
-                        interval: _bottomInterval(),
-                        getTitlesWidget: (value, meta) {
-                          final index = value.toInt();
-                          if (index < 0 || index >= widget.points.length) {
-                            return const SizedBox.shrink();
-                          }
-                          final date = widget.points[index].date;
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              '${date.day}/${date.month}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.6,
+                              children: [
+                                TextSpan(
+                                  text: money(spot.y),
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: colorScheme.onInverseSurface,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          );
-                        },
+                        ],
                       ),
                     ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (_) => FlLine(
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: 0.6,
+                        ),
+                        strokeWidth: 1,
+                      ),
                     ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: [
-                        for (var i = 0; i < widget.points.length; i++)
-                          FlSpot(i.toDouble(), widget.points[i].amount),
-                      ],
-                      isCurved: true,
-                      curveSmoothness: 0.35,
-                      color: context.appColors.secondary,
-                      barWidth: 3,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: context.appColors.secondary.withValues(
-                          alpha: 0.15,
+                    titlesData: FlTitlesData(
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 44,
+                          getTitlesWidget: (value, meta) {
+                            if (value == meta.max) {
+                              return const SizedBox.shrink();
+                            }
+                            return Text(
+                              NumberFormat.compact().format(value),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            );
+                          },
                         ),
                       ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                          interval: _bottomInterval(),
+                          getTitlesWidget: (value, meta) {
+                            final index = value.toInt();
+                            if (index < 0 || index >= points.length) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                top: AppSpacing.xs,
+                              ),
+                              child: Text(
+                                DateFormat(
+                                  points.length <= 7 ? 'E' : 'd MMM',
+                                ).format(points[index].date),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                     ),
-                  ],
+                    borderData: FlBorderData(show: false),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: [
+                          for (var i = 0; i < points.length; i++)
+                            FlSpot(i.toDouble(), points[i].amount),
+                        ],
+                        isCurved: true,
+                        curveSmoothness: 0.3,
+                        preventCurveOverShooting: true,
+                        color: colorScheme.primary,
+                        barWidth: 2.5,
+                        isStrokeCapRound: true,
+                        dotData: FlDotData(
+                          show: points.length <= 14,
+                          getDotPainter: (spot, _, __, ___) =>
+                              FlDotCirclePainter(
+                                radius: 3,
+                                color: colorScheme.primary,
+                                strokeWidth: 0,
+                              ),
+                        ),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              colorScheme.primary.withValues(alpha: 0.2),
+                              colorScheme.primary.withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-        ],
-      ),
     );
   }
 
   double _bottomInterval() {
-    final count = widget.points.length;
+    final count = points.length;
     if (count <= 7) return 1;
-    if (count <= 31) return 5;
-    if (count <= 62) return 10;
+    if (count <= 31) return 7;
+    if (count <= 62) return 14;
     return 30;
-  }
-}
-
-/// Container used to standardize chart card styling.
-class _ChartCardContainer extends StatelessWidget {
-  final Widget child;
-
-  const _ChartCardContainer({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(
-          color: theme.colorScheme.surfaceContainerHighest,
-          width: 1,
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _EmptyChartLabel extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: 120,
-      child: Center(
-        child: Text(
-          'No spending data for this period',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      ),
-    );
   }
 }

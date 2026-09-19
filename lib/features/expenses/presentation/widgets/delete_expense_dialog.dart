@@ -1,34 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 
 /// Confirmation dialog shown before deleting an expense.
+///
+/// [currency] is the ISO currency code of the expense's budget.
 Future<bool> showDeleteExpenseDialog(
   BuildContext context, {
   required double amount,
   required String currency,
-}) async {
-  final result = await showDialog<bool>(
+}) {
+  return ConfirmationDialog.show(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Delete expense?'),
-      content: Text(
-        'This will permanently remove the expense of $currency$amount. '
-        'This action cannot be undone.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          key: const Key('confirmDeleteExpense'),
-          onPressed: () => Navigator.pop(context, true),
-          style: TextButton.styleFrom(foregroundColor: context.appColors.error),
-          child: const Text('Delete'),
-        ),
-      ],
-    ),
+    title: 'Delete expense?',
+    message:
+        'This removes the expense of '
+        '${CurrencyFormatter.format(amount, code: currency)} permanently.',
+    confirmLabel: 'Delete',
+    icon: Icons.delete_rounded,
+    isDestructive: true,
   );
-  return result ?? false;
 }

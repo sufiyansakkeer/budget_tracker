@@ -3,351 +3,260 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
-import '../../../../core/widgets/info_content.dart';
-import '../../../../core/widgets/info_section_header.dart';
 import '../../../../core/widgets/app_section_header.dart';
-import '../../../../core/widgets/info_icon.dart';
-import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/fade_slide_in.dart';
+import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
-import '../../../bills/domain/entities/bill_entity.dart';
-import '../../../bills/domain/entities/bill_enums.dart';
-import '../../../budget/domain/entities/budget_summary_entity.dart';
-import '../../domain/entities/recent_expense_entity.dart';
-import '../../domain/entities/smart_insight_entity.dart';
-
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
-import '../widgets/budget_daily_limits_section.dart';
-
-import '../widgets/dashboard_error_widget.dart';
-import '../widgets/empty_dashboard_state.dart';
+import '../widgets/budget_overview_card.dart';
+import '../widgets/dashboard_header.dart';
+import '../widgets/dashboard_info.dart';
 import '../widgets/insight_card.dart';
+import '../widgets/quick_actions.dart';
 import '../widgets/recent_expense_tile.dart';
+import '../widgets/safe_spending_hero.dart';
+import '../widgets/upcoming_bills_section.dart';
 
-import '../widgets/today_spending_card.dart';
-import '../../../../core/theme/app_colors_extension.dart';
-
-class DashboardScreen extends StatefulWidget {
+/// Home tab: the financial overview for the active budget.
+///
+/// Reading order answers, top to bottom: what can I safely spend today, how
+/// much have I spent, am I on track, how much remains, what should I know,
+/// what happened recently, what's due soon.
+class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
-
-  @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
-}
-
-class _DashboardScreenState extends State<DashboardScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _fadeController;
-
-  @override
-  void initState() {
-    super.initState();
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _fadeController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
+        bottom: false,
         child: BlocBuilder<DashboardBloc, DashboardState>(
           builder: (context, state) {
-            return switch (state) {
-              DashboardInitial() ||
-              DashboardLoading() => const _DashboardSkeleton(),
-              DashboardLoaded() => _buildContent(context, state),
-              DashboardEmpty() => const EmptyDashboardState(
-                type: EmptyStateType.noBudget,
+            final child = switch (state) {
+              DashboardInitial() || DashboardLoading() =>
+                const DashboardSkeleton(key: ValueKey('loading')),
+              DashboardLoaded() => _DashboardContent(
+                key: const ValueKey('loaded'),
+                state: state,
               ),
-              DashboardError(:final message) => DashboardErrorWidget(
+              DashboardEmpty() => _NoBudgetState(key: const ValueKey('empty')),
+              DashboardError(:final message) => _DashboardError(
+                key: const ValueKey('error'),
                 message: message,
-                onRetry: () {
-                  context.read<DashboardBloc>().add(const DashboardRefresh());
-                },
               ),
-              _ => const SizedBox.shrink(),
+              _ => const SizedBox.shrink(key: ValueKey('unknown')),
             };
+            return AppStateSwitcher(child: child);
           },
         ),
       ),
-      floatingActionButton: _DashboardFab(),
+      floatingActionButton: BlocBuilder<DashboardBloc, DashboardState>(
+        buildWhen: (a, b) => (a is DashboardLoaded) != (b is DashboardLoaded),
+        builder: (context, state) {
+          if (state is! DashboardLoaded) return const SizedBox.shrink();
+          return FloatingActionButton.extended(
+            heroTag: 'dashboard_fab',
+            onPressed: () => context.push('/app/expenses/add'),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add expense'),
+            tooltip: 'Add expense',
+          );
+        },
+      ),
     );
   }
+}
 
-  Widget _buildContent(BuildContext context, DashboardLoaded state) {
+// ── Loaded content ─────────────────────────────────────────────────────────
+
+class _DashboardContent extends StatelessWidget {
+  final DashboardLoaded state;
+
+  const _DashboardContent({super.key, required this.state});
+
+  @override
+  Widget build(BuildContext context) {
     final summary = state.budgetSummary;
-    final budgetDailyLimits = state.budgetDailyLimits;
+    final activeLimit = state.activeBudgetLimit;
+    final others = state.otherBudgetLimits;
+    final theme = Theme.of(context);
 
     return RefreshIndicator(
       onRefresh: () async {
-        context.read<DashboardBloc>().add(const DashboardRefresh());
+        final bloc = context.read<DashboardBloc>();
+        // The next emission is the refreshed result (loaded, empty or error).
+        final done = bloc.stream.first.timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => state,
+        );
+        bloc.add(const DashboardRefresh());
+        await done;
       },
-      child: SingleChildScrollView(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: FadeTransition(
-          opacity: _fadeController,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Center(
+        padding: AppSpacing.pagePaddingWithFab,
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppSizes.contentMaxWidth,
+              ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const ActiveBudgetSelector(),
+                  // 1. Greeting + active budget context
+                  const FadeSlideIn(index: 0, child: DashboardHeader()),
+                  const SizedBox(height: AppSpacing.smd),
+                  const FadeSlideIn(index: 1, child: ActiveBudgetSelector()),
                   const SizedBox(height: AppSpacing.md),
 
-                  // ── Per-Budget Daily Spending Limits ──────────────────
-                  BudgetDailyLimitsSection(budgetLimits: budgetDailyLimits),
-                  const SizedBox(height: AppSpacing.md),
-
-                  // ── Budget Overview (Remaining Budget) ────────────────
-                  _OverallBudgetCard(summary: summary),
-                  const SizedBox(height: AppSpacing.md),
-
-                  // ── Budget Timeline ───────────────────────────────────
-                  BudgetTimelineCard(summary: summary),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Quick Actions
-                  const SectionHeader(title: 'Quick Actions'),
-                  const SizedBox(height: AppSpacing.sm),
-                  const _QuickActionsGrid(),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Recent Expenses
-                  SectionHeader(
-                    title: 'Recent Transactions',
-                    subtitle: state.recentExpenses.isEmpty
-                        ? 'No expenses in this budget period'
-                        : '${state.recentExpenses.length} expenses',
-                    trailing: state.recentExpenses.isNotEmpty
-                        ? TextButton(
-                            onPressed: () {
-                              context.go('/app/expenses');
-                            },
-                            child: const Text('View All'),
-                          )
-                        : null,
+                  // 2. Today's Safe Spending (hero)
+                  FadeSlideIn(
+                    index: 2,
+                    child: SafeSpendingHeroSwitcher(
+                      child: activeLimit != null
+                          ? SafeSpendingHero(limit: activeLimit)
+                          : BudgetNotRunningCard(
+                              startDate: summary.startDate,
+                              endDate: summary.endDate,
+                              onSwitch: () =>
+                                  ActiveBudgetSelector.open(context),
+                            ),
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.smd),
+
+                  // 3. Budget progress / remaining / timeline
+                  FadeSlideIn(
+                    index: 3,
+                    child: BudgetOverviewCard(
+                      summary: summary,
+                      onTap: state.activeBudgetId == null
+                          ? null
+                          : () => context.push(
+                              '/app/budgets/${state.activeBudgetId}',
+                            ),
+                    ),
+                  ),
+
+                  // 3b. Other budgets running today (independent amounts)
+                  if (others.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    SectionHeader(
+                      title: 'Other budgets today',
+                      subtitle: 'Each budget has its own safe amount',
+                    ),
+                    for (var i = 0; i < others.length; i++)
+                      FadeSlideIn(
+                        index: 4 + i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: OtherBudgetLimitTile(limit: others[i]),
+                        ),
+                      ),
+                  ],
+
+                  // 4. Smart insights
+                  if (state.insights.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    const SectionHeader(
+                      title: 'Smart insights',
+                      infoContent: DashboardInfo.smartInsights,
+                    ),
+                    for (var i = 0; i < state.insights.length; i++)
+                      FadeSlideIn(
+                        index: 4 + i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: InsightCard(
+                            message: state.insights[i].message,
+                            type: state.insights[i].type,
+                          ),
+                        ),
+                      ),
+                  ],
+
+                  // 5. Recent transactions
+                  const SizedBox(height: AppSpacing.lg),
+                  SectionHeader(
+                    title: 'Recent expenses',
+                    trailing: state.recentExpenses.isEmpty
+                        ? null
+                        : TextButton(
+                            onPressed: () => context.go('/app/expenses'),
+                            child: const Text('View all'),
+                          ),
+                  ),
                   if (state.recentExpenses.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.sm,
-                      ),
-                      child: EmptyState(
-                        icon: Icons.receipt_long_rounded,
-                        title: "You're ready to start",
-                        message:
-                            "Add your first expense and we'll start tracking "
-                            'your budget.',
-                        actionLabel: 'Add Expense',
-                        actionIcon: Icons.add_rounded,
-                        onAction: () {
-                          context.push('/app/expenses/add');
-                        },
-                      ),
+                    EmptyState.compact(
+                      icon: Icons.receipt_long_rounded,
+                      title: 'No expenses yet',
+                      message:
+                          'Add your first expense and today\'s spending '
+                          'will update here.',
+                      actionLabel: 'Add expense',
+                      actionIcon: Icons.add_rounded,
+                      onAction: () => context.push('/app/expenses/add'),
                     )
                   else
-                    _RecentExpenseList(expenses: state.recentExpenses),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.cardTheme.color,
+                        borderRadius: AppSpacing.borderRadiusLg,
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Column(
+                          children: [
+                            for (
+                              var i = 0;
+                              i < state.recentExpenses.length;
+                              i++
+                            ) ...[
+                              if (i > 0)
+                                Divider(
+                                  indent: AppSizes.avatarMd + AppSpacing.mlg,
+                                  color: theme.colorScheme.outlineVariant
+                                      .withValues(alpha: 0.5),
+                                ),
+                              FadeSlideIn(
+                                index: 5 + i,
+                                child: RecentExpenseTile(
+                                  expense: state.recentExpenses[i],
+                                  currency: summary.currency,
+                                  onTap: () => context.push(
+                                    '/app/expenses/${state.recentExpenses[i].id}',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // 6. Upcoming bills
                   const SizedBox(height: AppSpacing.lg),
+                  UpcomingBillsSection(bills: state.upcomingBills),
 
-                  // Upcoming Bills
-                  if (state.upcomingBills.isNotEmpty) ...[
-                    InfoSectionHeader(
-                      title: 'Upcoming Bills',
-                      trailing: TextButton(
-                        onPressed: () => context.go('/app/bills'),
-                        child: const Text('View All'),
-                      ),
-                      infoContent: InfoContent(
-                        title: 'Upcoming Bills',
-                        whatIsThis:
-                            'Your next unpaid bills that are due today or '
-                            'later. Bills are tracked separately from your '
-                            'budgets and expenses.',
-                        howIsItCalculated:
-                            'The app lists unpaid bills whose due date is '
-                            'today or in the future, sorted by due date, '
-                            'and shows the next three.',
-                        additionalNotes:
-                            '• Overdue bills are not shown here. Open Bills '
-                            'to see them\n'
-                            '• Mark a bill as paid to remove it from this list\n'
-                            '• A bill only affects a budget if you record it '
-                            'as an expense (Mark Paid & Add Expense)\n'
-                            '• Bills are shared across all budgets',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _UpcomingBillsList(bills: state.upcomingBills),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-
-                  // Smart Insights
-                  if (state.insights.isNotEmpty) ...[
-                    InfoSectionHeader(
-                      title: 'Smart Insights',
-                      infoContent: InfoContent(
-                        title: 'Smart Insights',
-                        whatIsThis:
-                            'Short, rule-based messages generated from your '
-                            'budgets and expenses. They are simple '
-                            'calculations, not AI, and never use data from '
-                            'outside the app.',
-                        howIsItCalculated:
-                            'Each active budget is checked against fixed '
-                            'rules, and up to three of the most important '
-                            'messages are shown. Messages about your active '
-                            'budget use its own amount, dates and expenses.',
-                        additionalNotes:
-                            'Insights you may see:\n'
-                            '• A budget is over or near Today\'s Safe '
-                            'Spending\n'
-                            '• The active budget is over its total amount\n'
-                            '• At the current pace, the active budget may '
-                            'end the period over its amount\n'
-                            '• A budget\'s spending this week (Monday to '
-                            'Sunday) is above its weekly share\n'
-                            '• How much of a budget is used and how many '
-                            'days remain\n'
-                            '• Your average daily spending compared with '
-                            'Today\'s Safe Spending\n'
-                            '• The amount the active budget is expected to '
-                            'have left at the end of its period',
-                        privacyNote:
-                            'All analysis runs on your device. No data leaves '
-                            'your phone.',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _buildInsights(state.insights),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
+                  // 7. Quick actions
+                  const SizedBox(height: AppSpacing.lg),
+                  const SectionHeader(title: 'Quick actions'),
+                  const QuickActions(),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInsights(List<SmartInsight> insights) {
-    return Column(
-      children: insights
-          .map(
-            (insight) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: InsightCard(message: insight.message, type: insight.type),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
-// ── Overall Budget Card ──────────────────────────────────────────────────
-
-/// Shows how much of the active budget is left for its period.
-///
-/// Uses the active budget's summary only. Budgets are never combined on the
-/// Dashboard; the Budgets screen shows the total across budgets.
-class _OverallBudgetCard extends StatelessWidget {
-  final BudgetSummaryEntity summary;
-
-  const _OverallBudgetCard({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.account_balance_wallet_rounded,
-              color: colorScheme.secondary,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Remaining Budget',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  CurrencyFormatter.format(
-                    summary.remainingBudget,
-                    code: summary.currency,
-                  ),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: context.appColors.success,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'left in your active budget for this period',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          InfoIcon(
-            content: InfoContent(
-              title: 'Remaining Budget',
-              whatIsThis:
-                  'How much of your active budget is still available for '
-                  'the rest of its period. It belongs to the active budget '
-                  'only.',
-              howIsItCalculated:
-                  'Remaining Budget = Budget amount − Total spent\n\n'
-                  'Total spent is the sum of all expenses recorded in the '
-                  'active budget, including today\'s.',
-              example:
-                  'Budget amount: ₹30,000\n'
-                  'Total spent: ₹9,000\n'
-                  'Remaining Budget: ₹21,000',
-              additionalNotes:
-                  '• Switch the active budget at the top of the Dashboard '
-                  'to see another budget\n'
-                  '• Each budget has its own amount, period and expenses; '
-                  'they are not combined here\n'
-                  '• The Budgets screen shows the total remaining across '
-                  'all active budgets\n'
-                  '• Can be negative if you have spent more than the '
-                  'budget amount',
             ),
           ),
         ],
@@ -356,297 +265,45 @@ class _OverallBudgetCard extends StatelessWidget {
   }
 }
 
-// ── Quick Actions ──────────────────────────────────────────────────────
+// ── Empty / error ──────────────────────────────────────────────────────────
 
-class _QuickActionsGrid extends StatelessWidget {
-  const _QuickActionsGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _QuickActionCard(
-            icon: Icons.add_rounded,
-            label: 'Add Expense',
-            onTap: () => context.push('/app/expenses/add'),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _QuickActionCard(
-            icon: Icons.receipt_long_rounded,
-            label: 'Add Bill',
-            onTap: () => context.push('/app/bills/add'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickActionCard({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+class _NoBudgetState extends StatelessWidget {
+  const _NoBudgetState({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Material(
-      color: colorScheme.surfaceContainer,
-      borderRadius: AppSpacing.borderRadiusMd,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppSpacing.borderRadiusMd,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            vertical: AppSpacing.smd,
-            horizontal: AppSpacing.sm,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                decoration: BoxDecoration(
-                  color: colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                ),
-                child: Icon(icon, size: 18, color: colorScheme.secondary),
-              ),
-              const SizedBox(width: AppSpacing.smd),
-              Text(
-                label,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Floating Action Button ─────────────────────────────────────────────
-
-class _DashboardFab extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      offset: const Offset(0, -8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      onSelected: (value) {
-        switch (value) {
-          case 'expense':
-            context.push('/app/expenses/add');
-          case 'bill':
-            context.push('/app/bills/add');
+    return EmptyState(
+      icon: Icons.account_balance_wallet_outlined,
+      title: 'Create your first budget',
+      message:
+          'A budget gives you a daily safe-spending amount and keeps every '
+          'expense in context.',
+      actionLabel: 'Create budget',
+      actionIcon: Icons.add_rounded,
+      onAction: () async {
+        await context.push('/app/budgets/create');
+        if (context.mounted) {
+          context.read<DashboardBloc>().add(const DashboardRefresh());
         }
       },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'expense',
-          child: Row(
-            children: [
-              Icon(
-                Icons.add_rounded,
-                color: context.appColors.secondary,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              const Text('Add Expense'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'bill',
-          child: Row(
-            children: [
-              Icon(
-                Icons.receipt_long_rounded,
-                color: context.appColors.secondary,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              const Text('Add Bill'),
-            ],
-          ),
-        ),
-      ],
-      child: FloatingActionButton.extended(
-        onPressed: null, // Handled by PopupMenuButton
-        backgroundColor: context.appColors.primary,
-        heroTag: 'dashboard_fab',
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add'),
-        tooltip: 'Quick add',
-      ),
+      secondaryActionLabel: 'Open Budgets',
+      onSecondaryAction: () => context.push('/app/budgets'),
     );
   }
 }
 
-// ── Recent Expenses List ───────────────────────────────────────────────
+class _DashboardError extends StatelessWidget {
+  final String message;
 
-class _RecentExpenseList extends StatelessWidget {
-  final List<RecentExpenseEntity> expenses;
-
-  const _RecentExpenseList({required this.expenses});
+  const _DashboardError({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: expenses
-          .map(
-            (expense) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: RecentExpenseTile(expense: expense),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
-// ── Upcoming Bills List ────────────────────────────────────────────────
-
-class _UpcomingBillsList extends StatelessWidget {
-  final List<BillEntity> bills;
-
-  const _UpcomingBillsList({required this.bills});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: bills.map((bill) {
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final due = DateTime(
-          bill.dueDate.year,
-          bill.dueDate.month,
-          bill.dueDate.day,
-        );
-        final daysUntil = due.difference(today).inDays;
-        final isOverdue = bill.status == BillStatus.overdue;
-        final isDueToday = bill.status == BillStatus.dueToday;
-
-        String dueText;
-        Color dueColor;
-        if (isDueToday) {
-          dueText = 'Due today';
-          dueColor = context.appColors.warning;
-        } else if (isOverdue) {
-          dueText = '${today.difference(due).inDays} days overdue';
-          dueColor = context.appColors.error;
-        } else if (daysUntil == 1) {
-          dueText = 'Due tomorrow';
-          dueColor = context.appColors.secondary;
-        } else {
-          dueText = 'Due in $daysUntil days';
-          dueColor = context.appColors.secondary;
-        }
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.smd),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: dueColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      isOverdue
-                          ? Icons.warning_rounded
-                          : Icons.receipt_long_rounded,
-                      color: dueColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.smd),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          bill.title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          dueText,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: dueColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    CurrencyFormatter.format(
-                      bill.amount,
-                      code: bill.currency,
-                      decimalDigits: 0,
-                    ),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: isOverdue ? context.appColors.error : null,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// ── Loading Skeleton ───────────────────────────────────────────────────
-
-class _DashboardSkeleton extends StatelessWidget {
-  const _DashboardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          SkeletonBox(width: 200, height: 52, radius: 16),
-          SizedBox(height: AppSpacing.md),
-          SkeletonBox(height: 180, radius: 24),
-          SizedBox(height: AppSpacing.md),
-          SkeletonBox(height: 120, radius: 20),
-          SizedBox(height: AppSpacing.md),
-          SkeletonBox(height: 100, radius: 20),
-        ],
-      ),
+    return ErrorState(
+      title: "Couldn't load your dashboard",
+      message: message,
+      onRetry: () =>
+          context.read<DashboardBloc>().add(const DashboardRefresh()),
     );
   }
 }

@@ -199,15 +199,19 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AppLockBloc>.value(
-      value: di.getIt<AppLockBloc>(),
-      child: BiometricGateScreen(
-        child: BlocProvider<AppUpdateBloc>.value(
-          value: _appUpdateBloc,
-          child: MultiProvider(
-            providers: [ChangeNotifierProvider.value(value: _currencyProvider)],
-            child: BlocProvider<ThemeBloc>.value(
-              value: _themeBloc,
+    // ThemeBloc sits above the biometric gate so the lock screen is themed
+    // with the same palette and brightness as the rest of the app.
+    return BlocProvider<ThemeBloc>.value(
+      value: _themeBloc,
+      child: BlocProvider<AppLockBloc>.value(
+        value: di.getIt<AppLockBloc>(),
+        child: BiometricGateScreen(
+          child: BlocProvider<AppUpdateBloc>.value(
+            value: _appUpdateBloc,
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider.value(value: _currencyProvider),
+              ],
               child: BlocBuilder<ThemeBloc, ThemeState>(
                 builder: (context, state) {
                   return MaterialApp.router(

@@ -1,118 +1,82 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_history_summary.dart';
-import '../../../../../core/theme/app_colors_extension.dart';
 
-/// Summary card showing statistics for the currently visible results.
+/// Compact summary strip for the currently visible results.
+///
+/// One row: total amount (primary), expense count and average (secondary).
+/// It scrolls with the list so it never crowds the results.
 class SummaryCard extends StatelessWidget {
   final ExpenseHistorySummary summary;
+  final String? currency;
 
-  const SummaryCard({super.key, required this.summary});
+  /// Optional caption shown under the title, e.g. "Across 3 budgets".
+  final String? caption;
+
+  const SummaryCard({
+    super.key,
+    required this.summary,
+    this.currency,
+    this.caption,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currency = NumberFormat.currency(symbol: '', decimalDigits: 0);
+    String money(double v) =>
+        CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
+    final count = summary.totalExpenses;
 
     return AppCard(
-      margin: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
+        vertical: AppSpacing.smd,
       ),
-      padding: EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      color: theme.colorScheme.surfaceContainer,
+      showBorder: false,
+      borderRadius: AppSpacing.borderRadiusMd,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: context.appColors.tertiary.withValues(alpha: 0.12),
-                  borderRadius: AppSpacing.borderRadiusSm,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Summary',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                child: Icon(
-                  Icons.insights_rounded,
-                  color: context.appColors.tertiary,
-                  size: 18,
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  caption ??
+                      '$count ${count == 1 ? 'expense' : 'expenses'}'
+                          '${count > 0 ? ' · avg ${money(summary.averageExpense)}' : ''}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Text(
-                'Summary',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              _summaryItem(
-                theme,
-                label: 'Total Expenses',
-                value: '${summary.totalExpenses}',
-              ),
-              _summaryItem(
-                theme,
-                label: 'Total Amount',
-                value: currency.format(summary.totalAmount),
-              ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              _summaryItem(
-                theme,
-                label: 'Average',
-                value: currency.format(summary.averageExpense),
-              ),
-              _summaryItem(
-                theme,
-                label: 'Highest',
-                value: currency.format(summary.highestExpense),
-              ),
-              _summaryItem(
-                theme,
-                label: 'Lowest',
-                value: currency.format(summary.lowestExpense),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryItem(
-    ThemeData theme, {
-    required String label,
-    required String value,
-  }) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ],
             ),
           ),
-          SizedBox(height: 2),
-          Text(
-            value,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: AppSpacing.md),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                money(summary.totalAmount),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+                maxLines: 1,
+              ),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

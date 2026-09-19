@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_header.dart';
 import '../bloc/onboarding_state.dart';
-import '../../../../core/theme/app_colors_extension.dart';
+import 'onboarding_step_layout.dart';
 
 class ConfirmationStepWidget extends StatelessWidget {
   final OnboardingState state;
@@ -15,185 +20,136 @@ class ConfirmationStepWidget extends StatelessWidget {
     required this.onBack,
   });
 
-  String _formatAmount(double? amount) {
-    if (amount == null) return '0';
-    final isInteger = amount % 1 == 0;
-    if (isInteger) {
-      return amount.toInt().toString().replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-        (Match m) => '${m[1]},',
-      );
-    }
-    return amount.toStringAsFixed(2);
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isSubmitting = state.status == OnboardingStatus.loading;
+    final days = state.endDate.difference(state.startDate).inDays + 1;
+    final amount = state.parsedBudget ?? 0;
+    final perDay = days > 0 ? amount / days : 0.0;
+    final dateFmt = DateFormat('EEE, d MMM yyyy');
+    final code = state.selectedCurrency.code;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+    return OnboardingStepLayout(
+      title: 'Ready to create your budget?',
+      subtitle:
+          'It becomes your active budget. You can add more budgets any '
+          'time.',
+      onBack: isSubmitting ? null : onBack,
+      footer: OnboardingContinueButton(
+        buttonKey: const Key('createBudgetButton'),
+        label: 'Create budget',
+        icon: Icons.check_rounded,
+        isLoading: isSubmitting,
+        onPressed: onCreateBudget,
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconButton(
-            onPressed: isSubmitting ? null : onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
-            padding: EdgeInsets.zero,
-            alignment: Alignment.centerLeft,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'Confirm Your Budget',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Review your first budget before creating it. It becomes your '
-            'active budget; you can add more budgets any time from '
-            'Settings.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                children: [
-                  _SummaryRow(
-                    label: 'Budget Name',
-                    value: state.budgetNameInput.trim().isEmpty
-                        ? 'Personal'
-                        : state.budgetNameInput.trim(),
-                  ),
-                  const Divider(height: AppSpacing.xl),
-                  _SummaryRow(
-                    label: 'Budget Amount',
-                    value:
-                        '${state.selectedCurrency.symbol}${_formatAmount(state.parsedBudget)}',
-                    isPrimary: true,
-                  ),
-                  const Divider(height: AppSpacing.xl),
-                  _SummaryRow(
-                    label: 'Currency',
-                    value:
-                        '${state.selectedCurrency.code} (${state.selectedCurrency.symbol})',
-                  ),
-                  const Divider(height: AppSpacing.xl),
-                  _SummaryRow(
-                    label: 'Start Date',
-                    value: _formatDate(state.startDate),
-                  ),
-                  const Divider(height: AppSpacing.xl),
-                  _SummaryRow(
-                    label: 'End Date',
-                    value: _formatDate(state.endDate),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              key: const Key('createBudgetButton'),
-              onPressed: isSubmitting ? null : onCreateBudget,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 4,
-              ),
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text(
-                      'Create Budget',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.mlg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    IconTile(
+                      icon: Icons.account_balance_wallet_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: AppSpacing.smd),
+                    Expanded(
+                      child: Text(
+                        state.budgetNameInput.trim().isEmpty
+                            ? 'Your budget'
+                            : state.budgetNameInput.trim(),
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    CurrencyFormatter.format(amount, code: code),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                Text(
+                  '${state.selectedCurrency.name} ($code)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Divider(height: AppSpacing.lg),
+                _Row(label: 'Starts', value: dateFmt.format(state.startDate)),
+                _Row(label: 'Ends', value: dateFmt.format(state.endDate)),
+                _Row(
+                  label: 'Length',
+                  value:
+                      '$days ${days == 1 ? 'day' : 'days'} · '
+                      '${formatShortDateRange(state.startDate, state.endDate)}',
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.md),
+          StatusCard(
+            color: theme.colorScheme.primary,
+            icon: Icons.today_rounded,
+            title:
+                "Today's Safe Spending starts at about "
+                '${CurrencyFormatter.format(perDay, code: code, decimalDigits: 0)}',
+            message:
+                'That is your amount spread evenly over $days '
+                '${days == 1 ? 'day' : 'days'}. It updates every day based '
+                'on what you have spent.',
+          ),
         ],
       ),
     );
   }
 }
 
-class _SummaryRow extends StatelessWidget {
+class _Row extends StatelessWidget {
   final String label;
   final String value;
-  final bool isPrimary;
 
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    this.isPrimary = false,
-  });
+  const _Row({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: theme.textTheme.titleMedium?.color?.withValues(alpha: 0.7),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
-        ),
-        Text(
-          value,
-          style: isPrimary
-              ? theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: context.appColors.primary,
-                )
-              : theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-        ),
-      ],
+          Expanded(
+            child: Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

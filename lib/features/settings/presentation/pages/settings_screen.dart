@@ -6,6 +6,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/di/injection.dart' as di;
+import '../../../../core/theme/color_palettes.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../app_update/presentation/bloc/app_update_bloc.dart';
 import '../../../app_update/presentation/widgets/app_update_section.dart';
 import '../../domain/entities/app_settings.dart';
@@ -27,9 +32,9 @@ import '../widgets/reset_confirmation_dialog.dart';
 import '../widgets/settings_section.dart';
 import '../widgets/settings_tile.dart';
 import '../widgets/theme_selector.dart';
-import '../../../../core/theme/color_palettes.dart';
 import 'palette_selection_screen.dart';
 
+/// Settings, grouped by what the user is trying to change.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -54,54 +59,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showCurrencyPicker(BuildContext context, String selectedCode) {
-    showModalBottomSheet(
+    final bloc = context.read<SettingsBloc>();
+    AppBottomSheet.show<void>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-        ),
-        child: SizedBox(
-          height: MediaQuery.of(sheetContext).size.height * 0.7,
-          child: CurrencySelector(
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppSheetHeader(
+            title: 'Currency',
+            subtitle: 'Default for new budgets and app-wide amounts.',
+          ),
+          CurrencySelector(
             selectedCode: selectedCode,
             onSelected: (CurrencyEntity currency) {
-              context.read<SettingsBloc>().add(
+              bloc.add(
                 SettingsUpdateCurrencyEvent(
                   code: currency.code,
                   symbol: currency.symbol,
                 ),
               );
-              // Update currency provider for immediate UI change
+              // Update currency provider for immediate UI change.
               di.getIt<CurrencyProvider>().updateCurrency(
                 currency.code,
                 currency.symbol,
               );
             },
           ),
-        ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
       ),
     );
   }
 
   Future<void> _pickAndRestore(BuildContext context, SettingsBloc bloc) async {
     final path = await _pickFile(json: true);
-    if (path == null) return;
-    if (!context.mounted) return;
-
+    if (path == null || !context.mounted) return;
     final confirm = await ResetConfirmationDialog.show(
       context,
-      title: 'Restore Backup?',
+      title: 'Restore this backup?',
       message:
-          'This will replace your current data with the backup contents. '
-          'This cannot be undone. Continue?',
+          'Your current budgets, expenses, bills and settings will be '
+          'replaced with the backup. This cannot be undone.',
       confirmLabel: 'Restore',
-      icon: Icons.restore,
-      isDestructive: false,
+      icon: Icons.settings_backup_restore_rounded,
+      isDestructive: true,
     );
-    if (!confirm) return;
-    bloc.add(SettingsRestoreEvent(path));
+    if (confirm) bloc.add(SettingsRestoreEvent(path));
   }
 
   Future<void> _pickAndImport(
@@ -110,21 +113,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool json,
   }) async {
     final path = await _pickFile(json: json);
-    if (path == null) return;
-    if (!context.mounted) return;
-
+    if (path == null || !context.mounted) return;
     final confirm = await ResetConfirmationDialog.show(
       context,
-      title: 'Import Data?',
+      title: 'Import this file?',
       message:
-          'Imported ${json ? 'JSON' : 'CSV'} data will be merged into '
-          'your existing records. Continue?',
+          'Records from the ${json ? 'JSON' : 'CSV'} file will be merged '
+          'into your existing data.',
       confirmLabel: 'Import',
-      icon: Icons.upload_file,
+      icon: Icons.download_rounded,
       isDestructive: false,
     );
-    if (!confirm) return;
-    bloc.add(SettingsImportEvent(path: path, json: json));
+    if (confirm) bloc.add(SettingsImportEvent(path: path, json: json));
+  }
+
+  Future<void> _startNewPeriod(BuildContext context, SettingsBloc bloc) async {
+    final confirm = await ResetConfirmationDialog.show(
+      context,
+      title: 'Start a new budget period?',
+      message:
+          'The active budget is archived (its expenses are kept) and a new '
+          '31-day budget with the same amount and currency starts today.',
+      confirmLabel: 'Start',
+      icon: Icons.replay_rounded,
+      isDestructive: false,
+    );
+    if (confirm) bloc.add(const SettingsResetMonthEvent());
+  }
+
+  Future<void> _showBudgetAmountDialog(
+    BuildContext context,
+    SettingsBloc bloc,
+  ) async {
+    final controller = TextEditingController();
+    try {
+      final result = await showDialog<double>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Change budget amount'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'New total for the active budget',
+              prefixText: '${bloc.state.settings.currencySymbol} ',
+            ),
+            onSubmitted: (v) =>
+                Navigator.of(dialogContext).pop(double.tryParse(v)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(
+                dialogContext,
+              ).pop(double.tryParse(controller.text)),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      if (result != null && result > 0) {
+        bloc.add(SettingsResetBudgetEvent(result));
+      }
+    } finally {
+      controller.dispose();
+    }
   }
 
   @override
@@ -136,32 +193,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
         listener: (context, state) {
           final messenger = ScaffoldMessenger.of(context);
           if (state.errorMessage != null) {
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage!),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-            );
-            context.read<SettingsBloc>().add(const SettingsClearMessageEvent());
+            messenger
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+            bloc.add(const SettingsClearMessageEvent());
           } else if (state.infoMessage != null) {
-            messenger.showSnackBar(SnackBar(content: Text(state.infoMessage!)));
-            context.read<SettingsBloc>().add(const SettingsClearMessageEvent());
+            messenger
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text(state.infoMessage!)));
+            bloc.add(const SettingsClearMessageEvent());
           }
         },
         builder: (context, state) {
-          if (state.status == SettingsStatus.initial ||
-              state.status == SettingsStatus.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state.status == SettingsStatus.error &&
-              state.settings == const AppSettings()) {
-            return _ErrorState(
-              onRetry: () {
-                context.read<SettingsBloc>().add(const SettingsLoadEvent());
-              },
+          final neverLoaded = state.settings == const AppSettings();
+          final Widget child;
+          if ((state.status == SettingsStatus.initial ||
+                  state.status == SettingsStatus.loading) &&
+              neverLoaded) {
+            child = const FormSkeleton(key: ValueKey('loading'), rows: 6);
+          } else if (state.status == SettingsStatus.error && neverLoaded) {
+            child = ErrorState(
+              key: const ValueKey('error'),
+              title: "Couldn't load settings",
+              message: 'Please try again.',
+              onRetry: () => bloc.add(const SettingsLoadEvent()),
             );
+          } else {
+            child = _buildContent(context, state, bloc);
           }
-          return _buildContent(context, state, bloc);
+          return AppStateSwitcher(child: child);
         },
       ),
     );
@@ -173,134 +233,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     SettingsBloc bloc,
   ) {
     final settings = state.settings;
+    final notifications = settings.notifications;
+    final themeState = context.watch<ThemeBloc>().state;
+
     return RefreshIndicator(
-      onRefresh: () async {
-        bloc.add(const SettingsLoadEvent());
-      },
+      key: const ValueKey('content'),
+      onRefresh: () async => bloc.add(const SettingsLoadEvent()),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: AppSpacing.pagePadding,
         children: [
-          // Financial Management
-          SettingsSection(
-            title: 'Financial',
-            icon: Icons.account_balance_outlined,
-            children: [
-              SettingsTile(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'Budgets',
-                subtitle:
-                    'Create, switch, edit and archive budgets. Each has its '
-                    'own amount and dates',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/app/budgets'),
-              ),
-              SettingsTile(
-                icon: Icons.payments_outlined,
-                title: 'Bills & Reminders',
-                subtitle:
-                    'Track due dates, recurring bills and optional '
-                    'reminders',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/app/bills'),
-              ),
-            ],
-          ),
-
           // Appearance
           SettingsSection(
             title: 'Appearance',
             icon: Icons.palette_outlined,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
                 child: ThemeSelector(
-                  selectedMode: context.watch<ThemeBloc>().state.mode,
-                  onChanged: (AppThemeMode mode) {
-                    context.read<ThemeBloc>().add(ThemeChanged(mode));
-                  },
+                  selectedMode: themeState.mode,
+                  onChanged: (AppThemeMode mode) =>
+                      context.read<ThemeBloc>().add(ThemeChanged(mode)),
                 ),
               ),
-              const Divider(height: 1),
-              _PaletteTile(
-                selectedPalette: context.watch<ThemeBloc>().state.palette,
-              ),
-            ],
-          ),
-
-          // Currency
-          SettingsSection(
-            title: 'Currency',
-            icon: Icons.currency_exchange,
-            children: [
-              SettingsTile(
-                icon: Icons.payments_outlined,
-                title: 'Currency',
-                subtitle:
-                    '${settings.currencySymbol} ${settings.currencyCode} · '
-                    'default for new budgets and app-wide amounts',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    _showCurrencyPicker(context, settings.currencyCode),
-              ),
-            ],
-          ),
-
-          // Notifications
-          SettingsSection(
-            title: 'Notifications',
-            icon: Icons.notifications_outlined,
-            children: [
-              NotificationToggle(
-                title: 'Enable Notifications',
-                subtitle: 'Daily morning reminder and evening summary',
-                value: settings.notifications.notificationsEnabled,
-                onChanged: (v) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    settings.notifications.copyWith(notificationsEnabled: v),
-                  ),
-                ),
-              ),
-              NotificationTimeTile(
-                title: 'Morning Reminder',
-                time: settings.notifications.morningReminderTime,
-                onChanged: (time) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    settings.notifications.copyWith(morningReminderTime: time),
-                  ),
-                ),
-              ),
-              NotificationTimeTile(
-                title: 'Evening Summary',
-                time: settings.notifications.eveningSummaryTime,
-                onChanged: (time) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    settings.notifications.copyWith(eveningSummaryTime: time),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.xs,
-                  AppSpacing.md,
-                  AppSpacing.sm,
-                ),
-                child: Text(
-                  "The morning reminder shows Today's Safe Spending for each "
-                  'budget running today. The amount is calculated when the '
-                  'reminder is scheduled (when the app starts or these '
-                  'settings change). The evening summary is a reminder to '
-                  'review the day. Bill reminders are set on each bill. '
-                  'Notification permission is requested on first launch and '
-                  'must be allowed in your device settings.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
+              _PaletteTile(selectedPalette: themeState.palette),
             ],
           ),
 
@@ -318,9 +274,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
 
-          // Data Management
+          // Budget
           SettingsSection(
-            title: 'Data Management',
+            title: 'Budget',
+            icon: Icons.account_balance_wallet_outlined,
+            children: [
+              SettingsTile(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Budgets',
+                subtitle: 'Create, switch, edit and archive budgets',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/app/budgets'),
+              ),
+              SettingsTile(
+                icon: Icons.replay_rounded,
+                title: 'Start new budget period',
+                subtitle:
+                    'Archive the active budget and start a fresh 31-day one '
+                    'with the same amount',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _startNewPeriod(context, bloc),
+              ),
+              SettingsTile(
+                icon: Icons.tune_rounded,
+                title: 'Change active budget amount',
+                subtitle: 'Dates and expenses stay as they are',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _showBudgetAmountDialog(context, bloc),
+              ),
+              SettingsTile(
+                icon: Icons.currency_exchange_rounded,
+                title: 'Currency',
+                subtitle:
+                    '${settings.currencySymbol} ${settings.currencyCode} · '
+                    'default for new budgets',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () =>
+                    _showCurrencyPicker(context, settings.currencyCode),
+              ),
+            ],
+          ),
+
+          // Notifications
+          SettingsSection(
+            title: 'Notifications',
+            icon: Icons.notifications_outlined,
+            description:
+                'Notification permission must be allowed in your device '
+                'settings.',
+            children: [
+              NotificationToggle(
+                title: 'Daily notifications',
+                subtitle: 'Morning safe-spending reminder and evening summary',
+                value: notifications.notificationsEnabled,
+                onChanged: (v) => bloc.add(
+                  SettingsUpdateNotificationsEvent(
+                    notifications.copyWith(notificationsEnabled: v),
+                  ),
+                ),
+              ),
+              NotificationTimeTile(
+                title: 'Morning reminder',
+                subtitle: "Today's Safe Spending for each budget running today",
+                icon: Icons.wb_sunny_outlined,
+                enabled: notifications.notificationsEnabled,
+                time: notifications.morningReminderTime,
+                onChanged: (time) => bloc.add(
+                  SettingsUpdateNotificationsEvent(
+                    notifications.copyWith(morningReminderTime: time),
+                  ),
+                ),
+              ),
+              NotificationTimeTile(
+                title: 'Evening summary',
+                subtitle: 'A nudge to review the day',
+                icon: Icons.nights_stay_outlined,
+                enabled: notifications.notificationsEnabled,
+                time: notifications.eveningSummaryTime,
+                onChanged: (time) => bloc.add(
+                  SettingsUpdateNotificationsEvent(
+                    notifications.copyWith(eveningSummaryTime: time),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Bills & reminders
+          SettingsSection(
+            title: 'Bills & Reminders',
+            icon: Icons.event_repeat_outlined,
+            children: [
+              SettingsTile(
+                icon: Icons.receipt_long_outlined,
+                title: 'Bills',
+                subtitle:
+                    'Due dates, recurring bills and per-bill reminders. '
+                    'Reminders are set on each bill.',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/app/bills'),
+              ),
+            ],
+          ),
+
+          // Data
+          SettingsSection(
+            title: 'Data',
             icon: Icons.folder_open_outlined,
             children: [
               DataManagementCard(
@@ -337,100 +396,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
 
-          // Budget Management
-          SettingsSection(
-            title: 'Active Budget',
-            icon: Icons.account_balance_wallet_outlined,
-            children: [
-              SettingsTile(
-                icon: Icons.replay,
-                title: 'Start New Budget Period',
-                subtitle:
-                    'Archive the active budget and start a new 31-day '
-                    'budget from today with the same amount and currency',
-                onTap: () async {
-                  final confirm = await ResetConfirmationDialog.show(
-                    context,
-                    title: 'Start New Budget Period?',
-                    message:
-                        'The active budget will be archived (its expenses '
-                        'are kept) and a new budget with the same amount '
-                        'and currency will start today and run for 31 '
-                        'days. The new budget becomes active. Continue?',
-                    confirmLabel: 'Start',
-                  );
-                  if (confirm) bloc.add(const SettingsResetMonthEvent());
-                },
-              ),
-              SettingsTile(
-                icon: Icons.auto_fix_high,
-                title: 'Change Budget Amount',
-                subtitle:
-                    'Set a new total amount for the active budget. Its '
-                    'dates and expenses stay as they are',
-                onTap: () => _showBudgetAmountDialog(context, bloc),
-              ),
-            ],
-          ),
-
-          // App Updates
+          // Updates
           BlocProvider<AppUpdateBloc>.value(
             value: di.getIt<AppUpdateBloc>(),
             child: const AppUpdateSection(),
           ),
 
           // About
-          SettingsSection(
+          const SettingsSection(
             title: 'About',
-            icon: Icons.info_outline,
+            icon: Icons.info_outline_rounded,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: const AboutCard(),
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                child: AboutCard(),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.md),
         ],
       ),
     );
-  }
-
-  Future<void> _showBudgetAmountDialog(
-    BuildContext context,
-    SettingsBloc bloc,
-  ) async {
-    final controller = TextEditingController();
-    final result = await showDialog<double>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Change Budget Amount'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: 'Total amount for the active budget',
-            prefixText: '${bloc.state.settings.currencySymbol} ',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(
-              dialogContext,
-            ).pop(double.tryParse(controller.text)),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (result != null && result > 0) {
-      bloc.add(SettingsResetBudgetEvent(result));
-    }
   }
 }
 
@@ -448,72 +434,48 @@ class _PaletteTile extends StatelessWidget {
       orElse: () => paletteOptions.first,
     );
     final colors = getPaletteColors(selectedPalette);
+    final scheme = theme.brightness == Brightness.dark
+        ? colors.darkScheme
+        : colors.lightScheme;
 
-    return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const PaletteSelectionScreen()),
-        );
-      },
-      borderRadius: AppSpacing.borderRadiusMd,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xs,
-          vertical: AppSpacing.sm,
-        ),
-        child: Row(
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const PaletteSelectionScreen())),
+      leading: SizedBox(
+        width: AppSizes.avatarSm,
+        height: AppSizes.avatarSm,
+        child: Stack(
           children: [
-            Icon(Icons.color_lens_outlined, color: colors.lightScheme.primary),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Color Palette',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+            for (final (i, c) in [
+              scheme.primary,
+              scheme.secondary,
+              scheme.tertiary,
+            ].indexed)
+              Positioned(
+                left: i * 8.0,
+                top: 6,
+                child: Container(
+                  width: AppSizes.iconLg,
+                  height: AppSizes.iconLg,
+                  decoration: BoxDecoration(
+                    color: c,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.cardTheme.color ?? scheme.surface,
+                      width: 2,
                     ),
                   ),
-                  Text(
-                    currentOption.label,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-            const Icon(Icons.chevron_right),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final VoidCallback onRetry;
-
-  const _ErrorState({required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 56),
-          const SizedBox(height: AppSpacing.md),
-          const Text('Could not load settings.'),
-          const SizedBox(height: AppSpacing.md),
-          FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
-          ),
-        ],
-      ),
+      title: Text('Color palette', style: theme.textTheme.titleSmall),
+      subtitle: Text(currentOption.label),
+      trailing: const Icon(Icons.chevron_right),
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSm),
     );
   }
 }

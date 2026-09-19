@@ -5,10 +5,10 @@ import '../../domain/entities/report_data.dart';
 import '../../domain/entities/report_failure.dart';
 import '../../domain/usecases/export_csv_usecase.dart';
 import '../../domain/usecases/export_pdf_usecase.dart';
-import '../../../../core/theme/app_colors_extension.dart';
 
-/// Export buttons for CSV and PDF reports.
-class ExportButtons extends StatelessWidget {
+/// Export buttons for CSV and PDF reports, with a busy state so a slow PDF
+/// export can't be triggered twice.
+class ExportButtons extends StatefulWidget {
   final ReportData data;
   final ExportCsvUseCase exportCsvUseCase;
   final ExportPdfUseCase exportPdfUseCase;
@@ -24,27 +24,50 @@ class ExportButtons extends StatelessWidget {
     this.onResult,
   });
 
-  Future<void> _export(BuildContext context, {required bool isCsv}) async {
+  @override
+  State<ExportButtons> createState() => _ExportButtonsState();
+}
+
+class _ExportButtonsState extends State<ExportButtons> {
+  bool _busyCsv = false;
+  bool _busyPdf = false;
+
+  bool get _busy => _busyCsv || _busyPdf;
+
+  Future<void> _export({required bool isCsv}) async {
+    if (_busy) return;
+    setState(() => isCsv ? _busyCsv = true : _busyPdf = true);
     final messenger = ScaffoldMessenger.of(context);
+    final kind = isCsv ? 'CSV' : 'PDF';
     try {
       final result = isCsv
-          ? await exportCsvUseCase(data)
-          : await exportPdfUseCase(data);
+          ? await widget.exportCsvUseCase(widget.data)
+          : await widget.exportPdfUseCase(widget.data);
 
       switch (result) {
-        case ReportSuccess():
-          onResult?.call((result as ReportSuccess).data as String, false);
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('${isCsv ? 'CSV' : 'PDF'} report exported.'),
-            ),
-          );
+        case ReportSuccess(:final data):
+          widget.onResult?.call(data.toString(), false);
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(content: Text('$kind report ready to share.')),
+            );
         case ReportError(:final failure):
-          onResult?.call(failure.message, true);
-          messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+          widget.onResult?.call(failure.message, true);
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(failure.message)));
       }
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    } catch (_) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text("Couldn't export the $kind report.")),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => isCsv ? _busyCsv = false : _busyPdf = false);
+      }
     }
   }
 
@@ -54,27 +77,37 @@ class ExportButtons extends StatelessWidget {
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () => _export(context, isCsv: true),
-            icon: const Icon(Icons.table_chart),
-            label: const Text('CSV'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: context.appColors.secondary,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
+            onPressed: _busy ? null : () => _export(isCsv: true),
+            icon: _busyCsv
+                ? const _Spinner()
+                : const Icon(Icons.table_chart_outlined),
+            label: const Text('Export CSV'),
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () => _export(context, isCsv: false),
-            icon: const Icon(Icons.picture_as_pdf),
-            label: const Text('PDF'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
+          child: FilledButton.tonalIcon(
+            onPressed: _busy ? null : () => _export(isCsv: false),
+            icon: _busyPdf
+                ? const _Spinner()
+                : const Icon(Icons.picture_as_pdf_outlined),
+            label: const Text('Export PDF'),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _Spinner extends StatelessWidget {
+  const _Spinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: AppSizes.iconSm + 2,
+      height: AppSizes.iconSm + 2,
+      child: CircularProgressIndicator(strokeWidth: 2),
     );
   }
 }

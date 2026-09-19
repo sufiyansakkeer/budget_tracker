@@ -121,7 +121,10 @@ void main() {
             'After switching to Forest, theme primary should be $forestPrimary but got $texts2',
       );
 
-      await bloc.close();
+      // Closing is fire-and-forget: awaiting a bloc close inside the fake
+      // async zone never resolves without a pump, and BlocProvider disposes
+      // the bloc when the tree is torn down anyway.
+      bloc.close();
     },
   );
 
@@ -180,7 +183,8 @@ void main() {
       reason: 'Dark mode + Ocean should use Ocean dark scheme primary',
     );
 
-    await bloc.close();
+    // See note above: never await bloc.close() inside testWidgets.
+    bloc.close();
   });
 
   test('All 6 palettes produce distinct primary colors', () {

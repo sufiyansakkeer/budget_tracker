@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../features/settings/presentation/bloc/theme/theme_bloc.dart';
+import '../../features/settings/presentation/bloc/theme/theme_state.dart';
+import '../../features/widgets/home_widget_service.dart';
+import '../constants/app_motion.dart';
+import '../constants/app_spacing.dart';
+import '../router/app_router.dart';
+import '../theme/app_theme.dart';
 import 'app_lock_bloc.dart';
 import 'app_lock_event.dart';
 import 'app_lock_state.dart';
-import '../router/app_router.dart';
-import '../../features/widgets/home_widget_service.dart';
 
 /// Full-screen gate shown while the application is locked.
 ///
@@ -15,7 +20,9 @@ import '../../features/widgets/home_widget_service.dart';
 /// running the gate simply reflects the BLoC state.
 ///
 /// The child (the real application) is only revealed when the BLoC status is
-/// [AppLockStatus.unlocked].
+/// [AppLockStatus.unlocked]. The gate renders inside its own [MaterialApp]
+/// (it sits above the router) but is themed from [ThemeBloc], so it matches
+/// the user's palette and light/dark preference.
 class BiometricGateScreen extends StatefulWidget {
   final Widget child;
 
@@ -78,93 +85,172 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
           });
         }
       },
-
       builder: (context, state) {
         // Unlocked -> reveal the real application content.
         if (state.status == AppLockStatus.unlocked) {
           return widget.child;
         }
 
-        // Otherwise show the lock gate.
-        final isAuthenticating = state.isAuthenticating;
-        String message;
-        if (isAuthenticating) {
-          message = 'Authenticating…';
-        } else if (state.status == AppLockStatus.checking) {
-          message = 'Loading…';
-        } else {
-          message = 'Authenticate to continue';
-        }
-
         // While the app is locked, intercept the system back button so the
         // user cannot navigate away from the biometric gate and bypass
         // authentication. They must authenticate (or tap Re-authenticate).
+        final themeBloc = context.watch<ThemeBloc?>();
+        final ThemeState? themeState = themeBloc?.state;
+
         return PopScope(
           canPop: false,
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            home: Scaffold(
-              body: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        isAuthenticating
-                            ? Icons.fingerprint
-                            : Icons.fingerprint,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Monivo',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        message,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      if (isAuthenticating)
-                        const CircularProgressIndicator()
-                      else ...[
-                        if (state.errorMessage != null) ...[
-                          Text(
-                            state.errorMessage!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        // Always-available re-authentication action so the user
-                        // can retry even after dismissing the native biometric
-                        // prompt (e.g. pressing the device back button).
-                        FilledButton.icon(
-                          onPressed: () {
-                            context.read<AppLockBloc>().add(
-                              const AppUnlockRequested(),
-                            );
-                          },
-                          icon: const Icon(Icons.fingerprint),
-                          label: const Text('Re-authenticate'),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
+            theme: themeState == null
+                ? AppTheme.lightTheme
+                : AppTheme.buildLightTheme(themeState.palette),
+            darkTheme: themeState == null
+                ? AppTheme.darkTheme
+                : AppTheme.buildDarkTheme(themeState.palette),
+            themeMode: themeState?.mode.toThemeMode() ?? ThemeMode.system,
+            home: _LockScreenBody(
+              state: state,
+              onRetry: () {
+                context.read<AppLockBloc>().add(const AppUnlockRequested());
+              },
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _LockScreenBody extends StatelessWidget {
+  final AppLockState state;
+  final VoidCallback onRetry;
+
+  const _LockScreenBody({required this.state, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    // This context is *inside* the gate's MaterialApp, so Theme resolves to
+    // the user's palette.
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isAuthenticating = state.isAuthenticating;
+    final isChecking = state.status == AppLockStatus.checking;
+
+    final String message;
+    if (isAuthenticating) {
+      message = 'Authenticating…';
+    } else if (isChecking) {
+      message = 'Loading…';
+    } else {
+      message = 'Unlock to continue';
+    }
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: AppSpacing.paddingLg,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: AppSizes.avatarXl,
+                    height: AppSizes.avatarXl,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.fingerprint_rounded,
+                      size: AppSizes.iconHero,
+                      color: colorScheme.primary,
+                      semanticLabel: 'Biometric lock',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'Monivo',
+                    style: theme.textTheme.headlineSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Semantics(
+                    liveRegion: true,
+                    child: AnimatedSwitcher(
+                      duration: AppMotion.respectReducedMotion(
+                        context,
+                        AppMotion.standard,
+                      ),
+                      child: Text(
+                        message,
+                        key: ValueKey(message),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  AnimatedSwitcher(
+                    duration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.standard,
+                    ),
+                    child: isAuthenticating || isChecking
+                        ? const SizedBox(
+                            key: ValueKey('progress'),
+                            height: AppSizes.touchTarget,
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        : Column(
+                            key: const ValueKey('actions'),
+                            children: [
+                              if (state.errorMessage != null) ...[
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.error_outline_rounded,
+                                      size: AppSizes.iconSm,
+                                      color: colorScheme.error,
+                                    ),
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Flexible(
+                                      child: Text(
+                                        state.errorMessage!,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: colorScheme.error,
+                                            ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
+                              // Always-available re-authentication action so the
+                              // user can retry even after dismissing the native
+                              // biometric prompt.
+                              FilledButton.icon(
+                                onPressed: onRetry,
+                                icon: const Icon(Icons.fingerprint_rounded),
+                                label: const Text('Unlock'),
+                              ),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
