@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Audited and rewrote all user-facing explanations (info sheets, empty states,
+	onboarding, Settings descriptions, notifications, widget descriptions) to
+	match the current implementation: multiple independent budgets, flexible
+	start/end dates, per-budget Today's Safe Spending that is never combined,
+	and rule-based (non-AI) Smart Insights.
+- Standardised terminology across the app: Today's Safe Spending, Spent Today,
+	Remaining Today, Remaining Budget, Overall Budget Progress, Active Budget,
+	Budget Period, Combined Expenses.
+- Dashboard "Total Remaining" card renamed to "Remaining Budget"; it always
+	reflected the active budget only.
+- Settings "Budget Management" renamed to "Active Budget" with accurate labels
+	("Start New Budget Period", "Change Budget Amount").
+- Removed the Overspending Alerts, No-Expense Reminder and Quiet Hours toggles
+	from Settings because no notification logic implements them.
+- Home-screen widget now shows the active budget's Today's Safe Spending
+	instead of a sum across budgets.
+- Smart Insights and report insights no longer refer to a "monthly" budget or
+	use combined daily targets; the over-budget insight reports the actual
+	overspend.
+- The app is now consistently called "Monivo" (matching the installed app
+	label) in the onboarding, About card, widget and README instead of a mix of
+	"Smart Monivo", "Smart Budget Tracker" and "Monivo".
+- Corrected the v1.2.2 release-note bullets for the home-screen widget, which
+	described behaviour that never shipped.
+
+### Fixed
+- Today's Safe Spending on the Dashboard cards, notifications and widget now
+	uses the same formula as the budget engine: (remaining + spent today) ÷
+	remaining days. Previously the per-budget cards shrank the amount as you
+	spent, so spending exactly the safe amount showed as "Over limit".
+- Bill and budget-list tests that hard-coded August 2026 dates now use dates
+	relative to today, so they no longer fail once that month has passed.
+- Reports growth rate and week-over-week comparison now receive the expenses
+	from the preceding period, so they no longer always compare against zero.
+- "Category" sort in the expense history now keeps expenses ordered by
+	category within each day group.
+- Changing the active budget's amount from Settings now keeps existing
+	expenses reflected in the remaining amount.
+- The "Create Budget" button shown on the Dashboard when no budget covers
+	today now opens the budget form.
+- Removed unused dashboard widgets that still described combined daily limits.
+
 ## [1.2.2] - 2026-08-31
 
 ### Added

@@ -106,7 +106,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       emit(
         state.copyWith(
           biometricMessage:
-              'Please set up fingerprint or Face ID on your '
+              'Please set up fingerprint or face unlock on your '
               'device first.',
         ),
       );
@@ -199,7 +199,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         state.copyWith(
           isBiometricBusy: false,
           biometricMessage:
-              'Please set up fingerprint or Face ID on your '
+              'Please set up fingerprint or face unlock on your '
               'device first.',
         ),
       );
@@ -313,10 +313,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     switch (result) {
       case SettingsSuccess():
         emit(
-          state.copyWith(
-            isBusy: false,
-            infoMessage: 'Budget reset successfully.',
-          ),
+          state.copyWith(isBusy: false, infoMessage: 'Budget amount updated.'),
         );
       case SettingsError(:final failure):
         emit(state.copyWith(isBusy: false, errorMessage: failure.message));
@@ -331,7 +328,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     final result = await resetBudgetUseCase.resetCurrentMonth();
     switch (result) {
       case SettingsSuccess():
-        emit(state.copyWith(isBusy: false, infoMessage: 'New month started.'));
+        emit(
+          state.copyWith(
+            isBusy: false,
+            infoMessage: 'New budget period started.',
+          ),
+        );
       case SettingsError(:final failure):
         emit(state.copyWith(isBusy: false, errorMessage: failure.message));
     }

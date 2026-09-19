@@ -214,12 +214,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
               infoContent: InfoContent(
                 title: 'Category Breakdown',
                 whatIsThis:
-                    'Shows your spending broken down by category '
-                    'during the selected period.',
+                    'Your active budget\'s spending in the selected period, '
+                    'broken down by category.',
                 howIsItCalculated:
                     'Each category shows the total amount spent on '
                     'expenses assigned to that category.\n\n'
-                    'Category % = Category spending ÷ Total spending × 100',
+                    'Category % = Category spending ÷ Total spending × 100\n\n'
+                    'Categories are listed from highest to lowest total.',
                 example:
                     'Food: ₹4,500 (30%)\n'
                     'Shopping: ₹3,000 (20%)\n'
@@ -240,18 +241,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
               infoContent: InfoContent(
                 title: 'Time Analytics',
                 whatIsThis:
-                    'Breakdown of your spending patterns by day '
-                    'of the week and calendar date.',
+                    'When your active budget\'s spending happens in the '
+                    'selected period: by calendar day and by day of the '
+                    'week.',
                 howIsItCalculated:
-                    'Most Expensive Day: The calendar day with the '
+                    'Most Expensive Day: the calendar day with the '
                     'highest total of recorded expenses.\n'
-                    'Weekday vs Weekend: Total spent on Mon–Fri '
-                    'vs Sat–Sun.',
+                    'Highest spending day: the day of the week with the '
+                    'highest total across the period (not an average).\n'
+                    'Weekday vs Weekend: total spent Monday–Friday '
+                    'compared with Saturday–Sunday.',
                 additionalNotes:
                     '• Expenses are grouped by their recorded date\n'
-                    '• Weekday vs weekend shows spending distribution\n'
-                    '• The highest spending weekday indicates your '
-                    'most expensive day of the week',
+                    '• Only expenses matching the period and filters are '
+                    'counted',
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -267,23 +270,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
               infoContent: InfoContent(
                 title: 'Spending Trends',
                 whatIsThis:
-                    'Analysis of your spending patterns over time, '
-                    'including averages, growth rate, and '
+                    'How your active budget\'s spending in the selected '
+                    'period compares over time: averages, growth and '
                     'consistency.',
                 howIsItCalculated:
                     'Daily average = Total spending ÷ Days in period\n'
                     'Weekly average = Daily average × 7\n'
                     'Monthly average = Daily average × 30\n\n'
-                    'Growth rate compares the recent half of the '
-                    'period to the earlier half.\n\n'
-                    'Consistency score measures how uniform your '
-                    'daily spending is (0% = erratic, 100% = '
-                    'very consistent).',
+                    'Growth rate compares this period\'s total with the '
+                    'same number of days immediately before it. It shows '
+                    '0% when nothing was spent in that earlier stretch.\n\n'
+                    'Consistency measures how even your daily spending is '
+                    '(0% = very uneven, 100% = the same every day).',
                 additionalNotes:
-                    '• Positive growth (green) means spending decreased\n'
-                    '• Negative growth (red) means spending increased\n'
-                    '• Is improving when recent half is lower than '
-                    'the first half',
+                    '• Negative growth (green) means you spent less than '
+                    'in the earlier stretch; positive (red) means more\n'
+                    '• "Improving" means the second half of the period '
+                    'had lower spending than the first half\n'
+                    '• Consistency of 60% or more is shown in green',
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -296,17 +300,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
               infoContent: InfoContent(
                 title: 'Smart Insights',
                 whatIsThis:
-                    'Analysis of your local budget and expense data '
-                    'to identify spending patterns, budget progress, '
-                    'and unusual behavior.',
+                    'Short, rule-based observations about the report '
+                    'you are viewing. They are simple calculations on '
+                    'your active budget\'s expenses, not AI.',
                 howIsItCalculated:
-                    'Insights are generated from your actual budget '
-                    'and expense data, including:\n'
-                    '• Spending pace vs. safe allowance\n'
-                    '• Budget progress and remaining days\n'
-                    '• Daily and weekly target performance\n'
-                    '• Projected spending at period end\n'
-                    '• Overspending alerts',
+                    'Insights are generated from the figures shown on this '
+                    'screen:\n'
+                    '• Spending compared with the same number of days '
+                    'before this period\n'
+                    '• The category with the largest share\n'
+                    '• The day of the week you spend the most on\n'
+                    '• Whether weekends take a large share of spending\n'
+                    '• How much of the active budget is left, or by how '
+                    'much it is over (only when the period is in the '
+                    'current month)\n'
+                    '• Whether the second half of the period was lower '
+                    'than the first\n'
+                    '• Whether daily spending is very consistent',
                 privacyNote:
                     'All analysis runs on your device. No data leaves '
                     'your phone.',

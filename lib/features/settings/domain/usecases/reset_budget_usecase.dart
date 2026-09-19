@@ -19,9 +19,11 @@ class ResetBudgetUseCase {
   }) : _database = database,
        _sharedPreferences = sharedPreferences;
 
-  /// Resets the active budget's amount to [newAmount].
+  /// Sets the active budget's total amount to [newAmount].
   ///
-  /// Preserves existing expenses. Returns the updated budget id.
+  /// Preserves existing expenses: the stored remaining amount is recomputed
+  /// as the new amount minus what has already been spent. Returns the
+  /// updated budget id.
   Future<SettingsResult<String>> resetBudgetAmount(double newAmount) async {
     if (newAmount <= 0) {
       return const SettingsError(
@@ -62,12 +64,13 @@ class ResetBudgetUseCase {
         return SettingsSuccess(id);
       }
 
+      final alreadySpent = existing.monthlyAmount - existing.remainingAmount;
       await (_database.update(
         _database.budgets,
       )..where((b) => b.id.equals(existing.id))).write(
         BudgetsCompanion(
           monthlyAmount: Value(newAmount),
-          remainingAmount: Value(newAmount),
+          remainingAmount: Value(newAmount - alreadySpent),
           updatedAt: Value(DateTime.now()),
         ),
       );
@@ -82,8 +85,8 @@ class ResetBudgetUseCase {
     }
   }
 
-  /// Archives the active budget and creates a fresh budget period. Returns
-  /// the new budget id.
+  /// Archives the active budget and creates a fresh 31-day budget period
+  /// starting today (same amount and currency). Returns the new budget id.
   ///
   /// The operation is atomic (a single [transaction]) and preserves the
   /// previous budget's amount/currency so the dashboard never sees a budget

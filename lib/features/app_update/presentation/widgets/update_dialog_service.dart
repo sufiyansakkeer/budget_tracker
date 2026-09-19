@@ -190,7 +190,9 @@ class _UpdateDialogBodyState extends State<_UpdateDialogBody> {
 
             // Description
             Text(
-              'A new version of Smart Budget Tracker is available.',
+              'A newer release is available on GitHub. Tapping Update opens '
+              'the release page in your browser, where you can download '
+              'and install it. Nothing is installed automatically.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

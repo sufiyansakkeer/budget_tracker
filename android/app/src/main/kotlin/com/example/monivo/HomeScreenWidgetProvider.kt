@@ -222,7 +222,7 @@ class HomeScreenWidgetProvider : AppWidgetProvider() {
     }
 
     private fun renderEmptyState(views: RemoteViews, context: Context) {
-        views.setTextViewText(R.id.widget_safe_spending_label, "Smart Budget Tracker")
+        views.setTextViewText(R.id.widget_safe_spending_label, "Monivo")
         views.setTextViewText(R.id.widget_safe_spending_amount, "—")
         views.setTextViewText(R.id.widget_spent_today_label, "")
         views.setTextViewText(R.id.widget_spent_today_amount, "")

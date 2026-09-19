@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -8,8 +9,8 @@ import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/spending_target_status.dart';
 
-/// Section that displays "Today's Spending Limits" with a separate card
-/// for each active budget. Replaces the old combined hero card.
+/// Section that displays "Today's Safe Spending" with a separate card for
+/// each active budget. Amounts are never combined across budgets.
 class BudgetDailyLimitsSection extends StatelessWidget {
   final List<BudgetDailyLimitEntity> budgetLimits;
 
@@ -32,7 +33,7 @@ class BudgetDailyLimitsSection extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                "Today's Spending Limits",
+                "Today's Safe Spending",
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -40,33 +41,42 @@ class BudgetDailyLimitsSection extends StatelessWidget {
             ),
             InfoIcon(
               content: InfoContent(
-                title: "Today's Spending Limits",
+                title: "Today's Safe Spending",
                 whatIsThis:
-                    'Each active budget has its own daily spending limit. '
-                    'The limit is calculated separately using that budget\'s '
-                    'own data.',
+                    'How much you can still spend today in each budget '
+                    'while staying within that budget for the rest of its '
+                    'period. Every budget that is running today gets its '
+                    'own card and its own amount.',
                 howIsItCalculated:
-                    'For each active budget:\n'
-                    '• Remaining amount in that budget\n'
-                    '• Remaining days in that budget\n'
-                    '• Expenses assigned to that budget\n'
-                    '• The budget\'s start and end dates\n\n'
-                    'Adding an expense can change that budget\'s '
-                    'daily spending limit.',
+                    'For each budget:\n'
+                    "Today's Safe Spending = Remaining Budget at the start "
+                    'of today ÷ Remaining days\n\n'
+                    'Remaining Budget at the start of today = Budget amount '
+                    '− all expenses before today\n'
+                    'Remaining days = days from today to the budget\'s end '
+                    'date, counting today\n\n'
+                    'Spent Today is the total of that budget\'s expenses '
+                    'dated today. Remaining Today = Today\'s Safe Spending '
+                    '− Spent Today. The progress bar compares the two.',
                 example:
-                    'Food Budget:\n'
-                    'Budget: ₹10,000 | Spent: ₹2,000\n'
-                    'Remaining: ₹8,000 | Days left: 20\n'
-                    'Daily limit: ₹400\n\n'
-                    'Travel Budget:\n'
-                    'Budget: ₹20,000 | Spent: ₹5,000\n'
-                    'Remaining: ₹15,000 | Days left: 15\n'
-                    'Daily limit: ₹1,000',
+                    'Food budget:\n'
+                    'Amount ₹10,000 · Spent ₹2,000 · 20 days left\n'
+                    "Today's Safe Spending: ₹8,000 ÷ 20 = ₹400\n\n"
+                    'Travel budget:\n'
+                    'Amount ₹20,000 · Spent ₹5,000 · 15 days left\n'
+                    "Today's Safe Spending: ₹15,000 ÷ 15 = ₹1,000",
                 additionalNotes:
-                    '• Each budget\'s limit is independent\n'
-                    '• Limits are NOT combined into a single number\n'
-                    '• One budget being over limit does not affect others\n'
-                    '• The limit adjusts as you add expenses',
+                    '• Each budget is independent. Amounts are never added '
+                    'together\n'
+                    '• Today\'s Safe Spending stays fixed for the day. '
+                    'Expenses you add today reduce Remaining Today, and '
+                    'tomorrow\'s amount is recalculated from what is left\n'
+                    '• Spending less than the safe amount leaves more for '
+                    'the remaining days; spending more leaves less\n'
+                    '• Status: On track below 80% of the safe amount, Near '
+                    'limit at 80–100%, Over limit above 100%\n'
+                    '• The smaller bar shows Overall Budget Progress: total '
+                    'spent ÷ budget amount for that budget',
                 privacyNote:
                     'Your financial data is stored locally on your device.',
               ),
@@ -86,8 +96,8 @@ class BudgetDailyLimitsSection extends StatelessWidget {
   }
 }
 
-/// Displays today's spending limit for a single budget with context:
-/// limit, spent, remaining, and on-track/over-limit status.
+/// Displays Today's Safe Spending for a single budget with context:
+/// safe amount, Spent Today, Remaining Today, and on-track/over-limit status.
 class BudgetDailyLimitCard extends StatefulWidget {
   final BudgetDailyLimitEntity budgetLimit;
 
@@ -189,7 +199,7 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
           Row(
             children: [
               Text(
-                "Today's limit",
+                "Today's Safe Spending",
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
@@ -221,7 +231,7 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
             children: [
               Expanded(
                 child: _InfoColumn(
-                  label: 'Spent today',
+                  label: 'Spent Today',
                   amount: bl.spentToday,
                   currency: bl.currency,
                   color: theme.colorScheme.onSurface,
@@ -235,7 +245,7 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
               ),
               Expanded(
                 child: _InfoColumn(
-                  label: bl.isOverLimit ? 'Over limit' : 'Remaining today',
+                  label: bl.isOverLimit ? 'Over by' : 'Remaining Today',
                   amount: bl.isOverLimit ? bl.exceededToday : bl.remainingToday,
                   currency: bl.currency,
                   color: statusColor,
@@ -263,8 +273,8 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
               Expanded(
                 child: Text(
                   bl.isOverLimit
-                      ? '${CurrencyFormatter.format(bl.exceededToday, code: bl.currency, decimalDigits: 0)} over today\'s limit'
-                      : '${CurrencyFormatter.format(bl.remainingToday, code: bl.currency, decimalDigits: 0)} left today',
+                      ? '${CurrencyFormatter.format(bl.exceededToday, code: bl.currency, decimalDigits: 0)} over today\'s safe spending'
+                      : '${CurrencyFormatter.format(bl.remainingToday, code: bl.currency, decimalDigits: 0)} left to spend today',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: statusColor,
                     fontWeight: FontWeight.w600,
@@ -297,7 +307,7 @@ class _BudgetDailyLimitCardState extends State<BudgetDailyLimitCard>
               ),
               const SizedBox(width: 8),
               Text(
-                '${(bl.budgetUtilization * 100).clamp(0, 100).toStringAsFixed(0)}% used',
+                '${(bl.budgetUtilization * 100).clamp(0, 100).toStringAsFixed(0)}% of budget used',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   fontWeight: FontWeight.w600,
@@ -377,7 +387,8 @@ class _EmptyLimitsCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create a budget to start tracking\nyour daily spending limits.',
+            'No budget covers today. Create a budget, or open Budgets\n'
+            'to switch to one whose period includes today.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -385,9 +396,7 @@ class _EmptyLimitsCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: () {
-              // Navigate to budget creation — handled by parent.
-            },
+            onPressed: () => context.push('/app/budgets/create'),
             icon: const Icon(Icons.add_rounded, size: 18),
             label: const Text('Create Budget'),
           ),

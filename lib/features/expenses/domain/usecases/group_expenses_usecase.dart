@@ -34,8 +34,9 @@ class GroupExpensesUseCase {
   }
 
   /// Sorts items within a single date group according to the active sort
-  /// option. Amount/category/alphabetical sorts apply within the group;
-  /// chronological sorts use date+time.
+  /// option. Amount/alphabetical sorts apply within the group; chronological
+  /// sorts use date+time. The category sort keeps the incoming order, which
+  /// [SortExpensesUseCase] has already arranged by category name.
   void _sortWithinGroup(List<ExpenseEntity> items, ExpenseSortOption sort) {
     switch (sort) {
       case ExpenseSortOption.newestFirst:
@@ -59,11 +60,7 @@ class GroupExpensesUseCase {
         items.sort((a, b) => a.amount.compareTo(b.amount));
         break;
       case ExpenseSortOption.category:
-        items.sort((a, b) {
-          final byDate = b.date.compareTo(a.date);
-          if (byDate != 0) return byDate;
-          return b.time.compareTo(a.time);
-        });
+        // Already sorted by category name upstream; preserve that order.
         break;
       case ExpenseSortOption.alphabetical:
         items.sort((a, b) {

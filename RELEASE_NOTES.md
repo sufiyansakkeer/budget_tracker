@@ -1,4 +1,4 @@
-# Smart Monivo v1.2.2
+# Monivo v1.2.2
 
 ## What's New
 
@@ -20,13 +20,12 @@
   amount, in addition to the existing date-based grouping.
 
 ### Home Screen Widget
-- View a spending overview directly from your device's home screen without
-  opening the app.
-- Displays budget summaries with remaining amounts and today's spending.
+- See your active budget's Today's Safe Spending, Spent Today, status,
+  Remaining Budget and remaining days without opening the app.
 - Supported on both Android (App Widgets) and iOS (WidgetKit).
-- Widget data updates automatically when expenses are added or modified.
-- Tap a budget in the widget to open the app directly to that budget's
-  details.
+- Widget data updates automatically when expenses or budgets change.
+- Tap the widget to open the Dashboard, or tap "+ Add Expense" to record an
+  expense straight away.
 
 ### Database Integrity Service
 - Comprehensive data integrity checks for budgets, expenses, and bills.

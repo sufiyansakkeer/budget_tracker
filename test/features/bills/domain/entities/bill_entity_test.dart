@@ -20,7 +20,7 @@ BillEntity makeBill({
     amount: 1000,
     currency: 'INR',
     category: BillCategory.utilities,
-    dueDate: dueDate ?? DateTime(2026, 9, 1),
+    dueDate: dueDate ?? DateTime.now().add(const Duration(days: 7)),
     dueTime: dueTime,
     isRecurring: isRecurring,
     recurrenceType: recurrenceType,
@@ -41,7 +41,9 @@ void main() {
     });
 
     test('returns overdue when dueDate is before today', () {
-      final bill = makeBill(dueDate: DateTime(2026, 8, 20));
+      final bill = makeBill(
+        dueDate: DateTime.now().subtract(const Duration(days: 7)),
+      );
       expect(bill.status, BillStatus.overdue);
     });
 
@@ -52,7 +54,9 @@ void main() {
     });
 
     test('returns upcoming when dueDate is in the future', () {
-      final bill = makeBill(dueDate: DateTime(2026, 9, 1));
+      final bill = makeBill(
+        dueDate: DateTime.now().add(const Duration(days: 7)),
+      );
       expect(bill.status, BillStatus.upcoming);
     });
 

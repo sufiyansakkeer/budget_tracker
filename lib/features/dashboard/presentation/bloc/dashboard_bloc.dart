@@ -127,8 +127,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
               .callPerBudget();
           if (perBudgetResult is PerBudgetSpendingTargetSuccess) {
             budgetDailyLimits = perBudgetResult.budgetLimits;
-            // Derive legacy combined target for backward compatibility.
-            spendingTarget = _deriveSpendingTarget(perBudgetResult);
+            // Legacy target for the ACTIVE budget only (never combined).
+            spendingTarget = _deriveSpendingTarget(perBudgetResult, activeId);
           }
         } catch (_) {
           // Spending targets unavailable — not critical for dashboard.
@@ -160,22 +160,26 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     return DashboardError(message: failure.message);
   }
 
-  /// Derives a legacy [SpendingTargetEntity] from per-budget data so that
-  /// existing widgets (e.g. [BudgetHeroCard]) keep working without changes.
-  SpendingTargetEntity _deriveSpendingTarget(
+  /// Derives a legacy [SpendingTargetEntity] for the active budget from the
+  /// per-budget data. Daily and weekly amounts are never combined across
+  /// budgets; if the active budget is not running today, no target is derived.
+  SpendingTargetEntity? _deriveSpendingTarget(
     PerBudgetSpendingTargetSuccess result,
+    String activeBudgetId,
   ) {
-    var dailySpent = 0.0;
-    var weeklyTarget = 0.0;
-    var weeklySpent = 0.0;
-
+    BudgetDailyLimitEntity? active;
     for (final bl in result.budgetLimits) {
-      dailySpent += bl.spentToday;
-      weeklyTarget += bl.weeklyTarget;
-      weeklySpent += bl.weeklySpent;
+      if (bl.budgetId == activeBudgetId) {
+        active = bl;
+        break;
+      }
     }
+    if (active == null) return null;
 
-    final dailyTarget = result.combinedDailyTarget;
+    final dailySpent = active.spentToday;
+    final weeklyTarget = active.weeklyTarget;
+    final weeklySpent = active.weeklySpent;
+    final dailyTarget = active.dailyLimit;
     final dailyRemaining = (dailyTarget - dailySpent).clamp(
       0.0,
       double.infinity,

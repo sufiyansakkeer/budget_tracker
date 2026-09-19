@@ -66,7 +66,9 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Set the total amount for this budget period.',
+            'The total you want to spend between the start and end dates '
+            'you choose next. You can add more budgets later, each with its '
+            'own amount.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
             ),

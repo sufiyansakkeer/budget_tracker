@@ -6,11 +6,12 @@ import '../entities/smart_insight_entity.dart';
 import '../entities/spending_target_entity.dart';
 import '../entities/spending_target_status.dart';
 
-/// Deterministic Smart Insights engine.
+/// Deterministic, rule-based Smart Insights engine (no AI, no network).
 ///
-/// Translates the existing [BudgetSummaryEntity] (produced by the Budget
-/// Engine) into prioritized, actionable insight messages. Insights are derived
-/// exclusively from real local data — never random or generic filler.
+/// Translates the active budget's [BudgetSummaryEntity] and the per-budget
+/// daily limits into prioritized, actionable insight messages. Insights are
+/// derived exclusively from real local data — never random or generic filler.
+/// Amounts are never combined across budgets.
 ///
 /// The engine is a pure domain service: it contains no database, UI, or
 /// Flutter dependencies, and is fully unit-testable.
@@ -19,9 +20,10 @@ class GetSmartInsightsUseCase {
 
   /// Derives a prioritized list of [SmartInsight] messages from [summary].
   ///
-  /// Optionally accepts [spendingTarget] for legacy combined insights and
-  /// [budgetDailyLimits] for per-budget insights. Insights are ordered by
-  /// severity so the most important message appears first on the Dashboard.
+  /// Optionally accepts [spendingTarget] (the active budget's daily/weekly
+  /// target) and [budgetDailyLimits] for per-budget insights. Insights are
+  /// ordered by severity so the most important message appears first on the
+  /// Dashboard.
   List<SmartInsight> call(
     BudgetSummaryEntity summary, {
     SpendingTargetEntity? spendingTarget,
@@ -127,8 +129,9 @@ class GetSmartInsightsUseCase {
           SmartInsight(
             id: 'per_budget_over_${bl.budgetId}',
             message:
-                "${bl.budgetName} spending is "
-                "${_money(bl.exceededToday, bl.currency)} above today's limit.",
+                "${bl.budgetName}: you've spent "
+                "${_money(bl.exceededToday, bl.currency)} over Today's Safe "
+                'Spending.',
             type: InsightType.negative,
           ),
         );
@@ -144,8 +147,8 @@ class GetSmartInsightsUseCase {
           SmartInsight(
             id: 'per_budget_near_${bl.budgetId}',
             message:
-                "${bl.budgetName} is at $pct% of today's limit "
-                '(${_money(bl.remainingToday, bl.currency)} remaining).',
+                "${bl.budgetName} is at $pct% of Today's Safe Spending "
+                '(${_money(bl.remainingToday, bl.currency)} left today).',
             type: InsightType.warning,
           ),
         );
@@ -164,8 +167,9 @@ class GetSmartInsightsUseCase {
           SmartInsight(
             id: 'per_budget_weekly_over_${bl.budgetId}',
             message:
-                '${bl.budgetName} weekly spending exceeds the target by '
-                '${_money(bl.weeklyExceeded, bl.currency)}.',
+                "${bl.budgetName}: this week's spending is "
+                '${_money(bl.weeklyExceeded, bl.currency)} over its weekly '
+                'share of the budget.',
             type: InsightType.warning,
           ),
         );
@@ -206,13 +210,14 @@ class GetSmartInsightsUseCase {
     List<SmartInsight> insights,
   ) {
     if (summary.status != BudgetStatus.overBudget) return;
+    final overspent = summary.totalSpent - summary.monthlyAmount;
     insights.add(
       SmartInsight(
         id: 'over_budget',
         message:
-            "You've exceeded your budget by "
-            '${_money(summary.expectedOverspending, summary.currency)}. '
-            'Your daily allowance has been adjusted for the remaining days.',
+            "You've spent ${_money(overspent, summary.currency)} more than "
+            "this budget's total amount. There is no safe amount left to "
+            'spend for the rest of this period.',
         type: InsightType.negative,
       ),
     );
@@ -227,8 +232,9 @@ class GetSmartInsightsUseCase {
       SmartInsight(
         id: 'today_overspending',
         message:
-            "You've exceeded today's safe spending by "
-            '${_money(summary.todayOverspending, summary.currency)}.',
+            "You've spent "
+            '${_money(summary.todayOverspending, summary.currency)} over '
+            "Today's Safe Spending in your active budget.",
         type: InsightType.warning,
       ),
     );
@@ -243,8 +249,9 @@ class GetSmartInsightsUseCase {
       SmartInsight(
         id: 'projected_overspending',
         message:
-            'At your current pace, you may exceed this budget by '
-            'approximately ${_money(summary.expectedOverspending, summary.currency)}.',
+            'At your current daily average, this budget may end its period '
+            'about ${_money(summary.expectedOverspending, summary.currency)} '
+            'over its amount.',
         type: InsightType.warning,
       ),
     );
@@ -267,9 +274,9 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'spending_pace_under',
           message:
-              "You're spending about "
-              '${_money(diff, summary.currency)} less per day than your '
-              'current safe allowance.',
+              "You're averaging about "
+              "${_money(diff, summary.currency)} less per day than Today's "
+              'Safe Spending.',
           type: InsightType.positive,
         ),
       );
@@ -278,9 +285,9 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'spending_pace_over',
           message:
-              "You're spending about "
-              '${_money(diff.abs(), summary.currency)} more per day than '
-              'your safe allowance ($pct% over).',
+              "You're averaging about "
+              "${_money(diff.abs(), summary.currency)} more per day than "
+              "Today's Safe Spending ($pct% over).",
           type: InsightType.warning,
         ),
       );
@@ -297,9 +304,10 @@ class GetSmartInsightsUseCase {
       SmartInsight(
         id: 'budget_progress',
         message:
-            "You've used $usedPercent% of your budget and "
-            'have ${summary.remainingDays} '
-            '${summary.remainingDays == 1 ? 'day' : 'days'} remaining.',
+            "You've used $usedPercent% of this budget with "
+            '${summary.remainingDays} '
+            '${summary.remainingDays == 1 ? 'day' : 'days'} left in its '
+            'period.',
         type: usedPercent >= 80 ? InsightType.warning : InsightType.info,
       ),
     );
@@ -317,8 +325,8 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'daily_target_exceeded',
           message:
-              "You've exceeded your daily target by "
-              '${_money(target.dailyExceeded, currency)}.',
+              "You've spent ${_money(target.dailyExceeded, currency)} over "
+              "Today's Safe Spending.",
           type: InsightType.warning,
         ),
       );
@@ -328,8 +336,8 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'daily_target_near',
           message:
-              "You're at $pct% of your daily target "
-              '(${_money(target.dailyRemaining, currency)} remaining).',
+              "You're at $pct% of Today's Safe Spending "
+              '(${_money(target.dailyRemaining, currency)} left today).',
           type: InsightType.warning,
         ),
       );
@@ -339,8 +347,8 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'daily_target_on_track',
           message:
-              "You're at $pct% of your daily target "
-              'with ${_money(target.dailyRemaining, currency)} remaining.',
+              "You're at $pct% of Today's Safe Spending with "
+              '${_money(target.dailyRemaining, currency)} left today.',
           type: InsightType.positive,
         ),
       );
@@ -359,10 +367,10 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'weekly_target_exceeded',
           message:
-              "You've exceeded your weekly target by "
-              '${_money(target.weeklyExceeded, currency)}. '
-              'Consider reducing spending over the next few days to stay '
-              'within your budget period.',
+              "This week's spending is "
+              "${_money(target.weeklyExceeded, currency)} over this budget's "
+              'weekly share. Spending less over the next few days helps you '
+              'stay within the budget period.',
           type: InsightType.negative,
         ),
       );
@@ -372,8 +380,8 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'weekly_target_status',
           message:
-              'Your spending is currently $pct% of your weekly target '
-              'with ${_money(target.weeklyRemaining, currency)} remaining.',
+              "You've used $pct% of this budget's weekly share with "
+              '${_money(target.weeklyRemaining, currency)} left this week.',
           type: target.weeklyStatus == SpendingTargetStatus.nearLimit
               ? InsightType.warning
               : InsightType.positive,
@@ -388,8 +396,9 @@ class GetSmartInsightsUseCase {
         SmartInsight(
           id: 'on_track_savings',
           message:
-              "You're on track to finish this budget period with "
-              'approximately ${_money(summary.expectedSavings, summary.currency)} remaining.',
+              'At your current daily average, this budget should end its '
+              'period with about '
+              '${_money(summary.expectedSavings, summary.currency)} left.',
           type: InsightType.positive,
         ),
       );
@@ -397,7 +406,7 @@ class GetSmartInsightsUseCase {
       insights.add(
         const SmartInsight(
           id: 'under_budget',
-          message: "You're within your budget. Keep it up!",
+          message: "You're within this budget. Keep it up!",
           type: InsightType.positive,
         ),
       );

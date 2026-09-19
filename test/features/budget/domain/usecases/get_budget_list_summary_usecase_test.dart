@@ -22,9 +22,11 @@ void main() {
   });
 
   group('GetBudgetListSummaryUseCase', () {
-    final now = DateTime(2026, 8, 11);
-    final startDate = DateTime(2026, 8, 1);
-    final endDate = DateTime(2026, 8, 31);
+    // Relative to the real clock: BudgetEntity.isActive uses DateTime.now().
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startDate = today.subtract(const Duration(days: 10));
+    final endDate = today.add(const Duration(days: 20));
 
     test('returns empty summary when no budgets exist', () async {
       when(
@@ -166,8 +168,8 @@ void main() {
         monthlyAmount: 10000,
         remainingAmount: 8000,
         currency: 'INR',
-        startDate: DateTime(2026, 7, 1),
-        endDate: DateTime(2026, 7, 31),
+        startDate: today.subtract(const Duration(days: 60)),
+        endDate: today.subtract(const Duration(days: 30)),
         isArchived: false,
         createdAt: now,
         updatedAt: now,

@@ -82,21 +82,28 @@ class _BudgetUtilizationCardState extends State<BudgetUtilizationCard>
                 content: InfoContent(
                   title: 'Budget Utilization',
                   whatIsThis:
-                      'Shows what percentage of your available budget '
-                      'has already been used.',
+                      'Overall Budget Progress for your active budget: '
+                      'what share of its total amount has been spent so '
+                      'far in its period.',
                   howIsItCalculated:
-                      'Utilization = Spent ÷ Budget amount\n\n'
-                      'Spent = Total expenses in the budget period\n'
-                      'Budget = Your configured budget amount',
+                      'Utilization = Total spent ÷ Budget amount\n\n'
+                      'Total spent = all expenses in the active budget\'s '
+                      'period, regardless of the report period selected '
+                      'above\n'
+                      'Budget amount = the amount you set for the active '
+                      'budget',
                   example:
                       'Budget: ₹30,000\n'
                       'Spent: ₹18,000\n\n'
                       'Utilization: 18,000 ÷ 30,000\n'
                       '= 60%',
                   additionalNotes:
+                      '• Shown only when the selected report period falls '
+                      'within the current calendar month\n'
                       '• Color: Green (< 80%), Orange (80–100%), '
                       'Red (> 100%)\n'
-                      '• Can exceed 100% when overspending\n'
+                      '• The ring stops at 100% even when the budget is '
+                      'overspent\n'
                       '• Updates when expenses are added or edited',
                 ),
               ),
