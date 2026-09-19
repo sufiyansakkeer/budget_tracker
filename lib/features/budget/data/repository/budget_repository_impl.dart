@@ -49,7 +49,16 @@ class BudgetRepositoryImpl implements BudgetRepository {
 
   @override
   Future<BudgetEntity> updateBudget(BudgetEntity budget) {
-    return localDataSource.updateBudget(budget);
+    // The stored remaining amount is a derived value (amount − applicable
+    // expenses). Callers may pass an entity whose remainingAmount predates an
+    // amount or date-range change, so it is always recomputed from the
+    // persisted expenses after the write, inside the same transaction.
+    return localDataSource.transaction(() async {
+      await localDataSource.updateBudget(budget);
+      await updateBudgetRemainingAmount(budget.id);
+      final refreshed = await localDataSource.getBudgetById(budget.id);
+      return refreshed ?? budget;
+    });
   }
 
   @override

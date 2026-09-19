@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +9,7 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
+import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
@@ -33,11 +36,34 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   bool _isActive = false;
   bool _loading = true;
   bool _busy = false;
+  StreamSubscription<void>? _expenseSubscription;
+  StreamSubscription<void>? _budgetSubscription;
 
   @override
   void initState() {
     super.initState();
     _load();
+
+    // Reload after an expense is added/edited/deleted (e.g. via Add Expense).
+    _expenseSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+      if (!mounted) return;
+      _load();
+    });
+
+    // Reload after this (or any) budget is edited, archived, switched, etc.,
+    // so returning from the edit screen shows the current amount and the
+    // remaining/progress values derived from it.
+    _budgetSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+      if (!mounted) return;
+      _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _expenseSubscription?.cancel();
+    _budgetSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -80,6 +106,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   Future<void> _restore() async {
     setState(() => _busy = true);
     await _manageBudget.archive(widget.budgetId, archived: false);
+    BudgetRefreshBus.instance.notifyChanged();
     if (!mounted) return;
     setState(() {
       _busy = false;

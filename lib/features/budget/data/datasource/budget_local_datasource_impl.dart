@@ -132,7 +132,9 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
       id: _newId(),
       name: newName,
       monthlyAmount: source.monthlyAmount,
-      remainingAmount: source.remainingAmount,
+      // A duplicate starts with no expenses, so its remaining amount is the
+      // full budget amount rather than the source's stored remaining.
+      remainingAmount: source.monthlyAmount,
       currency: source.currency,
       startDate: startDate ?? source.startDate,
       endDate: endDate ?? source.endDate,
@@ -278,5 +280,10 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
             .get();
 
     return expenses.fold<double>(0, (sum, e) => sum + e.amount);
+  }
+
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) {
+    return database.transaction(action);
   }
 }
