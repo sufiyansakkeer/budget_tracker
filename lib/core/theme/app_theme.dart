@@ -4,7 +4,7 @@ import '../../features/settings/domain/entities/color_palette_entity.dart';
 import 'color_palettes.dart';
 import 'app_colors_extension.dart';
 
-/// Central Material 3 theme for the Smart Monivo.
+/// Central Material 3 theme for Monivo.
 ///
 /// Both light and dark themes share the same typography scale and component
 /// shapes so the whole app feels consistent, while the dark theme uses an

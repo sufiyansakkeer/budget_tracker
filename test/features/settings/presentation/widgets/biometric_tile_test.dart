@@ -104,7 +104,10 @@ void main() {
       );
 
       expect(
-        find.text('Use fingerprint or Face ID to unlock the app'),
+        find.text(
+          'Unlock the app with your device\'s fingerprint, face unlock '
+          'or screen lock. Locks again when you leave the app',
+        ),
         findsOneWidget,
       );
     });

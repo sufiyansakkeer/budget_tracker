@@ -27,7 +27,9 @@ class BiometricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final subtitle = isBusy
         ? 'Authenticating...'
-        : (message ?? 'Use fingerprint or Face ID to unlock the app');
+        : (message ??
+              'Unlock the app with your device\'s fingerprint, face unlock '
+                  'or screen lock. Locks again when you leave the app');
 
     return SwitchListTile(
       title: const Text('Biometric Lock'),

@@ -139,17 +139,20 @@ class GetSpendingTargetsUseCase {
         totalSpent: budget.monthlyAmount - budget.remainingAmount,
       );
 
-      final dailyAllowance = calculationService.calculateDailyAllowance(
-        remainingBudget: budgetRemaining,
-        remainingDays: remainingDays,
-      );
-      totalDailyTarget += dailyAllowance;
-
       final todaySpent = await repository.getTodaySpending(
         budget.id,
         referenceDate: today,
       );
       totalDailySpent += todaySpent;
+
+      // Same formula as BudgetCalculationService.buildSummary: today's safe
+      // spending is fixed for the day, so today's expenses are added back
+      // before dividing.
+      final dailyAllowance = calculationService.calculateDailyAllowance(
+        remainingBudget: budgetRemaining + todaySpent,
+        remainingDays: remainingDays,
+      );
+      totalDailyTarget += dailyAllowance;
 
       final totalBudgetDays = calculationService.daysInPeriod(
         startDate: budget.startDate,
@@ -233,6 +236,11 @@ class GetSpendingTargetsUseCase {
   /// - Remaining days
   /// - Expenses assigned to that budget
   /// - Date range
+  ///
+  /// Today's Safe Spending uses the same formula as
+  /// [BudgetCalculationService.buildSummary]:
+  /// (remaining + spent today) ÷ remaining days, so the amount is fixed for
+  /// the day and today's expenses count against it instead of shrinking it.
   Future<PerBudgetSpendingTargetResult> callPerBudget({
     DateTime? referenceDate,
   }) async {
@@ -278,18 +286,18 @@ class GetSpendingTargetsUseCase {
         totalSpent: totalSpent,
       );
 
-      final dailyLimit = calculationService.calculateDailyAllowance(
-        remainingBudget: budgetRemaining,
-        remainingDays: remainingDays,
-      );
-
-      combinedDailyTarget += dailyLimit;
-
       // Today's spending for THIS budget only.
       final spentToday = await repository.getTodaySpending(
         budget.id,
         referenceDate: today,
       );
+
+      final dailyLimit = calculationService.calculateDailyAllowance(
+        remainingBudget: budgetRemaining + spentToday,
+        remainingDays: remainingDays,
+      );
+
+      combinedDailyTarget += dailyLimit;
 
       final remainingToday = (dailyLimit - spentToday).clamp(
         0.0,

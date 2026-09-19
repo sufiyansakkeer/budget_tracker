@@ -52,17 +52,18 @@ class TrendCard extends StatelessWidget {
                 content: InfoContent(
                   title: 'Spending Trends',
                   whatIsThis:
-                      'Analysis of your spending patterns over time, '
-                      'showing averages, growth rate, and '
+                      'How your active budget\'s spending in the selected '
+                      'period compares over time: averages, growth and '
                       'consistency.',
                   howIsItCalculated:
                       'Daily avg = Total spending ÷ Days in period\n'
                       'Weekly avg = Daily avg × 7\n'
                       'Monthly avg = Daily avg × 30\n\n'
-                      'Growth rate = (Recent half spending − '
-                      'First half spending) ÷ First half spending\n\n'
-                      'Consistency = 1 − (Std deviation ÷ Mean) '
-                      'of daily spending',
+                      'Growth = (This period − Same number of days just '
+                      'before it) ÷ Days before. Shows 0% if nothing was '
+                      'spent in that earlier stretch.\n\n'
+                      'Consistency = how even your daily totals are '
+                      '(100% = the same amount every day).',
                   example:
                       'Period: 1–25 Aug\n'
                       'Total: ₹15,000\n'
@@ -71,9 +72,11 @@ class TrendCard extends StatelessWidget {
                       'Monthly avg: ₹18,000\n'
                       'Growth: −10% (improving)',
                   additionalNotes:
-                      '• Green growth icon means spending decreased\n'
-                      '• Red growth icon means spending increased\n'
-                      '• Consistency ≥ 60% is considered stable',
+                      '• Green growth means you spent less than in the '
+                      'earlier stretch; red means more\n'
+                      '• "Improving" means the second half of the period '
+                      'was lower than the first half\n'
+                      '• Consistency of 60% or more is shown in green',
                 ),
               ),
               Container(

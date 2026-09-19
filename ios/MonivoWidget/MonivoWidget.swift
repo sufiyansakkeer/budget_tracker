@@ -123,7 +123,7 @@ struct MonivoWidgetEntryView: View {
     private var spendingView: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Title
-            Text("Smart Budget Tracker")
+            Text("Monivo")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 4)
@@ -188,7 +188,7 @@ struct MonivoWidgetEntryView: View {
             Image(systemName: "wallet.pass")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
-            Text("Smart Budget Tracker")
+            Text("Monivo")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.primary)
             Text("Open app to set up a budget")
@@ -250,8 +250,8 @@ struct MonivoWidget: Widget {
             MonivoWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("Budget Tracker")
-        .description("Shows your daily safe spending and budget status at a glance.")
+        .configurationDisplayName("Monivo")
+        .description("Shows your active budget's safe spending for today, what you've spent today, and its status at a glance.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

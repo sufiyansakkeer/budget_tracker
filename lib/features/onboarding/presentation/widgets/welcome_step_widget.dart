@@ -46,7 +46,7 @@ class WelcomeStepWidget extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.xxl),
           Text(
-            'Smart Monivo',
+            'Monivo',
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
@@ -55,7 +55,9 @@ class WelcomeStepWidget extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.md),
           Text(
-            'Manage your budget intelligently and know exactly how much you can safely spend every day.',
+            'Create one or more budgets, each with its own amount and start '
+            'and end dates, and see how much you can safely spend today in '
+            'each of them. Everything stays on your device.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.7),

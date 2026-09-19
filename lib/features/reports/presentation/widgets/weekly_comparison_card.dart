@@ -55,24 +55,28 @@ class WeeklyComparisonCard extends StatelessWidget {
                 content: InfoContent(
                   title: 'Weekly Comparison',
                   whatIsThis:
-                      'Compares your spending between the current '
-                      'week and the previous week.',
+                      'Compares your active budget\'s spending in the '
+                      'selected week with the days just before it.',
                   howIsItCalculated:
-                      'Current week: Expenses from Monday to today\n'
-                      'Previous week: Expenses from the Monday '
-                      'before that\n\n'
+                      'This Week: Monday to today, compared with the same '
+                      'number of days immediately before Monday.\n'
+                      'Last Week: Monday to Sunday of last week, compared '
+                      'with the full week before it.\n\n'
                       'Difference = Current − Previous\n'
-                      'Percentage change = Difference ÷ '
-                      'Previous × 100',
+                      'Percentage change = Difference ÷ Previous × 100 '
+                      '(shown as 100% when nothing was spent in the '
+                      'previous stretch)',
                   example:
                       'Previous week: ₹8,000\n'
                       'Current week: ₹6,800\n\n'
                       'Difference: −₹1,200\n'
                       'Change: −15% (spending decreased)',
                   additionalNotes:
-                      '• Green means you spent less than last week\n'
-                      '• Red means you spent more than last week\n'
-                      '• Weeks run Monday through Sunday',
+                      '• "Saved" (green) means you spent less than in the '
+                      'previous stretch; "Spent" (red) means more\n'
+                      '• Weeks run Monday through Sunday\n'
+                      '• Only shown for the This Week and Last Week '
+                      'periods',
                 ),
               ),
             ],

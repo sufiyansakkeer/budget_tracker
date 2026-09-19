@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_description">Shows your daily safe spending, amount spent today, and budget status at a glance.</string>
+    <string name="widget_description">Shows your active budget\'s safe spending for today, what you\'ve spent today, and its status at a glance.</string>
 </resources>

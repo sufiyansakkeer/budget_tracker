@@ -77,9 +77,14 @@ void main() {
     expect(result.any((i) => i.id == 'on_track_savings'), isTrue);
   });
 
-  test('reports critical budget overspending with amount', () {
+  test('reports critical budget overspending with the actual amount', () {
     final result = useCase(
-      summary(status: BudgetStatus.overBudget, expectedOverspending: 3000),
+      summary(
+        spent: 33000,
+        status: BudgetStatus.overBudget,
+        expectedSavings: 0,
+        expectedOverspending: 4500,
+      ),
     );
     expect(result.first.id, 'over_budget');
     expect(result.first.type, InsightType.negative);

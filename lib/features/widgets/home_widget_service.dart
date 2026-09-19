@@ -5,6 +5,7 @@ import 'package:home_widget/home_widget.dart';
 
 import '../../core/di/injection.dart';
 import '../budget/domain/repository/budget_repository.dart';
+import '../dashboard/domain/entities/budget_daily_limit_entity.dart';
 import '../dashboard/domain/usecases/get_spending_targets_usecase.dart';
 
 /// Keys used to store widget data in SharedPreferences.
@@ -58,7 +59,10 @@ String? resolveWidgetUriToRoute(Uri? uri) {
 /// Service that bridges the existing budget/expense architecture with
 /// home-screen widgets.
 ///
-/// All calculations come from the existing use cases — no new formulas.
+/// The widget shows the ACTIVE budget only: its Today's Safe Spending, Spent
+/// Today, Remaining Budget and remaining days. Amounts are never combined
+/// across budgets. All calculations come from the existing use cases — no
+/// new formulas.
 class HomeWidgetService {
   final BudgetRepository _budgetRepository;
   final GetSpendingTargetsUseCase _getSpendingTargetsUseCase;
@@ -120,33 +124,34 @@ class HomeWidgetService {
         return;
       }
 
-      // ── Compute combined safe spending across active budgets ──────────
-      double combinedDailySafe = 0;
-      double combinedSpentToday = 0;
-      double combinedRemainingBudget = 0;
-      int minRemainingDays = 999;
-      String currency = 'INR';
-
+      // ── Use the ACTIVE budget's limit only (never combined) ───────────
+      BudgetDailyLimitEntity? active;
       for (final bl in budgetLimits) {
-        combinedDailySafe += bl.dailyLimit;
-        combinedSpentToday += bl.spentToday;
-        combinedRemainingBudget += bl.remainingBudget;
-        if (bl.remainingDays < minRemainingDays) {
-          minRemainingDays = bl.remainingDays;
+        if (bl.budgetId == activeId) {
+          active = bl;
+          break;
         }
-        currency = bl.currency;
+      }
+      if (active == null) {
+        // The active budget's period does not include today.
+        await _writeNoBudgetState();
+        await _updateNativeWidgets();
+        return;
       }
 
+      final dailySafe = active.dailyLimit;
+      final spentToday = active.spentToday;
+      final remainingBudget = active.remainingBudget;
+      final remainingDays = active.remainingDays;
+      final currency = active.currency;
+
       // ── Derive status ─────────────────────────────────────────────────
-      final bool isOverToday =
-          combinedSpentToday > combinedDailySafe && combinedDailySafe > 0;
-      final double overspent = isOverToday
-          ? combinedSpentToday - combinedDailySafe
-          : 0;
+      final bool isOverToday = spentToday > dailySafe && dailySafe > 0;
+      final double overspent = isOverToday ? spentToday - dailySafe : 0;
       final String status;
       if (isOverToday) {
         status = 'over:${overspent.toStringAsFixed(0)}';
-      } else if (combinedDailySafe > 0) {
+      } else if (dailySafe > 0) {
         status = 'on_track';
       } else {
         status = 'no_budget';
@@ -155,21 +160,18 @@ class HomeWidgetService {
       // ── Write data to SharedPreferences via home_widget ───────────────
       await _saveString(
         WidgetDataKeys.dailySafeSpending,
-        combinedDailySafe.toStringAsFixed(2),
+        dailySafe.toStringAsFixed(2),
       );
       await _saveString(
         WidgetDataKeys.spentToday,
-        combinedSpentToday.toStringAsFixed(2),
+        spentToday.toStringAsFixed(2),
       );
       await _saveString(WidgetDataKeys.status, status);
       await _saveString(
         WidgetDataKeys.remainingBudget,
-        combinedRemainingBudget.toStringAsFixed(2),
+        remainingBudget.toStringAsFixed(2),
       );
-      await _saveString(
-        WidgetDataKeys.remainingDays,
-        minRemainingDays.toString(),
-      );
+      await _saveString(WidgetDataKeys.remainingDays, remainingDays.toString());
       await _saveString(WidgetDataKeys.currency, currency);
       await _saveString(
         WidgetDataKeys.lastUpdated,

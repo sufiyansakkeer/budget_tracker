@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Semantic color tokens for the Smart Monivo.
+/// Semantic color tokens for Monivo.
 ///
 /// Cobalt + Sky + Mint palette.
 /// Designed for a friendly, modern and polished personal-finance experience.

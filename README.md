@@ -1,10 +1,10 @@
-# Smart Monivo - Personal Budget Tracker
+# Monivo - Personal Budget Tracker
 
 **A Flutter-based budgeting application** that helps users track expenses, manage budgets, and gain insights into their spending habits.
 
 ## 🏗️ **Architecture Overview**
 
-Smart Monivo follows a **Clean Architecture** pattern with clear separation of concerns:
+Monivo follows a **Clean Architecture** pattern with clear separation of concerns:
 
 - **Presentation Layer**: UI components, BLoCs, and routing.
 - **Domain Layer**: Business logic, entities, use cases, and repositories.
@@ -49,9 +49,9 @@ Smart Monivo follows a **Clean Architecture** pattern with clear separation of c
 
 ## 📌 Project Overview
 
-Smart Monivo is a **personal finance management app** designed to help users:
+Monivo is a **personal finance management app** designed to help users:
 - Track expenses and categorize spending
-- Set and monitor monthly budgets
+- Create multiple independent budgets, each with its own amount, currency and start/end dates
 - Gain insights through visual reports and analytics
 - Secure their data with biometric authentication
 - Export/import data for backup and sharing
@@ -61,16 +61,16 @@ Smart Monivo is a **personal finance management app** designed to help users:
 
 | Feature                     | Description                                                                                     | Implementation Details                                                                                     |
 |-----------------------------|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| **Budget Management**       | Set monthly budgets with visual progress tracking.                                                   | Uses `BudgetCalculationService` for deterministic calculations and `BudgetBloc` for state management.    |
+| **Budget Management**       | Create multiple independent budgets with any date range; switch the active budget at any time.       | Uses `BudgetCalculationService` for deterministic calculations and `BudgetBloc` for state management.    |
 | **Expense Tracking**        | Record expenses with receipts, categories, and tags.                                               | Immutable `ExpenseEntity` with Drift ORM for SQLite persistence.                                         |
-| **Smart Insights**          | AI-driven spending analysis and recommendations.                                                     | `GetSmartInsightsUseCase` and `BudgetAnalyticsEntity` for extended analytics.                              |
+| **Smart Insights**          | Rule-based (no AI) spending observations derived from local budget and expense data.                 | `GetSmartInsightsUseCase` and `BudgetAnalyticsEntity` for extended analytics.                              |
 | **Multi-Currency Support**  | Track budgets in any currency.                                                                       | `CurrencyProvider` and `BudgetEntity.currency` field.                                                     |
 | **Biometric Security**      | Fingerprint/Face ID authentication.                                                                  | `BiometricInitializer` and `AppLockBloc` for app lock state.                                             |
 | **Data Export/Import**      | Backup and restore financial data.                                                               | `BackupDataUseCase` and `RestoreDataUseCase` with CSV/PDF support.                                       |
 | **Customizable Reports**    | Visualize spending trends and patterns.                                                          | `fl_chart` for interactive charts and `ReportsBloc` for data aggregation.                             |
 | **Bill Management**         | Track bills, set payment reminders, and manage recurring payments.                                  | `BillEntity` and `BillBloc` for managing bills and payment reminders.                                   |
 | **Per-Budget Daily Limits**  | Automatic daily and weekly spending targets for each active budget.                                  | `BudgetDailyLimitEntity` and `GetSpendingTargetsUseCase` for per-budget calculations.                   |
-| **Home Screen Widget**        | Spending overview and budget summaries on the device home screen.                                   | `HomeWidgetService` and platform-specific widget providers for Android and iOS.                        |
+| **Home Screen Widget**        | The active budget's Today's Safe Spending, Spent Today and status on the device home screen.        | `HomeWidgetService` and platform-specific widget providers for Android and iOS.                        |
 | **Database Integrity**        | Comprehensive data integrity checks, orphan detection, and automatic repair.                        | `DatabaseIntegrityService` for validating and repairing database records.                              |
 
 ### Using Recent Features
@@ -99,25 +99,25 @@ does not change the budget until you record the payment as an expense.
 
 #### Notifications
 
-Use **Settings > Notifications** to enable or disable reminders, choose the
-morning reminder and evening summary times, and control overspending alerts,
-no-expense reminders, and quiet hours. Notification scheduling is restored when
-the app recovers after a device restart. Device notification permissions must
-also be granted for reminders to appear.
+Use **Settings > Notifications** to enable or disable reminders and choose the
+morning reminder and evening summary times. The morning reminder shows Today's
+Safe Spending for each budget running today (one line per budget, never
+combined), calculated when the reminder is scheduled. Bill reminders are
+configured per bill. Notification scheduling is restored when the app recovers
+after a device restart. Device notification permissions must also be granted
+for reminders to appear.
 
 #### Per-Budget Daily Spending Limits
 
-1. Open the **Dashboard** to see the daily spending limits section.
-2. Each active budget displays its own daily and weekly spending targets.
-3. The daily limit is calculated as `remaining budget ÷ remaining days`.
-4. Progress bars show how much of today's limit has been spent.
-5. Status indicators show whether you are under, near, or over your daily
-  limit for each budget.
-6. Weekly targets are also tracked alongside daily limits.
+1. Open the **Dashboard** to see the Today's Safe Spending section.
+2. Each budget running today gets its own card with its own amount.
+3. Today's Safe Spending is `(Remaining Budget + Spent Today) ÷ remaining days (including today)`, so it stays fixed for the day and today's expenses count against it.
+4. Progress bars compare Spent Today with Today's Safe Spending.
+5. Status indicators show On track, Near limit (80–100%) or Over limit.
+6. Weekly shares of the budget feed the Smart Insights.
 
-Daily limits are calculated dynamically and are independent for each budget.
-Morning notifications now use each budget's daily limit to calculate the
-safe spending amount.
+Amounts are independent for each budget and are never combined. Morning
+notifications list each budget's Today's Safe Spending separately.
 
 #### Combined Expense History
 
@@ -127,12 +127,14 @@ safe spending amount.
 4. View expenses from all selected budgets in a single unified list.
 5. Each expense tile shows a **budget name chip** so you can see which budget
   it belongs to.
-6. Use the **sort** button to order expenses ascending or descending by amount.
-7. Tap the **info** icon on an expense to see full budget details in a bottom sheet.
-8. Tap the combine button again to return to single-budget mode.
+6. Use the **sort** button to order the expenses within each day group.
+7. Tap the **info** icon on an expense to see its budget, category, amount, date and time.
+8. Tap the combine button again to return to the active budget's expenses.
 
-Combined mode supports searching, category filtering, and date filtering across
-all selected budgets. The budget selection is preserved during screen refreshes.
+Combined mode only combines the list for viewing: each expense keeps its
+original budget, and budget amounts and Today's Safe Spending are never merged.
+Searching, filtering and sorting work across all selected budgets, and the
+selection is preserved during screen refreshes.
 
 #### Analytics Explanations
 
@@ -143,11 +145,13 @@ colors and update behavior.
 #### Home Screen Widget
 
 1. Long-press on your device's home screen and select **Widgets**.
-2. Find **Smart Monivo** in the widget list and drag it to your home screen.
-3. The widget displays a spending overview with budget summaries.
-4. Tap a budget in the widget to open the app directly to that budget's
-  details.
-5. The widget updates automatically when expenses are added or modified.
+2. Find **Monivo** in the widget list and drag it to your home screen.
+3. The widget shows the active budget's Today's Safe Spending, Spent Today,
+  status, Remaining Budget and remaining days.
+4. Tap the widget body to open the Dashboard, or **+ Add Expense** to open the
+  Add Expense screen.
+5. The widget updates automatically when expenses or budgets change, and
+  refreshes on its own about once an hour.
 
 Home screen widgets are supported on both Android (App Widgets) and iOS
 (WidgetKit).
@@ -205,7 +209,7 @@ cannot be completed.
 
 ### **Architectural Pattern**
 
-Smart Monivo follows a **Clean Architecture** pattern with clear separation of concerns:
+Monivo follows a **Clean Architecture** pattern with clear separation of concerns:
 
 ```mermaid
   graph TD
@@ -344,7 +348,7 @@ The `BudgetCalculationService` is a **pure Dart class** with no dependencies, co
 
 ### **Authentication Flow**
 
-1. **Biometric Gate**: App locks after inactivity (configurable in settings).
+1. **Biometric Gate**: When the biometric lock is enabled in Settings, the app locks on launch and whenever it goes to the background; it unlocks with fingerprint, face unlock or the device screen lock.
 2. **Authentication**: Uses `local_auth` for fingerprint/Face ID verification.
 3. **State Management**: `AppLockBloc` tracks lock state globally.
 4. **Dependency Injection**: `BiometricInitializer` and `AppLockBloc` are registered via `GetIt`.

@@ -29,7 +29,7 @@ class NotificationService {
   static const String channelId = 'budget_reminders';
   static const String channelName = 'Budget Reminders';
   static const String channelDescription =
-      'Daily budget reminders and summaries';
+      "Daily Today's Safe Spending reminder and evening summary";
 
   final FlutterLocalNotificationsPlugin _plugin;
   final BudgetRepository budgetRepository;
@@ -156,11 +156,11 @@ class NotificationService {
           // Single budget — show simple message.
           final bl = perBudget.budgetLimits.first;
           body =
-              'Today\'s ${bl.budgetName} limit: '
-              '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}. '
-              'You can safely spend this amount today.';
+              '${bl.budgetName}: you can safely spend '
+              '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)} '
+              'today.';
         } else {
-          // Multiple budgets — show summary.
+          // Multiple budgets — one line per budget, never combined.
           final lines = perBudget.budgetLimits
               .map(
                 (bl) =>
@@ -168,17 +168,18 @@ class NotificationService {
                     '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}',
               )
               .join('\n');
-          body = "Today's Spending Limits\n\n$lines";
+          body = "Today's Safe Spending per budget\n\n$lines";
         }
       } else {
-        body = 'Check your budget and plan your spending for today.';
+        body =
+            'No budget is running today. Open the app to check your budgets.';
       }
 
       debugPrint('[Notification] Morning notification body: $body');
 
       await _scheduleDailyNotification(
         id: morningReminderId,
-        title: "Today's Spending Limits",
+        title: "Today's Safe Spending",
         body: body,
         hour: notifSettings.morningReminderTime.hour,
         minute: notifSettings.morningReminderTime.minute,
@@ -189,7 +190,7 @@ class NotificationService {
       await _scheduleDailyNotification(
         id: eveningSummaryId,
         title: 'Evening Summary 🌙',
-        body: 'Review your spending for today.',
+        body: "Review today's expenses and check how each budget is doing.",
         hour: notifSettings.eveningSummaryTime.hour,
         minute: notifSettings.eveningSummaryTime.minute,
       );
@@ -214,9 +215,9 @@ class NotificationService {
       if (perBudget.budgetLimits.length == 1) {
         final bl = perBudget.budgetLimits.first;
         body =
-            'Today\'s ${bl.budgetName} limit: '
-            '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}. '
-            'You can safely spend this amount today.';
+            '${bl.budgetName}: you can safely spend '
+            '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)} '
+            'today.';
       } else {
         final lines = perBudget.budgetLimits
             .map(
@@ -225,12 +226,10 @@ class NotificationService {
                   '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}',
             )
             .join('\n');
-        body = "Today's Spending Limits\n\n$lines";
+        body = "Today's Safe Spending per budget\n\n$lines";
       }
     } else {
-      body =
-          'You can safely spend '
-          '${CurrencyFormatter.format(0, code: currencyCode, decimalDigits: 0)} today.';
+      body = 'No budget is running today. Open the app to check your budgets.';
     }
 
     debugPrint('[Notification] Test notification body: $body');
@@ -258,7 +257,7 @@ class NotificationService {
 
     await _plugin.zonedSchedule(
       testNotificationId,
-      "Today's Spending Limits",
+      "Today's Safe Spending",
       body,
       scheduledDate,
       platformDetails,

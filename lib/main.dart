@@ -211,8 +211,7 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
               child: BlocBuilder<ThemeBloc, ThemeState>(
                 builder: (context, state) {
                   return MaterialApp.router(
-                    key: ValueKey('theme_${state.palette}_${state.mode}'),
-                    title: 'Smart Monivo',
+                    title: 'Monivo',
                     debugShowCheckedModeBanner: false,
                     theme: AppTheme.buildLightTheme(state.palette),
                     darkTheme: AppTheme.buildDarkTheme(state.palette),

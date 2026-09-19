@@ -230,11 +230,11 @@ void main() {
 
       final bl = result.budgetLimits.first;
 
-      // remainingBudget = 29200, remainingDays = 22
-      // dailyLimit = 29200/22 ≈ 1327.27
-      expect(bl.dailyLimit, closeTo(1327.27, 0.01));
+      // remainingBudget = 29200 (+800 spent today), remainingDays = 22
+      // dailyLimit = 30000/22 ≈ 1363.64 (fixed for the day)
+      expect(bl.dailyLimit, closeTo(1363.64, 0.01));
       expect(bl.spentToday, 800);
-      expect(bl.remainingToday, closeTo(527.27, 0.01));
+      expect(bl.remainingToday, closeTo(563.64, 0.01));
       expect(bl.status, SpendingTargetStatus.onTrack);
     });
 
@@ -261,12 +261,12 @@ void main() {
 
       final bl = result.budgetLimits.first;
 
-      // remainingBudget = 28500, remainingDays = 22
-      // dailyLimit = 28500/22 ≈ 1295.45
-      expect(bl.dailyLimit, closeTo(1295.45, 0.01));
+      // remainingBudget = 28500 (+1700 spent today), remainingDays = 22
+      // dailyLimit = 30200/22 ≈ 1372.73
+      expect(bl.dailyLimit, closeTo(1372.73, 0.01));
       expect(bl.spentToday, 1700);
       expect(bl.remainingToday, 0);
-      expect(bl.exceededToday, closeTo(404.55, 0.01));
+      expect(bl.exceededToday, closeTo(327.27, 0.01));
       expect(bl.status, SpendingTargetStatus.exceeded);
     });
 
@@ -284,7 +284,7 @@ void main() {
           updatedAt: DateTime(2026, 8, 1),
         ),
       ];
-      // dailyLimit ≈ 1295, 90% = 1166
+      // dailyLimit = (28500 + 1166) / 22 ≈ 1348, so 1166 ≈ 86%
       repository.todaySpending = 1166;
       repository.weekSpending = 3000;
 

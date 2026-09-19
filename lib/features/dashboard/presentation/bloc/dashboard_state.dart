@@ -28,12 +28,12 @@ class DashboardLoaded extends DashboardState {
   final List<SmartInsight> insights;
   final List<BillEntity> upcomingBills;
 
-  /// Legacy combined spending target (kept for backward compatibility).
+  /// Legacy daily/weekly target for the active budget only (never combined).
   final SpendingTargetEntity? spendingTarget;
 
   /// Per-budget daily spending limits — one entry per active budget.
   ///
-  /// This is the primary data source for the "Today's Spending Limits"
+  /// This is the primary data source for the "Today's Safe Spending"
   /// section. Each entry contains independent daily/weekly limits calculated
   /// using only that budget's data.
   final List<BudgetDailyLimitEntity> budgetDailyLimits;

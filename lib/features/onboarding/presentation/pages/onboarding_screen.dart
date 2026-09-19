@@ -172,7 +172,8 @@ class _OnboardingViewState extends State<_OnboardingView> {
                       BudgetDateStepWidget(
                         title: 'When does your budget start?',
                         subtitle:
-                            'Your budget begins on this date. Defaults to today.',
+                            'Your budget period starts on this date. Any '
+                            'date works; it defaults to today.',
                         date: state.startDate,
                         errorMessage: state.dateValidationError,
                         onDateChanged: (d) {
@@ -185,7 +186,10 @@ class _OnboardingViewState extends State<_OnboardingView> {
                       BudgetDateStepWidget(
                         title: 'When does your budget end?',
                         subtitle:
-                            'Budgets can span days, weeks, months or a year.',
+                            'Pick any end date: a budget can span days, '
+                            'weeks, months or a year. Today\'s Safe Spending '
+                            'is worked out from the days left until this '
+                            'date.',
                         date: state.endDate,
                         errorMessage: state.dateValidationError,
                         onDateChanged: (d) {

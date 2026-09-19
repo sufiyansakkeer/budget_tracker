@@ -139,25 +139,35 @@ class _BillsListScreenState extends State<BillsListScreen> {
                   alignment: Alignment.centerRight,
                   child: InfoIcon(
                     content: InfoContent(
-                      title: 'Bills Overview',
+                      title: 'Bills & Reminders',
                       whatIsThis:
-                          'Summary of your upcoming, due today, and '
-                          'overdue bills.',
+                          'Payments you want to remember, such as rent, '
+                          'utilities or subscriptions. Bills are kept '
+                          'separately from your budgets and are shared '
+                          'across all of them.',
                       howIsItCalculated:
-                          'Upcoming: Bills due in the future (not yet '
-                          'due).\n'
-                          'Due Today: Bills with today\'s date as the '
-                          'due date.\n'
-                          'Overdue: Bills past their due date and not '
-                          'yet marked as paid.',
+                          'A bill\'s status comes from its due date and '
+                          'whether it is paid:\n'
+                          'Upcoming: unpaid and due after today.\n'
+                          'Due Today: unpaid and due today.\n'
+                          'Overdue: unpaid and due before today.\n'
+                          'Paid: marked as paid.\n\n'
+                          'The summary tiles add up the amounts in each '
+                          'status.',
                       additionalNotes:
-                          '• Bills are separate from your regular expenses\n'
-                          '• Mark a bill as paid to move it out of '
-                          'these categories\n'
-                          '• Recurring bills regenerate based on their '
-                          'recurrence rule\n'
-                          '• Bills do not affect your budget tracking '
-                          'unless recorded as expenses',
+                          '• A bill due today is not overdue; it becomes '
+                          'overdue from the next day\n'
+                          '• Marking a one-time bill as paid moves it to '
+                          'Paid. Marking a recurring bill as paid moves its '
+                          'due date to the next occurrence and keeps it '
+                          'unpaid\n'
+                          '• A bill only affects a budget if you use "Mark '
+                          'Paid & Add Expense", which records it as an '
+                          'expense in your active budget\n'
+                          '• Reminders are optional per bill: a notification '
+                          'on the due date or a set number of days before, '
+                          'at the due time or 9:00 AM. Notifications must be '
+                          'allowed on your device',
                     ),
                   ),
                 ),
@@ -261,12 +271,18 @@ class _BillsListScreenState extends State<BillsListScreen> {
         message: 'No overdue bills 🎉',
       );
     }
-    if (state.filter == BillFilter.upcoming ||
-        state.filter == BillFilter.dueToday) {
+    if (state.filter == BillFilter.upcoming) {
       return const EmptyState(
         icon: Icons.check_circle_rounded,
         title: "You're all clear!",
-        message: 'No upcoming bills.',
+        message: 'No unpaid bills are due after today.',
+      );
+    }
+    if (state.filter == BillFilter.dueToday) {
+      return const EmptyState(
+        icon: Icons.check_circle_rounded,
+        title: "You're all clear!",
+        message: 'No bills are due today.',
       );
     }
     return EmptyState(

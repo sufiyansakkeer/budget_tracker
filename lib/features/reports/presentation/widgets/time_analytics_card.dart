@@ -52,15 +52,16 @@ class TimeAnalyticsCard extends StatelessWidget {
                 content: InfoContent(
                   title: 'Time Analytics',
                   whatIsThis:
-                      'Breakdown of your spending patterns by '
-                      'calendar day and day of the week.',
+                      'When your active budget\'s spending happens in the '
+                      'selected period, by calendar day and by day of the '
+                      'week.',
                   howIsItCalculated:
-                      'Most Expensive Day: Calendar day with the '
+                      'Most Expensive Day: calendar day with the '
                       'highest total expenses.\n'
-                      'Most Active Day: Day with the most '
-                      'transactions.\n'
-                      'Weekday vs Weekend: Sum of Mon–Fri vs '
-                      'Sat–Sun expenses.',
+                      'Highest spending day: day of the week with the '
+                      'highest total across the period.\n'
+                      'Weekday vs Weekend: sum of Mon–Fri expenses '
+                      'compared with Sat–Sun expenses.',
                   example:
                       '23 Aug: ₹2,000 (highest)\n'
                       'Weekday total: ₹12,000\n'
@@ -69,8 +70,8 @@ class TimeAnalyticsCard extends StatelessWidget {
                       '• Expenses are grouped by their recorded date\n'
                       '• Most expensive day shows the highest '
                       'single-day total\n'
-                      '• Highest spending weekday is the most '
-                      'expensive day of the week on average',
+                      '• Highest spending day is a total for that weekday '
+                      'across the period, not an average',
                 ),
               ),
             ],
