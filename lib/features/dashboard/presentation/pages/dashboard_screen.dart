@@ -173,18 +173,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                       infoContent: InfoContent(
                         title: 'Upcoming Bills',
                         whatIsThis:
-                            'Bills that are scheduled to become due soon. '
-                            'These are tracked separately from your regular '
-                            'expenses.',
+                            'Your next unpaid bills that are due today or '
+                            'later. Bills are tracked separately from your '
+                            'budgets and expenses.',
                         howIsItCalculated:
-                            'The app looks at all bills that are due in the '
-                            'near future and have not yet been marked as paid. '
-                            'Bills are sorted by their due date.',
+                            'The app lists unpaid bills whose due date is '
+                            'today or in the future, sorted by due date, '
+                            'and shows the next three.',
                         additionalNotes:
-                            '• Bills shown here are due but not yet paid\n'
+                            '• Overdue bills are not shown here. Open Bills '
+                            'to see them\n'
                             '• Mark a bill as paid to remove it from this list\n'
-                            '• Bills are separate from your expense tracking\n'
-                            '• Overdue bills are highlighted in red',
+                            '• A bill only affects a budget if you record it '
+                            'as an expense (Mark Paid & Add Expense)\n'
+                            '• Bills are shared across all budgets',
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -199,24 +201,30 @@ class _DashboardScreenState extends State<DashboardScreen>
                       infoContent: InfoContent(
                         title: 'Smart Insights',
                         whatIsThis:
-                            'Smart Insights analyze your local budget and '
-                            'expense data to identify spending patterns, '
-                            'budget progress, and unusual behavior.',
+                            'Short, rule-based messages generated from your '
+                            'budgets and expenses. They are simple '
+                            'calculations, not AI, and never use data from '
+                            'outside the app.',
                         howIsItCalculated:
-                            'The insights engine examines your current budget '
-                            'status, daily spending pace, weekly targets, '
-                            'projected spending, and category behavior. '
-                            'Up to 3 insights are shown, prioritized by '
-                            'severity.',
+                            'Each active budget is checked against fixed '
+                            'rules, and up to three of the most important '
+                            'messages are shown. Messages about your active '
+                            'budget use its own amount, dates and expenses.',
                         additionalNotes:
-                            'Types of analysis include:\n'
-                            '• Critical overspending alerts\n'
-                            '• Projected spending & budget risk\n'
-                            '• Today\'s spending status\n'
-                            '• Daily & weekly target performance\n'
-                            '• Spending pace vs. safe allowance\n'
-                            '• Budget progress updates\n'
-                            '• Projected savings estimates',
+                            'Insights you may see:\n'
+                            '• A budget is over or near Today\'s Safe '
+                            'Spending\n'
+                            '• The active budget is over its total amount\n'
+                            '• At the current pace, the active budget may '
+                            'end the period over its amount\n'
+                            '• A budget\'s spending this week (Monday to '
+                            'Sunday) is above its weekly share\n'
+                            '• How much of a budget is used and how many '
+                            'days remain\n'
+                            '• Your average daily spending compared with '
+                            'Today\'s Safe Spending\n'
+                            '• The amount the active budget is expected to '
+                            'have left at the end of its period',
                         privacyNote:
                             'All analysis runs on your device. No data leaves '
                             'your phone.',
@@ -251,9 +259,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
 // ── Overall Budget Card ──────────────────────────────────────────────────
 
-/// Shows overall budget remaining across all active budgets.
-/// This is the only "combined" view allowed — total remaining, NOT combined
-/// daily spending limit.
+/// Shows how much of the active budget is left for its period.
+///
+/// Uses the active budget's summary only. Budgets are never combined on the
+/// Dashboard; the Budgets screen shows the total across budgets.
 class _OverallBudgetCard extends StatelessWidget {
   final BudgetSummaryEntity summary;
 
@@ -289,7 +298,7 @@ class _OverallBudgetCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Total Remaining',
+                  'Remaining Budget',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
@@ -307,7 +316,7 @@ class _OverallBudgetCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'remaining across all budgets',
+                  'left in your active budget for this period',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
@@ -317,18 +326,28 @@ class _OverallBudgetCard extends StatelessWidget {
           ),
           InfoIcon(
             content: InfoContent(
-              title: 'Total Remaining',
+              title: 'Remaining Budget',
               whatIsThis:
-                  'The total remaining amount across all active budgets. '
-                  "This combines all budgets' remaining balances.",
+                  'How much of your active budget is still available for '
+                  'the rest of its period. It belongs to the active budget '
+                  'only.',
               howIsItCalculated:
-                  'Sum of remaining amounts from all active budgets.\n\n'
-                  'Note: Daily spending limits are calculated '
-                  'separately for each budget and are NOT combined.',
+                  'Remaining Budget = Budget amount − Total spent\n\n'
+                  'Total spent is the sum of all expenses recorded in the '
+                  'active budget, including today\'s.',
+              example:
+                  'Budget amount: ₹30,000\n'
+                  'Total spent: ₹9,000\n'
+                  'Remaining Budget: ₹21,000',
               additionalNotes:
-                  '• Combined total remaining is shown here for convenience\n'
-                  '• Each budget\'s daily spending limit is independent\n'
-                  '• Expenses are tracked per budget, not combined',
+                  '• Switch the active budget at the top of the Dashboard '
+                  'to see another budget\n'
+                  '• Each budget has its own amount, period and expenses; '
+                  'they are not combined here\n'
+                  '• The Budgets screen shows the total remaining across '
+                  'all active budgets\n'
+                  '• Can be negative if you have spent more than the '
+                  'budget amount',
             ),
           ),
         ],

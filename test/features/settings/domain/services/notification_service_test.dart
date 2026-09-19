@@ -316,7 +316,7 @@ void main() {
           verify(
             mockPlugin.zonedSchedule(
               NotificationService.morningReminderId,
-              "Today's Spending Limits",
+              "Today's Safe Spending",
               argThat(contains('Food')),
               any,
               any,
@@ -346,8 +346,8 @@ void main() {
         verify(
           mockPlugin.zonedSchedule(
             NotificationService.morningReminderId,
-            "Today's Spending Limits",
-            'Check your budget and plan your spending for today.',
+            "Today's Safe Spending",
+            'No budget is running today. Open the app to check your budgets.',
             any,
             any,
             androidScheduleMode: anyNamed('androidScheduleMode'),
@@ -434,7 +434,7 @@ void main() {
         verify(
           mockPlugin.zonedSchedule(
             NotificationService.morningReminderId,
-            "Today's Spending Limits",
+            "Today's Safe Spending",
             any,
             any,
             any,

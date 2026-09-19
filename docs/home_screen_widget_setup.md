@@ -2,9 +2,9 @@
 
 ## Overview
 
-This feature adds two capabilities to the Smart Budget Tracker:
+This feature adds two capabilities to Monivo:
 
-1. **Quick View Widget** — Displays Today's Safe Spending, Spent Today, and status on the home screen.
+1. **Quick View Widget** — Displays the **active budget's** Today's Safe Spending, Spent Today, status, Remaining Budget and remaining days on the home screen. Budgets are never combined.
 2. **Quick Action** — "Add Expense" button that launches the app directly into the Add Expense screen.
 
 ---
@@ -67,11 +67,11 @@ All widget data is stored in SharedPreferences with these keys:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `home_widget_daily_safe` | String (double) | Combined daily safe spending across active budgets |
-| `home_widget_spent_today` | String (double) | Combined amount spent today across active budgets |
+| `home_widget_daily_safe` | String (double) | Active budget's Today's Safe Spending |
+| `home_widget_spent_today` | String (double) | Active budget's Spent Today |
 | `home_widget_status` | String | `on_track`, `over:{amount}`, `no_budget`, or `error` |
-| `home_widget_remaining` | String (double) | Combined remaining budget |
-| `home_widget_remaining_days` | String (int) | Minimum remaining days across active budgets |
+| `home_widget_remaining` | String (double) | Active budget's Remaining Budget |
+| `home_widget_remaining_days` | String (int) | Active budget's remaining days (including today) |
 | `home_widget_currency` | String | Currency code (e.g., `INR`, `USD`) |
 | `home_widget_has_budget` | String | `true` or `false` |
 | `home_widget_last_updated` | String | ISO 8601 timestamp of last update |
@@ -92,14 +92,20 @@ The widget does NOT duplicate any calculation. It uses:
 ```dart
 // GetSpendingTargetsUseCase.callPerBudget()
 // → Per-budget daily limits (same as dashboard)
-// → Combined across all active budgets
+// → The entry for the ACTIVE budget is written to the widget
 ```
 
 The formula used (via existing `BudgetCalculationService`):
 
 ```
-Daily Safe Spending = (Monthly Amount - Total Spent) ÷ Remaining Days
+Today's Safe Spending = (Budget Amount - Total Spent + Spent Today) ÷ Remaining Days
 ```
+
+This is the same formula as `BudgetCalculationService.buildSummary`: the amount
+is fixed for the day and today's expenses count against it.
+
+If the active budget's period does not include today, the widget shows the
+"no budget" state until another budget is made active.
 
 ---
 

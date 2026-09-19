@@ -70,7 +70,9 @@ class ConfirmationStepWidget extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Review your budget configuration before creating it.',
+            'Review your first budget before creating it. It becomes your '
+            'active budget; you can add more budgets any time from '
+            'Settings.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
             ),

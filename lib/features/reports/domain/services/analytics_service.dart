@@ -24,11 +24,17 @@ class AnalyticsService {
   const AnalyticsService();
 
   /// Builds a complete [ReportData] snapshot for [range] from filtered expenses.
+  ///
+  /// [comparisonExpenses] optionally supplies expenses that also cover the
+  /// equal-length period immediately before [range]; they are used only for
+  /// the growth rate and the week-over-week comparison. When omitted,
+  /// [filteredExpenses] is used for those comparisons as well.
   ReportData buildReportData({
     required ReportRange range,
     required List<ExpenseEntity> filteredExpenses,
     required List<ExpenseCategory> categories,
     required ExpenseHistoryFilter filter,
+    List<ExpenseEntity>? comparisonExpenses,
     BudgetEntity? currentBudget,
     double currentMonthSpent = 0,
     double currentMonthBudget = 0,
@@ -36,7 +42,11 @@ class AnalyticsService {
     final weeklyComparison =
         range.period == ReportPeriod.thisWeek ||
             range.period == ReportPeriod.lastWeek
-        ? calculateWeeklyComparison(expenses: filteredExpenses, range: range)
+        ? calculateWeeklyComparison(
+            expenses: filteredExpenses,
+            range: range,
+            comparisonExpenses: comparisonExpenses,
+          )
         : null;
 
     return ReportData(
@@ -68,7 +78,11 @@ class AnalyticsService {
         expenses: filteredExpenses,
         range: range,
       ),
-      trend: calculateTrend(expenses: filteredExpenses, range: range),
+      trend: calculateTrend(
+        expenses: filteredExpenses,
+        range: range,
+        comparisonExpenses: comparisonExpenses,
+      ),
       weeklyComparison: weeklyComparison,
       currentBudget: currentBudget,
       currentMonthSpent: currentMonthSpent,
@@ -362,9 +376,13 @@ class AnalyticsService {
 
   /// Trend indicators: averages, growth vs previous comparable range, and
   /// consistency (inverse coefficient of variation of daily spending).
+  ///
+  /// [comparisonExpenses], when provided, is searched for the preceding
+  /// equal-length range instead of [expenses].
   SpendingTrend calculateTrend({
     required List<ExpenseEntity> expenses,
     required ReportRange range,
+    List<ExpenseEntity>? comparisonExpenses,
   }) {
     if (expenses.isEmpty) {
       return SpendingTrend.empty;
@@ -380,7 +398,7 @@ class AnalyticsService {
     var growthRate = 0.0;
     final previousStart = range.start.subtract(Duration(days: dayCount));
     final previousEnd = range.start.subtract(const Duration(days: 1));
-    final previousTotal = expenses
+    final previousTotal = (comparisonExpenses ?? expenses)
         .where((e) {
           final d = _dateOnly(e.date);
           return !d.isBefore(_dateOnly(previousStart)) &&
@@ -434,15 +452,24 @@ class AnalyticsService {
     );
   }
 
-  /// Compares the selected week against the immediately preceding week.
+  /// Compares the selected range against the equal-length period immediately
+  /// before it (for a full week, that is the previous week).
+  ///
+  /// [comparisonExpenses], when provided, is searched for the preceding range
+  /// instead of [expenses].
   WeeklyComparison calculateWeeklyComparison({
     required List<ExpenseEntity> expenses,
     required ReportRange range,
+    List<ExpenseEntity>? comparisonExpenses,
   }) {
     final current = _sumRange(expenses, range.start, range.dayCount);
 
     final previousStart = range.start.subtract(Duration(days: range.dayCount));
-    final previous = _sumRange(expenses, previousStart, range.dayCount);
+    final previous = _sumRange(
+      comparisonExpenses ?? expenses,
+      previousStart,
+      range.dayCount,
+    );
 
     final difference = current - previous;
     final percentageChange = previous > 0

@@ -3,9 +3,9 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 import '../entities/report_data.dart';
 
-/// Generates data-driven, human-readable [SmartInsight] messages from a
+/// Generates rule-based, human-readable [SmartInsight] messages from a
 /// computed [ReportData]. Contains no calculation logic — it only translates
-/// analytics results into user-facing copy.
+/// analytics results into user-facing copy. No AI or network is involved.
 class ReportInsightGenerator {
   const ReportInsightGenerator();
 
@@ -56,10 +56,11 @@ class ReportInsightGenerator {
       SmartInsight(
         id: decreased ? 'spending_decreased' : 'spending_increased',
         message: decreased
-            ? 'You\'re spending ${(change.abs() * 100).toStringAsFixed(0)}% less '
-                  'than the previous period. Great job!'
-            : 'You\'re spending ${(change.abs() * 100).toStringAsFixed(0)}% more '
-                  'than the previous period.',
+            ? 'You spent ${(change.abs() * 100).toStringAsFixed(0)}% less '
+                  'than in the same number of days before this period. '
+                  'Great job!'
+            : 'You spent ${(change.abs() * 100).toStringAsFixed(0)}% more '
+                  'than in the same number of days before this period.',
         type: decreased ? InsightType.positive : InsightType.warning,
       ),
     );
@@ -89,7 +90,7 @@ class ReportInsightGenerator {
     insights.add(
       SmartInsight(
         id: 'highest_spending_day',
-        message: 'Your highest spending day is ${names[day - 1]}.',
+        message: 'You spent the most on ${names[day - 1]}s during this period.',
         type: InsightType.info,
       ),
     );
@@ -104,7 +105,9 @@ class ReportInsightGenerator {
       insights.add(
         const SmartInsight(
           id: 'weekend_spending',
-          message: 'You usually spend more during weekends.',
+          message:
+              'Weekends account for a large share of your spending in this '
+              'period.',
           type: InsightType.warning,
         ),
       );
@@ -121,8 +124,8 @@ class ReportInsightGenerator {
         SmartInsight(
           id: 'projected_savings',
           message:
-              'You are likely to save ${_money(projectedSavings, data)} '
-              'this month.',
+              'Your active budget still has ${_money(projectedSavings, data)} '
+              'left for its period.',
           type: InsightType.positive,
         ),
       );
@@ -132,8 +135,8 @@ class ReportInsightGenerator {
         SmartInsight(
           id: 'budget_exceeded',
           message:
-              'You\'ve exceeded your monthly budget by '
-              '${_money(overspent, data)}.',
+              "You've spent ${_money(overspent, data)} more than your active "
+              "budget's total amount.",
           type: InsightType.negative,
         ),
       );
@@ -145,7 +148,9 @@ class ReportInsightGenerator {
       insights.add(
         const SmartInsight(
           id: 'trend_improving',
-          message: 'Your spending trend has improved over the last two weeks.',
+          message:
+              'You spent less in the second half of this period than in the '
+              'first half.',
           type: InsightType.positive,
         ),
       );
@@ -157,7 +162,7 @@ class ReportInsightGenerator {
       insights.add(
         const SmartInsight(
           id: 'consistent_spending',
-          message: 'Your daily spending is very consistent.',
+          message: 'Your daily spending is very consistent in this period.',
           type: InsightType.info,
         ),
       );

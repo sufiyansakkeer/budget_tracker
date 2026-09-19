@@ -16,7 +16,7 @@ class AboutCard extends StatelessWidget {
         final info = snapshot.data;
         final version = info?.version ?? '1.0.0';
         // final buildNumber = info?.buildNumber ?? '1';
-        final appName = info?.appName ?? 'Smart Monivo';
+        final appName = info?.appName ?? 'Monivo';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,9 +39,12 @@ class AboutCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'This app works 100% offline. All your data — expenses, budget, '
-              'and settings — are stored locally on your device. No data is '
-              'collected, shared, or transmitted to any server.',
+              'Your budgets, expenses, bills and settings are stored only on '
+              'this device, and everything you do with them works without '
+              'an internet connection. No account is needed and no personal '
+              'or financial data is collected or sent anywhere. The only '
+              'network request the app makes is the optional "Check for '
+              'Updates", which asks GitHub for the latest release version.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

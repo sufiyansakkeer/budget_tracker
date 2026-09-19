@@ -57,6 +57,17 @@ class AppUpdateSection extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildCurrentVersion(context, state),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Compares your installed version with the latest '
+                      'release on GitHub. This needs an internet connection. '
+                      'Updates are never installed automatically: "View '
+                      'Update" opens the release page in your browser, where '
+                      'you can download the new version.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.md),
                     _buildStatusContent(context, state),
                   ],
@@ -150,7 +161,8 @@ class AppUpdateSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            "You're using the latest version of Smart Budget Tracker.",
+            'Your installed version is the latest version released on '
+            'GitHub.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -193,7 +205,8 @@ class AppUpdateSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Please check your internet connection and try again.',
+            'The GitHub release check needs an internet connection. '
+            'Everything else in the app keeps working offline.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

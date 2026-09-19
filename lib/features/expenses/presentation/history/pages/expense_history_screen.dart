@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/app_header.dart';
+import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/widgets/confirmation_dialog.dart';
+import '../../../../../core/widgets/info_content.dart';
+import '../../../../../core/widgets/info_icon.dart';
 import '../../../../../core/widgets/loading_skeleton.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
@@ -101,7 +104,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       context: context,
       title: 'Delete expense?',
       message:
-          'This will permanently remove the expense of \u20b9${expense.amount}. '
+          'This will permanently remove the expense of '
+          '${CurrencyFormatter.format(expense.amount)}. '
           'This action cannot be undone.',
       confirmLabel: 'Delete',
       icon: Icons.delete_rounded,
@@ -255,10 +259,12 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                     ? _buildCombinedHeader(context, state)
                     : AppHeader(
                         title: 'Expenses',
-                        subtitle:
-                            state.budgetName ?? 'Track & manage your spending',
+                        subtitle: state.budgetName == null
+                            ? 'No active budget'
+                            : 'Active budget: ${state.budgetName}',
                       ),
               ),
+              InfoIcon(content: _expenseListInfo(state)),
               // View mode toggle
               IconButton(
                 key: const Key('viewModeToggle'),
@@ -269,8 +275,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                   size: 22,
                 ),
                 tooltip: state.isCombinedMode
-                    ? 'Switch to single budget'
-                    : 'Combine budgets',
+                    ? 'Back to active budget'
+                    : 'Combined Expenses: view several budgets together',
                 onPressed: () {
                   if (state.isCombinedMode) {
                     _searchController.clear();
@@ -303,6 +309,56 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           ),
         );
       },
+    );
+  }
+
+  InfoContent _expenseListInfo(ExpenseHistoryState state) {
+    if (state.isCombinedMode) {
+      return const InfoContent(
+        title: 'Combined Expenses',
+        whatIsThis:
+            'One list showing the expenses of every budget you selected, '
+            'so you can compare or review them together. Your budgets '
+            'themselves are not merged: each keeps its own amount, period '
+            "and Today's Safe Spending.",
+        howIsItCalculated:
+            'Expenses from the selected budgets are loaded into a single '
+            'list, then grouped by date (newest day first) and sorted with '
+            'the sort option you choose. The total at the top is the sum of '
+            'the expenses shown after search and filters.',
+        additionalNotes:
+            '• Every expense still belongs to its original budget. The chip '
+            'on each row shows which one\n'
+            '• Tap the info icon on a row to see the expense\'s budget, '
+            'category, amount, date and time\n'
+            '• Only budgets that are not archived can be selected\n'
+            '• Search, filters and sorting work across all selected '
+            'budgets\n'
+            '• Tap the wallet icon to return to the active budget\'s '
+            'expenses',
+      );
+    }
+    return const InfoContent(
+      title: 'Expenses',
+      whatIsThis:
+          'All expenses recorded in your active budget. Switch the active '
+          'budget from the Dashboard or Budgets to see a different '
+          'budget\'s expenses.',
+      howIsItCalculated:
+          'Expenses are grouped by the day they were recorded, newest day '
+          'first. Within each day they follow the sort option you choose: '
+          'newest or oldest first, highest or lowest amount, category, or '
+          'note text (A to Z). The summary card counts only the expenses '
+          'currently shown.',
+      additionalNotes:
+          '• Each expense belongs to exactly one budget and counts toward '
+          'that budget\'s Remaining Budget and Today\'s Safe Spending\n'
+          '• Use search, quick filters and the filter sheet to narrow the '
+          'list\n'
+          '• Tap the grid icon to open Combined Expenses and view several '
+          'budgets together\n'
+          '• Swipe an expense left to delete it, or tap it to edit or move '
+          'it to another budget',
     );
   }
 
@@ -346,7 +402,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           ),
         ),
         Text(
-          '${state.selectedBudgetIds.length} budgets',
+          '${state.selectedBudgetIds.length} budget${state.selectedBudgetIds.length == 1 ? '' : 's'} selected · each expense keeps its own budget',
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
           ),
@@ -379,7 +435,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           ),
           const SizedBox(width: AppSpacing.sm),
           Text(
-            'Total spent',
+            'Total spent across selected budgets',
             style: TextStyle(
               color: AppColors.primary.withValues(alpha: 0.8),
               fontSize: 13,
@@ -387,7 +443,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           ),
           const Spacer(),
           Text(
-            '\u20b9${state.combinedTotalAmount.toStringAsFixed(0)}',
+            CurrencyFormatter.format(
+              state.combinedTotalAmount,
+              decimalDigits: 0,
+            ),
             style: TextStyle(
               color: AppColors.primary,
               fontWeight: FontWeight.bold,

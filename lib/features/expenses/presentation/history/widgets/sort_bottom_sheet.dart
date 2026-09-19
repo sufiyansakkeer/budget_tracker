@@ -25,6 +25,14 @@ class SortBottomSheet extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Expenses stay grouped by day, newest day first. The sort '
+              'order applies to the expenses within each day.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
             const SizedBox(height: AppSpacing.md),
             ...ExpenseSortOption.values.map((option) {
               return ListTile(

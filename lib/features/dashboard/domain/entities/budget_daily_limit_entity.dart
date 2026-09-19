@@ -17,7 +17,8 @@ class BudgetDailyLimitEntity extends Equatable {
 
   /// The daily spending limit for this budget.
   ///
-  /// Formula: budget remaining ÷ remaining days for this budget.
+  /// Formula: (budget remaining + spent today) ÷ remaining days, i.e. the
+  /// amount available for today before today's expenses were recorded.
   final double dailyLimit;
 
   /// Amount spent today against THIS budget only.

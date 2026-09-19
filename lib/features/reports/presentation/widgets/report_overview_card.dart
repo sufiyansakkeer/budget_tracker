@@ -49,12 +49,13 @@ class ReportHeroCard extends StatelessWidget {
                 content: InfoContent(
                   title: 'Total Spending',
                   whatIsThis:
-                      'The total amount of all recorded expenses during '
-                      'the selected reporting period.',
+                      'The total of your active budget\'s expenses in the '
+                      'selected report period.',
                   howIsItCalculated:
-                      'All expenses whose date falls within the selected '
-                      'period are summed. Only expenses in the current '
-                      'active budget are included.',
+                      'All expenses in the active budget whose date falls '
+                      'within the selected period (and match any filters) '
+                      'are added together. Avg Daily divides that total by '
+                      'the number of days in the period.',
                   example:
                       'Period: 1 Aug → 25 Aug\n'
                       'Expenses in this period:\n'

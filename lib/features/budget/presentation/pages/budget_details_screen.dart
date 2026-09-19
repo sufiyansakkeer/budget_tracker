@@ -311,8 +311,9 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
 
   Widget _buildActiveBanner(ThemeData theme, BudgetEntity budget) {
     final message = budget.isArchived
-        ? 'This budget is archived and read-only.'
-        : 'This is not the active budget.';
+        ? 'This budget is archived. Restore it to use it again.'
+        : 'This is not the active budget. The Dashboard, Expenses and '
+              'Reports show the active budget.';
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
@@ -349,7 +350,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
         Expanded(
           child: _StatCard(
             icon: Icons.payments,
-            label: 'Spent',
+            label: 'Total Spent',
             value: '$currency${spent.toStringAsFixed(0)}',
           ),
         ),
@@ -357,7 +358,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
         Expanded(
           child: _StatCard(
             icon: Icons.savings,
-            label: 'Remaining',
+            label: 'Remaining Budget',
             value: '$currency${remainingBudget.toStringAsFixed(0)}',
           ),
         ),
@@ -388,7 +389,10 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Budget Used', style: theme.textTheme.titleMedium),
+                Text(
+                  'Overall Budget Progress',
+                  style: theme.textTheme.titleMedium,
+                ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -402,24 +406,31 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                     const SizedBox(width: 4),
                     InfoIcon(
                       content: InfoContent(
-                        title: 'Budget Progress',
+                        title: 'Overall Budget Progress',
                         whatIsThis:
-                            'Shows how much of this budget has been used '
-                            'and how much remains.',
+                            'How much of this budget\'s total amount has '
+                            'been spent so far in its period. This is '
+                            'different from Today\'s Safe Spending, which '
+                            'only looks at today.',
                         howIsItCalculated:
-                            'Progress = Spent ÷ Budget amount × 100\n'
-                            'Remaining = Budget amount − Spent amount',
+                            'Overall Budget Progress = Total spent ÷ Budget '
+                            'amount × 100\n'
+                            'Remaining Budget = Budget amount − Total spent\n\n'
+                            'Total spent counts every expense recorded in '
+                            'this budget.',
                         example:
-                            'Budget: ₹30,000\n'
-                            'Spent: ₹18,000\n'
+                            'Budget amount: ₹30,000\n'
+                            'Total spent: ₹18,000\n'
                             'Progress: 18,000 ÷ 30,000 = 60%\n'
-                            'Remaining: ₹12,000',
+                            'Remaining Budget: ₹12,000',
                         additionalNotes:
-                            '• Start date and end date define the period\n'
-                            '• Flexible date ranges: budget can start and '
-                            'end on any dates\n'
-                            '• Color changes: green (< 80%), orange (80–100%), '
-                            'red (> 100%)',
+                            '• Uses this budget\'s own amount and expenses '
+                            'only\n'
+                            '• The budget period runs from the start date to '
+                            'the end date you chose; it does not have to be a '
+                            'calendar month\n'
+                            '• The bar stops at 100% even if you spend more '
+                            'than the budget amount',
                       ),
                     ),
                   ],

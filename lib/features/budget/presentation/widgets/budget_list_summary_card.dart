@@ -56,24 +56,28 @@ class BudgetListSummaryCard extends StatelessWidget {
               const Spacer(),
               InfoIcon(
                 content: InfoContent(
-                  title: 'Combined Remaining',
+                  title: 'Total Remaining',
                   whatIsThis:
-                      'The total remaining budget across all your '
-                      'active budgets.',
+                      'An overview number: the Remaining Budget of every '
+                      'budget that is running today, added together. It is '
+                      'for reference only and does not merge your budgets.',
                   howIsItCalculated:
-                      'For each active budget:\n'
-                      '  Remaining = Budget amount − Spent amount\n\n'
-                      'Then all active budget remainders are added '
-                      'together.',
+                      'For each budget running today:\n'
+                      '  Remaining Budget = Budget amount − Total spent\n\n'
+                      'Then those amounts are added together.',
                   example:
                       'Budget A: ₹10,000 − ₹5,000 = ₹5,000 remaining\n'
                       'Budget B: ₹8,000 − ₹5,000 = ₹3,000 remaining\n\n'
-                      'Combined remaining: ₹8,000',
+                      'Total Remaining: ₹8,000',
                   additionalNotes:
-                      '• Only active (non-archived) budgets are included\n'
-                      '• Each budget has its own amount, date range, '
-                      'and spending\n'
-                      '• Can be negative if overspending on a budget',
+                      '• Includes budgets that are not archived and whose '
+                      'period includes today\n'
+                      '• Each budget keeps its own amount, period, expenses '
+                      'and Today\'s Safe Spending. Safe spending is never '
+                      'added together\n'
+                      '• Amounts are shown in the first active budget\'s '
+                      'currency\n'
+                      '• Can be negative if a budget is overspent',
                 ),
               ),
             ],
@@ -92,7 +96,7 @@ class BudgetListSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Across ${summary.activeBudgetCount} active budget${summary.activeBudgetCount == 1 ? '' : 's'}',
+            'Across ${summary.activeBudgetCount} budget${summary.activeBudgetCount == 1 ? '' : 's'} running today',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),

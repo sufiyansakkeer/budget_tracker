@@ -185,15 +185,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               SettingsTile(
                 icon: Icons.account_balance_wallet_outlined,
-                title: 'Budget',
-                subtitle: 'Manage your budgets',
+                title: 'Budgets',
+                subtitle:
+                    'Create, switch, edit and archive budgets. Each has its '
+                    'own amount and dates',
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/app/budgets'),
               ),
               SettingsTile(
                 icon: Icons.payments_outlined,
                 title: 'Bills & Reminders',
-                subtitle: 'Track bills and set payment reminders',
+                subtitle:
+                    'Track due dates, recurring bills and optional '
+                    'reminders',
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/app/bills'),
               ),
@@ -225,7 +229,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SettingsTile(
                 icon: Icons.payments_outlined,
                 title: 'Currency',
-                subtitle: '${settings.currencySymbol} ${settings.currencyCode}',
+                subtitle:
+                    '${settings.currencySymbol} ${settings.currencyCode} · '
+                    'default for new budgets and app-wide amounts',
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () =>
                     _showCurrencyPicker(context, settings.currencyCode),
@@ -240,7 +246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               NotificationToggle(
                 title: 'Enable Notifications',
-                subtitle: 'Master switch for all reminders',
+                subtitle: 'Daily morning reminder and evening summary',
                 value: settings.notifications.notificationsEnabled,
                 onChanged: (v) => bloc.add(
                   SettingsUpdateNotificationsEvent(
@@ -266,35 +272,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
-              NotificationToggle(
-                title: 'Overspending Alerts',
-                value: settings.notifications.overspendingAlertsEnabled,
-                onChanged: (v) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    settings.notifications.copyWith(
-                      overspendingAlertsEnabled: v,
-                    ),
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.xs,
+                  AppSpacing.md,
+                  AppSpacing.sm,
                 ),
-              ),
-              NotificationToggle(
-                title: 'No-Expense Reminder',
-                value: settings.notifications.noExpenseReminderEnabled,
-                onChanged: (v) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    settings.notifications.copyWith(
-                      noExpenseReminderEnabled: v,
-                    ),
-                  ),
-                ),
-              ),
-              NotificationToggle(
-                title: 'Quiet Hours',
-                subtitle: 'Pause notifications at night',
-                value: settings.notifications.quietHoursEnabled,
-                onChanged: (v) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    settings.notifications.copyWith(quietHoursEnabled: v),
+                child: Text(
+                  "The morning reminder shows Today's Safe Spending for each "
+                  'budget running today. The amount is calculated when the '
+                  'reminder is scheduled (when the app starts or these '
+                  'settings change). The evening summary is a reminder to '
+                  'review the day. Bill reminders are set on each bill. '
+                  'Notification permission is requested on first launch and '
+                  'must be allowed in your device settings.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ),
@@ -336,29 +332,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Budget Management
           SettingsSection(
-            title: 'Budget Management',
+            title: 'Active Budget',
             icon: Icons.account_balance_wallet_outlined,
             children: [
               SettingsTile(
                 icon: Icons.replay,
-                title: 'Reset Current Month',
-                subtitle: 'Archive this month and start a new one',
+                title: 'Start New Budget Period',
+                subtitle:
+                    'Archive the active budget and start a new 31-day '
+                    'budget from today with the same amount and currency',
                 onTap: () async {
                   final confirm = await ResetConfirmationDialog.show(
                     context,
-                    title: 'Reset Month?',
+                    title: 'Start New Budget Period?',
                     message:
-                        'This will create a new month budget and roll '
-                        'over your current period. Continue?',
-                    confirmLabel: 'Reset',
+                        'The active budget will be archived (its expenses '
+                        'are kept) and a new budget with the same amount '
+                        'and currency will start today and run for 31 '
+                        'days. The new budget becomes active. Continue?',
+                    confirmLabel: 'Start',
                   );
                   if (confirm) bloc.add(const SettingsResetMonthEvent());
                 },
               ),
               SettingsTile(
                 icon: Icons.auto_fix_high,
-                title: 'Reset Budget Amount',
-                subtitle: 'Set a new budget for this month',
+                title: 'Change Budget Amount',
+                subtitle:
+                    'Set a new total amount for the active budget. Its '
+                    'dates and expenses stay as they are',
                 onTap: () => _showBudgetAmountDialog(context, bloc),
               ),
             ],
@@ -395,14 +397,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final result = await showDialog<double>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('New Budget Amount'),
+        title: const Text('Change Budget Amount'),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Monthly budget',
-            prefixText: '₹ ',
+          decoration: InputDecoration(
+            labelText: 'Total amount for the active budget',
+            prefixText: '${bloc.state.settings.currencySymbol} ',
           ),
         ),
         actions: [
