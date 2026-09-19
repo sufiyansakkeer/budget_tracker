@@ -1,5 +1,17 @@
 {
   "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    // WatermelonDB models are declared with legacy decorators (@field, @date).
+    // useDefineForClassFields must stay off or the decorated properties are
+    // redefined as plain own-properties and the model loses its DB binding.
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    // Intl.NumberFormat's `notation: 'compact'` option is ES2020+.
+    "lib": [
+      "esnext",
+      "dom"
+    ]
+  },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["**/node_modules", "**/Pods"]
 }

@@ -1,5 +1,6 @@
 package com.budget_tracker
 
+import android.os.Bundle
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -19,4 +20,13 @@ class MainActivity : ReactActivity() {
    */
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+
+  /**
+   * Required by react-native-screens: passing null discards the saved Android
+   * fragment state. Without it, Android restores fragments on process death
+   * before React Navigation has rebuilt its own stack, and the two disagree.
+   */
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(null)
+  }
 }

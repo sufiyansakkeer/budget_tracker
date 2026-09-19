@@ -1,0 +1,67 @@
+diff --git a/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.h b/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.h
+index c1b7efb..858183e 100644
+--- a/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.h
++++ b/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.h
+@@ -1,13 +1,13 @@
+ #pragma once
+ 
+-#import <React/RCTBridge+Private.h>
++#import <React/RCTBridge.h>
+ 
+ #ifdef __cplusplus
+ extern "C"
+ {
+ #endif
+ 
+-void installWatermelonJSI(RCTCxxBridge *bridge);
++void installWatermelonJSI(RCTBridge *bridge);
+ void watermelondbProvideSyncJson(int id, NSData *json, NSError **errorPtr);
+ 
+ #ifdef __cplusplus
+diff --git a/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.mm b/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.mm
+index d508249..7e17fb4 100644
+--- a/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.mm
++++ b/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/JSIInstaller.mm
+@@ -1,12 +1,20 @@
+ #import "JSIInstaller.h"
+-#import "Database.h"
+ 
+-extern "C" void installWatermelonJSI(RCTCxxBridge *bridge) {
+-    if (bridge.runtime == nullptr) {
+-        return;
+-    }
+-
+-    jsi::Runtime *runtime = (jsi::Runtime*) bridge.runtime;
+-    assert(runtime != nullptr);
+-    watermelondb::Database::install(runtime);
++// Patched for React Native 0.87+.
++//
++// RN 0.87 compiles with RCT_REMOVE_LEGACY_ARCH=1, which removed the RCTCxxBridge
++// class and RCTBridge's `runtime` property, so the jsi::Runtime can no longer be
++// reached from an RCTBridge. The new-arch replacement hook,
++// -installJSIBindingsWithRuntime:callInvoker:, is only invoked by
++// RCTTurboModuleManager's provideTurboModule: for codegen TurboModules — never by
++// provideLegacyModule:, which is the path WMDatabaseBridge (a plain
++// RCTBridgeModule) takes. There is therefore no supported way to install the JSI
++// adapter until WatermelonDB ships a codegen TurboModule.
++//
++// Installing nothing is safe: `global.nativeWatermelonCreateAdapter` stays
++// undefined, so initializeJSI() in adapters/sqlite/makeDispatcher/index.native.js
++// evaluates to false and WatermelonDB transparently uses the async bridge
++// dispatcher, which is the default (experimentalUseJSI is opt-in).
++extern "C" void installWatermelonJSI(RCTBridge *bridge) {
++    (void) bridge;
+ }
+diff --git a/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/objc/WMDatabaseBridge.m b/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/objc/WMDatabaseBridge.m
+index 8a3ab35..1a7301e 100644
+--- a/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/objc/WMDatabaseBridge.m
++++ b/node_modules/@nozbe/watermelondb/native/ios/WatermelonDB/objc/WMDatabaseBridge.m
+@@ -196,7 +196,7 @@ + (BOOL) requiresMainQueueSetup
+ 
+ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(initializeJSI)
+ {
+-    __block RCTCxxBridge *bridge = (RCTCxxBridge *) _bridge;
++    __block RCTBridge *bridge = _bridge;
+     dispatch_sync([self methodQueue], ^{
+         installWatermelonJSI(bridge);
+     });

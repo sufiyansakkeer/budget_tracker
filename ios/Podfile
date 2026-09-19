@@ -8,6 +8,11 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
+
+# Enable modular headers globally for problematic pods like WatermelonDB
+pod 'WatermelonDB', :path => '../node_modules/@nozbe/watermelondb', :modular_headers => true
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
@@ -30,5 +35,13 @@ target 'budget_tracker' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+    
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_WARN_STRICT_PROTOTYPES'] = 'NO'
+        config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+        config.build_settings['OTHER_CFLAGS'] = '$(inherited) -Wno-error=non-modular-include-in-framework-module'
+      end
+    end
   end
 end
