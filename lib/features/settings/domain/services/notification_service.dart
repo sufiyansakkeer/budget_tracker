@@ -28,6 +28,14 @@ class NotificationService {
 
   static const String channelId = 'budget_reminders';
   static const String channelName = 'Budget Reminders';
+
+  /// Android small-icon resource (android/app/src/main/res/drawable/).
+  /// Must be a monochrome, transparent-background drawable.
+  static const String notificationIcon = '@drawable/ic_notification';
+
+  /// Brand accent used by Android to tint the small icon in the shade.
+  static const Color notificationColor = Color(0xFF0D2477);
+
   static const String channelDescription =
       "Daily Today's Safe Spending reminder and evening summary";
 
@@ -53,7 +61,9 @@ class NotificationService {
 
     await _configureLocalTimeZone();
 
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    // Status-bar icons are alpha-masked by Android, so the launcher PNG would
+    // render as a solid square. Use the dedicated monochrome vector instead.
+    const android = AndroidInitializationSettings(notificationIcon);
     const ios = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -238,6 +248,8 @@ class NotificationService {
       channelId,
       channelName,
       channelDescription: channelDescription,
+      icon: notificationIcon,
+      color: notificationColor,
       importance: Importance.high,
       priority: Priority.high,
     );
@@ -294,6 +306,8 @@ class NotificationService {
       channelId,
       channelName,
       channelDescription: channelDescription,
+      icon: notificationIcon,
+      color: notificationColor,
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );
