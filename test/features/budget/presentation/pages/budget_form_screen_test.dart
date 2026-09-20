@@ -8,6 +8,7 @@ import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dar
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/presentation/pages/budget_form_screen.dart';
 import 'package:monivo/features/settings/domain/entities/app_settings.dart';
+import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
 import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
 import 'package:monivo/features/settings/domain/repository/settings_repository.dart';
@@ -22,6 +23,9 @@ class FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setThemeMode(AppThemeMode mode) async {}
+
+  @override
+  Future<void> setPalette(ColorPalette palette) async {}
 
   @override
   Future<void> setCurrency(String code, String symbol) async {}

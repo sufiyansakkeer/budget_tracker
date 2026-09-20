@@ -38,6 +38,10 @@ class DashboardLoaded extends DashboardState {
   /// using only that budget's data.
   final List<BudgetDailyLimitEntity> budgetDailyLimits;
 
+  /// Id of the budget currently selected as active, so the UI can single out
+  /// its entry in [budgetDailyLimits].
+  final String? activeBudgetId;
+
   const DashboardLoaded({
     required this.budgetSummary,
     required this.recentExpenses,
@@ -45,7 +49,23 @@ class DashboardLoaded extends DashboardState {
     this.upcomingBills = const [],
     this.spendingTarget,
     this.budgetDailyLimits = const [],
+    this.activeBudgetId,
   });
+
+  /// The daily limit entry belonging to the active budget, if it is running
+  /// today.
+  BudgetDailyLimitEntity? get activeBudgetLimit {
+    if (activeBudgetId == null) return null;
+    for (final limit in budgetDailyLimits) {
+      if (limit.budgetId == activeBudgetId) return limit;
+    }
+    return null;
+  }
+
+  /// Daily limits for every other budget that is running today.
+  List<BudgetDailyLimitEntity> get otherBudgetLimits => budgetDailyLimits
+      .where((limit) => limit.budgetId != activeBudgetId)
+      .toList();
 
   @override
   List<Object?> get props => [
@@ -55,6 +75,7 @@ class DashboardLoaded extends DashboardState {
     upcomingBills,
     spendingTarget,
     budgetDailyLimits,
+    activeBudgetId,
   ];
 }
 

@@ -1,64 +1,45 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/empty_state.dart';
 
 /// Friendly empty state shown when there are no expenses for the period.
 class EmptyReportsState extends StatelessWidget {
   final VoidCallback? onAddExpense;
 
-  const EmptyReportsState({super.key, this.onAddExpense});
+  /// When true the report is empty because of the active filters.
+  final bool filtered;
+  final VoidCallback? onClearFilters;
+
+  const EmptyReportsState({
+    super.key,
+    this.onAddExpense,
+    this.filtered = false,
+    this.onClearFilters,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.pie_chart_outline,
-                size: 48,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              'No expenses yet',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 280),
-              child: Text(
-                'Add expenses to see charts, trends, and insights for this period.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-            ),
-            if (onAddExpense != null) ...[
-              const SizedBox(height: AppSpacing.lg),
-              FilledButton.icon(
-                onPressed: onAddExpense,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add Expense'),
-              ),
-            ],
-          ],
-        ),
-      ),
+    if (filtered) {
+      return EmptyState(
+        icon: Icons.filter_alt_off_rounded,
+        title: 'Nothing matches these filters',
+        message:
+            'Try a wider date range or clear the filters to see the '
+            'full report.',
+        actionLabel: 'Clear filters',
+        actionIcon: Icons.clear_all_rounded,
+        onAction: onClearFilters,
+      );
+    }
+    return EmptyState(
+      icon: Icons.insights_rounded,
+      title: 'No expenses in this period',
+      message:
+          'Charts, patterns and insights appear once you record '
+          'expenses in the selected period.',
+      actionLabel: 'Add expense',
+      actionIcon: Icons.add_rounded,
+      onAction: onAddExpense,
     );
   }
 }

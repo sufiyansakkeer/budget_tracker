@@ -1,4 +1,5 @@
 import '../entities/app_settings.dart';
+import '../entities/color_palette_entity.dart';
 import '../entities/notification_settings.dart';
 import '../entities/theme_mode_entity.dart';
 
@@ -9,6 +10,9 @@ abstract class SettingsRepository {
 
   /// Persists the theme mode.
   Future<void> setThemeMode(AppThemeMode mode);
+
+  /// Persists the selected color palette.
+  Future<void> setPalette(ColorPalette palette);
 
   /// Persists the selected currency code.
   Future<void> setCurrency(String code, String symbol);

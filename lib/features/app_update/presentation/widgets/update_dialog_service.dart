@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/app_update_result.dart';
+import '../../../../core/widgets/app_dialog.dart';
 
 /// Centralised service that shows the app-update dialog via the root
 /// Navigator key, avoiding the stale/Below-Navigator BuildContext problem.
@@ -31,7 +32,7 @@ class UpdateDialogService {
 
     _isShowing = true;
 
-    showDialog<void>(
+    AppDialog.show<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _UpdateDialogBody(

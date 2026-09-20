@@ -1,3 +1,4 @@
+import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
 import 'package:monivo/features/settings/domain/repository/theme_repository.dart';
 import 'package:monivo/features/settings/presentation/bloc/theme/theme_bloc.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _FakeThemeRepository implements ThemeRepository {
   AppThemeMode stored = AppThemeMode.system;
+  ColorPalette storedPalette = ColorPalette.defaultPalette;
 
   @override
   Future<AppThemeMode> getTheme() async => stored;
@@ -15,6 +17,14 @@ class _FakeThemeRepository implements ThemeRepository {
   @override
   Future<void> saveTheme(AppThemeMode mode) async {
     stored = mode;
+  }
+
+  @override
+  Future<ColorPalette> getPalette() async => storedPalette;
+
+  @override
+  Future<void> savePalette(ColorPalette palette) async {
+    storedPalette = palette;
   }
 }
 

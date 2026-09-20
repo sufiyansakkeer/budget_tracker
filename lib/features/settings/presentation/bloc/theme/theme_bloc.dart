@@ -8,8 +8,8 @@ import 'theme_state.dart';
 ///
 /// [ThemeBloc] is the single source of truth for the app's theme. It loads the
 /// persisted preference on startup and exposes it via [ThemeState]. When the
-/// user changes the theme, the state is emitted immediately (so the UI updates
-/// without a restart) and the preference is then persisted locally.
+/// user changes the theme or palette, the state is emitted immediately (so the
+/// UI updates without a restart) and the preference is then persisted locally.
 class ThemeBloc extends Bloc<ThemeEvent, ThemeState> {
   final ThemeRepository _themeRepository;
 
@@ -18,17 +18,24 @@ class ThemeBloc extends Bloc<ThemeEvent, ThemeState> {
       super(const ThemeState()) {
     on<ThemeLoadRequested>((event, emit) async {
       try {
-        final mode = await _themeRepository.getTheme();
-        if (!isClosed) emit(ThemeState(mode: mode));
+        final results = await Future.wait([
+          _themeRepository.getTheme(),
+          _themeRepository.getPalette(),
+        ]);
+        final mode = results[0] as dynamic; // AppThemeMode
+        final palette = results[1] as dynamic; // ColorPalette
+        if (!isClosed) emit(ThemeState(mode: mode, palette: palette));
       } catch (_) {
         // Keep the default theme mode on error.
       }
     });
     on<ThemeChanged>((event, emit) async {
-      // Emit first so the UI updates immediately, then persist in the
-      // background so we never block the UI on disk I/O.
-      emit(ThemeState(mode: event.mode));
+      emit(state.copyWith(mode: event.mode));
       await _themeRepository.saveTheme(event.mode);
+    });
+    on<ColorPaletteChanged>((event, emit) async {
+      emit(state.copyWith(palette: event.palette));
+      await _themeRepository.savePalette(event.palette);
     });
     add(const ThemeLoadRequested());
   }

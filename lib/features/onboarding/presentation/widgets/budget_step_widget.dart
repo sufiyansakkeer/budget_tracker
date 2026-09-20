@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../core/constants/app_colors.dart';
+
 import '../../../../core/constants/app_spacing.dart';
+import '../../../expenses/presentation/widgets/form_field_error.dart';
+import 'onboarding_step_layout.dart';
 
 class BudgetStepWidget extends StatefulWidget {
   final String initialValue;
@@ -26,13 +28,9 @@ class BudgetStepWidget extends StatefulWidget {
 }
 
 class _BudgetStepWidgetState extends State<BudgetStepWidget> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
-  }
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
 
   @override
   void dispose() {
@@ -40,160 +38,113 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext themeContext) {
-    final theme = Theme.of(context);
-    final isValid =
-        widget.errorMessage == null && _controller.text.trim().isNotEmpty;
+  bool get _isValid =>
+      widget.errorMessage == null && _controller.text.trim().isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasError = widget.errorMessage != null;
+
+    return OnboardingStepLayout(
+      title: 'What is your budget amount?',
+      subtitle:
+          'The total you want to spend between the start and end dates '
+          'you choose next.',
+      onBack: widget.onBack,
+      footer: OnboardingContinueButton(
+        buttonKey: const Key('budgetStepContinueButton'),
+        onPressed: _isValid ? widget.onContinue : null,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            onPressed: widget.onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
-            padding: EdgeInsets.zero,
-            alignment: Alignment.centerLeft,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'What is your budget amount?',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
             ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'The total you want to spend between the start and end dates '
-            'you choose next. You can add more budgets later, each with its '
-            'own amount.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(
-                color: widget.errorMessage != null
-                    ? AppColors.dangerRed
-                    : AppColors.primary.withValues(alpha: 0.2),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: AppSpacing.borderRadiusMd,
+              border: Border.all(
+                color: hasError
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary.withValues(alpha: 0.5),
                 width: 1.5,
               ),
             ),
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.md,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      widget.currencySymbol,
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: TextField(
-                      key: const Key('monthlyBudgetTextField'),
-                      controller: _controller,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d*\.?\d{0,2}'),
-                        ),
-                      ],
-                      autofocus: true,
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: '30,000',
-                        border: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                      ),
-                      onChanged: (val) {
-                        widget.onChanged(val);
-                        setState(() {});
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (widget.errorMessage != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Row(
+            child: Row(
               children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  color: AppColors.dangerRed,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
+                Container(
+                  width: AppSizes.avatarMd,
+                  height: AppSizes.avatarMd,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: AppSpacing.borderRadiusSmd,
+                  ),
                   child: Text(
-                    widget.errorMessage!,
-                    style: const TextStyle(
-                      color: AppColors.dangerRed,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                    widget.currencySymbol,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
                     ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.smd),
+                Expanded(
+                  child: TextField(
+                    key: const Key('monthlyBudgetTextField'),
+                    controller: _controller,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    textInputAction: TextInputAction.done,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d*\.?\d{0,2}'),
+                      ),
+                    ],
+                    autofocus: true,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                    decoration: InputDecoration(
+                      hintText: '30,000',
+                      hintStyle: theme.textTheme.headlineSmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.25,
+                        ),
+                      ),
+                      filled: false,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.sm,
+                      ),
+                      border: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                    ),
+                    onChanged: (val) {
+                      widget.onChanged(val);
+                      setState(() {});
+                    },
+                    onSubmitted: (_) {
+                      if (_isValid) widget.onContinue();
+                    },
                   ),
                 ),
               ],
             ),
-          ],
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              key: const Key('budgetStepContinueButton'),
-              onPressed: isValid ? widget.onContinue : null,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 4,
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Continue',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded),
-                ],
-              ),
+          ),
+          if (hasError) FormFieldError(message: widget.errorMessage!),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'You can change the amount any time from the budget screen.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );

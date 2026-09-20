@@ -1,895 +1,723 @@
-# Monivo - Personal Budget Tracker
+# Monivo — Smart Budget Tracker
 
-**A Flutter-based budgeting application** that helps users track expenses, manage budgets, and gain insights into their spending habits.
+Monivo is an offline-first personal budgeting app for Android and iOS, built with
+Flutter. It is designed around a single idea: a budget is a fixed amount of money
+for a specific stretch of time, and the most useful number is how much you can
+safely spend **today** without running that amount out early.
 
-## 🏗️ **Architecture Overview**
-
-Monivo follows a **Clean Architecture** pattern with clear separation of concerns:
-
-- **Presentation Layer**: UI components, BLoCs, and routing.
-- **Domain Layer**: Business logic, entities, use cases, and repositories.
-- **Data Layer**: Data sources, models, and database interactions.
-- **Core Layer**: Shared utilities, services, and infrastructure.
-
-### **Design Patterns**
-
-- **Dependency Injection**: Uses `GetIt` for lazy-singleton and factory registrations.
-- **Repository Pattern**: Abstracts data access for budgets, expenses, and settings.
-- **State Management**: Uses `Flutter Bloc` for predictable state transitions.
-- **Pure Calculation Engine**: Business logic is decoupled from UI and data layers.
-- **Memoization**: Caches calculation results for performance.
-
-### **Component Interaction Model**
-
-```mermaid
-  graph TD
-    A[UI Components] -->|Trigger Events| B[BLoCs]
-    B -->|Invoke Use Cases| C[Use Cases]
-    C -->|Fetch Data| D[Repositories]
-    D -->|Query Database| E[Database]
-    E -->|Return Data| D
-    D -->|Return Data| C
-    C -->|Return Results| B
-    B -->|Update State| A
-```
-
-- **Models/DTOs**: Immutable entities (`Equatable`) for data consistency.
-- **Handlers/Services**: Pure Dart classes for deterministic calculations.
-- **Data Context/Adapters**: Drift ORM for SQLite database interactions.
-- **Controllers/UI**: BLoCs handle user events and trigger use cases.
-
-### **Error Handling & Logging**
-
-- **Typed Errors**: Uses sealed classes (`BudgetError`, `ExpenseError`) for structured error handling.
-- **Validation**: Custom validators for business rules (e.g., budget amount > 0).
-- **Logging**: Uses `logger` package for debugging and analytics.
-- **Global Exception Filters**: Catches and logs unhandled exceptions.
+**Current version:** `1.2.3+7` (source of truth: [`pubspec.yaml`](pubspec.yaml))
+**Repository:** <https://github.com/sufiyansakkeer/budget_tracker>
 
 ---
 
-## 📌 Project Overview
+## Overview
 
-Monivo is a **personal finance management app** designed to help users:
-- Track expenses and categorize spending
-- Create multiple independent budgets, each with its own amount, currency and start/end dates
-- Gain insights through visual reports and analytics
-- Secure their data with biometric authentication
-- Export/import data for backup and sharing
-- Manage bills, recurring payments, and payment reminders
+Most budgeting apps assume a calendar month. Monivo does not. You create as many
+budgets as you need, each with its own amount, currency and start/end dates — a
+salary cycle, a two-week trip, a wedding fund — and each one tracks its own
+expenses and its own daily safe spending independently.
 
-### 🔥 Key Features
+The problem it solves is pacing. Knowing you have money left is not the same as
+knowing whether you can spend today. Monivo continuously recomputes, per budget:
 
-| Feature                     | Description                                                                                     | Implementation Details                                                                                     |
-|-----------------------------|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| **Budget Management**       | Create multiple independent budgets with any date range; switch the active budget at any time.       | Uses `BudgetCalculationService` for deterministic calculations and `BudgetBloc` for state management.    |
-| **Expense Tracking**        | Record expenses with receipts, categories, and tags.                                               | Immutable `ExpenseEntity` with Drift ORM for SQLite persistence.                                         |
-| **Smart Insights**          | Rule-based (no AI) spending observations derived from local budget and expense data.                 | `GetSmartInsightsUseCase` and `BudgetAnalyticsEntity` for extended analytics.                              |
-| **Multi-Currency Support**  | Track budgets in any currency.                                                                       | `CurrencyProvider` and `BudgetEntity.currency` field.                                                     |
-| **Biometric Security**      | Fingerprint/Face ID authentication.                                                                  | `BiometricInitializer` and `AppLockBloc` for app lock state.                                             |
-| **Data Export/Import**      | Backup and restore financial data.                                                               | `BackupDataUseCase` and `RestoreDataUseCase` with CSV/PDF support.                                       |
-| **Customizable Reports**    | Visualize spending trends and patterns.                                                          | `fl_chart` for interactive charts and `ReportsBloc` for data aggregation.                             |
-| **Bill Management**         | Track bills, set payment reminders, and manage recurring payments.                                  | `BillEntity` and `BillBloc` for managing bills and payment reminders.                                   |
-| **Per-Budget Daily Limits**  | Automatic daily and weekly spending targets for each active budget.                                  | `BudgetDailyLimitEntity` and `GetSpendingTargetsUseCase` for per-budget calculations.                   |
-| **Home Screen Widget**        | The active budget's Today's Safe Spending, Spent Today and status on the device home screen.        | `HomeWidgetService` and platform-specific widget providers for Android and iOS.                        |
-| **Database Integrity**        | Comprehensive data integrity checks, orphan detection, and automatic repair.                        | `DatabaseIntegrityService` for validating and repairing database records.                              |
+```
+Today's Safe Spending = (Budget Amount − Total Spent + Spent Today) ÷ Remaining Days
+```
 
-### Using Recent Features
+Because Spent Today is added back before dividing, the figure is stable for the
+whole day: it tells you what you may spend today, and it does not shrink as you
+record expenses during that day. It is recalculated from scratch each new day.
 
-#### Bills and Payment Reminders
+Everything runs on the device. There is no account, no sync service and no
+analytics backend. The only network request the app makes is an optional check
+against the GitHub Releases API to see whether a newer build exists.
 
-1. Open **Settings** and select **Bills & Reminders**, or open Bills from the
-  app navigation.
-2. Select **Add Bill**, then enter a name, amount, category, and due date.
-3. Optionally add a due time, enable a reminder, and choose how many days
-  before the due date the reminder should appear.
-4. Enable recurrence for bills such as rent, utilities, or subscriptions.
-5. Use the Bills screen to search, filter by status, open details, and mark a
-  bill as paid. Recurring bills are generated according to their recurrence
-  rule.
+### Multiple budgets, explained
 
-Bills are tracked separately from ordinary expenses. Marking a bill as paid
-does not change the budget until you record the payment as an expense.
+This is the core concept, so it is worth stating precisely.
 
-#### Currency Selection
+Each budget is **independent** and owns:
 
-- Choose the app's default currency in **Settings > Currency**.
-- Choose a currency while creating or editing a budget. Existing budgets keep
-  their configured currency, and amounts are displayed with that currency's
-  symbol and code.
+| Property | Scope |
+| --- | --- |
+| Amount | Per budget |
+| Currency | Per budget |
+| Start date / end date | Per budget |
+| Expenses | Per budget (every expense belongs to exactly one budget) |
+| Remaining Budget | Per budget |
+| Today's Safe Spending | Per budget |
+| Budget progress / status | Per budget |
 
-#### Notifications
+**Amounts are never combined across budgets.** There is no aggregate daily limit
+and no merged remaining balance. The Dashboard shows the Active Budget in full and
+lists other budgets running today separately, each with its own figures.
 
-Use **Settings > Notifications** to enable or disable reminders and choose the
-morning reminder and evening summary times. The morning reminder shows Today's
-Safe Spending for each budget running today (one line per budget, never
-combined), calculated when the reminder is scheduled. Bill reminders are
-configured per bill. Notification scheduling is restored when the app recovers
-after a device restart. Device notification permissions must also be granted
-for reminders to appear.
-
-#### Per-Budget Daily Spending Limits
-
-1. Open the **Dashboard** to see the Today's Safe Spending section.
-2. Each budget running today gets its own card with its own amount.
-3. Today's Safe Spending is `(Remaining Budget + Spent Today) ÷ remaining days (including today)`, so it stays fixed for the day and today's expenses count against it.
-4. Progress bars compare Spent Today with Today's Safe Spending.
-5. Status indicators show On track, Near limit (80–100%) or Over limit.
-6. Weekly shares of the budget feed the Smart Insights.
-
-Amounts are independent for each budget and are never combined. Morning
-notifications list each budget's Today's Safe Spending separately.
-
-#### Combined Expense History
-
-1. Open the **Expenses** screen from the app navigation.
-2. Tap the **combine** button to enter combined mode.
-3. Select which budgets to include using the budget selection sheet.
-4. View expenses from all selected budgets in a single unified list.
-5. Each expense tile shows a **budget name chip** so you can see which budget
-  it belongs to.
-6. Use the **sort** button to order the expenses within each day group.
-7. Tap the **info** icon on an expense to see its budget, category, amount, date and time.
-8. Tap the combine button again to return to the active budget's expenses.
-
-Combined mode only combines the list for viewing: each expense keeps its
-original budget, and budget amounts and Today's Safe Spending are never merged.
-Searching, filtering and sorting work across all selected budgets, and the
-selection is preserved during screen refreshes.
-
-#### Analytics Explanations
-
-Select the information icon on an analytics card to see what the metric means,
-how it is calculated, examples where available, and notes about its status
-colors and update behavior.
-
-#### Home Screen Widget
-
-1. Long-press on your device's home screen and select **Widgets**.
-2. Find **Monivo** in the widget list and drag it to your home screen.
-3. The widget shows the active budget's Today's Safe Spending, Spent Today,
-  status, Remaining Budget and remaining days.
-4. Tap the widget body to open the Dashboard, or **+ Add Expense** to open the
-  Add Expense screen.
-5. The widget updates automatically when expenses or budgets change, and
-  refreshes on its own about once an hour.
-
-Home screen widgets are supported on both Android (App Widgets) and iOS
-(WidgetKit).
-
-#### App Updates
-
-The app can check GitHub for a newer release. Open **Settings > App Updates**
-and select **Check for Updates**. When a release is available, select **View
-Update** to open its release page in the device browser. An internet connection
-is required for this check; the app continues to work normally if the check
-cannot be completed.
+The one place where budgets appear together is the **Combined Expense View** in
+the Expenses tab. That is a *viewing and aggregation* feature only: it lists the
+expense rows from the budgets you select in a single chronological list so you can
+compare them. It does not merge the budgets, their amounts, their periods or their
+safe-spending calculations.
 
 ---
 
-## 🛠 Tech Stack & Dependencies
+## Features
 
-### **Frameworks & Libraries**
+### Budget Management
 
-| Category               | Technology                                                                 | Purpose                                                                                     |
-|------------------------|---------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| **Core Framework**    | Flutter (Dart)                                                           | Cross-platform UI development.                                                 |
-| **State Management**   | Flutter Bloc                                                                | Predictable state transitions with clear event/state separation.                |
-| **Dependency Injection** | GetIt                                                                      | Lazy-singleton and factory registrations for DI.                                   |
-| **Routing**           | GoRouter                                                                   | Declarative navigation with deep linking support.                              |
-| **Database**          | Drift (SQLite) + drift_flutter                                            | Type-safe database access with code generation.                                  |
-| **Local Storage**     | SharedPreferences                                                          | Persistent app settings and preferences.                                       |
-| **Charts & Visuals**  | fl_chart                                                                  | Interactive and customizable charts for financial reports.                     |
-| **Internationalization** | intl                                                                     | Localization and formatting for dates, numbers, and currencies.               |
-| **Biometrics**        | local_auth                                                                | Fingerprint/Face ID authentication.                                           |
-| **Notifications**     | flutter_local_notifications                                              | Local notifications for budget alerts and reminders.                          |
-| **File Handling**     | file_picker, csv, pdf, printing                                           | Data export/import and receipt management.                                      |
-| **Utilities**         | uuid, timezone, flutter_timezone                                          | Unique IDs, timezone handling, and date utilities.                              |
+- Create any number of budgets, each with a name, amount, currency and an explicit
+  start and end date. Periods may overlap.
+- One budget is the **Active Budget** at a time. The Dashboard, Reports and the
+  home screen widget follow it; switching is done from the Dashboard, the budget
+  list or Settings.
+- Per budget: Remaining Budget, overall progress, days passed, remaining days,
+  average daily spending, projected period-end spending, projected savings and
+  projected overspending.
+- Budget status is classified as under budget, near limit or over budget from a
+  configurable utilization threshold.
+- Budgets can be edited and archived. Archived budgets keep their expenses.
+- **Change active budget amount** (Settings) rewrites only the amount; dates and
+  expenses stay as they are, and the remaining amount is recomputed from what has
+  already been spent.
+- **Start new budget period** (Settings) archives the Active Budget and creates
+  exactly one fresh 31-day budget starting today, carrying over the amount and
+  currency. The operation runs in a single database transaction.
 
-### **Dev Dependencies**
+### Expense Management
 
-| Dependency            | Purpose                                                                                     |
-|-----------------------|---------------------------------------------------------------------------------|
-| `build_runner`        | Code generation for Drift, Freezed, and JSON serialization.               |
-| `drift_dev`           | Database migrations and schema management.                                     |
-| `freezed`             | Immutable data classes with `copyWith` support.                               |
-| `json_serializable`   | JSON serialization for data export/import.                                    |
-| `bloc_test`           | Unit testing for BLoCs.                                                      |
-| `mockito`             | Mocking for dependency injection and testing.                                  |
-| `integration_test`    | End-to-end testing for app workflows.                                       |
+- Add, edit and delete expenses. Each expense records amount, category, optional
+  note, date, time, optional tags and an optional receipt image.
+- 13 built-in categories (Food, Grocery, Fuel, Shopping, Rent, EMI, Bills, Travel,
+  Entertainment, Health, Education, Salary Adjustment, Others), each with its own
+  icon and colour.
+- Receipt images are captured with the camera or picked from the photo library and
+  stored locally.
+- **Expense history** groups entries by the device's local calendar date, with a
+  running summary, incremental paging and text search.
+- Six sort options: newest first, oldest first, highest amount, lowest amount,
+  category, alphabetical. Category sort keeps ordering stable within each day group.
+- Filters: category, date range, minimum/maximum amount, tags, and receipt-only.
+  Filters combine, and active filters are shown as removable chips.
+- **Combined Expense View**: select multiple budgets and see their expenses in one
+  list. Each row carries a budget-name chip, and an info sheet shows that budget's
+  details. See [Multiple budgets, explained](#multiple-budgets-explained).
+- All amounts are formatted through a single currency formatter using the budget's
+  currency code and symbol.
 
-### **Code Generation**
+### Dashboard
 
-- **Drift**: Generates type-safe database queries and models.
-- **Freezed**: Generates immutable data classes with `copyWith` and `toJson`/`fromJson`.
-- **JSON Serialization**: Converts entities to/from JSON for data export/import.
+- **Today's Safe Spending** hero card for the Active Budget, with Spent Today and
+  either "Left today" or "Over by".
+- Budget overview card — how much of the budget is left (or how far over it you
+  are), the percentage used, and your position in the budget period (day N of M,
+  with the date range).
+- **Other budgets today** — a separate section listing every other budget whose
+  period includes today, each with its own safe amount. Nothing is summed.
+- **Smart Insights** — up to three prioritised observations (see below).
+- **Recent expenses** for the Active Budget, with a shortcut to the full history.
+- **Upcoming bills** — up to three unpaid bills due today or later.
+- **Quick actions** — Add bill, Bills, Budgets, Reports.
+- When no budget covers today, the Dashboard shows a create-budget state instead.
+
+### Reports
+
+Reports are scoped to the **Active Budget's** expenses.
+
+- Period selector: This Week, Last Week, This Month, Last Month, This Year, Custom
+  range. The same filter set as the expense history can be applied on top.
+- Total spending summary with a spending trend.
+- Budget progress card — shown only when the selected range covers the current
+  calendar month.
+- Category breakdown: pie chart plus ranked per-category analytics.
+- Daily spending line chart.
+- Bar chart of weekly buckets (month views) or monthly buckets (year views), shown
+  when the range produces more than one bucket.
+- Week-over-week comparison, shown when a preceding period exists.
+- Time analytics: most/least expensive day, most/least active day, highest-spending
+  weekday, weekday vs. weekend split.
+- Report insights, generated from the figures on screen, collapsible to a short list.
+- Export the report as **CSV** or **PDF** through the system share sheet.
+
+Charts are drawn with `fl_chart`.
+
+### Bills & Reminders
+
+- Create bills with a title, optional note, amount, currency, category, due date and
+  optional due time.
+- 14 bill categories (Rent, Utilities, Electricity, Water, Internet, Phone, EMI,
+  Insurance, Subscription, Education, Healthcare, Government, Credit Card, Other).
+- Recurrence: one-time, weekly, monthly or yearly, with a configurable interval.
+- Status is derived from the due date and payment state — Upcoming, Due Today,
+  Overdue or Paid. It is computed, never stored.
+- Mark a bill paid or unpaid. Marking a recurring bill paid advances it to its next
+  occurrence instead of closing it permanently, and writes a payment-history record.
+  The payment record and the bill update are written atomically.
+- List filters: All, Upcoming, Due Today, Overdue, Paid, Recurring.
+- Per-bill reminders with a configurable lead time in days, delivered as local
+  notifications on a dedicated channel. Reminders are never scheduled for a time in
+  the past, and reminder IDs are derived from the bill ID so they can be reliably
+  cancelled and rescheduled.
+
+### Smart Insights
+
+Smart Insights are **rule-based and deterministic** — there is no AI and no network
+call. They are produced by a pure domain service from the Active Budget's summary
+and the per-budget daily limits, and at most three are shown, ordered by severity:
+
+1. Per-budget over-limit and near-limit warnings for today.
+2. Critical overspending on the Active Budget.
+3. Projected period-end overspending at the current daily average.
+4. Per-budget weekly-share overspending.
+5. Per-budget progress (percentage used, days remaining).
+6. Overspending against Today's Safe Spending.
+7. Daily and weekly spending-target status.
+8. Spending pace relative to the safe allowance.
+9. Overall budget progress.
+10. Positive outcomes — projected leftover, or simply being within budget.
+
+Every message quotes real figures from local data. When no budget amount is set, a
+single informational message is shown instead. Reports carries its own separate
+insight generator for the period being viewed.
+
+### Notifications
+
+Two local notification channels, both scheduled in the device's local timezone:
+
+| Channel | Notifications |
+| --- | --- |
+| `budget_reminders` | Morning "Today's Safe Spending" (one line per budget running today) and an evening summary |
+| `bill_reminders` | Per-bill reminders based on each bill's lead time |
+
+- Permission is requested once at app startup. A denial never blocks launch — the
+  rest of the app stays fully usable.
+- Morning and evening notifications can each be toggled and re-timed in Settings,
+  under a master "Daily notifications" switch.
+- Schedules survive device restarts via a boot receiver.
+- In **debug builds only**, an extra test notification is scheduled one minute after
+  launch to verify permission, channel and delivery.
+
+### Security
+
+- Optional biometric app lock (fingerprint / Face ID / device credential), toggled
+  in Settings and backed by `local_auth`.
+- When enabled, a full-screen gate covers the app until authentication succeeds.
+  The system back button is intercepted while locked, and a persistent
+  "Re-authenticate" action is always available.
+- The app re-locks when it is backgrounded. Dismissing the native biometric prompt
+  does not cause an immediate re-lock.
+- Lock state is owned by a BLoC, not by the gate widget, and the gate is themed with
+  the user's palette and brightness.
+- A widget deep link tapped while the app is locked is stashed and replayed only
+  after a successful unlock.
+
+### Home Screen Widget
+
+Available on **Android** (App Widgets) and **iOS** (WidgetKit).
+
+The widget shows the **Active Budget only** — never a total across budgets:
+
+- Today's Safe Spending
+- Spent Today
+- Status (on track, or how much over)
+- Remaining Budget and remaining days
+
+Interactions: tapping the widget body opens the Dashboard; tapping "+ Add Expense"
+opens the Add Expense screen directly, on both cold and warm start.
+
+Data is computed by the same use cases the Dashboard uses — no duplicated formulas —
+and written to shared storage (`SharedPreferences` on Android, an App Group's
+`UserDefaults` on iOS). It refreshes when an expense or budget changes, on app
+startup, and on the platform's own hourly refresh cycle. When no budget covers
+today, the widget shows an empty state.
+
+Sizes: Android declares a 4×2 target cell and is resizable horizontally and
+vertically; iOS supports the `systemSmall` and `systemMedium` families.
+
+See [`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) for the
+full data contract and platform setup.
+
+### Theme
+
+- Light, Dark and System modes.
+- Eight colour palettes: Default, Blossom Vapor, Mahogany Blaze, Ocean, Forest,
+  Sunset, Violet, Rose.
+- Material 3 (`useMaterial3: true`) with one shape and typography language across
+  cards, sheets, buttons, inputs and chips. The dark theme uses its own surface
+  hierarchy rather than a straight inversion of light.
+- Switching mode or palette interpolates every colour in place — no restart and no
+  flash — and the system status-bar style follows the active brightness.
+- Theme mode and palette are persisted and restored on launch.
+
+### Motion
+
+A single set of motion tokens drives the whole app: micro press feedback (~120 ms),
+component transitions (~250 ms), screen transitions (~300–350 ms) and emphasized
+reveals (~450 ms) for number count-ups, progress sweeps and chart reveals. Route
+transitions use shared-axis and fade-through patterns; bottom-navigation branches
+cross-fade. Every animation goes through a reduced-motion helper, so the app
+degrades gracefully when the platform requests reduced motion.
+
+### Currency
+
+Ten selectable currencies — INR, USD, EUR, AED, OMR, GBP, CAD, AUD, JPY, SGD. A
+currency is chosen during onboarding, can be changed in Settings for new budgets and
+app-wide display, and each budget also stores its own currency code. All formatting
+goes through one central formatter.
+
+### App Updates
+
+Monivo checks the GitHub Releases API
+(`https://api.github.com/repos/sufiyansakkeer/budget_tracker/releases/latest`) for a
+newer release. The check runs after the first frame renders, so a slow network never
+blocks launch, and the request times out after 10 seconds.
+
+Versions are compared semantically after stripping a leading `v` and any `+build`
+suffix. When a newer release is found, a dialog is shown once per launch; the check
+can also be run manually from Settings, and the release page opens in the browser.
+
+### Data Management
+
+- Export all data as **CSV** or **JSON** via the system share sheet.
+- Import from a CSV or JSON file.
+- Create a full local **backup** (a versioned JSON file covering every table) and
+  restore from one.
+- Backups are validated against the expected schema before being applied, and
+  imports are validated before committing.
+
+### Onboarding
+
+A seven-step first-launch flow: welcome, budget name, budget amount, currency,
+start date, end date, and a confirmation summary. Completion is persisted, and the router
+redirects to onboarding until it is done.
 
 ---
 
-## 🏗 System Architecture & Project Structure
+## Tech Stack
 
-### **Architectural Pattern**
+Every entry below was verified against [`pubspec.yaml`](pubspec.yaml) and the source.
 
-Monivo follows a **Clean Architecture** pattern with clear separation of concerns:
+| Area | Package / technology |
+| --- | --- |
+| Framework | Flutter (Dart SDK `^3.8.1`) |
+| State management | `flutter_bloc`, `equatable` |
+| Navigation | `go_router` (`StatefulShellRoute` for the bottom-nav tabs) |
+| Dependency injection | `get_it` |
+| Reactive UI helper | `provider` (currency `ChangeNotifier`) |
+| Database | `drift`, `drift_flutter`, `sqlite3_flutter_libs` |
+| Key-value storage | `shared_preferences` |
+| File system paths | `path_provider`, `path` |
+| Charts | `fl_chart` |
+| Formatting / i18n | `intl` |
+| Notifications | `flutter_local_notifications`, `timezone`, `flutter_timezone` |
+| Biometrics | `local_auth` (+ `local_auth_android`, `local_auth_darwin`, `local_auth_windows`) |
+| Receipts | `image_picker` |
+| Import / export | `file_picker`, `csv`, `pdf`, `share_plus` |
+| Home screen widget | `home_widget` |
+| Networking | `http` |
+| App metadata | `package_info_plus` |
+| External links | `url_launcher` |
+| IDs | `uuid` |
 
-```mermaid
-  graph TD
-    A[core] -->|Shared Infrastructure| B[features]
-    A -->|Dependencies| C[main.dart]
-    B -->|Feature Modules| D[domain]
-    B -->|Feature Modules| E[data]
-    B -->|Feature Modules| F[presentation]
-    C -->|App Entry| G[App Initialization]
-    G -->|Dependency Injection| H[GetIt]
-    H -->|Register Services| I[BLoCs, Repositories, Use Cases]
-```
+**Dev dependencies:** `flutter_test`, `flutter_lints`, `build_runner`, `drift_dev`,
+`bloc_test`, `mockito`, `flutter_launcher_icons`.
 
-### **Project Structure**
+Linting uses `package:flutter_lints/flutter.yaml` with no project-specific overrides.
 
-```
-├── core/                  # Shared utilities, services, and infrastructure
-│   ├── biometric/        # Biometric authentication logic
-│   │   ├── biometric_initializer.dart
-│   │   └── biometric_service.dart
-│   ├── constants/        # App-wide constants (e.g., colors, strings)
-│   ├── currency/         # Currency handling and conversion
-│   ├── data/             # Data sources and repositories
-│   │   ├── models/        # Drift ORM models (e.g., `BudgetModel`, `ExpenseModel`)
-│   │   └── datasources/   # Local data access (e.g., `BudgetLocalDataSource`)
-│   ├── database/         # Database schema and DAOs
-│   │   ├── app_database.dart
-│   │   └── app_database.g.dart (generated)
-│   ├── di/               # Dependency injection
-│   │   └── injection.dart  # `GetIt` configuration
-│   ├── domain/           # Business logic and entities
-│   │   ├── entities/      # Immutable domain entities (e.g., `BudgetEntity`)
-│   │   ├── usecases/      # Business logic (e.g., `CalculateDailyAllowanceUseCase`)
-│   │   └── repositories/ # Repository contracts
-│   ├── notifications/    # Notification services
-│   ├── router/           # App routing
-│   │   └── app_router.dart # `GoRouter` configuration
-│   ├── theme/            # App themes and styling
-│   └── widgets/          # Reusable UI components (e.g., `BudgetCard`, `ExpenseListItem`)
-│
-├── features/             # Feature modules (each follows Clean Architecture)
-│   ├── budget/           # Budget management
-│   │   ├── domain/        # Business logic and entities
-│   │   ├── data/          # Data sources and repositories
-│   │   └── presentation/  # UI screens and BLoCs
-│   ├── dashboard/        # Home dashboard
-│   ├── expenses/         # Expense tracking
-│   ├── onboarding/       # First-run experience
-│   ├── reports/          # Financial reports
-│   ├── settings/         # App settings and preferences
-│   └── widgets/          # Home screen widget services
-│
-├── lib/main.dart         # App entry point
-└── test/                 # Unit and integration tests
-```
-
-### **Data Flow**
-
-1. **Client Entry Point**: User interacts with UI screens (e.g., `DashboardScreen`, `ExpenseFormScreen`).
-2. **State Management**: BLoCs handle user events and trigger use cases.
-3. **Business Logic**: Use cases orchestrate domain logic (e.g., `CalculateDailyAllowanceUseCase`).
-4. **Repositories**: Abstract data access (local database via Drift).
-5. **Data Storage**: SQLite database stores budgets, expenses, and settings.
-6. **Response**: Data flows back to UI for rendering.
-
-### **Component Interaction Model**
-
-```mermaid
-  graph TD
-    A[UI Components] -->|Trigger Events| B[BLoCs]
-    B -->|Invoke Use Cases| C[Use Cases]
-    C -->|Fetch Data| D[Repositories]
-    D -->|Query Database| E[Drift ORM]
-    E -->|Return Data| D
-    D -->|Return Data| C
-    C -->|Return Results| B
-    B -->|Update State| A
-    B -->|Notify Listeners| F[Event Bus]
-    F -->|Broadcast Updates| G[Other Screens]
-```
-
-- **Models/DTOs**: Immutable entities (`Equatable`) for data consistency.
-- **Handlers/Services**: Pure Dart classes for deterministic calculations (e.g., `BudgetCalculationService`).
-- **Data Context/Adapters**: Drift ORM for SQLite database interactions.
-- **Controllers/UI**: BLoCs handle user events and trigger use cases.
-
-### **Dependency Injection**
-
-- **Lazy Initialization**: Uses `getIt.registerLazySingleton` for performance.
-- **Factory Registrations**: Uses `getIt.registerFactory` for BLoCs.
-- **Scoped Dependencies**: Services like `AppDatabase` are registered as singletons.
-
-Example:
-```dart
-getIt.registerLazySingleton<BudgetCalculationService>(() => BudgetCalculationService());
-getIt.registerFactory<BudgetBloc>(() => BudgetBloc(...));
-```
+> **Note on code generation.** The only generated file in the project is
+> `lib/core/database/app_database.g.dart` (Drift). `freezed`, `freezed_annotation`,
+> `json_serializable` and `json_annotation` are declared in `pubspec.yaml` but are
+> not currently used by any source file. Entities are hand-written and use
+> `Equatable` for value equality. See [Known Limitations](#known-limitations).
 
 ---
 
-## 🧠 Core Business Logic & Workflows
+## Architecture
 
-### **Budget Calculation Engine**
+Monivo follows Clean Architecture with a feature-first layout. Each feature owns its
+own presentation, domain and data layers.
 
-The `BudgetCalculationService` is a **pure Dart class** with no dependencies, containing deterministic calculations for:
+```
+Presentation  (Screens, Widgets)
+      ↓  events
+BLoC          (flutter_bloc — the only place UI state is produced)
+      ↓  calls
+Use Cases     (one responsibility each, pure Dart)
+      ↓  depends on abstractions
+Repositories  (interface in domain/, implementation in data/)
+      ↓
+Data Sources  (local, Drift-backed; one remote source for GitHub releases)
+      ↓
+Drift / SQLite  +  SharedPreferences
+```
 
-- **Daily Allowance**: `remainingBudget / remainingDays`
-- **Spending Percentage**: `(totalSpent / monthlyAmount) * 100`
-- **Projected Savings/Overspending**: Based on current spending trends
-- **Budget Status**: Classifies as `underBudget`, `nearLimit`, or `overBudget`
+Principles actually applied in the codebase:
 
-#### **Key Methods**
+- **Separation of concerns.** All budget arithmetic lives in
+  `BudgetCalculationService`, a pure class with no Flutter, UI or database imports.
+  Smart Insights and report insights are likewise pure domain services. The UI only
+  renders what these produce.
+- **BLoC state management.** Screens dispatch events; BLoCs invoke use cases and emit
+  immutable states. Cross-feature refresh is coordinated through lightweight refresh
+  buses (`ExpenseRefreshBus`, `BudgetRefreshBus`, `BillRefreshBus`), which also keep
+  the home screen widget in sync.
+- **Repository pattern.** Domain layers depend on repository interfaces only;
+  implementations translate between Drift rows/models and domain entities.
+- **Domain use cases.** Each meaningful operation is its own use case class, which is
+  what makes the business rules directly unit-testable.
+- **Typed failures.** Operations return sealed result types — `BudgetResult`,
+  `ExpenseResult`, `BillResult`, `SettingsResult`, `ReportResult` — each with
+  success and failure variants, rather than letting exceptions cross layers.
+- **Offline-first.** Every read and write goes to the local database or local
+  preferences. No feature depends on connectivity; the GitHub update check is the
+  single network call and fails silently.
+- **Memoization.** `BudgetCalculationService` caches its last summary and analytics
+  keyed by the input, so repeated Dashboard rebuilds do not recompute.
+- **Atomic writes.** Expense creation/update/deletion, budget amount changes, the
+  new-period reset and bill payments all run inside database transactions.
 
-| Method                          | Description                                                                                     | Formula                                                                                     |
-|---------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| `calculateDailyAllowance`       | Daily safe spending allowance.                                                              | `remainingBudget / remainingDays`                                                             |
-| `calculateSpendingPercentage`   | Percentage of the monthly budget that has been spent.                                       | `(totalSpent / monthlyAmount) * 100`                                                        |
-| `calculateProjectedSavings`     | Projected savings when period-end spending stays under budget.                                | `monthlyAmount - expectedPeriodEndSpending` (if `expectedPeriodEndSpending < monthlyAmount`) |
-| `calculateProjectedOverspending`| Projected overspending when period-end spending exceeds budget.                              | `expectedPeriodEndSpending - monthlyAmount` (if `expectedPeriodEndSpending > monthlyAmount`) |
-| `calculateBudgetStatus`         | Classifies budget health using configurable thresholds.                                       | Uses `BudgetThresholds` (default: `nearLimitThreshold = 0.80`, `overBudgetThreshold = 1.0`) |
+### Dependency injection
 
-#### **Memoization**
+`lib/core/di/injection.dart` registers around 90 dependencies with `get_it` —
+database, data sources, repositories, use cases, services, and BLoCs — using
+lazy singletons for shared state and factories for per-screen BLoCs.
 
-- Caches calculation results for performance.
-- Clears cache via `clearCache()` when data changes.
+### Database
 
-### **Key Entities**
+Drift over SQLite, database name `smart_monivo_db`, **schema version 4**.
 
-| Entity                          | Description                                                                                     | Fields                                                                                     |
-|---------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| `BudgetEntity`                  | Immutable budget record with date range, amount, and metadata.                              | `id`, `name`, `monthlyAmount`, `remainingAmount`, `currency`, `startDate`, `endDate`, `isArchived`, `color`, `icon`, `notes`, `createdAt`, `updatedAt` |
-| `ExpenseEntity`                 | Immutable expense record with categories, receipts, and tags.                                     | `id`, `budgetId`, `amount`, `categoryId`, `note`, `date`, `time`, `receiptImagePath`, `tags`, `createdAt`, `updatedAt` |
-| `BudgetSummaryEntity`           | Snapshot of budget metrics for dashboard and summary views.                                    | `monthlyAmount`, `remainingBudget`, `totalSpent`, `todaySpending`, `remainingDays`, `daysPassed`, `dailySafeSpending`, `budgetUtilization`, `spendingPercentage`, `remainingPercentage`, `averageDailySpending`, `expectedPeriodEndSpending`, `expectedSavings`, `expectedOverspending`, `todayOverspending`, `status`, `currency`, `startDate`, `endDate` |
-| `MonthlyStatisticsEntity`       | Aggregated expense statistics for a budget month.                                             | `totalSpent`, `expenseCount`, `todaySpending`                                               |
-| `BudgetAnalyticsEntity`         | Extended analytics derived from budget and spending data.                                      | `monthlyAmount`, `totalSpent`, `remainingBudget`, `spendingPercentage`, `remainingPercentage`, `averageDailySpending`, `expectedMonthEndSpending`, `projectedRemainingBalance`, `projectedSavings`, `projectedOverspending`, `daysPassed`, `daysRemaining`, `dailySafeSpending`, `status` |
+| # | Table | Purpose |
+| --- | --- | --- |
+| 1 | `budgets` | Budget definitions (amount, currency, start/end dates, archive flag) |
+| 2 | `categories` | Expense categories |
+| 3 | `expenses` | Expenses, indexed on date, category and budget |
+| 4 | `settings` | Key/value application settings |
+| 5 | `recurring_expenses` | Defined in the schema; not used by any feature |
+| 6 | `savings_goals` | Defined in the schema; not used by any feature |
+| 7 | `bills` | Bills, indexed on due date |
+| 8 | `bill_payments` | Payment history for recurring bills |
 
-### **Authentication Flow**
+Migrations:
 
-1. **Biometric Gate**: When the biometric lock is enabled in Settings, the app locks on launch and whenever it goes to the background; it unlocks with fingerprint, face unlock or the device screen lock.
-2. **Authentication**: Uses `local_auth` for fingerprint/Face ID verification.
-3. **State Management**: `AppLockBloc` tracks lock state globally.
-4. **Dependency Injection**: `BiometricInitializer` and `AppLockBloc` are registered via `GetIt`.
+- **v1 → v2** — adds `expenses.time`.
+- **v2 → v3** — the single-budget (month/year) to multi-budget (date range) move:
+  adds `name`, `startDate`, `endDate`, `isArchived`, `color`, `icon`, `notes` to
+  `budgets` and `budgetId` to `expenses`, then backfills existing budgets to
+  first-of-month → last-of-month ranges and assigns existing expenses to the first
+  budget.
+- **v3 → v4** — creates the `bills` and `bill_payments` tables. No backfill.
 
-### **Security Workflows**
-
-- **Token Generation**: Not applicable (local-only app).
-- **Hashing Algorithms**: Not applicable (data is stored locally in SQLite).
-- **Guard/Authorization Policies**: Uses `AppLockBloc` to enforce biometric authentication.
-- **Header Requirements**: Not applicable (no API calls).
-
-### **Validation Logic**
-
-- **Budget Validation**: Ensures `monthlyAmount > 0` and `endDate >= startDate`.
-- **Expense Validation**: Validates `amount > 0` and `date` falls within budget period.
-- **Custom Validators**: Uses `BudgetError` and `ExpenseError` for typed error handling.
-
-### **State Transitions**
-
-- **Budget State**: `underBudget`, `nearLimit`, or `overBudget` based on `BudgetThresholds`.
-- **Expense State**: Immutable with `copyWith` for updates.
-- **App Lock State**: Managed by `AppLockBloc` and `BiometricInitializer`.
-
-### **Payload Mapping**
-
-- **Budget Calculation Input**: `BudgetCalculationInput` aggregates raw data for calculations.
-- **Data Transformations**: Converts between `BudgetEntity` and `BudgetModel` for persistence.
-
-### **Business Rules**
-
-| Rule                                      | Implementation                                                                                     |
-|-------------------------------------------|--------------------------------------------------------------------------------------------------|
-| Budget amount must be > 0.               | Validated in `GetBudgetSummaryUseCase`.                                                          |
-| Expenses must fall within budget period. | Validated in `BudgetLocalDataSourceImpl`.                                                        |
-| Daily allowance is recalculated daily.   | Uses `BudgetCalculationService` with memoization.                                                 |
-| Budget status updates dynamically.        | Triggered by `ExpenseRefreshBus` and `BudgetBloc`.                                               |
-| Biometric authentication is required.     | Enforced by `AppLockBloc` and `BiometricInitializer`.                                             |
-
-### **Error Handling**
-
-- **Typed Errors**: Uses `BudgetError`, `ExpenseError`, and `BudgetFailure` for structured error handling.
-- **Global Exception Filters**: Catches and logs unhandled exceptions.
-- **Validation Errors**: Returns `BudgetError` or `ExpenseError` with descriptive messages.
+On opening an existing database, `PRAGMA integrity_check` is run and the result is
+logged.
 
 ---
 
-## 📡 API / Interface Documentation
+## Project Structure
 
-### **Primary Entry Points**
+```
+lib/
+├── main.dart                      App bootstrap, home-widget wiring, root widget
+├── core/
+│   ├── biometric/                 App lock BLoC + full-screen gate
+│   ├── constants/                 Motion tokens, spacing, GitHub config
+│   ├── currency/                  Central formatter + currency ChangeNotifier
+│   ├── data/models/               Shared budget model
+│   ├── database/                  Drift schema, migrations, generated code
+│   ├── di/                        get_it registrations
+│   ├── domain/                    Shared entities + database integrity service
+│   ├── notifications/             Startup notification BLoC
+│   ├── router/                    GoRouter config, shell, page transitions
+│   ├── theme/                     Material 3 themes, palettes, colour tokens
+│   └── widgets/                   Shared UI primitives (cards, dialogs, states)
+└── features/
+    ├── app_update/                GitHub release check
+    ├── bills/                     Bills & Reminders
+    ├── budget/                    Budgets and the calculation engine
+    ├── dashboard/                 Dashboard + Smart Insights
+    ├── expenses/                  Expenses and expense history (incl. combined view)
+    ├── onboarding/                First-launch flow
+    ├── reports/                   Reports, analytics and exports
+    ├── settings/                  Settings, theme, backup/export/import, services
+    └── widgets/                   Home-screen widget service + refresh listener
 
-| Route Path               | Screen                     | Description                                  | Access Control                     |
-|--------------------------|----------------------------|----------------------------------------------|------------------------------------|
-| `/onboarding`            | OnboardingScreen          | First-run setup.                          | Public (Unauthenticated)              |
-| `/app/home`              | DashboardScreen            | Home dashboard with budget overview.      | Authenticated (Biometric Lock)        |
-| `/app/expenses`          | ExpenseHistoryScreen      | Expense list with filtering/sorting.      | Authenticated (Biometric Lock)        |
-| `/app/expenses/add`      | ExpenseFormScreen         | Add/edit expense.                        | Authenticated (Biometric Lock)        |
-| `/app/budgets`           | BudgetListScreen          | Manage budgets.                            | Authenticated (Biometric Lock)        |
-| `/app/reports`           | ReportsScreen             | Visual spending reports.                 | Authenticated (Biometric Lock)        |
-| `/app/more`              | SettingsScreen            | App settings and data management.        | Authenticated (Biometric Lock)        |
-
-### **Request/Response Contracts**
-
-#### **BLoCs**
-
-- Handle all state transitions (e.g., `BudgetBloc`, `ExpenseBloc`, `ReportsBloc`).
-- Use `Flutter Bloc` for predictable state transitions with clear event/state separation.
-
-#### **Use Cases**
-
-- Return sealed classes (`BudgetSuccess`, `BudgetError`, `ExpenseSuccess`, `ExpenseError`).
-- Example:
-  ```dart
-  Future<BudgetResult<BudgetSummaryEntity>> call({required String budgetId});
-  ```
-
-#### **Entities**
-
-- Immutable (`Equatable` for equality checks).
-- Example:
-  ```dart
-  class BudgetEntity extends Equatable {
-    final String id;
-    final String name;
-    final double monthlyAmount;
-    // ...
-  }
-  ```
-
-### **Endpoint Reference**
-
-#### **Budget API**
-
-| HTTP Method | Function Name                     | Route Path               | Access Control                     | Request Parameters / Payload DTO          | Response Payload Schema                     | HTTP Status Codes |
-|-------------|----------------------------------|--------------------------|------------------------------------|-------------------------------------------|---------------------------------------------|-------------------|
-| GET         | `getBudgetSummary`                 | `/budgets/{id}/summary`               | Authenticated (Biometric Lock)        | `budgetId: String`, `referenceDate?: DateTime` | `BudgetSummaryEntity`                     | 200, 404          |
-| POST        | `createBudget`                   | `/budgets`                   | Authenticated (Biometric Lock)        | `BudgetEntity`                              | `BudgetEntity`                              | 201, 400          |
-| PUT         | `updateBudget`                   | `/budgets/{id}`                  | Authenticated (Biometric Lock)        | `BudgetEntity`                              | `BudgetEntity`                              | 200, 404          |
-| DELETE      | `deleteBudget`                   | `/budgets/{id}`                  | Authenticated (Biometric Lock)        | `id: String`                                | `void`                                        | 204, 404          |
-| GET         | `getBudgetListSummary`           | `/budgets`                    | Authenticated (Biometric Lock)        | `filter?: BudgetFilter`, `searchQuery?: String` | `List<BudgetEntity>`                      | 200               |
-
-#### **Expense API**
-
-| HTTP Method | Function Name                     | Route Path               | Access Control                     | Request Parameters / Payload DTO          | Response Payload Schema                     | HTTP Status Codes |
-|-------------|----------------------------------|--------------------------|------------------------------------|-------------------------------------------|---------------------------------------------|-------------------|
-| GET         | `getExpenses`                      | `/expenses`                  | Authenticated (Biometric Lock)        | `budgetId: String`, `filter?: ExpenseFilter` | `List<ExpenseEntity>`                     | 200               |
-| POST        | `createExpense`                   | `/expenses`                  | Authenticated (Biometric Lock)        | `ExpenseEntity`                             | `ExpenseEntity`                             | 201, 400          |
-| PUT         | `updateExpense`                   | `/expenses/{id}`               | Authenticated (Biometric Lock)        | `ExpenseEntity`                             | `ExpenseEntity`                             | 200, 404          |
-| DELETE      | `deleteExpense`                   | `/expenses/{id}`               | Authenticated (Biometric Lock)        | `id: String`                                | `void`                                        | 204, 404          |
-
-#### **Reports API**
-
-| HTTP Method | Function Name                     | Route Path               | Access Control                     | Request Parameters / Payload DTO          | Response Payload Schema                     | HTTP Status Codes |
-|-------------|----------------------------------|--------------------------|------------------------------------|-------------------------------------------|---------------------------------------------|-------------------|
-| GET         | `getReportData`                    | `/reports/{type}`            | Authenticated (Biometric Lock)        | `type: String`, `budgetId: String`       | `ReportDataEntity`                         | 200, 404          |
-| POST        | `exportCSV`                      | `/reports/export/csv`         | Authenticated (Biometric Lock)        | `budgetId: String`, `fileName: String`   | `File` (CSV)                                | 200, 400          |
-| POST        | `exportPDF`                      | `/reports/export/pdf`         | Authenticated (Biometric Lock)        | `budgetId: String`, `fileName: String`   | `File` (PDF)                                | 200, 400          |
-
-### **Data Flow for Budget Summary**
-
-```mermaid
-  sequenceDiagram
-    participant UI as UI (DashboardScreen)
-    participant Bloc as BudgetBloc
-    participant UseCase as GetBudgetSummaryUseCase
-    participant Repository as BudgetRepository
-    participant DataSource as BudgetLocalDataSource
-    participant Database as SQLite
-    participant Service as BudgetCalculationService
-
-    UI->>Bloc: FetchBudgetSummary(budgetId)
-    Bloc->>UseCase: call(budgetId)
-    UseCase->>Repository: getCalculationContext(budgetId)
-    Repository->>DataSource: getBudgetById(budgetId)
-    DataSource->>Database: Query Budget
-    Database-->>DataSource: BudgetEntity
-    DataSource->>Repository: BudgetCalculationContext
-    Repository-->>UseCase: BudgetSuccess(context)
-    UseCase->>Service: buildSummary(context)
-    Service-->>UseCase: BudgetSummaryEntity
-    UseCase-->>Bloc: BudgetSuccess(summary)
-    Bloc->>UI: Update State
+android/app/src/main/kotlin/com/example/monivo/
+    HomeScreenWidgetProvider.kt    Android App Widget provider
+ios/MonivoWidget/
+    MonivoWidget.swift             iOS WidgetKit extension
+test/                              Mirrors lib/ (69 test files)
+docs/
+    home_screen_widget_setup.md    Widget architecture and platform setup
+    CI_CD.md                       Pipeline, secrets and release process
 ```
 
-### **Data Flow for Expense Creation**
+Each feature directory follows the same shape:
 
-```mermaid
-  sequenceDiagram
-    participant UI as UI (ExpenseFormScreen)
-    participant Bloc as ExpenseBloc
-    participant UseCase as CreateExpenseUseCase
-    participant Repository as ExpenseRepository
-    participant DataSource as ExpenseLocalDataSource
-    participant Database as SQLite
-
-    UI->>Bloc: AddExpense(expense)
-    Bloc->>UseCase: call(expense)
-    UseCase->>Repository: createExpense(expense)
-    Repository->>DataSource: createExpense(expense)
-    DataSource->>Database: Insert Expense
-    Database-->>DataSource: ExpenseEntity
-    DataSource-->>Repository: ExpenseEntity
-    Repository-->>UseCase: ExpenseSuccess(entity)
-    UseCase-->>Bloc: ExpenseSuccess(entity)
-    Bloc->>UI: Update State
-    Bloc->>EventBus: Broadcast ExpenseAdded
-    EventBus->>OtherScreens: Notify Expense Refresh
+```
+features/<feature>/
+├── data/          datasource/, models/, repository/
+├── domain/        entities/, repository/, usecases/, validators/, services/
+└── presentation/  bloc/, pages/, widgets/
 ```
 
 ---
 
-## 🔧 Setup, Configuration & Environment Variables
+## Getting Started
 
-### **Local Development Setup**
+### Prerequisites
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-repo/smart-monivo.git
-   cd smart-monivo
-   ```
+- Flutter SDK — CI pins **3.32.8**; use that version or a compatible newer stable.
+- Dart SDK `^3.8.1` (bundled with Flutter).
+- Android: Android Studio with a JDK 11-compatible toolchain and NDK `27.0.12077973`.
+- iOS: Xcode with CocoaPods, on macOS.
 
-2. **Install dependencies**:
-   ```bash
-   flutter pub get
-   ```
-
-3. **Generate code**:
-   ```bash
-   flutter pub run build_runner build --delete-conflicting-outputs
-   ```
-
-4. **Run the app**:
-   ```bash
-   flutter run
-   ```
-
-### **Configuration Keys**
-
-All configuration is handled via **SharedPreferences** and **SQLite Database**. No external environment variables are required.
-
-#### **SharedPreferences Keys**
-
-| Key                          | Type     | Description                                                                                     | Default Value       |
-|------------------------------|----------|-------------------------------------------------------------------------------------------------|---------------------|
-| `active_budget_id`          | String   | ID of the currently active budget.                                                              | `null`              |
-| `app_lock_enabled`           | bool     | Whether the app lock is enabled.                                                                | `true`              |
-| `biometric_auth_enabled`     | bool     | Whether biometric authentication is enabled.                                                   | `true`              |
-| `currency`                   | String   | Default currency for the app.                                                                   | `INR`               |
-| `theme_mode`                 | String   | Current theme mode (`light` or `dark`).                                                         | `light`             |
-| `notification_settings`     | String   | JSON string for notification preferences.                                                       | `{"enabled": true}` |
-
-#### **Database Schema**
-
-- **Budgets Table**: Stores budget metadata, amounts, and date ranges.
-- **Expenses Table**: Stores expense records with foreign keys to budgets and categories.
-- **Categories Table**: Stores predefined and custom expense categories.
-- **Settings Table**: Stores app-wide settings (e.g., `currency`, `theme_mode`).
-
-#### **Database Migrations**
-
-- **Schema Version**: `3` (managed via `AppDatabase.schemaVersion`).
-- **Migration Strategy**: Uses `MigrationStrategy` for schema upgrades/downgrades.
-- **Backfill Logic**: Handles data migration from single-budget to multi-budget models.
-
-#### **App Settings**
-
-- **Biometric Authentication**: Enabled by default (`BiometricInitializer`).
-- **App Lock**: Configurable via `AppLockBloc` and `SharedPreferences`.
-- **Currency**: Supports multi-currency via `CurrencyProvider`.
-
-### **Environment Variables**
-
-No external environment variables are required. All configuration is handled locally via:
-- **SharedPreferences** for app settings.
-- **SQLite Database** for user data.
-
-### **Database Operations**
-
-- **Concurrency Handling**: Drift ORM manages concurrent database operations.
-- **Indexes**: Optimized queries with indexes on `expenses.date`, `expenses.categoryId`, and `expenses.budgetId`.
-- **Cascade Behaviors**: Deletes associated expenses when a budget is deleted.
-
-### **Key Database Operations**
-
-| Operation                     | Description                                                                                     | Implementation Details                                                                                     |
-|------------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `getBudgetById`             | Retrieves a budget by its ID.                                                                     | Uses `database.select(database.budgets)..where((budget) => budget.id.equals(id))`.                   |
-| `getAllBudgets`             | Retrieves all budgets with optional filtering.                                                     | Supports `BudgetQueryOptions` for filtering by `active`, `archived`, or `all`.                          |
-| `createBudget`              | Creates a new budget and persists it to the database.                                             | Uses `database.into(database.budgets).insert(BudgetModel.toCompanion(budget))`.                     |
-| `updateBudget`              | Updates an existing budget.                                                                       | Uses `database.update(database.budgets)..where((b) => b.id.equals(budget.id))`.                      |
-| `deleteBudget`              | Deletes a budget and its associated expenses.                                                     | Cascades deletions via `database.delete(database.expenses)..where((expense) => expense.budgetId.equals(id))`. |
-| `getBudgetStatistics`       | Aggregates expense statistics for a budget.                                                      | Uses `database.select(database.expenses)` with date range filtering.                                     |
-| `getTodaySpending`          | Returns total spending for today.                                                                | Filters expenses by date range (`todayStart` to `todayEnd`).                                           |
-
-### **Seed Data Routines**
-
-- **Default Categories**: Predefined categories (e.g., `Food`, `Transportation`, `Entertainment`) are seeded during app initialization.
-- **Default Budget**: A default budget is created during onboarding.
-
-### **Concurrency Handling**
-
-- **Drift ORM**: Manages concurrent database operations with thread safety.
-- **SharedPreferences**: Uses `SharedPreferences` for thread-safe local storage.
-
-### **Key Database Tables**
-
-| Table               | Description                                                                                     | Primary Key | Foreign Keys                                                                 |
-|----------------------|-------------------------------------------------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| `budgets`           | Stores budget metadata, amounts, and date ranges.                                           | `id`        | None                                                                           |
-| `expenses`          | Stores expense records with categories, receipts, and tags.                                      | `id`        | `budgetId` (references `budgets.id`), `categoryId` (references `categories.id`) |
-| `categories`        | Stores predefined and custom expense categories.                                               | `id`        | None                                                                           |
-| `settings`          | Stores app-wide settings (e.g., `currency`, `theme_mode`).                                      | `key`       | None                                                                           |
-| `recurring_expenses`| Stores recurring expense records (e.g., subscriptions).                                       | `id`        | `categoryId` (references `categories.id`)                                      |
-| `savings_goals`     | Stores savings goals with target amounts and dates.                                           | `id`        | None                                                                           |
-
-### **Indexes**
-
-| Index Name               | Table       | Columns                          | Purpose                                                                                     |
-|-------------------------|-------------|---------------------------------|---------------------------------------------------------------------------------|
-| `index_expenses_date`   | `expenses`  | `date`                           | Optimizes date-based queries (e.g., filtering by month).                     |
-| `index_expenses_category`| `expenses`  | `categoryId`                    | Optimizes category-based queries.                                                   |
-| `index_expenses_budget` | `expenses`  | `budgetId`                       | Optimizes budget-based queries.                                                    |
-
-### **Cascade Behaviors**
-
-- **Delete Budget**: Automatically deletes all associated expenses.
-- **Update Budget**: Updates metadata without affecting expenses.
-
-### **Data Export/Import**
-
-- **CSV Export**: Uses `csv` package to export budgets and expenses.
-- **PDF Export**: Uses `pdf` package to generate financial reports.
-- **Backup/Restore**: Uses `BackupDataUseCase` and `RestoreDataUseCase` for data migration.
-
----
-
-## 🧪 Testing & Deployment
-
-### **Testing Strategy**
-
-| Test Type               | Framework/Tool               | Purpose                                                                                     | Example                                                                                     |
-|-------------------------|----------------------------|---------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| Unit Tests              | `flutter test`              | Tests individual functions, classes, and use cases.                                      | `BudgetCalculationServiceTest`, `GetBudgetSummaryUseCaseTest`                              |
-| Widget Tests            | `flutter test`               | Tests individual widgets in isolation.                                                     | `DashboardScreenTest`, `ExpenseFormScreenTest`                                            |
-| Integration Tests       | `integration_test`           | Tests app workflows end-to-end.                                                           | `OnboardingFlowTest`, `BudgetCreationFlowTest`                                            |
-| Mocking                 | `mockito`                   | Mocks dependencies for isolated testing.                                                  | `MockBudgetRepository`, `MockExpenseRepository`                                            |
-| Code Coverage           | `flutter test --coverage`   | Measures test coverage for critical paths.                                                | Generates `coverage/lcov.info`                                                             |
-
-### **Running Tests**
+### Installation
 
 ```bash
-# Run all unit tests
-flutter test
-
-# Run integration tests
-flutter test integration_test/
-
-# Generate code coverage
-flutter test --coverage
-
-# Run tests with coverage badge
-genhtml coverage/lcov.info -o coverage/html
+git clone https://github.com/sufiyansakkeer/budget_tracker.git
+cd budget_tracker
+flutter pub get
 ```
 
-### **CI/CD Pipeline**
+### Code generation
 
-- **GitHub Actions**: Automated testing on push/PR.
-- **Build Artifacts**: Generated for Android/iOS via `flutter build apk`/`flutter build ios`.
-- **Code Quality**: Enforced via `analysis_options.yaml` and `build_runner`.
+Only required after changing the Drift schema in `lib/core/database/app_database.dart`:
 
-#### **CI/CD Workflow**
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
 
-1. **Linting**: Runs `flutter analyze` to enforce code quality.
-2. **Unit Tests**: Runs `flutter test` to validate core logic.
-3. **Integration Tests**: Runs `flutter test integration_test/` for end-to-end validation.
-4. **Build**: Generates APK/IPA for deployment.
-5. **Deployment**: Manual via Xcode/Android Studio or automated via CI.
+Generated files are committed; CI verifies they are up to date.
 
-### **Containerization**
+### Run
 
-- **Docker**: Not required (Flutter apps are platform-specific).
-- **Deployment**: Manual via Xcode/Android Studio or automated via CI.
+```bash
+flutter run
+```
 
-### **Code Quality**
+### Verify
 
-- **Static Analysis**: Enforced via `analysis_options.yaml`.
-- **Code Generation**: Uses `build_runner` for Drift, Freezed, and JSON serialization.
-- **Formatting**: Follows Dart formatting conventions.
+```bash
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+flutter test
+flutter test --coverage      # writes coverage/lcov.info
+```
 
-### **Deployment Checklist**
+### Build
 
-1. **Android**:
-   - Generate APK/IPA via `flutter build apk`/`flutter build ios`.
-   - Sign APK/IPA for distribution.
-   - Publish to Google Play Store or Apple App Store.
+```bash
+flutter build apk --release
+flutter build appbundle --release
+flutter build ios --release --no-codesign   # macOS only
+```
 
-2. **iOS**:
-   - Generate IPA via `flutter build ios`.
-   - Archive and distribute via Xcode.
-   - Publish to Apple App Store.
-
-3. **Web**:
-   - Build via `flutter build web`.
-   - Deploy to Firebase Hosting or GitHub Pages.
-
-### **Release Process**
-
-1. **Version Bump**: Update `pubspec.yaml` and `CHANGELOG.md`.
-2. **Tag Release**: Create a Git tag (e.g., `v1.0.0`).
-3. **Build Artifacts**: Generate APK/IPA/Web builds.
-4. **Publish**: Release to app stores or web hosting.
-
-### **Post-Deployment**
-
-- **Monitoring**: Log errors and crashes via `logger` package.
-- **Analytics**: Track user behavior and app usage.
-- **Feedback**: Collect user feedback for iterative improvements.
+Android release signing reads `android/key.properties` (`keyAlias`, `keyPassword`,
+`storeFile`, `storePassword`). When that file is absent, release builds fall back to
+the debug signing config, which is fine for local testing but not for distribution.
 
 ---
 
-## 📊 Project Highlights
+## Android Setup
 
-### **Key Design Decisions**
+| Item | Value |
+| --- | --- |
+| Application ID | `com.example.monivo` |
+| Namespace | `com.example.monivo` |
+| `minSdk` | 23 — required by `home_widget`'s `androidx.work` dependency |
+| `compileSdk` / `targetSdk` | Flutter defaults |
+| Java / Kotlin target | 11, with core library desugaring enabled |
+| NDK | `27.0.12077973` |
 
-| Decision                          | Rationale                                                                                     | Implementation Details                                                                                     |
-|-----------------------------------|---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| **Clean Architecture**            | Separates UI, business logic, and data layers for maintainability and testability.                     | Follows Clean Architecture with `core`, `features`, and `presentation` layers.                             |
-| **BLoC for State Management**      | Predictable state transitions with clear event/state separation.                                   | Uses `Flutter Bloc` for state management with `BudgetBloc`, `ExpenseBloc`, and `ReportsBloc`.           |
-| **Pure Calculation Engine**        | Business logic is testable without dependencies.                                               | `BudgetCalculationService` is a pure Dart class with no external dependencies.                           |
-| **Reactive Updates**              | Uses event buses (`ExpenseRefreshBus`) to sync data across screens.                                  | Broadcasts updates via `EventBus` to notify other screens of changes.                                   |
-| **Immutable Entities**            | Ensures data consistency and thread safety.                                                   | Uses `Equatable` for equality checks and `copyWith` for immutable updates.                              |
-| **Dependency Injection**          | Manages dependencies efficiently with lazy initialization.                                       | Uses `GetIt` for lazy-singleton and factory registrations.                                             |
-| **Memoization**                  | Caches calculation results for performance.                                                      | `BudgetCalculationService` caches results to avoid redundant calculations.                               |
-| **Lazy Loading**                  | Dependencies are injected lazily for performance.                                                  | Uses `getIt.registerLazySingleton` for services and `getIt.registerFactory` for BLoCs.                   |
-| **Efficient Queries**             | Drift generates optimized SQLite queries.                                                       | Uses indexes and optimized queries for fast data retrieval.                                           |
+**Permissions declared** in `android/app/src/main/AndroidManifest.xml`:
 
-### **Performance Optimizations**
+| Permission | Used for |
+| --- | --- |
+| `INTERNET` | GitHub release check |
+| `CAMERA` | Receipt capture |
+| `USE_BIOMETRIC`, `USE_FINGERPRINT` | Biometric app lock |
+| `POST_NOTIFICATIONS`, `VIBRATE` | Local notifications (runtime prompt on Android 13+) |
+| `RECEIVE_BOOT_COMPLETED` | Restoring scheduled notifications after a restart |
 
-| Optimization                     | Rationale                                                                                     | Implementation Details                                                                                     |
-|-----------------------------------|---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| **Memoization**                  | Caches calculation results to avoid redundant computations.                                          | `BudgetCalculationService` caches results for `BudgetSummaryEntity` and `BudgetAnalyticsEntity`.      |
-| **Lazy Loading**                  | Loads dependencies only when needed.                                                             | Uses `getIt.registerLazySingleton` for services and `getIt.registerFactory` for BLoCs.                   |
-| **Efficient Queries**             | Optimizes database queries with indexes and Drift ORM.                                           | Uses indexes on `expenses.date`, `expenses.categoryId`, and `expenses.budgetId`.                       |
-| **Immutable Data**               | Ensures thread safety and reduces accidental mutations.                                             | Uses `Equatable` and `copyWith` for immutable entities.                                               |
-| **Event Bus**                    | Syncs data across screens without direct dependencies.                                             | `ExpenseRefreshBus` broadcasts updates to all subscribed screens.                                      |
-| **Code Generation**               | Reduces boilerplate and improves type safety.                                                     | Uses `build_runner` for Drift, Freezed, and JSON serialization.                                         |
+The manifest also registers the `HomeScreenWidgetProvider` receiver, the
+`flutter_local_notifications` scheduled and boot receivers, and a `monivo://`
+deep-link intent filter on `MainActivity`.
 
-### **Security Measures**
-
-| Measure                          | Rationale                                                                                     | Implementation Details                                                                                     |
-|-----------------------------------|---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| **Biometric Authentication**      | Secures sensitive financial data.                                                          | Uses `local_auth` for fingerprint/Face ID authentication.                                             |
-| **App Lock**                     | Prevents unauthorized access to financial data.                                               | `AppLockBloc` and `BiometricInitializer` enforce app lock.                                          |
-| **Immutable Entities**           | Prevents accidental data mutations.                                                          | Uses `Equatable` and `copyWith` for immutable entities.                                               |
-| **Local Data Storage**           | Avoids exposing data to external APIs.                                                         | Uses SQLite for local data storage with no external dependencies.                                       |
-
-### **Scalability Features**
-
-| Feature                          | Rationale                                                                                     | Implementation Details                                                                                     |
-|-----------------------------------|---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| **Multi-Currency Support**        | Supports global users with different currencies.                                               | `CurrencyProvider` and `BudgetEntity.currency` field.                                               |
-| **Multi-Budget Support**          | Allows users to manage multiple budgets simultaneously.                                          | Supports custom date ranges and independent budgets.                                                 |
-| **Data Export/Import**           | Enables backup and migration of financial data.                                                | Uses `BackupDataUseCase` and `RestoreDataUseCase` for CSV/PDF export.                                  |
-| **Customizable Reports**          | Provides flexibility for financial analysis.                                                   | `fl_chart` for interactive and customizable charts.                                                 |
-| **Event-Driven Architecture**     | Decouples components for easier maintenance and scalability.                                       | Uses `EventBus` for reactive updates across screens.                                                |
-
-### **Extensibility**
-
-- **Feature Modules**: Each feature follows Clean Architecture for modularity.
-- **Dependency Injection**: Easy to extend with new services or repositories.
-- **Code Generation**: Supports adding new entities or use cases without boilerplate.
-
-### **Future-Proofing**
-
-- **Cloud Sync**: Ready for iCloud/Google Drive integration.
-- **Multi-User Support**: Can be extended for family/household budgets.
-- **Advanced Analytics**: Supports machine learning for spending predictions.
+No additional Android Studio configuration is needed for the home screen widget —
+the provider, layout and `appwidget-provider` XML are all in the repository. To add
+it: long-press the home screen → Widgets → Monivo → drag to place.
 
 ---
 
-## 📝 License
+## iOS Setup
 
-MIT License (see `LICENSE` file).
+| Item | Value |
+| --- | --- |
+| Display name | Monivo |
+| Widget extension | `ios/MonivoWidget/` (WidgetKit, SwiftUI) |
+| Supported widget families | `systemSmall`, `systemMedium` |
+| App Group | `group.com.sufiyan.monivo` |
+| Deep link scheme | `monivo://` |
 
----
+**Usage descriptions** in `ios/Runner/Info.plist`:
 
-## 📋 Contribution Guidelines
+| Key | Reason |
+| --- | --- |
+| `NSCameraUsageDescription` | Capturing expense receipts |
+| `NSPhotoLibraryUsageDescription` | Attaching receipts from the library |
+| `NSFaceIDUsageDescription` | Unlocking the app with Face ID |
 
-### **Code Style**
+**App Group.** Both `ios/Runner/Runner.entitlements` and
+`ios/MonivoWidget/MonivoWidget.entitlements` declare
+`group.com.sufiyan.monivo`, and `main.dart` calls
+`HomeWidget.setAppGroupId('group.com.sufiyan.monivo')` at startup — this must happen
+before any widget data is written, or iOS sharing fails silently. Xcode
+auto-provisions the App Group for development; for distribution it must be registered
+in the Apple Developer portal.
 
-- Follow Dart formatting conventions.
-- Use `const` constructors where possible.
-- Keep widgets small and reusable.
-- Extract complex widgets instead of creating huge `build` methods.
+`ios/Podfile` declares a separate `MonivoWidget` target alongside `Runner`.
+[`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) recommends
+testing the widget on a physical device rather than the Simulator.
 
-### **Testing**
-
-- Write unit tests for all use cases and services.
-- Use `mockito` for dependency injection in tests.
-- Ensure 100% coverage for critical paths.
-
-### **Documentation**
-
-- Update `README.md` with new features or changes.
-- Document new APIs, entities, and use cases.
-- Include Mermaid diagrams for complex workflows.
-
-### **Pull Requests**
-
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/your-feature`).
-3. Commit your changes (`git commit -m 'Add some feature'`).
-4. Push to the branch (`git push origin feature/your-feature`).
-5. Open a Pull Request.
-
----
-
-## 🚀 Roadmap
-
-| Feature                          | Description                                                                                     | Status          |
-|-----------------------------------|---------------------------------------------------------------------------------|-----------------|
-| **Cloud Sync**                   | Backup to iCloud/Google Drive.                                                      | Planned         |
-| **Multi-User Support**           | Family/household budgets.                                                             | Planned         |
-| **Advanced Analytics**           | Machine learning for spending predictions.                                             | Backlog         |
-| **Bill Reminders**               | Track due dates, payment status, and recurring payments.                               | Implemented     |
-| **App Update Checks**            | Check GitHub for newer app releases from Settings.                                      | Implemented     |
-| **Combined Expense History**     | View expenses from multiple budgets in a single unified list with sorting support.       | Implemented     |
-| **Per-Budget Daily Limits**      | Daily and weekly spending targets for each active budget.                              | Implemented     |
-| **Home Screen Widget**           | Spending overview and budget summaries on the device home screen.                      | Implemented     |
-| **Database Integrity Service**   | Data integrity checks, orphan detection, and automatic repair.                         | Implemented     |
-| **Weekly Spending Targets**      | Weekly spending tracking alongside daily limits.                                        | Implemented     |
-| **Dark Mode**                    | Full dark mode support.                                                                 | Implemented     |
-| **Multi-Currency Support**        | Enhanced currency handling and conversion.                                             | Implemented     |
-
-### **Future Enhancements**
-
-- **AI-Powered Insights**: Use machine learning to predict spending trends.
-- **Collaborative Budgets**: Share budgets with family members or roommates.
-- **Voice Assistance**: Integrate voice commands for expense tracking.
-- **Offline-First**: Optimize for offline use with sync when online.
-- **Customizable Templates**: Predefined budget templates for different lifestyles.
+Notification permission is requested at runtime by `flutter_local_notifications`;
+no additional capability needs to be enabled for the local-notification flow used
+here.
 
 ---
 
-## 📊 Metrics
+## Testing
 
-| Metric                          | Value               |
-|-----------------------------------|--------------------|
-| **Lines of Code**               | ~15,000             |
-| **Test Coverage**                | ~90%                |
-| **Dependencies**                 | 45                  |
-| **Features**                     | 12                  |
-| **Database Tables**              | 6                   |
+69 test files under [`test/`](test/), mirroring the `lib/` structure — 630 tests,
+all passing as of version 1.2.3. Coverage is concentrated on the parts of the app
+where correctness matters most:
 
-### **Performance Benchmarks**
+- **Domain services** — budget calculations, analytics, Smart Insights, report
+  insight generation.
+- **Use cases** — budget, expense, bill, onboarding and app-update use cases.
+- **BLoCs** — dashboard, budget, expense, expense history (including combined mode),
+  bills, reports, settings, theme, app lock.
+- **Repositories and data integrity** — expense transaction safety, budget amount
+  changes, database integrity checks, backup/restore validation.
+- **Widgets** — expense and history widgets, settings tiles, theme and currency
+  selectors, update dialog, budget form, navigation.
 
-| Operation                       | Time (ms) |
-|-----------------------------------|----------|
-| Budget Summary Calculation       | ~5       |
-| Expense List Load               | ~10      |
-| Database Query (100 expenses)  | ~15      |
-| CSV Export (100 expenses)       | ~50      |
+`test/helpers/in_memory_database.dart` provides an in-memory Drift database for
+repository and BLoC tests. Mocks are generated with `mockito`; BLoC assertions use
+`bloc_test`.
 
-### **Dependencies Breakdown**
-
-| Category               | Count |
-|-----------------------|-------|
-| Core Framework         | 1     |
-| State Management        | 1     |
-| Dependency Injection   | 1     |
-| Database                | 2     |
-| UI/Visuals             | 3     |
-| Utilities               | 5     |
-| Testing                 | 4     |
-| Dev Tools               | 5     |
+```bash
+flutter test                 # all tests
+flutter test --coverage      # with coverage
+```
 
 ---
 
-## 📅 Changelog
+## CI/CD
 
-See `CHANGELOG.md` for detailed release notes.
+Four GitHub Actions workflows, all pinning Flutter **3.32.8**:
+
+| Workflow | Trigger | Does |
+| --- | --- | --- |
+| `ci.yml` | Pull requests, pushes to `developer` | pub get, regenerate sources, verify generated files are committed, format check, analyze, test, upload coverage |
+| `android-release.yml` | Pushes to `developer`, manual dispatch | Android development APK and AAB |
+| `ios-release.yml` | Pushes to `developer`, manual dispatch | Unsigned iOS development build (`--no-codesign`) |
+| `release.yml` | Pushes to `main` | Calculates the next patch version and build number, validates, builds a signed APK/AAB, commits the new `pubspec.yaml` version, tags it, and creates or updates the GitHub Release |
+
+The version commit created by `release.yml` contains `[skip ci]`, so a release cannot
+trigger another release. Full details, including the required repository secrets, are
+in [`docs/CI_CD.md`](docs/CI_CD.md).
 
 ---
 
-**Note**: This `README.md` is based on the actual code structure and features in the repository. No unverified assumptions were made.
+## Known Limitations
+
+These are current, verified gaps. They are listed so the documentation matches the
+code rather than the intent.
+
+- **`DatabaseIntegrityService` is not wired into any user-facing flow.** It is
+  implemented and registered in dependency injection, and it has tests, but nothing
+  in the app invokes it. Backup, restore and import perform their own separate
+  validation.
+- **`recurring_expenses` and `savings_goals` tables have no feature.** They exist in
+  the Drift schema and are covered by backup and export, but no screen, BLoC or use
+  case reads or writes them.
+- **Unused notification preference fields.** `NotificationSettings` still carries
+  `overspendingAlertsEnabled`, `noExpenseReminderEnabled` and the quiet-hours fields.
+  No scheduling logic implements them and the toggles were removed from Settings.
+- **Unused dependencies.** `freezed`, `freezed_annotation`, `json_serializable`,
+  `json_annotation`, `printing`, `collection` and `cupertino_icons` are declared in
+  `pubspec.yaml` but are not imported anywhere in `lib/`.
+- **`ResetMonthUseCase` is orphaned.** It is not registered in DI and is not
+  referenced by any BLoC; `ResetBudgetUseCase` is what Settings actually calls.
+- **Android application ID is still `com.example.monivo`**, the Flutter template
+  default.
+- **iOS widget distribution requires manual portal setup.** The App Group
+  `group.com.sufiyan.monivo` must be registered in the Apple Developer portal for
+  non-development builds.
+- **Debug-only test notification.** Debug builds schedule an extra notification one
+  minute after launch. Release builds do not.
+- **No `LICENSE` file** is present in the repository.
+
+---
+
+## Roadmap
+
+### Completed
+
+| Feature | Notes |
+| --- | --- |
+| Multiple independent budgets with custom date ranges | Schema v3 migration |
+| Per-budget Today's Safe Spending | Never combined across budgets |
+| Expense tracking with categories, tags and receipts | |
+| Expense history: grouping, search, filters, six sort options, paging | |
+| Combined Expense View | Viewing/aggregation only |
+| Reports with charts, time analytics and CSV/PDF export | Scoped to the Active Budget |
+| Bills & Reminders with recurrence and payment history | |
+| Smart Insights | Rule-based, on-device |
+| Local notifications | Morning, evening and bill reminders |
+| Biometric app lock | |
+| Home screen widget | Android + iOS |
+| Light / Dark / System theme with eight palettes | |
+| App update checker | GitHub Releases |
+| Backup, restore, export and import | |
+| Motion system with reduced-motion support | |
+
+### In progress
+
+| Item | State |
+| --- | --- |
+| Database integrity service | Implemented and tested, but not yet invoked from any app flow |
+
+### Planned
+
+No dated commitments. Candidate areas, none of them started:
+
+- Surfacing database integrity checks in the app.
+- Removing or implementing the unused schema tables and notification preference fields.
+- A distribution-ready Android application ID and an iOS signing/distribution pipeline.
+
+---
+
+## Contributing
+
+1. Fork the repository and create a feature branch
+   (`git checkout -b feature/your-feature`).
+2. Keep business logic out of widgets — new rules belong in a use case or domain
+   service, with unit tests.
+3. Run the full verification set before opening a pull request:
+   ```bash
+   dart format --output=none --set-exit-if-changed .
+   flutter analyze
+   flutter test
+   ```
+4. Update `CHANGELOG.md` for user-visible changes.
+5. Open a pull request. CI validates every pull request; pushes to `developer`
+   produce development builds, and a push to `main` cuts a production release.
+
+---
+
+## Documentation
+
+| File | Contents |
+| --- | --- |
+| [`CHANGELOG.md`](CHANGELOG.md) | Full version history |
+| [`RELEASE_NOTES.md`](RELEASE_NOTES.md) | User-facing notes for the current release |
+| [`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) | Home screen widget architecture, data keys and platform setup |
+| [`docs/CI_CD.md`](docs/CI_CD.md) | Pipeline, required secrets, versioning and release process |

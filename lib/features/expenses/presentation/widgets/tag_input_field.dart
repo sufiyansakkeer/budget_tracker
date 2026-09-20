@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../domain/validators/expense_validator.dart';
 
 /// Allows adding/removing multiple tags as chips.
@@ -36,15 +36,12 @@ class _TagInputFieldState extends State<TagInputField> {
 
     if (_tags.length >= ExpenseValidator.maxTags) {
       setState(() {
-        _error = 'Cannot add more than ${ExpenseValidator.maxTags} tags';
+        _error = 'You can add up to ${ExpenseValidator.maxTags} tags';
       });
       return;
     }
-
     if (_tags.contains(text)) {
-      setState(() {
-        _error = 'Tag "$text" already added';
-      });
+      setState(() => _error = '"$text" is already added');
       return;
     }
 
@@ -66,18 +63,21 @@ class _TagInputFieldState extends State<TagInputField> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final color = context.appColors.tertiary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextFormField(
           controller: _controller,
+          textInputAction: TextInputAction.done,
+          textCapitalization: TextCapitalization.words,
           decoration: InputDecoration(
-            labelText: 'Tags (optional)',
-            hintText: 'e.g. Office, Family, Business',
+            labelText: 'Tags',
+            hintText: 'e.g. Office, Family',
+            prefixIcon: const Icon(Icons.sell_outlined),
             suffixIcon: IconButton(
-              icon: const Icon(Icons.add_circle_outline),
+              icon: const Icon(Icons.add_rounded),
               onPressed: _addTag,
               tooltip: 'Add tag',
             ),
@@ -89,20 +89,17 @@ class _TagInputFieldState extends State<TagInputField> {
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
             children: _tags.map((tag) {
-              return Chip(
-                label: Text(tag),
-                deleteIcon: const Icon(Icons.close, size: 16),
+              return InputChip(
+                label: Text('#$tag'),
                 onDeleted: () => _removeTag(tag),
-                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                labelStyle: TextStyle(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w500,
-                ),
-                side: BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                ),
+                deleteButtonTooltipMessage: 'Remove $tag',
+                backgroundColor: color.withValues(alpha: 0.1),
+                side: BorderSide(color: color.withValues(alpha: 0.35)),
+                labelStyle: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: color),
               );
             }).toList(),
           ),

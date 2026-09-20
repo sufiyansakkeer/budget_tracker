@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/theme_mode_entity.dart';
+import '../../../../core/widgets/pressable.dart';
 
-/// Button row for selecting the application theme mode.
+/// Tile group for selecting the application theme mode.
 class ThemeSelector extends StatelessWidget {
   final AppThemeMode selectedMode;
   final ValueChanged<AppThemeMode> onChanged;
@@ -18,14 +20,15 @@ class ThemeSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final option in themeOptions) ...[
-          _ThemeOptionTile(
-            option: option,
-            selected: option.mode == selectedMode,
-            onTap: () => onChanged(option.mode),
+        for (final option in themeOptions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _ThemeOptionTile(
+              option: option,
+              selected: option.mode == selectedMode,
+              onTap: () => onChanged(option.mode),
+            ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-        ],
       ],
     );
   }
@@ -45,59 +48,74 @@ class _ThemeOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppSpacing.borderRadiusMd,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primary.withValues(alpha: 0.12)
-              : theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.4,
+    final scheme = theme.colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${option.label}, ${option.description}',
+      child: ExcludeSemantics(
+        child: Pressable(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppSpacing.borderRadiusMd,
+            child: AnimatedContainer(
+              duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+              curve: AppMotion.standardCurve,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.smd,
+                vertical: AppSpacing.smd,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? scheme.primaryContainer.withValues(alpha: 0.6)
+                    : scheme.surfaceContainer,
+                borderRadius: AppSpacing.borderRadiusMd,
+                border: Border.all(
+                  color: selected ? scheme.primary : Colors.transparent,
                 ),
-          borderRadius: AppSpacing.borderRadiusMd,
-          border: Border.all(
-            color: selected
-                ? theme.colorScheme.primary
-                : theme.dividerColor.withValues(alpha: 0.3),
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              option.icon,
-              color: selected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    option.label,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+                  Icon(
+                    option.icon,
+                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: AppSpacing.smd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(option.label, style: theme.textTheme.titleSmall),
+                        Text(
+                          option.description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(
-                    option.description,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                  AnimatedSwitcher(
+                    duration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.fast,
                     ),
+                    child: selected
+                        ? Icon(
+                            Icons.check_circle,
+                            key: const ValueKey('on'),
+                            color: scheme.primary,
+                          )
+                        : Icon(
+                            Icons.radio_button_off_rounded,
+                            key: const ValueKey('off'),
+                            color: scheme.onSurfaceVariant,
+                          ),
                   ),
                 ],
               ),
             ),
-            if (selected)
-              Icon(Icons.check_circle, color: theme.colorScheme.primary),
-          ],
+          ),
         ),
       ),
     );

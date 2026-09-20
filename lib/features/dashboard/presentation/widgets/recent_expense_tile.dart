@@ -2,142 +2,106 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 
+/// A scannable row for a recent expense: category icon, title, time, amount.
 class RecentExpenseTile extends StatelessWidget {
   final RecentExpenseEntity expense;
+  final String currency;
+  final VoidCallback? onTap;
 
-  const RecentExpenseTile({super.key, required this.expense});
+  const RecentExpenseTile({
+    super.key,
+    required this.expense,
+    required this.currency,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _parseColor(expense.categoryColorHex);
+    final color = CategoryVisuals.adaptiveColor(
+      context,
+      expense.categoryColorHex,
+    );
+    final hasNote = expense.note != null && expense.note!.trim().isNotEmpty;
+    final amount = CurrencyFormatter.format(
+      expense.amount,
+      code: currency,
+      decimalDigits: 0,
+    );
+    final when = _formatTime(expense.date);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: AppSpacing.borderRadiusMd,
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.2),
-              borderRadius: AppSpacing.borderRadiusSm,
+    return Semantics(
+      button: onTap != null,
+      label:
+          '${hasNote ? expense.note : expense.categoryName}, '
+          '${expense.categoryName}, $amount, $when',
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppSpacing.borderRadiusMd,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.smd,
             ),
-            child: Icon(
-              _getIconData(expense.categoryIcon),
-              color: color,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  expense.categoryName,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
+                IconTile(
+                  icon: CategoryVisuals.iconFor(expense.categoryIcon),
+                  color: color,
+                ),
+                const SizedBox(width: AppSpacing.smd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasNote ? expense.note! : expense.categoryName,
+                        style: theme.textTheme.titleSmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        hasNote ? '${expense.categoryName} · $when' : when,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
-                if (expense.note != null && expense.note!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    expense.note!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                const SizedBox(width: AppSpacing.smd),
+                Text(
+                  '−$amount',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
-                ],
+                ),
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '-${NumberFormat.currency(symbol: '', decimalDigits: 0).format(expense.amount)}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              Text(
-                _formatTime(expense.date),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Color _parseColor(String hexColor) {
-    try {
-      final color = hexColor.replaceAll('#', '');
-      return Color(int.parse('FF$color', radix: 16));
-    } catch (e) {
-      return Colors.grey;
-    }
-  }
-
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'restaurant':
-        return Icons.restaurant;
-      case 'local_gas_station':
-        return Icons.local_gas_station;
-      case 'shopping_cart':
-        return Icons.shopping_cart;
-      case 'home':
-        return Icons.home;
-      case 'payments':
-        return Icons.payments;
-      case 'flight':
-        return Icons.flight;
-      case 'movie':
-        return Icons.movie;
-      case 'favorite':
-        return Icons.favorite;
-      case 'school':
-        return Icons.school;
-      case 'local_grocery_store':
-        return Icons.local_grocery_store;
-      case 'receipt':
-        return Icons.receipt;
-      default:
-        return Icons.help_outline;
-    }
-  }
-
   String _formatTime(DateTime date) {
     final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return DateFormat('MMM d').format(date);
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(date.year, date.month, date.day);
+    final time = DateFormat.jm().format(date);
+    if (day == today) return 'Today, $time';
+    if (day == today.subtract(const Duration(days: 1))) {
+      return 'Yesterday, $time';
     }
+    return DateFormat('d MMM').format(date);
   }
 }

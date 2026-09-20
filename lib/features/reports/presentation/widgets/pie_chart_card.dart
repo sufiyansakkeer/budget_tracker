@@ -1,233 +1,430 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../expenses/presentation/widgets/category_visuals.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/widgets/info_content.dart';
 import '../../../expenses/domain/entities/expense_category.dart';
+import '../../../expenses/presentation/widgets/category_visuals.dart';
+import '../../domain/entities/category_analytics.dart';
 import '../../domain/entities/category_slice.dart';
+import 'chart_card.dart';
+import '../../../../core/widgets/animated_amount.dart';
+import '../../../../core/widgets/chart_reveal.dart';
 
-/// Card containing a category distribution pie chart with a legend.
-class PieChartCard extends StatelessWidget {
+/// Where the money went: a donut of category shares with a matching ranked
+/// list (amount, share, number of expenses). Small categories beyond the
+/// top five are folded into "Other".
+class CategoryBreakdownCard extends StatefulWidget {
   final List<CategorySlice> slices;
+  final List<CategoryAnalytics> analytics;
   final List<ExpenseCategory> categories;
   final String currency;
 
-  const PieChartCard({
+  const CategoryBreakdownCard({
     super.key,
     required this.slices,
+    required this.analytics,
     required this.categories,
     required this.currency,
   });
 
   @override
+  State<CategoryBreakdownCard> createState() => _CategoryBreakdownCardState();
+}
+
+class _CategoryBreakdownCardState extends State<CategoryBreakdownCard> {
+  static const int _topCount = 5;
+  bool _showAll = false;
+  int? _touched;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final empty = slices.isEmpty || slices.every((s) => s.amount <= 0);
-    final total = slices.fold<double>(0, (sum, s) => sum + s.amount);
+    final s = CurrencyFormatter.symbolFor(widget.currency);
+    final sorted = [...widget.analytics]
+      ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+    final total = sorted.fold<double>(0, (sum, a) => sum + a.totalAmount);
+    final hasData = sorted.isNotEmpty && total > 0;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(
-          color: theme.colorScheme.surfaceContainerHighest,
-          width: 1,
-        ),
+    final visible = _showAll || sorted.length <= _topCount + 1
+        ? sorted
+        : sorted.take(_topCount).toList();
+    final rest = sorted.skip(visible.length).toList();
+    final otherTotal = rest.fold<double>(0, (sum, a) => sum + a.totalAmount);
+    final otherCount = rest.fold<int>(0, (sum, a) => sum + a.transactionCount);
+
+    final top = hasData ? sorted.first : null;
+
+    return ChartCard(
+      title: 'Where it went',
+      caption: top == null
+          ? null
+          : '${top.categoryName} took the biggest share '
+                '(${top.percentageOfTotal.toStringAsFixed(0)}%)',
+      info: InfoContent(
+        title: 'Where it went',
+        whatIsThis:
+            "Your active budget's spending in the selected period, broken "
+            'down by category.',
+        howIsItCalculated:
+            'Each category adds up the expenses assigned to it.\n'
+            'Share = Category total ÷ Total spending.\n'
+            'Categories are listed from largest to smallest; the smallest '
+            'ones are grouped as "Other".',
+        example:
+            'Food: ${s}4,500 (30%)\n'
+            'Shopping: ${s}3,000 (20%)\n'
+            'Total: ${s}15,000',
       ),
+      child: !hasData
+          ? const ChartPlaceholder(
+              icon: Icons.donut_large_rounded,
+              message: 'No category spending to show yet',
+            )
+          : Column(
+              children: [
+                SizedBox(
+                  height: 168,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Semantics(
+                          label:
+                              'Donut chart of spending by category, '
+                              '${sorted.length} categories',
+                          // The ring sweeps in and thickens once on first
+                          // appearance; later changes use fl_chart's tween.
+                          child: ChartReveal(
+                            builder: (context, reveal, revealing) => PieChart(
+                              duration: revealing
+                                  ? Duration.zero
+                                  : AppMotion.respectReducedMotion(
+                                      context,
+                                      AppMotion.emphasized,
+                                    ),
+                              curve: AppMotion.value,
+                              PieChartData(
+                                sectionsSpace: 2,
+                                centerSpaceRadius: 44,
+                                startDegreeOffset: -90 - 30 * (1 - reveal),
+                                pieTouchData: PieTouchData(
+                                  touchCallback: (event, response) {
+                                    final index = response
+                                        ?.touchedSection
+                                        ?.touchedSectionIndex;
+                                    if (!event.isInterestedForInteractions ||
+                                        index == null ||
+                                        index < 0) {
+                                      if (_touched != null) {
+                                        setState(() => _touched = null);
+                                      }
+                                      return;
+                                    }
+                                    if (index != _touched) {
+                                      setState(() => _touched = index);
+                                    }
+                                  },
+                                ),
+                                sections: [
+                                  for (var i = 0; i < visible.length; i++)
+                                    PieChartSectionData(
+                                      value: visible[i].totalAmount,
+                                      color: _colorFor(visible[i], i),
+                                      radius:
+                                          (_touched == i ? 30 : 24) *
+                                          reveal.clamp(0.04, 1.0),
+                                      showTitle: false,
+                                    ),
+                                  if (otherTotal > 0)
+                                    PieChartSectionData(
+                                      value: otherTotal,
+                                      color: theme.colorScheme.outlineVariant,
+                                      radius:
+                                          (_touched == visible.length
+                                              ? 30
+                                              : 24) *
+                                          reveal.clamp(0.04, 1.0),
+                                      showTitle: false,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        flex: 6,
+                        child: Center(
+                          child: _CenterLabel(
+                            touched: _touched == null
+                                ? null
+                                : _touched! < visible.length
+                                ? (
+                                    visible[_touched!].categoryName,
+                                    visible[_touched!].totalAmount,
+                                    visible[_touched!].percentageOfTotal,
+                                  )
+                                : (
+                                    'Other',
+                                    otherTotal,
+                                    total > 0 ? otherTotal / total * 100 : 0,
+                                  ),
+                            total: total,
+                            currency: widget.currency,
+                            categoryCount: sorted.length,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Expanding to "all categories" grows the list smoothly.
+                AnimatedSize(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.medium,
+                  ),
+                  curve: AppMotion.standardCurve,
+                  alignment: Alignment.topCenter,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < visible.length; i++)
+                        _CategoryRow(
+                          key: ValueKey(visible[i].categoryId),
+                          name: visible[i].categoryName,
+                          color: _colorFor(visible[i], i),
+                          amount: visible[i].totalAmount,
+                          share: visible[i].percentageOfTotal / 100,
+                          count: visible[i].transactionCount,
+                          currency: widget.currency,
+                          highlighted: _touched == i,
+                        ),
+                      if (otherTotal > 0)
+                        _CategoryRow(
+                          key: const ValueKey('other'),
+                          name: 'Other (${rest.length})',
+                          color: theme.colorScheme.outlineVariant,
+                          amount: otherTotal,
+                          share: total > 0 ? otherTotal / total : 0,
+                          count: otherCount,
+                          currency: widget.currency,
+                          highlighted: _touched == visible.length,
+                        ),
+                      if (sorted.length > _topCount + 1)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () =>
+                                setState(() => _showAll = !_showAll),
+                            child: Text(
+                              _showAll
+                                  ? 'Show top $_topCount'
+                                  : 'Show all ${sorted.length}',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Color _colorFor(CategoryAnalytics analytics, int index) {
+    final hex = analytics.colorHex.isNotEmpty
+        ? analytics.colorHex
+        : _hexFromCategories(analytics.categoryId);
+    if (hex != null && hex.isNotEmpty) {
+      return CategoryVisuals.adaptiveColor(context, hex);
+    }
+    final colors = context.appColors;
+    final fallback = [
+      colors.primary,
+      colors.secondary,
+      colors.tertiary,
+      colors.primaryLight,
+      colors.secondaryLight,
+      colors.tertiaryLight,
+    ];
+    return fallback[index % fallback.length];
+  }
+
+  String? _hexFromCategories(String id) {
+    for (final c in widget.categories) {
+      if (c.id == id) return c.colorHex;
+    }
+    return null;
+  }
+}
+
+class _CenterLabel extends StatelessWidget {
+  final (String, double, double)? touched;
+  final double total;
+  final String currency;
+  final int categoryCount;
+
+  const _CenterLabel({
+    required this.touched,
+    required this.total,
+    required this.currency,
+    required this.categoryCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (label, amount, share) = touched ?? ('Total', total, 100.0);
+    return AnimatedSwitcher(
+      duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
       child: Column(
+        key: ValueKey(label),
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Category Breakdown',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              CurrencyFormatter.format(
+                amount,
+                code: currency,
+                decimalDigits: 0,
+              ),
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+              maxLines: 1,
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          if (empty)
-            SizedBox(
-              height: 140,
-              child: Center(
-                child: Text(
-                  'No category spending to show',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 180,
-                    child: _PieChart(slices: slices, categories: categories),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                if (slices.isNotEmpty)
-                  Expanded(
-                    child: _Legend(
-                      slices: slices,
-                      categories: categories,
-                      total: total,
-                    ),
-                  ),
-              ],
+          Text(
+            touched == null
+                ? '$categoryCount ${categoryCount == 1 ? 'category' : 'categories'}'
+                : '${share.toStringAsFixed(0)}% of total',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-          if (!empty) ...[
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Total: ${CurrencyFormatter.format(total, code: currency, decimalDigits: 0)}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _PieChart extends StatelessWidget {
-  final List<CategorySlice> slices;
-  final List<ExpenseCategory> categories;
+class _CategoryRow extends StatelessWidget {
+  final String name;
+  final Color color;
+  final double amount;
+  final double share;
+  final int count;
+  final String currency;
+  final bool highlighted;
 
-  const _PieChart({required this.slices, required this.categories});
-
-  @override
-  Widget build(BuildContext context) {
-    return PieChart(
-      PieChartData(
-        sectionsSpace: 2,
-        centerSpaceRadius: 40,
-        sections: [
-          for (var i = 0; i < slices.length; i++)
-            PieChartSectionData(
-              value: slices[i].amount,
-              color: _colorFor(slices[i], i),
-              radius: 40,
-              showTitle: false,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Color _colorFor(CategorySlice slice, int index) {
-    for (final category in categories) {
-      if (category.id == slice.categoryId) {
-        return CategoryVisuals.colorFor(category.colorHex);
-      }
-    }
-    return _palette[index % _palette.length];
-  }
-
-  static const List<Color> _palette = [
-    AppColors.primary,
-    AppColors.secondary,
-    AppColors.accent,
-    AppColors.safeGreen,
-    AppColors.warningOrange,
-    AppColors.dangerRed,
-  ];
-}
-
-class _Legend extends StatelessWidget {
-  final List<CategorySlice> slices;
-  final List<ExpenseCategory> categories;
-  final double total;
-
-  const _Legend({
-    required this.slices,
-    required this.categories,
-    required this.total,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < slices.length; i++) ...[
-          _LegendRow(
-            slice: slices[i],
-            categories: categories,
-            index: i,
-            total: total,
-          ),
-          if (i != slices.length - 1) const SizedBox(height: AppSpacing.sm),
-        ],
-      ],
-    );
-  }
-}
-
-class _LegendRow extends StatelessWidget {
-  final CategorySlice slice;
-  final List<ExpenseCategory> categories;
-  final int index;
-  final double total;
-
-  const _LegendRow({
-    required this.slice,
-    required this.categories,
-    required this.index,
-    required this.total,
+  const _CategoryRow({
+    super.key,
+    required this.name,
+    required this.color,
+    required this.amount,
+    required this.share,
+    required this.count,
+    required this.currency,
+    required this.highlighted,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final percent = total <= 0 ? 0.0 : (slice.amount / total) * 100;
-
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: _color(), shape: BoxShape.circle),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            slice.categoryName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
+    return AnimatedContainer(
+      duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.sm,
+        horizontal: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: highlighted ? color.withValues(alpha: 0.08) : Colors.transparent,
+        borderRadius: AppSpacing.borderRadiusSm,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  name,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              AnimatedAmount(
+                amount: amount,
+                currency: currency,
+                textAlign: TextAlign.end,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              SizedBox(
+                width: 44,
+                child: AnimatedPercent(
+                  percent: share * 100,
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-        Text(
-          '${percent.toStringAsFixed(0)}%',
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.bold,
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              const SizedBox(width: 10 + AppSpacing.sm),
+              Expanded(
+                child: AppProgress(
+                  value: share,
+                  height: AppSizes.progressThin,
+                  color: color,
+                  semanticLabel: '$name share',
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              SizedBox(
+                width: 84,
+                child: Text(
+                  '$count ${count == 1 ? 'expense' : 'expenses'}',
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
-
-  Color _color() {
-    for (final category in categories) {
-      if (category.id == slice.categoryId) {
-        return CategoryVisuals.colorFor(category.colorHex);
-      }
-    }
-    return _palette[index % _palette.length];
-  }
-
-  static const List<Color> _palette = [
-    AppColors.primary,
-    AppColors.secondary,
-    AppColors.accent,
-    AppColors.safeGreen,
-    AppColors.warningOrange,
-    AppColors.dangerRed,
-  ];
 }

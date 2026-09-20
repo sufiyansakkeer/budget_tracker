@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../../../../core/currency/currency_formatter.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/info_content.dart';
-import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/weekly_comparison.dart';
+import 'chart_card.dart';
+import '../../../../core/widgets/app_progress.dart';
 
-/// Compares the current week's spending with the previous week.
+/// Compares this week's spending with the stretch just before it.
 class WeeklyComparisonCard extends StatelessWidget {
   final WeeklyComparison comparison;
   final String currency;
@@ -22,115 +23,101 @@ class WeeklyComparisonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDecrease = comparison.isDecrease;
-    final color = isDecrease ? AppColors.safeGreen : AppColors.dangerRed;
-    final icon = isDecrease ? Icons.trending_down : Icons.trending_up;
+    final colors = context.appColors;
+    final s = CurrencyFormatter.symbolFor(currency);
+    String money(double v) =>
+        CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: AppSpacing.borderRadiusLg,
-        border: Border.all(
-          color: theme.colorScheme.surfaceContainerHighest,
-          width: 1,
-        ),
+    final diff = comparison.difference;
+    final noChange = diff.abs() < 0.5;
+    final decreased = comparison.isDecrease;
+    final hasPrevious = comparison.previousWeekSpending > 0;
+    // percentageChange is already a percentage (e.g. -15 for -15%).
+    final pct = comparison.percentageChange.abs();
+
+    final Color color;
+    final IconData icon;
+    final String verdict;
+    if (!hasPrevious) {
+      color = theme.colorScheme.onSurfaceVariant;
+      icon = Icons.info_outline_rounded;
+      verdict = 'Nothing was spent in the previous week to compare with.';
+    } else if (noChange) {
+      color = theme.colorScheme.onSurfaceVariant;
+      icon = Icons.drag_handle_rounded;
+      verdict = 'Same as the previous week.';
+    } else if (decreased) {
+      color = colors.success;
+      icon = Icons.trending_down_rounded;
+      verdict =
+          '${money(diff.abs())} less than the previous week '
+          '(${pct.toStringAsFixed(0)}% down)';
+    } else {
+      color = colors.warning;
+      icon = Icons.trending_up_rounded;
+      verdict =
+          '${money(diff.abs())} more than the previous week '
+          '(${pct.toStringAsFixed(0)}% up)';
+    }
+
+    final maxValue = [
+      comparison.currentWeekSpending,
+      comparison.previousWeekSpending,
+      1.0,
+    ].reduce((a, b) => a > b ? a : b);
+
+    return ChartCard(
+      title: 'This week vs last week',
+      info: InfoContent(
+        title: 'This week vs last week',
+        whatIsThis:
+            "Compares your active budget's spending in the selected week "
+            'with the days just before it.',
+        howIsItCalculated:
+            'This Week: Monday to today, compared with the same number of '
+            'days immediately before Monday.\n'
+            'Last Week: Monday to Sunday of last week, compared with the '
+            'full week before it.\n\n'
+            'Difference = Current − Previous\n'
+            'Change = Difference ÷ Previous',
+        example:
+            'Previous week: ${s}8,000\n'
+            'Current week: ${s}6,800\n'
+            'Difference: −${s}1,200 (15% down)',
+        additionalNotes:
+            '• Weeks run Monday through Sunday\n'
+            '• Only shown for the This Week and Last Week periods',
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _Bar(
+            label: 'This week',
+            amount: comparison.currentWeekSpending,
+            fraction: comparison.currentWeekSpending / maxValue,
+            color: theme.colorScheme.primary,
+            currency: currency,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _Bar(
+            label: 'Previous week',
+            amount: comparison.previousWeekSpending,
+            fraction: comparison.previousWeekSpending / maxValue,
+            color: theme.colorScheme.outlineVariant,
+            currency: currency,
+          ),
+          const SizedBox(height: AppSpacing.md),
           Row(
             children: [
+              Icon(icon, size: AppSizes.iconSm + 2, color: color),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  'Week-over-Week',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              InfoIcon(
-                content: InfoContent(
-                  title: 'Weekly Comparison',
-                  whatIsThis:
-                      'Compares your active budget\'s spending in the '
-                      'selected week with the days just before it.',
-                  howIsItCalculated:
-                      'This Week: Monday to today, compared with the same '
-                      'number of days immediately before Monday.\n'
-                      'Last Week: Monday to Sunday of last week, compared '
-                      'with the full week before it.\n\n'
-                      'Difference = Current − Previous\n'
-                      'Percentage change = Difference ÷ Previous × 100 '
-                      '(shown as 100% when nothing was spent in the '
-                      'previous stretch)',
-                  example:
-                      'Previous week: ₹8,000\n'
-                      'Current week: ₹6,800\n\n'
-                      'Difference: −₹1,200\n'
-                      'Change: −15% (spending decreased)',
-                  additionalNotes:
-                      '• "Saved" (green) means you spent less than in the '
-                      'previous stretch; "Spent" (red) means more\n'
-                      '• Weeks run Monday through Sunday\n'
-                      '• Only shown for the This Week and Last Week '
-                      'periods',
+                  verdict,
+                  style: theme.textTheme.bodySmall?.copyWith(color: color),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: _WeekColumn(
-                  label: 'Current Week',
-                  value: comparison.currentWeekSpending,
-                  currency: currency,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 48,
-                color: theme.colorScheme.surfaceContainerHighest,
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _WeekColumn(
-                  label: 'Previous Week',
-                  value: comparison.previousWeekSpending,
-                  currency: currency,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: AppSpacing.borderRadiusSm,
-            ),
-            child: Row(
-              children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    comparison.difference == 0
-                        ? 'No change from last week.'
-                        : '${comparison.difference.abs() > 0 ? (comparison.difference > 0 ? 'Spent' : 'Saved') : ''} '
-                              '${NumberFormat.compact().format(comparison.difference.abs())} '
-                              '(${comparison.percentageChange >= 0 ? '+' : ''}'
-                              '${(comparison.percentageChange * 100).toStringAsFixed(0)}%)',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -138,14 +125,18 @@ class WeeklyComparisonCard extends StatelessWidget {
   }
 }
 
-class _WeekColumn extends StatelessWidget {
+class _Bar extends StatelessWidget {
   final String label;
-  final double value;
+  final double amount;
+  final double fraction;
+  final Color color;
   final String currency;
 
-  const _WeekColumn({
+  const _Bar({
     required this.label,
-    required this.value,
+    required this.amount,
+    required this.fraction,
+    required this.color,
     required this.currency,
   });
 
@@ -155,18 +146,32 @@ class _WeekColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            AnimatedAmount(
+              amount: amount,
+              currency: currency,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(
-          CurrencyFormatter.format(value, code: currency, decimalDigits: 0),
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        AppProgress(
+          value: fraction.clamp(0.0, 1.0),
+          height: AppSizes.progressMd,
+          color: color,
+          semanticLabel: label,
         ),
       ],
     );

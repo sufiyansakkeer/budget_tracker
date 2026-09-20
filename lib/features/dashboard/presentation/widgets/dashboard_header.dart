@@ -1,94 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
+/// Greeting + date shown at the top of the dashboard.
 class DashboardHeader extends StatelessWidget {
-  final String currency;
-  final DateTime startDate;
-  final DateTime endDate;
+  final Widget? trailing;
 
-  const DashboardHeader({
-    super.key,
-    required this.currency,
-    required this.startDate,
-    required this.endDate,
-  });
+  const DashboardHeader({super.key, this.trailing});
+
+  static String greetingFor(DateTime now) {
+    final hour = now.hour;
+    if (hour < 5) return 'Good night';
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final now = DateTime.now();
-    final hour = now.hour;
-    String greeting;
-
-    if (hour < 12) {
-      greeting = 'Good Morning';
-    } else if (hour < 17) {
-      greeting = 'Good Afternoon';
-    } else {
-      greeting = 'Good Evening';
-    }
-
-    final rangeText =
-        '${DateFormat('d MMM').format(startDate)} – '
-        '${DateFormat('d MMM yyyy').format(endDate)}';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        gradient: AppColors.headerGradient,
-        borderRadius: AppSpacing.borderRadiusLg,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                greeting,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+              Semantics(
+                header: true,
+                child: Text(
+                  greetingFor(now),
+                  style: theme.textTheme.titleLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: AppSpacing.borderRadiusSm,
-                ),
-                child: Text(
-                  currency,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                DateFormat('EEEE, d MMMM').format(now),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Budget Period',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.8),
-            ),
-          ),
-          Text(
-            rangeText,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          trailing!,
         ],
-      ),
+      ],
     );
   }
 }

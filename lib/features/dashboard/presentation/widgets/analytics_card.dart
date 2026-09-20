@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 
 class AnalyticsCard extends StatelessWidget {
   final String title;
@@ -25,8 +25,9 @@ class AnalyticsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appColors = context.appColors;
     final displayColor =
-        valueColor ?? (isPositive ? AppColors.safeGreen : AppColors.dangerRed);
+        valueColor ?? (isPositive ? appColors.success : appColors.error);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),

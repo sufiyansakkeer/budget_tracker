@@ -2,21 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
-import '../../../../core/widgets/money_text.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
 import 'bill_widgets.dart';
+import '../../../../core/constants/app_motion.dart';
+import '../../../../core/widgets/animated_amount.dart';
+import '../../../../core/widgets/app_fab.dart';
 
-/// Bills dashboard screen with summary cards, filters, and bill list.
+/// Bills & reminders: what is due next, totals by status, and the full list.
 class BillsListScreen extends StatefulWidget {
   const BillsListScreen({super.key});
 
@@ -26,6 +33,31 @@ class BillsListScreen extends StatefulWidget {
 
 class _BillsListScreenState extends State<BillsListScreen> {
   final TextEditingController _searchController = TextEditingController();
+
+  static const _info = InfoContent(
+    title: 'Bills & Reminders',
+    whatIsThis:
+        'Payments you want to remember, such as rent, utilities or '
+        'subscriptions. Bills are kept separately from your budgets and are '
+        'shared across all of them.',
+    howIsItCalculated:
+        "A bill's status comes from its due date and whether it is paid:\n"
+        'Upcoming: unpaid and due after today.\n'
+        'Due today: unpaid and due today.\n'
+        'Overdue: unpaid and due before today.\n'
+        'Paid: marked as paid.\n\n'
+        'The summary tiles add up the unpaid amounts in each status.',
+    additionalNotes:
+        '• A bill due today is not overdue; it becomes overdue from the next '
+        'day\n'
+        '• Marking a one-time bill as paid moves it to Paid. Marking a '
+        'recurring bill as paid moves its due date to the next occurrence\n'
+        '• A bill only affects a budget if you use "Mark paid & add expense", '
+        'which records it as an expense in your active budget\n'
+        '• Reminders are optional per bill: a notification on the due date or '
+        'a set number of days before. Notifications must be allowed on your '
+        'device',
+  );
 
   @override
   void initState() {
@@ -39,506 +71,515 @@ class _BillsListScreenState extends State<BillsListScreen> {
     super.dispose();
   }
 
+  Future<void> _refresh() async {
+    final bloc = context.read<BillBloc>();
+    final done = bloc.stream
+        .firstWhere(
+          (s) =>
+              s.status == BillBlocStatus.loaded ||
+              s.status == BillBlocStatus.error,
+        )
+        .timeout(const Duration(seconds: 8), onTimeout: () => bloc.state);
+    bloc.add(const BillRefresh());
+    await done;
+  }
+
+  Future<void> _confirmMarkPaid(BillEntity bill) async {
+    final confirmed = await ConfirmationDialog.show(
+      context: context,
+      title: 'Mark as paid?',
+      message: bill.isRecurring
+          ? '"${bill.title}" will be marked paid and its due date moves to '
+                'the next ${bill.recurrenceType.label.toLowerCase()} '
+                'occurrence.'
+          : '"${bill.title}" will be marked as paid.',
+      confirmLabel: 'Mark paid',
+      icon: Icons.check_circle_rounded,
+    );
+    if (confirmed && mounted) {
+      context.read<BillBloc>().add(BillMarkPaid(bill.id));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: BlocBuilder<BillBloc, BillState>(
-          builder: (context, state) {
-            if (state.status == BillBlocStatus.loading &&
-                state.allBills.isEmpty) {
-              return const _BillsSkeleton();
-            }
-
-            if (state.status == BillBlocStatus.error &&
-                state.allBills.isEmpty) {
-              return _BillsErrorWidget(
-                message: state.message ?? 'Unable to load bills',
-                onRetry: () =>
-                    context.read<BillBloc>().add(const BillRefresh()),
-              );
-            }
-
-            return _buildContent(context, state);
-          },
-        ),
+      appBar: AppBar(
+        title: const Text('Bills'),
+        actions: [InfoIcon(content: _info)],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      body: BlocConsumer<BillBloc, BillState>(
+        listenWhen: (prev, curr) =>
+            prev.status != curr.status &&
+            (curr.status == BillBlocStatus.success ||
+                curr.status == BillBlocStatus.error) &&
+            curr.message != null,
+        listener: (context, state) {
+          // Only surface messages while the list is visible (the error view
+          // handles the empty-and-failed case itself).
+          if (state.status == BillBlocStatus.error && state.allBills.isEmpty) {
+            return;
+          }
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(state.message!)));
+          context.read<BillBloc>().add(const BillClearMessage());
+        },
+        builder: (context, state) {
+          final Widget child;
+          if (state.status == BillBlocStatus.loading &&
+              state.allBills.isEmpty) {
+            child = const _BillsSkeleton(key: ValueKey('loading'));
+          } else if (state.status == BillBlocStatus.error &&
+              state.allBills.isEmpty) {
+            child = ErrorState(
+              key: const ValueKey('error'),
+              title: "Couldn't load your bills",
+              message: state.message ?? 'Please try again.',
+              onRetry: () => context.read<BillBloc>().add(const BillRefresh()),
+            );
+          } else if (state.allBills.isEmpty) {
+            child = EmptyState(
+              key: const ValueKey('empty'),
+              icon: Icons.receipt_long_rounded,
+              title: 'No bills yet',
+              message:
+                  'Add rent, utilities, subscriptions and other payments to '
+                  'get reminded before they are due.',
+              actionLabel: 'Add bill',
+              actionIcon: Icons.add_rounded,
+              onAction: () => context.push('/app/bills/add'),
+            );
+          } else {
+            child = _buildContent(context, state);
+          }
+          return AppStateSwitcher(child: child);
+        },
+      ),
+      floatingActionButton: AppFab(
+        heroTag: 'bills_fab',
         onPressed: () => context.push('/app/bills/add'),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add Bill'),
+        icon: Icons.add_rounded,
+        label: 'Add bill',
         tooltip: 'Add a new bill',
       ),
     );
   }
 
   Widget _buildContent(BuildContext context, BillState state) {
-    final theme = Theme.of(context);
+    final filtered = state.filteredBills;
+    final unpaid = state.allBills.where((b) => !b.isPaid).toList()
+      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    final nextUp = unpaid.isEmpty ? null : unpaid.first;
+    var index = 0;
+
     return RefreshIndicator(
-      onRefresh: () async {
-        context.read<BillBloc>().add(const BillRefresh());
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-      },
-      child: CustomScrollView(
+      key: const ValueKey('content'),
+      onRefresh: _refresh,
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          // Header
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.sm,
-                AppSpacing.sm,
-                AppSpacing.xs,
+        padding: AppSpacing.pagePaddingWithFab,
+        children: [
+          if (nextUp != null) ...[
+            FadeSlideIn(
+              index: index++,
+              // When the next bill changes (e.g. one was just paid) the
+              // card cross-fades to the new one.
+              child: AnimatedSwitcher(
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.medium,
+                ),
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.exit,
+                layoutBuilder: (current, previous) => Stack(
+                  fit: StackFit.passthrough,
+                  alignment: Alignment.topCenter,
+                  children: [...previous, if (current != null) current],
+                ),
+                child: _NextUpCard(key: ValueKey(nextUp.id), bill: nextUp),
               ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bills',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Track & manage your bills',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.6,
-                            ),
-                          ),
-                        ),
-                      ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          FadeSlideIn(
+            index: index++,
+            child: _SummaryRow(state: state),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          TextField(
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Search bills',
+              prefixIcon: const Icon(Icons.search_rounded),
+              isDense: true,
+              suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _searchController,
+                builder: (context, value, _) => value.text.isEmpty
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () {
+                          _searchController.clear();
+                          context.read<BillBloc>().add(
+                            const BillSearchChanged(''),
+                          );
+                        },
+                      ),
+              ),
+            ),
+            onChanged: (query) =>
+                context.read<BillBloc>().add(BillSearchChanged(query)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final filter in BillFilter.values)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: FilterChip(
+                      label: Text(filter.label),
+                      selected: state.filter == filter,
+                      onSelected: (_) => context.read<BillBloc>().add(
+                        BillFilterChanged(filter),
+                      ),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
 
-          // Summary cards
-          if (state.allBills.isNotEmpty)
-            SliverToBoxAdapter(child: _BillSummaryCards(state: state)),
-          if (state.allBills.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  top: AppSpacing.xs,
-                  right: AppSpacing.md,
-                ),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: InfoIcon(
-                    content: InfoContent(
-                      title: 'Bills & Reminders',
-                      whatIsThis:
-                          'Payments you want to remember, such as rent, '
-                          'utilities or subscriptions. Bills are kept '
-                          'separately from your budgets and are shared '
-                          'across all of them.',
-                      howIsItCalculated:
-                          'A bill\'s status comes from its due date and '
-                          'whether it is paid:\n'
-                          'Upcoming: unpaid and due after today.\n'
-                          'Due Today: unpaid and due today.\n'
-                          'Overdue: unpaid and due before today.\n'
-                          'Paid: marked as paid.\n\n'
-                          'The summary tiles add up the amounts in each '
-                          'status.',
-                      additionalNotes:
-                          '• A bill due today is not overdue; it becomes '
-                          'overdue from the next day\n'
-                          '• Marking a one-time bill as paid moves it to '
-                          'Paid. Marking a recurring bill as paid moves its '
-                          'due date to the next occurrence and keeps it '
-                          'unpaid\n'
-                          '• A bill only affects a budget if you use "Mark '
-                          'Paid & Add Expense", which records it as an '
-                          'expense in your active budget\n'
-                          '• Reminders are optional per bill: a notification '
-                          'on the due date or a set number of days before, '
-                          'at the due time or 9:00 AM. Notifications must be '
-                          'allowed on your device',
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // Search bar
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search bills...',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded),
-                          onPressed: () {
-                            _searchController.clear();
-                            context.read<BillBloc>().add(
-                              const BillSearchChanged(''),
-                            );
-                            setState(() {});
-                          },
-                        )
-                      : null,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.smd,
-                  ),
-                ),
-                onChanged: (query) {
-                  context.read<BillBloc>().add(BillSearchChanged(query));
-                  setState(() {});
-                },
-              ),
-            ),
-          ),
-
-          // Filter chips
-          SliverToBoxAdapter(
-            child: _BillFilterChips(
-              currentFilter: state.filter,
-              onFilterChanged: (filter) =>
-                  context.read<BillBloc>().add(BillFilterChanged(filter)),
-            ),
-          ),
-
-          // Bills list
-          if (state.filteredBills.isEmpty)
-            SliverFillRemaining(child: _buildEmptyState(context, state))
+          if (filtered.isEmpty)
+            _buildEmptyFilter(context, state)
+          else if (state.filter == BillFilter.all)
+            ..._grouped(context, filtered, index)
           else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
+            for (final bill in filtered)
+              FadeSlideIn(
+                key: ValueKey('bill_${bill.id}'),
+                index: index++,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _card(context, bill),
+                ),
               ),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final bill = state.filteredBills[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: BillCard(
-                      bill: bill,
-                      currency: bill.currency,
-                      onTap: () => context.push('/app/bills/${bill.id}'),
-                      onMarkPaid: () => _confirmMarkPaid(context, bill),
-                    ),
-                  );
-                }, childCount: state.filteredBills.length),
-              ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _grouped(
+    BuildContext context,
+    List<BillEntity> bills,
+    int index,
+  ) {
+    const order = [
+      (BillStatus.overdue, 'Overdue'),
+      (BillStatus.dueToday, 'Due today'),
+      (BillStatus.upcoming, 'Upcoming'),
+      (BillStatus.paid, 'Paid'),
+    ];
+    final widgets = <Widget>[];
+    for (final (status, title) in order) {
+      final group = bills.where((b) => b.status == status).toList()
+        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      if (group.isEmpty) continue;
+      widgets.add(SectionHeader(title: title));
+      for (final bill in group) {
+        widgets.add(
+          FadeSlideIn(
+            key: ValueKey('bill_${bill.id}'),
+            index: index++,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: _card(context, bill),
             ),
+          ),
+        );
+      }
+      widgets.add(const SizedBox(height: AppSpacing.sm));
+    }
+    return widgets;
+  }
 
-          // Bottom padding for FAB
-          const SliverToBoxAdapter(child: SizedBox(height: 80)),
-        ],
-      ),
+  Widget _card(BuildContext context, BillEntity bill) {
+    return BillCard(
+      bill: bill,
+      onTap: () => context.push('/app/bills/${bill.id}'),
+      onMarkPaid: bill.isPaid ? null : () => _confirmMarkPaid(bill),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, BillState state) {
-    if (state.allBills.isEmpty) {
-      return EmptyState(
-        icon: Icons.receipt_long_rounded,
-        title: 'No bills yet',
-        message:
-            'Add your rent, utilities, subscriptions, and other recurring payments to stay organized.',
-        actionLabel: 'Add Bill',
-        actionIcon: Icons.add_rounded,
-        onAction: () => context.push('/app/bills/add'),
+  Widget _buildEmptyFilter(BuildContext context, BillState state) {
+    if (state.searchQuery.trim().isNotEmpty) {
+      return EmptyState.compact(
+        icon: Icons.search_off_rounded,
+        title: 'No matching bills',
+        message: 'Nothing matches "${state.searchQuery.trim()}".',
+        actionLabel: 'Clear search',
+        actionIcon: Icons.clear_all_rounded,
+        onAction: () {
+          _searchController.clear();
+          context.read<BillBloc>().add(const BillSearchChanged(''));
+        },
       );
     }
-    if (state.filter == BillFilter.overdue) {
-      return const EmptyState(
-        icon: Icons.check_circle_rounded,
-        title: 'No overdue bills',
-        message: 'No overdue bills 🎉',
-      );
-    }
-    if (state.filter == BillFilter.upcoming) {
-      return const EmptyState(
-        icon: Icons.check_circle_rounded,
-        title: "You're all clear!",
-        message: 'No unpaid bills are due after today.',
-      );
-    }
-    if (state.filter == BillFilter.dueToday) {
-      return const EmptyState(
-        icon: Icons.check_circle_rounded,
-        title: "You're all clear!",
-        message: 'No bills are due today.',
-      );
-    }
-    return EmptyState(
-      icon: Icons.search_off_rounded,
-      title: 'No results',
-      message: 'No bills match your search or filter.',
-    );
-  }
-
-  Future<void> _confirmMarkPaid(BuildContext context, BillEntity bill) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Mark as Paid?'),
-        content: Text('Mark "${bill.title}" as paid?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Mark Paid'),
-          ),
-        ],
+    final (icon, title, message) = switch (state.filter) {
+      BillFilter.overdue => (
+        Icons.check_circle_rounded,
+        'Nothing overdue',
+        'Every bill is paid or still ahead of its due date.',
       ),
-    );
-    if (confirmed == true && context.mounted) {
-      context.read<BillBloc>().add(BillMarkPaid(bill.id));
-    }
+      BillFilter.dueToday => (
+        Icons.event_available_rounded,
+        'Nothing due today',
+        'No unpaid bills are due today.',
+      ),
+      BillFilter.upcoming => (
+        Icons.event_available_rounded,
+        'Nothing coming up',
+        'No unpaid bills are due after today.',
+      ),
+      BillFilter.paid => (
+        Icons.receipt_long_outlined,
+        'No paid bills yet',
+        'Bills you mark as paid appear here.',
+      ),
+      BillFilter.recurring => (
+        Icons.repeat_rounded,
+        'No recurring bills',
+        'Turn on "Repeat" when adding a bill to see it here.',
+      ),
+      BillFilter.all => (
+        Icons.receipt_long_outlined,
+        'No bills',
+        'Add a bill to get started.',
+      ),
+    };
+    return EmptyState.compact(icon: icon, title: title, message: message);
   }
 }
 
-class _BillSummaryCards extends StatelessWidget {
-  final BillState state;
-  const _BillSummaryCards({required this.state});
+/// The single most important bill: the earliest unpaid one.
+class _NextUpCard extends StatelessWidget {
+  final BillEntity bill;
+  const _NextUpCard({super.key, required this.bill});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+    final theme = Theme.of(context);
+    final status = bill.status;
+    final color = BillVisuals.colorFor(context, status);
+    return AppCard(
+      onTap: () => context.push('/app/bills/${bill.id}'),
+      color: color.withValues(alpha: 0.08),
+      showBorder: false,
       child: Row(
         children: [
+          IconTile(
+            icon: BillVisuals.statusIcon(status),
+            color: color,
+            circular: true,
+          ),
+          const SizedBox(width: AppSpacing.smd),
           Expanded(
-            child: _SummaryTile(
-              label: 'Upcoming',
-              amount: state.upcomingTotal,
-              color: AppColors.primary,
-              icon: Icons.schedule_rounded,
-              count: state.upcomingBills.length,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status == BillStatus.overdue ? 'Needs attention' : 'Next up',
+                  style: theme.textTheme.labelMedium?.copyWith(color: color),
+                ),
+                Text(
+                  bill.title,
+                  style: theme.textTheme.titleMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  BillVisuals.dueText(bill),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: _SummaryTile(
-              label: 'Due Today',
-              amount: state.dueTodayTotal,
-              color: AppColors.warning,
-              icon: Icons.today_rounded,
-              count: state.dueTodayBills.length,
+          Text(
+            CurrencyFormatter.format(
+              bill.amount,
+              code: bill.currency,
+              decimalDigits: 0,
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: _SummaryTile(
-              label: 'Overdue',
-              amount: state.overdueTotal,
-              color: AppColors.error,
-              icon: Icons.error_outline_rounded,
-              count: state.overdueBills.length,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final BillState state;
+  const _SummaryRow({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    double sum(Iterable<BillEntity> bills) =>
+        bills.fold(0.0, (s, b) => s + b.amount);
+    final overdue = state.overdueBills;
+    final dueToday = state.dueTodayBills;
+    final upcoming = state.upcomingBills;
+    final currency = state.allBills.isNotEmpty
+        ? state.allBills.first.currency
+        : '';
+
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryTile(
+            status: BillStatus.overdue,
+            amount: sum(overdue),
+            count: overdue.length,
+            currency: currency,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _SummaryTile(
+            status: BillStatus.dueToday,
+            amount: sum(dueToday),
+            count: dueToday.length,
+            currency: currency,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _SummaryTile(
+            status: BillStatus.upcoming,
+            amount: sum(upcoming),
+            count: upcoming.length,
+            currency: currency,
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _SummaryTile extends StatelessWidget {
-  final String label;
+  final BillStatus status;
   final double amount;
-  final Color color;
-  final IconData icon;
   final int count;
+  final String currency;
 
   const _SummaryTile({
-    required this.label,
+    required this.status,
     required this.amount,
-    required this.color,
-    required this.icon,
     required this.count,
+    required this.currency,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.smd),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: AppSpacing.borderRadiusMd,
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final color = BillVisuals.colorFor(context, status);
+    final label = BillVisuals.statusLabel(status);
+    return Semantics(
+      label:
+          '$label: $count ${count == 1 ? 'bill' : 'bills'}, '
+          '${CurrencyFormatter.format(amount, code: currency, decimalDigits: 0)}',
+      child: ExcludeSemantics(
+        child: AppCard(
+          padding: const EdgeInsets.all(AppSpacing.smd),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
+              Row(
+                children: [
+                  Icon(
+                    BillVisuals.statusIcon(status),
+                    size: AppSizes.iconSm,
                     color: color,
-                    fontWeight: FontWeight.w600,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: color,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              AnimatedAmount(
+                amount: amount,
+                currency: currency,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              Text(
+                '$count ${count == 1 ? 'bill' : 'bills'}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          MoneyText(
-            amount: amount,
-            decimalDigits: 0,
-            color: color,
-            amountStyle: theme.textTheme.titleSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '$count ${count == 1 ? 'bill' : 'bills'}',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BillFilterChips extends StatelessWidget {
-  final BillFilter currentFilter;
-  final ValueChanged<BillFilter> onFilterChanged;
-
-  const _BillFilterChips({
-    required this.currentFilter,
-    required this.onFilterChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        itemCount: BillFilter.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, index) {
-          final filter = BillFilter.values[index];
-          final isSelected = currentFilter == filter;
-          return FilterChip(
-            label: Text(filter.label),
-            selected: isSelected,
-            onSelected: (_) => onFilterChanged(filter),
-            showCheckmark: false,
-          );
-        },
+        ),
       ),
     );
   }
 }
 
 class _BillsSkeleton extends StatelessWidget {
-  const _BillsSkeleton();
+  const _BillsSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Shimmer(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: AppSpacing.pagePadding,
         children: const [
-          SkeletonBox(width: 120, height: 32, radius: 12),
+          SkeletonBox(height: 84, radius: AppSpacing.radiusLg),
           SizedBox(height: AppSpacing.md),
-          SkeletonBox(height: 100, radius: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SkeletonBox(height: 88, radius: AppSpacing.radiusLg),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: SkeletonBox(height: 88, radius: AppSpacing.radiusLg),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: SkeletonBox(height: 88, radius: AppSpacing.radiusLg),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.lg),
+          SkeletonBox(height: 48, radius: AppSpacing.radiusMd),
           SizedBox(height: AppSpacing.md),
-          SkeletonBox(height: 48, radius: 16),
-          SizedBox(height: AppSpacing.md),
-          SkeletonBox(height: 64, radius: 16),
-          SizedBox(height: AppSpacing.sm),
-          SkeletonBox(height: 64, radius: 16),
-          SizedBox(height: AppSpacing.sm),
-          SkeletonBox(height: 64, radius: 16),
+          SkeletonListTile(),
+          SkeletonListTile(),
+          SkeletonListTile(),
         ],
-      ),
-    );
-  }
-}
-
-class _BillsErrorWidget extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _BillsErrorWidget({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.error_outline_rounded,
-                size: 48,
-                color: AppColors.error,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              'Something went wrong',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
-            ),
-          ],
-        ),
       ),
     );
   }

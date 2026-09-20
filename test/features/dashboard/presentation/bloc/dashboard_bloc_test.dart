@@ -303,6 +303,7 @@ void main() {
           budgetSummary: tBudgetSummary,
           recentExpenses: tRecentExpenses,
           insights: const [],
+          activeBudgetId: 'active-budget',
         ),
       ];
 
@@ -395,6 +396,7 @@ void main() {
           budgetSummary: tBudgetSummary,
           recentExpenses: const [],
           insights: const [],
+          activeBudgetId: 'active-budget',
         ),
       ];
 

@@ -1,4 +1,5 @@
 import '../../domain/entities/app_settings.dart';
+import '../../domain/entities/color_palette_entity.dart';
 import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/theme_mode_entity.dart';
 import '../../domain/repository/settings_repository.dart';
@@ -16,6 +17,10 @@ class SettingsRepositoryImpl implements SettingsRepository {
   @override
   Future<void> setThemeMode(AppThemeMode mode) =>
       localDataSource.setThemeMode(mode);
+
+  @override
+  Future<void> setPalette(ColorPalette palette) =>
+      localDataSource.setPalette(palette);
 
   @override
   Future<void> setCurrency(String code, String symbol) =>

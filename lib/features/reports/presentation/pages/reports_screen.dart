@@ -2,21 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/info_content.dart';
-import '../../../../core/widgets/info_section_header.dart';
+import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
+import '../../../expenses/domain/entities/expense_history_filter.dart';
 import '../../../expenses/presentation/history/widgets/filter_bottom_sheet.dart';
+import '../../domain/entities/report_data.dart';
 import '../../domain/entities/report_period.dart';
 import '../../domain/usecases/export_csv_usecase.dart';
 import '../../domain/usecases/export_pdf_usecase.dart';
 import '../bloc/reports_bloc.dart';
 import '../bloc/reports_event.dart';
 import '../bloc/reports_state.dart';
-import '../widgets/analytics_section.dart';
 import '../widgets/bar_chart_card.dart';
 import '../widgets/budget_utilization_card.dart';
-import '../widgets/category_analytics_card.dart';
 import '../widgets/empty_reports_state.dart';
 import '../widgets/export_buttons.dart';
 import '../widgets/insight_card.dart';
@@ -26,11 +30,11 @@ import '../widgets/pie_chart_card.dart';
 import '../widgets/report_overview_card.dart';
 import '../widgets/reports_error_widget.dart';
 import '../widgets/time_analytics_card.dart';
-import '../widgets/trend_card.dart';
 import '../widgets/weekly_comparison_card.dart';
 
-/// Reports & Analytics screen. Displays overview cards, charts, category
-/// analytics, time analytics, smart insights, and export actions.
+/// Reports tab. Reading order: how much did I spend → how is the budget
+/// doing → where did it go → how did it move over time → patterns →
+/// insights → export.
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -39,45 +43,48 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  static const _insightsCollapsed = 3;
+  bool _showAllInsights = false;
+
   @override
   void initState() {
     super.initState();
     context.read<ReportsBloc>().add(const ReportsLoad());
   }
 
-  Future<void> _openFilterSheet(ReportsState state) async {
-    final categories = state.data?.categories ?? const [];
+  Future<void> _openFilterSheet() async {
+    final bloc = context.read<ReportsBloc>();
     final result = await showFilterBottomSheet(
       context,
-      current: state.filter,
-      categories: categories,
+      current: bloc.state.filter,
+      categories: bloc.state.data?.categories ?? const [],
     );
-    if (result != null && mounted) {
-      context.read<ReportsBloc>().add(ReportsFilterChanged(result));
-    }
+    if (result != null && mounted) bloc.add(ReportsFilterChanged(result));
   }
 
   Future<void> _pickCustomRange() async {
+    final bloc = context.read<ReportsBloc>();
     final now = DateTime.now();
-    final start = await showDatePicker(
+    final current = bloc.state.data?.range;
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: DateTime(now.year, now.month, 1),
       firstDate: DateTime(2000),
-      lastDate: now,
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDateRange: current == null
+          ? null
+          : DateTimeRange(
+              start: current.start,
+              end: current.end.isAfter(now) ? now : current.end,
+            ),
+      helpText: 'Report period',
+      saveText: 'Apply',
     );
-    if (start == null || !mounted) return;
-    final end = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: start,
-      lastDate: now,
-    );
-    if (end == null || !mounted) return;
-    context.read<ReportsBloc>().add(
+    if (picked == null || !mounted) return;
+    bloc.add(
       ReportsPeriodChanged(
         ReportPeriod.custom,
-        customStart: start,
-        customEnd: end,
+        customStart: picked.start,
+        customEnd: picked.end,
       ),
     );
   }
@@ -90,263 +97,382 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  Future<void> _refresh() async {
+    final bloc = context.read<ReportsBloc>();
+    final done = bloc.stream
+        .firstWhere(
+          (s) =>
+              s.status == ReportsStatus.loaded ||
+              s.status == ReportsStatus.error,
+        )
+        .timeout(const Duration(seconds: 8), onTimeout: () => bloc.state);
+    bloc.add(const ReportsRefresh());
+    await done;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reports & Analytics'),
+        title: const Text('Reports'),
         actions: [
-          IconButton(
-            tooltip: 'Filter report',
-            icon: const Icon(Icons.filter_list),
-            onPressed: () =>
-                _openFilterSheet(context.read<ReportsBloc>().state),
+          BlocBuilder<ReportsBloc, ReportsState>(
+            buildWhen: (a, b) => a.filter != b.filter,
+            builder: (context, state) => IconButton(
+              tooltip: state.filter.isActive
+                  ? 'Filters on · tap to change'
+                  : 'Filter report',
+              onPressed: _openFilterSheet,
+              icon: Badge(
+                isLabelVisible: state.filter.isActive,
+                smallSize: 8,
+                child: const Icon(Icons.filter_list_rounded),
+              ),
+            ),
           ),
         ],
       ),
       body: BlocBuilder<ReportsBloc, ReportsState>(
         builder: (context, state) {
-          return switch (state.status) {
-            ReportsStatus.initial || ReportsStatus.loading => const Center(
-              child: CircularProgressIndicator(),
-            ),
-            ReportsStatus.error => ReportsErrorWidget(
-              message: state.errorMessage ?? 'Unable to load report',
+          final data = state.data;
+          final Widget child;
+          if (state.status == ReportsStatus.error) {
+            child = ReportsErrorWidget(
+              key: const ValueKey('error'),
+              message: state.errorMessage ?? "Couldn't load the report",
               onRetry: () =>
                   context.read<ReportsBloc>().add(const ReportsRefresh()),
-            ),
-            ReportsStatus.loaded => _buildContent(context, state),
-            ReportsStatus.refreshing =>
-              state.data != null
-                  ? _buildContent(context, state)
-                  : const Center(child: CircularProgressIndicator()),
-          };
+            );
+          } else if (data == null) {
+            child = const _ReportsSkeleton(key: ValueKey('loading'));
+          } else {
+            // Period/filter changes keep the previous report on screen with a
+            // slim progress bar instead of dropping to a spinner.
+            child = _ReportContent(
+              key: const ValueKey('content'),
+              state: state,
+              data: data,
+              busy:
+                  state.status == ReportsStatus.loading ||
+                  state.status == ReportsStatus.refreshing,
+              onPeriodSelected: _onPeriodSelected,
+              onEditRange: _pickCustomRange,
+              onRefresh: _refresh,
+              showAllInsights: _showAllInsights,
+              onToggleInsights: () =>
+                  setState(() => _showAllInsights = !_showAllInsights),
+              insightsCollapsed: _insightsCollapsed,
+            );
+          }
+          return AppStateSwitcher(child: child);
         },
       ),
     );
   }
+}
 
-  Widget _buildContent(BuildContext context, ReportsState state) {
-    final data = state.data;
-    if (data == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
+class _ReportContent extends StatelessWidget {
+  final ReportsState state;
+  final ReportData data;
+  final bool busy;
+  final ValueChanged<ReportPeriod> onPeriodSelected;
+  final VoidCallback onEditRange;
+  final Future<void> Function() onRefresh;
+  final bool showAllInsights;
+  final VoidCallback onToggleInsights;
+  final int insightsCollapsed;
 
-    if (data.isEmpty) {
-      return Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: ActiveBudgetSelector(),
-          ),
-          PeriodSelector(selected: state.period, onSelected: _onPeriodSelected),
-          const SizedBox(height: AppSpacing.md),
-          Expanded(
-            child: EmptyReportsState(
-              onAddExpense: () => context.push('/app/expenses/add'),
-            ),
-          ),
-        ],
-      );
-    }
+  const _ReportContent({
+    super.key,
+    required this.state,
+    required this.data,
+    required this.busy,
+    required this.onPeriodSelected,
+    required this.onEditRange,
+    required this.onRefresh,
+    required this.showAllInsights,
+    required this.onToggleInsights,
+    required this.insightsCollapsed,
+  });
 
-    final currency = data.currentBudget?.currency ?? '₹';
+  @override
+  Widget build(BuildContext context) {
+    final currency = data.currentBudget?.currency ?? '';
+    final insights = state.insights ?? const [];
+    final visibleInsights = showAllInsights
+        ? insights
+        : insights.take(insightsCollapsed).toList();
+    final isWeekPeriod =
+        state.period == ReportPeriod.thisWeek ||
+        state.period == ReportPeriod.lastWeek;
+    final bucketUnit = state.period == ReportPeriod.thisYear ? 'month' : 'week';
+    var index = 0;
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        context.read<ReportsBloc>().add(const ReportsRefresh());
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-      },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const ActiveBudgetSelector(),
-            const SizedBox(height: AppSpacing.md),
-            PeriodSelector(
-              selected: state.period,
-              onSelected: _onPeriodSelected,
-            ),
-            const SizedBox(height: AppSpacing.lg),
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: onRefresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: AppSpacing.pagePadding,
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: AppSizes.contentMaxWidth,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const ActiveBudgetSelector(),
+                      const SizedBox(height: AppSpacing.md),
+                      PeriodSelector(
+                        selected: state.period,
+                        onSelected: onPeriodSelected,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      ReportRangeLabel(range: data.range, onEdit: onEditRange),
+                      const SizedBox(height: AppSpacing.md),
 
-            // Overview cards
-            ReportOverviewGrid(overview: data.overview, currency: currency),
-            const SizedBox(height: AppSpacing.lg),
+                      if (data.isEmpty)
+                        SizedBox(
+                          height: 420,
+                          child: EmptyReportsState(
+                            filtered: state.filter.isActive,
+                            onAddExpense: () =>
+                                context.push('/app/expenses/add'),
+                            onClearFilters: () =>
+                                context.read<ReportsBloc>().add(
+                                  const ReportsFilterChanged(
+                                    ExpenseHistoryFilter(),
+                                  ),
+                                ),
+                          ),
+                        )
+                      else ...[
+                        // 1. Total spending
+                        FadeSlideIn(
+                          index: index++,
+                          child: ReportSummaryCard(
+                            overview: data.overview,
+                            trend: data.trend,
+                            range: data.range,
+                            currency: currency,
+                          ),
+                        ),
 
-            // Budget utilization
-            if (data.currentBudget != null) ...[
-              BudgetUtilizationCard(
-                spent: data.currentMonthSpent,
-                remaining: (data.currentMonthBudget - data.currentMonthSpent)
-                    .clamp(0, double.infinity),
-                monthly: data.currentMonthBudget,
-                currency: currency,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-            ],
+                        // 2. Budget progress (current month only)
+                        if (data.currentBudget != null) ...[
+                          const SizedBox(height: AppSpacing.smd),
+                          FadeSlideIn(
+                            index: index++,
+                            child: BudgetUtilizationCard(
+                              spent: data.currentMonthSpent,
+                              remaining:
+                                  (data.currentMonthBudget -
+                                          data.currentMonthSpent)
+                                      .clamp(0, double.infinity),
+                              monthly: data.currentMonthBudget,
+                              currency: currency,
+                            ),
+                          ),
+                        ],
 
-            // Charts
-            const AnalyticsSection(title: 'Charts'),
-            const SizedBox(height: AppSpacing.sm),
-            LineChartCard(points: data.dailySpending, currency: currency),
-            const SizedBox(height: AppSpacing.md),
-            BarChartCard(buckets: data.spendingBuckets, currency: currency),
-            const SizedBox(height: AppSpacing.md),
-            PieChartCard(
-              slices: data.categorySlices,
-              categories: data.categories,
-              currency: currency,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            if (data.weeklyComparison != null) ...[
-              WeeklyComparisonCard(
-                comparison: data.weeklyComparison!,
-                currency: currency,
-              ),
-              const SizedBox(height: AppSpacing.md),
-            ],
+                        // 3. Where it went
+                        const SizedBox(height: AppSpacing.lg),
+                        FadeSlideIn(
+                          index: index++,
+                          child: CategoryBreakdownCard(
+                            slices: data.categorySlices,
+                            analytics: data.categoryAnalytics,
+                            categories: data.categories,
+                            currency: currency,
+                          ),
+                        ),
 
-            // Category analytics
-            InfoSectionHeader(
-              title: 'Category Analytics',
-              infoContent: InfoContent(
-                title: 'Category Breakdown',
-                whatIsThis:
-                    'Your active budget\'s spending in the selected period, '
-                    'broken down by category.',
-                howIsItCalculated:
-                    'Each category shows the total amount spent on '
-                    'expenses assigned to that category.\n\n'
-                    'Category % = Category spending ÷ Total spending × 100\n\n'
-                    'Categories are listed from highest to lowest total.',
-                example:
-                    'Food: ₹4,500 (30%)\n'
-                    'Shopping: ₹3,000 (20%)\n'
-                    'Transport: ₹1,500 (10%)\n'
-                    'Total spending: ₹15,000',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            CategoryAnalyticsCard(
-              analytics: data.categoryAnalytics,
-              currency: currency,
-            ),
-            const SizedBox(height: AppSpacing.lg),
+                        // 4. Over time
+                        const SizedBox(height: AppSpacing.lg),
+                        const SectionHeader(title: 'Over time'),
+                        FadeSlideIn(
+                          index: index++,
+                          child: LineChartCard(
+                            points: data.dailySpending,
+                            currency: currency,
+                          ),
+                        ),
+                        if (!isWeekPeriod &&
+                            data.spendingBuckets.length > 1) ...[
+                          const SizedBox(height: AppSpacing.smd),
+                          FadeSlideIn(
+                            index: index++,
+                            child: BarChartCard(
+                              buckets: data.spendingBuckets,
+                              currency: currency,
+                              unit: bucketUnit,
+                            ),
+                          ),
+                        ],
+                        if (data.weeklyComparison != null &&
+                            data.weeklyComparison!.hasPrevious) ...[
+                          const SizedBox(height: AppSpacing.smd),
+                          FadeSlideIn(
+                            index: index++,
+                            child: WeeklyComparisonCard(
+                              comparison: data.weeklyComparison!,
+                              currency: currency,
+                            ),
+                          ),
+                        ],
 
-            // Time analytics
-            InfoSectionHeader(
-              title: 'Time Analytics',
-              infoContent: InfoContent(
-                title: 'Time Analytics',
-                whatIsThis:
-                    'When your active budget\'s spending happens in the '
-                    'selected period: by calendar day and by day of the '
-                    'week.',
-                howIsItCalculated:
-                    'Most Expensive Day: the calendar day with the '
-                    'highest total of recorded expenses.\n'
-                    'Highest spending day: the day of the week with the '
-                    'highest total across the period (not an average).\n'
-                    'Weekday vs Weekend: total spent Monday–Friday '
-                    'compared with Saturday–Sunday.',
-                additionalNotes:
-                    '• Expenses are grouped by their recorded date\n'
-                    '• Only expenses matching the period and filters are '
-                    'counted',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TimeAnalyticsCard(
-              analytics: data.timeAnalytics,
-              currency: currency,
-            ),
-            const SizedBox(height: AppSpacing.lg),
+                        // 5. Patterns
+                        const SizedBox(height: AppSpacing.lg),
+                        FadeSlideIn(
+                          index: index++,
+                          child: TimeAnalyticsCard(
+                            analytics: data.timeAnalytics,
+                            trend: data.trend,
+                            dailySpending: data.dailySpending,
+                            currency: currency,
+                          ),
+                        ),
 
-            // Trends
-            InfoSectionHeader(
-              title: 'Spending Trends',
-              infoContent: InfoContent(
-                title: 'Spending Trends',
-                whatIsThis:
-                    'How your active budget\'s spending in the selected '
-                    'period compares over time: averages, growth and '
-                    'consistency.',
-                howIsItCalculated:
-                    'Daily average = Total spending ÷ Days in period\n'
-                    'Weekly average = Daily average × 7\n'
-                    'Monthly average = Daily average × 30\n\n'
-                    'Growth rate compares this period\'s total with the '
-                    'same number of days immediately before it. It shows '
-                    '0% when nothing was spent in that earlier stretch.\n\n'
-                    'Consistency measures how even your daily spending is '
-                    '(0% = very uneven, 100% = the same every day).',
-                additionalNotes:
-                    '• Negative growth (green) means you spent less than '
-                    'in the earlier stretch; positive (red) means more\n'
-                    '• "Improving" means the second half of the period '
-                    'had lower spending than the first half\n'
-                    '• Consistency of 60% or more is shown in green',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TrendCard(trend: data.trend, currency: currency),
-            const SizedBox(height: AppSpacing.lg),
+                        // 6. Insights
+                        if (insights.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.lg),
+                          const SectionHeader(
+                            title: 'Smart insights',
+                            infoContent: InfoContent(
+                              title: 'Smart insights',
+                              whatIsThis:
+                                  'Short, rule-based observations about the '
+                                  'report you are viewing. They are simple '
+                                  "calculations on your active budget's "
+                                  'expenses, not AI.',
+                              howIsItCalculated:
+                                  'Insights are generated from the figures '
+                                  'shown on this screen:\n'
+                                  '• Spending compared with the same number '
+                                  'of days before this period\n'
+                                  '• The category with the largest share\n'
+                                  '• The day of the week you spend the most '
+                                  'on\n'
+                                  '• Whether weekends take a large share\n'
+                                  '• How much of the active budget is left '
+                                  '(current month only)\n'
+                                  '• Whether the second half of the period '
+                                  'was lower than the first\n'
+                                  '• Whether daily spending is very '
+                                  'consistent',
+                              privacyNote:
+                                  'All analysis runs on your device. No data '
+                                  'leaves your phone.',
+                            ),
+                          ),
+                          // Expanding reveals the extra insights with a
+                          // short stagger while the section grows smoothly.
+                          AnimatedSize(
+                            duration: AppMotion.respectReducedMotion(
+                              context,
+                              AppMotion.medium,
+                            ),
+                            curve: AppMotion.standardCurve,
+                            alignment: Alignment.topCenter,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (var i = 0; i < visibleInsights.length; i++)
+                                  FadeSlideIn(
+                                    key: ValueKey('insight_$i'),
+                                    index: i < insightsCollapsed
+                                        ? index + i
+                                        : i - insightsCollapsed,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: AppSpacing.sm,
+                                      ),
+                                      child: InsightCard(
+                                        message: visibleInsights[i].message,
+                                        type: visibleInsights[i].type,
+                                      ),
+                                    ),
+                                  ),
+                                if (insights.length > insightsCollapsed)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: onToggleInsights,
+                                      child: Text(
+                                        showAllInsights
+                                            ? 'Show fewer'
+                                            : 'Show ${insights.length - insightsCollapsed} more',
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
 
-            // Smart insights
-            InfoSectionHeader(
-              title: 'Smart Insights',
-              infoContent: InfoContent(
-                title: 'Smart Insights',
-                whatIsThis:
-                    'Short, rule-based observations about the report '
-                    'you are viewing. They are simple calculations on '
-                    'your active budget\'s expenses, not AI.',
-                howIsItCalculated:
-                    'Insights are generated from the figures shown on this '
-                    'screen:\n'
-                    '• Spending compared with the same number of days '
-                    'before this period\n'
-                    '• The category with the largest share\n'
-                    '• The day of the week you spend the most on\n'
-                    '• Whether weekends take a large share of spending\n'
-                    '• How much of the active budget is left, or by how '
-                    'much it is over (only when the period is in the '
-                    'current month)\n'
-                    '• Whether the second half of the period was lower '
-                    'than the first\n'
-                    '• Whether daily spending is very consistent',
-                privacyNote:
-                    'All analysis runs on your device. No data leaves '
-                    'your phone.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            if (state.insights == null || state.insights!.isEmpty)
-              const Text('No insights available.')
-            else
-              for (final insight in state.insights!)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: InsightCard(
-                    message: insight.message,
-                    type: insight.type,
+                        // 7. Export
+                        const SizedBox(height: AppSpacing.lg),
+                        const SectionHeader(
+                          title: 'Export',
+                          subtitle: 'Share this report as a file',
+                        ),
+                        ExportButtons(
+                          data: data,
+                          exportCsvUseCase: const ExportCsvUseCase(),
+                          exportPdfUseCase: const ExportPdfUseCase(),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                      ],
+                    ],
                   ),
                 ),
-            const SizedBox(height: AppSpacing.lg),
-
-            // Export
-            const AnalyticsSection(title: 'Export Report'),
-            const SizedBox(height: AppSpacing.sm),
-            ExportButtons(
-              data: data,
-              exportCsvUseCase: const ExportCsvUseCase(),
-              exportPdfUseCase: const ExportPdfUseCase(),
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-          ],
+              ),
+            ],
+          ),
         ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: AnimatedOpacity(
+            opacity: busy ? 1 : 0,
+            duration: AppMotion.respectReducedMotion(
+              context,
+              AppMotion.standard,
+            ),
+            child: const LinearProgressIndicator(
+              minHeight: AppSizes.progressThin,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReportsSkeleton extends StatelessWidget {
+  const _ReportsSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: AppSpacing.pagePadding,
+        children: const [
+          SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
+          SizedBox(height: AppSpacing.md),
+          SkeletonBox(height: 36, radius: AppSpacing.radiusFull),
+          SizedBox(height: AppSpacing.lg),
+          SkeletonBox(height: 180, radius: AppSpacing.radiusLg),
+          SizedBox(height: AppSpacing.smd),
+          SkeletonBox(height: 120, radius: AppSpacing.radiusLg),
+          SizedBox(height: AppSpacing.lg),
+          SkeletonBox(height: 320, radius: AppSpacing.radiusLg),
+        ],
       ),
     );
   }

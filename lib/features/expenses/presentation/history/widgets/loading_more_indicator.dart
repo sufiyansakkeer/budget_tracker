@@ -15,21 +15,18 @@ class LoadingMoreIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!hasMore) {
-      return const SizedBox(height: 8);
+    if (!hasMore || !isLoading) {
+      return const SizedBox(height: AppSpacing.sm);
     }
-    if (isLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-        child: Center(
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+      child: Center(
+        child: SizedBox(
+          width: AppSizes.iconLg,
+          height: AppSizes.iconLg,
+          child: CircularProgressIndicator(strokeWidth: 2.5),
         ),
-      );
-    }
-    return const SizedBox(height: 8);
+      ),
+    );
   }
 }

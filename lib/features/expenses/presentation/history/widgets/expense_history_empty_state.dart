@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/widgets/empty_state.dart';
 
-/// Beautiful contextual empty states for the history screen.
+/// Contextual empty states for the history screen.
 ///
 /// Handles three cases:
 /// * No expenses at all (encourages adding the first expense)
 /// * No search results
 /// * No filtered results
 class ExpenseHistoryEmptyState extends StatelessWidget {
-  /// Whether there are any expenses at all in the database.
+  /// Whether there are any expenses at all in the current scope.
   final bool hasAnyExpenses;
 
   /// Whether there is an active search query.
@@ -20,8 +20,6 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
 
   final VoidCallback? onAddFirst;
   final VoidCallback? onClearFilters;
-
-  bool get _hasSearchOrFilter => hasSearchQuery || hasActiveFilters;
 
   const ExpenseHistoryEmptyState({
     super.key,
@@ -34,94 +32,44 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final String title;
-    final String subtitle;
-    final IconData icon;
-    final String? actionLabel;
-    final VoidCallback? action;
-
     if (!hasAnyExpenses) {
-      title = 'No expenses yet';
-      subtitle = 'Add your first expense to get started';
-      icon = Icons.receipt_long;
-      actionLabel = 'Add Your First Expense';
-      action = onAddFirst;
-    } else if (hasSearchQuery && !hasActiveFilters) {
-      title = 'No search results';
-      subtitle = 'Try a different search term';
-      icon = Icons.search_off;
-      actionLabel = 'Clear Search';
-      action = onClearFilters;
-    } else if (_hasSearchOrFilter) {
-      title = 'No filtered results';
-      subtitle = 'Try adjusting your search or filters';
-      icon = Icons.filter_alt_off;
-      actionLabel = 'Clear Filters';
-      action = onClearFilters;
-    } else {
-      title = 'Nothing to show';
-      subtitle = 'Your expenses will appear here';
-      icon = Icons.receipt_long;
-      actionLabel = null;
-      action = null;
+      return EmptyState(
+        icon: Icons.receipt_long_rounded,
+        title: 'No expenses yet',
+        message:
+            'Record what you spend and it will show up here, grouped '
+            'by day.',
+        actionLabel: 'Add Your First Expense',
+        actionIcon: Icons.add_rounded,
+        onAction: onAddFirst,
+      );
     }
-
-    return Center(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.xl),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.5,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 48, color: theme.colorScheme.primary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 280),
-                child: Text(
-                  subtitle,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              if (action != null && actionLabel != null) ...[
-                const SizedBox(height: AppSpacing.lg),
-                FilledButton.icon(
-                  key: Key('emptyStateAction_$actionLabel'),
-                  onPressed: action,
-                  icon: Icon(
-                    actionLabel == 'Add Your First Expense'
-                        ? Icons.add_rounded
-                        : Icons.clear_all_rounded,
-                    size: 18,
-                  ),
-                  label: Text(actionLabel),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    if (hasSearchQuery && !hasActiveFilters) {
+      return EmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'No search results',
+        message:
+            'Nothing matches that search. Try a different word, or '
+            'search by category or tag.',
+        actionLabel: 'Clear Search',
+        actionIcon: Icons.clear_all_rounded,
+        onAction: onClearFilters,
+      );
+    }
+    if (hasSearchQuery || hasActiveFilters) {
+      return EmptyState(
+        icon: Icons.filter_alt_off_rounded,
+        title: 'No filtered results',
+        message: 'No expenses match the current filters.',
+        actionLabel: 'Clear Filters',
+        actionIcon: Icons.clear_all_rounded,
+        onAction: onClearFilters,
+      );
+    }
+    return const EmptyState(
+      icon: Icons.receipt_long_rounded,
+      title: 'Nothing to show',
+      message: 'Your expenses will appear here.',
     );
   }
 }

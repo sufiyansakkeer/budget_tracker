@@ -18,11 +18,9 @@ class ExpenseTimePicker extends StatelessWidget {
     final picked = await showTimePicker(
       context: context,
       initialTime: time ?? TimeOfDay.now(),
-      helpText: 'Select expense time',
+      helpText: 'Expense time',
     );
-    if (picked != null) {
-      onChanged(picked);
-    }
+    if (picked != null) onChanged(picked);
   }
 
   @override
@@ -34,19 +32,25 @@ class ExpenseTimePicker extends StatelessWidget {
             'h:mm a',
           ).format(DateTime(2000, 1, 1, time!.hour, time!.minute));
 
-    return InkWell(
-      key: const Key('expenseTimePicker'),
-      onTap: () => _pick(context),
-      borderRadius: AppSpacing.borderRadiusMd,
-      child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'Time',
-          prefixIcon: Icon(Icons.access_time),
-        ),
-        child: Text(
-          display,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: time == null ? FontWeight.w400 : FontWeight.w600,
+    return Semantics(
+      button: true,
+      label: 'Time, $display',
+      child: ExcludeSemantics(
+        child: InkWell(
+          key: const Key('expenseTimePicker'),
+          onTap: () => _pick(context),
+          borderRadius: AppSpacing.borderRadiusMd,
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Time',
+              prefixIcon: Icon(Icons.access_time_rounded),
+            ),
+            child: Text(
+              display,
+              style: theme.textTheme.bodyLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
       ),

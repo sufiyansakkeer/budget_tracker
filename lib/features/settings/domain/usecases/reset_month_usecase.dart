@@ -109,7 +109,7 @@ class ResetMonthUseCase {
             .insert(
               BudgetsCompanion.insert(
                 id: newId,
-                name: 'Monthly Budget',
+                name: 'New Budget',
                 monthlyAmount: 0,
                 remainingAmount: 0,
                 currency: 'INR',

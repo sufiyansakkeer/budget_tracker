@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../domain/entities/app_settings.dart';
+import '../../domain/entities/color_palette_entity.dart';
 import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/theme_mode_entity.dart';
@@ -12,6 +13,7 @@ import 'settings_local_datasource.dart';
 class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
   static const String _firstLaunchKey = 'isFirstLaunch';
   static const String _themeKey = 'themeMode';
+  static const String _paletteKey = 'colorPalette';
   static const String _currencyCodeKey = 'currencyCode';
   static const String _currencySymbolKey = 'currencySymbol';
   static const String _biometricKey = 'biometricEnabled';
@@ -40,6 +42,7 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
   @override
   Future<AppSettings> loadSettings() async {
     final theme = AppThemeMode.fromString(await _get(_themeKey));
+    final palette = ColorPalette.fromString(await _get(_paletteKey));
     final currencyCode = await _get(_currencyCodeKey) ?? 'INR';
     final currency = currencyByCode(currencyCode);
     final notifications = NotificationSettings(
@@ -68,6 +71,7 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
 
     return AppSettings(
       themeMode: theme,
+      colorPalette: palette,
       currencyCode: currency.code,
       currencySymbol: currency.symbol,
       notifications: notifications,
@@ -79,6 +83,11 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
   @override
   Future<void> setThemeMode(AppThemeMode mode) async {
     await _set(_themeKey, mode.name);
+  }
+
+  @override
+  Future<void> setPalette(ColorPalette palette) async {
+    await _set(_paletteKey, palette.name);
   }
 
   @override

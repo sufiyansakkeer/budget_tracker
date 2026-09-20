@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
+import 'quick_filter_chips.dart';
 
-/// Displays the currently active filters as chips with remove actions.
+/// Displays the currently active filters as removable chips.
 class ActiveFilterChips extends StatelessWidget {
   final ExpenseHistoryFilter filter;
   final List<ExpenseCategory> categories;
@@ -20,14 +22,11 @@ class ActiveFilterChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chips = <Widget>[];
+    final dateFmt = DateFormat('d MMM');
 
     if (filter.categoryId != null) {
-      final category = categories
-          .where((c) => c.id == filter.categoryId)
-          .toList();
-      final name = category.isNotEmpty
-          ? category.first.name
-          : filter.categoryId!;
+      final match = categories.where((c) => c.id == filter.categoryId);
+      final name = match.isNotEmpty ? match.first.name : filter.categoryId!;
       chips.add(
         _chip(
           label: name,
@@ -36,24 +35,32 @@ class ActiveFilterChips extends StatelessWidget {
       );
     }
 
-    if (filter.dateFrom != null) {
+    final preset = QuickDatePreset.of(filter);
+    if (preset != null) {
       chips.add(
         _chip(
-          label:
-              'From ${filter.dateFrom!.day}/${filter.dateFrom!.month}/${filter.dateFrom!.year}',
-          onDeleted: () => onChanged(filter.copyWithDateFrom(null)),
+          label: preset.label,
+          onDeleted: () =>
+              onChanged(filter.copyWithDateFrom(null).copyWithDateTo(null)),
         ),
       );
-    }
-
-    if (filter.dateTo != null) {
-      chips.add(
-        _chip(
-          label:
-              'To ${filter.dateTo!.day}/${filter.dateTo!.month}/${filter.dateTo!.year}',
-          onDeleted: () => onChanged(filter.copyWithDateTo(null)),
-        ),
-      );
+    } else {
+      if (filter.dateFrom != null) {
+        chips.add(
+          _chip(
+            label: 'From ${dateFmt.format(filter.dateFrom!)}',
+            onDeleted: () => onChanged(filter.copyWithDateFrom(null)),
+          ),
+        );
+      }
+      if (filter.dateTo != null) {
+        chips.add(
+          _chip(
+            label: 'To ${dateFmt.format(filter.dateTo!)}',
+            onDeleted: () => onChanged(filter.copyWithDateTo(null)),
+          ),
+        );
+      }
     }
 
     if (filter.minAmount != null) {
@@ -77,7 +84,7 @@ class ActiveFilterChips extends StatelessWidget {
     for (final tag in filter.tags) {
       chips.add(
         _chip(
-          label: tag,
+          label: '#$tag',
           onDeleted: () => onChanged(filter.copyWithoutTag(tag)),
         ),
       );
@@ -86,22 +93,26 @@ class ActiveFilterChips extends StatelessWidget {
     if (filter.receiptOnly) {
       chips.add(
         _chip(
-          label: 'Receipt',
+          label: 'Has receipt',
           onDeleted: () => onChanged(filter.copyWithReceiptOnly(false)),
         ),
       );
     }
 
-    if (chips.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (chips.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.xs,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.xs,
       ),
-      child: Wrap(spacing: 8, runSpacing: 4, children: chips),
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.xs,
+        children: chips,
+      ),
     );
   }
 
@@ -110,6 +121,7 @@ class ActiveFilterChips extends StatelessWidget {
       key: ValueKey('activeFilter_$label'),
       label: Text(label),
       onDeleted: onDeleted,
+      deleteIconColor: null,
       deleteButtonTooltipMessage: 'Remove $label filter',
       visualDensity: VisualDensity.compact,
     );

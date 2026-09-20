@@ -4,6 +4,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../../settings/domain/services/notification_service.dart';
 import '../entities/bill_entity.dart';
 import '../repository/bill_repository.dart';
 
@@ -85,6 +86,8 @@ class BillReminderService {
       channelId,
       channelName,
       channelDescription: channelDescription,
+      icon: NotificationService.notificationIcon,
+      color: NotificationService.notificationColor,
       importance: Importance.high,
       priority: Priority.high,
     );

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 
 class SummaryCard extends StatelessWidget {
@@ -36,7 +35,7 @@ class SummaryCard extends StatelessWidget {
         color: cardColor,
         borderRadius: AppSpacing.borderRadiusLg,
         border: isHighlighted
-            ? Border.all(color: AppColors.primary, width: 2)
+            ? Border.all(color: theme.colorScheme.secondary, width: 2)
             : null,
       ),
       child: Semantics(
@@ -47,7 +46,9 @@ class SummaryCard extends StatelessWidget {
             if (icon != null) ...[
               Icon(
                 icon,
-                color: isHighlighted ? AppColors.primary : valueColorValue,
+                color: isHighlighted
+                    ? theme.colorScheme.secondary
+                    : valueColorValue,
                 size: 24,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -84,7 +85,7 @@ class SummaryCard extends StatelessWidget {
                       decimalDigits: 0,
                     ).format(value),
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      color: AppColors.primary,
+                      color: theme.colorScheme.secondary,
                       fontWeight: FontWeight.bold,
                     ),
                   );

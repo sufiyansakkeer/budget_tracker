@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../domain/entities/color_palette_entity.dart';
 import '../../../domain/entities/theme_mode_entity.dart';
 
 /// Base class for all theme events.
@@ -23,4 +24,14 @@ class ThemeChanged extends ThemeEvent {
 
   @override
   List<Object?> get props => [mode];
+}
+
+/// Emitted when the user selects a new color palette.
+class ColorPaletteChanged extends ThemeEvent {
+  final ColorPalette palette;
+
+  const ColorPaletteChanged(this.palette);
+
+  @override
+  List<Object?> get props => [palette];
 }

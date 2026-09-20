@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:intl/intl.dart';
+
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../expenses/presentation/widgets/form_field_error.dart';
+import 'onboarding_step_layout.dart';
 
 /// A single-date picker step used for both the budget start and end date
-/// during onboarding. Renders a prominent date tile and a date picker.
-class BudgetDateStepWidget extends StatefulWidget {
+/// during onboarding.
+class BudgetDateStepWidget extends StatelessWidget {
   final String title;
   final String subtitle;
   final DateTime date;
@@ -24,179 +28,89 @@ class BudgetDateStepWidget extends StatefulWidget {
     required this.onBack,
   });
 
-  @override
-  State<BudgetDateStepWidget> createState() => _BudgetDateStepWidgetState();
-}
-
-class _BudgetDateStepWidgetState extends State<BudgetDateStepWidget> {
-  Future<void> _pickDate() async {
+  Future<void> _pickDate(BuildContext context) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: widget.date,
+      initialDate: date,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
-    if (picked != null) {
-      widget.onDateChanged(picked);
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final day = date.day.toString().padLeft(2, '0');
-    return '$day ${months[date.month - 1]} ${date.year}';
+    if (picked != null) onDateChanged(picked);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isToday = DateTime(date.year, date.month, date.day) == today;
+    final hasError = errorMessage != null;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+    return OnboardingStepLayout(
+      title: title,
+      subtitle: subtitle,
+      onBack: onBack,
+      footer: OnboardingContinueButton(
+        buttonKey: const Key('dateStepContinueButton'),
+        onPressed: hasError ? null : onContinue,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            onPressed: widget.onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
-            padding: EdgeInsets.zero,
-            alignment: Alignment.centerLeft,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            widget.title,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            widget.subtitle,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(
-                color: widget.errorMessage != null
-                    ? AppColors.dangerRed
-                    : AppColors.primary.withValues(alpha: 0.2),
-                width: 1.5,
-              ),
-            ),
-            elevation: 2,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: _pickDate,
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
+          Semantics(
+            button: true,
+            label:
+                'Selected date ${DateFormat('d MMMM yyyy').format(date)}. '
+                'Tap to change',
+            child: ExcludeSemantics(
+              child: AppCard(
+                onTap: () => _pickDate(context),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.calendar_month_rounded,
-                        color: AppColors.primary,
-                      ),
+                    IconTile(
+                      icon: Icons.calendar_month_rounded,
+                      color: hasError
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.primary,
                     ),
-                    const SizedBox(width: AppSpacing.md),
+                    const SizedBox(width: AppSpacing.smd),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Selected date',
+                            DateFormat('EEEE').format(date),
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.textTheme.bodySmall?.color
-                                  ?.withValues(alpha: 0.6),
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.xs),
                           Text(
-                            _formatDate(widget.date),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            DateFormat('d MMMM yyyy').format(date),
+                            style: theme.textTheme.titleMedium,
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.edit_calendar_rounded),
+                    if (isToday)
+                      Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.sm),
+                        child: Text(
+                          'Today',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    Icon(
+                      Icons.edit_calendar_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-          if (widget.errorMessage != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  color: AppColors.dangerRed,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    widget.errorMessage!,
-                    style: const TextStyle(
-                      color: AppColors.dangerRed,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              key: const Key('dateStepContinueButton'),
-              onPressed: widget.onContinue,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 4,
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Continue',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
+          if (hasError) FormFieldError(message: errorMessage!),
         ],
       ),
     );

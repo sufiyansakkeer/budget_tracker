@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../bloc/onboarding_bloc.dart';
 import '../bloc/onboarding_state.dart';
+import 'onboarding_step_layout.dart';
 
 class CurrencyStepWidget extends StatefulWidget {
   final CurrencyItem selectedCurrency;
@@ -24,7 +25,7 @@ class CurrencyStepWidget extends StatefulWidget {
 
 class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
   final TextEditingController _searchController = TextEditingController();
-  List<CurrencyItem> _filteredCurrencies = availableCurrencies;
+  List<CurrencyItem> _filtered = availableCurrencies;
 
   @override
   void initState() {
@@ -35,15 +36,13 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
   void _onSearchChanged() {
     final query = _searchController.text.trim().toLowerCase();
     setState(() {
-      if (query.isEmpty) {
-        _filteredCurrencies = availableCurrencies;
-      } else {
-        _filteredCurrencies = availableCurrencies.where((c) {
-          return c.code.toLowerCase().contains(query) ||
-              c.name.toLowerCase().contains(query) ||
-              c.symbol.contains(query);
-        }).toList();
-      }
+      _filtered = query.isEmpty
+          ? availableCurrencies
+          : availableCurrencies.where((c) {
+              return c.code.toLowerCase().contains(query) ||
+                  c.name.toLowerCase().contains(query) ||
+                  c.symbol.contains(query);
+            }).toList();
     });
   }
 
@@ -57,171 +56,88 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+    return OnboardingStepLayout(
+      title: 'Which currency do you use?',
+      subtitle: 'Amounts in this budget are shown in this currency.',
+      onBack: widget.onBack,
+      scrollable: false,
+      footer: OnboardingContinueButton(onPressed: widget.onContinue),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            onPressed: widget.onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
-            padding: EdgeInsets.zero,
-            alignment: Alignment.centerLeft,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'Select your currency',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Choose the primary currency for your budget tracking.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
           TextField(
             controller: _searchController,
+            textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'Search currency (e.g. INR, USD, Euro)',
+              hintText: 'Search by code or name',
               prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear_rounded),
-                      onPressed: () {
-                        _searchController.clear();
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: theme.cardColor,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
+              isDense: true,
+              suffixIcon: _searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: _searchController.clear,
+                    ),
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.sm),
           Expanded(
-            child: ListView.separated(
-              itemCount: _filteredCurrencies.length,
-              separatorBuilder: (context, index) =>
-                  const SizedBox(height: AppSpacing.xs),
-              itemBuilder: (context, index) {
-                final currency = _filteredCurrencies[index];
-                final isSelected =
-                    currency.code == widget.selectedCurrency.code;
-
-                return InkWell(
-                  onTap: () => widget.onSelected(currency),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.md,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary.withValues(alpha: 0.12)
-                          : theme.cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : Colors.transparent,
-                        width: 1.5,
+            child: _filtered.isEmpty
+                ? Center(
+                    child: Text(
+                      'No currency matches "${_searchController.text.trim()}"',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    itemCount: _filtered.length,
+                    itemBuilder: (context, index) {
+                      final currency = _filtered[index];
+                      final isSelected =
+                          currency.code == widget.selectedCurrency.code;
+                      return ListTile(
+                        onTap: () => widget.onSelected(currency),
+                        selected: isSelected,
+                        selectedTileColor: theme.colorScheme.primaryContainer
+                            .withValues(alpha: 0.5),
+                        leading: Container(
+                          width: AppSizes.avatarMd,
+                          height: AppSizes.avatarMd,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.primary
-                                : theme.colorScheme.surface,
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.surfaceContainer,
                             shape: BoxShape.circle,
                           ),
                           child: Text(
                             currency.symbol,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                            style: theme.textTheme.titleMedium?.copyWith(
                               color: isSelected
-                                  ? Colors.white
-                                  : AppColors.primary,
+                                  ? theme.colorScheme.onPrimary
+                                  : theme.colorScheme.onSurface,
                             ),
                           ),
                         ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                currency.name,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                currency.code,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.textTheme.bodySmall?.color
-                                      ?.withValues(alpha: 0.6),
-                                ),
-                              ),
-                            ],
-                          ),
+                        title: Text(
+                          currency.name,
+                          style: theme.textTheme.titleSmall,
                         ),
-                        if (isSelected)
-                          const Icon(
-                            Icons.check_circle_rounded,
-                            color: AppColors.primary,
-                            size: 24,
-                          ),
-                      ],
-                    ),
+                        subtitle: Text(currency.code),
+                        trailing: isSelected
+                            ? Icon(
+                                Icons.check_circle_rounded,
+                                color: theme.colorScheme.primary,
+                              )
+                            : null,
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: widget.onContinue,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 4,
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Continue',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );

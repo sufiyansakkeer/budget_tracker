@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 import 'core/currency/currency_provider.dart';
 import 'core/notifications/notification_bloc.dart';
+import 'core/constants/app_motion.dart';
 import 'core/di/injection.dart' as di;
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -135,21 +137,44 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
       ..addListener(_onCurrencyChanged);
     _appUpdateBloc = di.getIt<AppUpdateBloc>();
 
-    // Listen for widget clicks while app is in background/foreground (warm start)
+    // Listen for widget clicks while app is in background/foreground (warm start).
+    //
+    // During a cold start the GoRouter `redirect` already consumes the pending
+    // widget route and navigates via its own resolution cycle.  The listener
+    // must NOT also push the same route, otherwise two Page entries with the
+    // same key land in the Navigator → duplicate-page-key assertion.
+    //
+    // Strategy: try to consume the pending route.  If it was already consumed
+    // by the redirect (returns null) we do nothing.  If it is still pending
+    // (returns non-null) we own the navigation and push/go directly.
     _widgetClickedSubscription = HomeWidget.widgetClicked.listen((Uri? uri) {
       if (uri != null) {
         final route = resolveWidgetUriToRoute(uri);
-        if (route != null) {
+        if (route == null) return;
+
+        final lockBloc = di.getIt<AppLockBloc>();
+        if (lockBloc.state.status != AppLockStatus.unlocked) {
+          // App is locked — stash the route for later; the lock screen will
+          // re-trigger navigation once unlocked.
           setPendingWidgetRoute(route);
-          final lockBloc = di.getIt<AppLockBloc>();
-          if (lockBloc.state.status == AppLockStatus.unlocked) {
-            consumePendingWidgetRoute();
-            if (route == widgetAddExpensePath) {
-              AppRouter.router.push(widgetAddExpensePath);
-            } else {
-              AppRouter.router.go(route);
-            }
-          }
+          return;
+        }
+
+        // Stash the route so consumePendingWidgetRoute can pick it up.
+        setPendingWidgetRoute(route);
+
+        // Try to consume the pending route.
+        // • Cold start: the redirect already consumed it → returns null →
+        //   we must NOT push again (the redirect navigated).
+        // • Warm start: redirect never ran → returns non-null →
+        //   we own the navigation.
+        final pending = consumePendingWidgetRoute();
+        if (pending == null) return;
+
+        if (route == widgetAddExpensePath) {
+          AppRouter.router.push(widgetAddExpensePath);
+        } else {
+          AppRouter.router.go(route);
         }
       }
     });
@@ -176,23 +201,35 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AppLockBloc>.value(
-      value: di.getIt<AppLockBloc>(),
-      child: BiometricGateScreen(
-        child: BlocProvider<AppUpdateBloc>.value(
-          value: _appUpdateBloc,
-          child: MultiProvider(
-            providers: [ChangeNotifierProvider.value(value: _currencyProvider)],
-            child: BlocProvider<ThemeBloc>.value(
-              value: _themeBloc,
+    // ThemeBloc sits above the biometric gate so the lock screen is themed
+    // with the same palette and brightness as the rest of the app.
+    return BlocProvider<ThemeBloc>.value(
+      value: _themeBloc,
+      child: BlocProvider<AppLockBloc>.value(
+        value: di.getIt<AppLockBloc>(),
+        child: BiometricGateScreen(
+          child: BlocProvider<AppUpdateBloc>.value(
+            value: _appUpdateBloc,
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider.value(value: _currencyProvider),
+              ],
               child: BlocBuilder<ThemeBloc, ThemeState>(
                 builder: (context, state) {
                   return MaterialApp.router(
                     title: 'Monivo',
                     debugShowCheckedModeBanner: false,
-                    theme: AppTheme.lightTheme,
-                    darkTheme: AppTheme.darkTheme,
+                    theme: AppTheme.buildLightTheme(state.palette),
+                    darkTheme: AppTheme.buildDarkTheme(state.palette),
                     themeMode: state.mode.toThemeMode(),
+                    // Light ↔ dark and palette switches lerp every colour
+                    // in place (AppColorTokens implements lerp) instead of
+                    // flashing to the new theme; no restart needed.
+                    themeAnimationDuration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.medium,
+                    ),
+                    themeAnimationCurve: AppMotion.emphasizedCurve,
                     routerConfig: AppRouter.router,
                     // The builder places a BlocListener *inside* the
                     // MaterialApp tree.  The context here is below
@@ -202,21 +239,31 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
                     // valid Navigator context through the root navigator key
                     // registered on GoRouter.
                     builder: (context, child) {
-                      return BlocListener<AppUpdateBloc, AppUpdateState>(
-                        listenWhen: (previous, current) {
-                          // Only listen for the *first* time an update is
-                          // available after launch; ignore subsequent state
-                          // transitions (e.g. up-to-date after manual check).
-                          if (current is! AppUpdateAvailable) return false;
-                          if (previous is AppUpdateAvailable) return false;
-                          return true;
-                        },
-                        listener: (context, state) {
-                          if (state is AppUpdateAvailable) {
-                            UpdateDialogService.show(state.result);
-                          }
-                        },
-                        child: child ?? const SizedBox.shrink(),
+                      // Most screens scroll edge-to-edge without an AppBar, so
+                      // nothing else claims the status bar. Annotating the
+                      // whole app keeps the system icons readable against the
+                      // active theme; an AppBar paints over this region and
+                      // still wins where one exists.
+                      return AnnotatedRegion<SystemUiOverlayStyle>(
+                        value: AppTheme.systemOverlayStyle(
+                          Theme.of(context).brightness,
+                        ),
+                        child: BlocListener<AppUpdateBloc, AppUpdateState>(
+                          listenWhen: (previous, current) {
+                            // Only listen for the *first* time an update is
+                            // available after launch; ignore subsequent state
+                            // transitions (e.g. up-to-date after manual check).
+                            if (current is! AppUpdateAvailable) return false;
+                            if (previous is AppUpdateAvailable) return false;
+                            return true;
+                          },
+                          listener: (context, state) {
+                            if (state is AppUpdateAvailable) {
+                              UpdateDialogService.show(state.result);
+                            }
+                          },
+                          child: child ?? const SizedBox.shrink(),
+                        ),
                       );
                     },
                   );

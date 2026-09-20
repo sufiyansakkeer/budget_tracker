@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../di/injection.dart';
 import '../../features/app_update/presentation/widgets/update_dialog_service.dart';
+import 'app_page_transitions.dart';
 import 'app_shell.dart';
 import '../../features/budget/presentation/pages/budget_details_screen.dart';
 import '../../features/budget/presentation/pages/budget_form_screen.dart';
@@ -80,24 +81,42 @@ class AppRouter {
       GoRoute(
         path: budgetsPath,
         name: 'budgets',
-        builder: (context, state) => const BudgetListScreen(),
+        pageBuilder: (context, state) => AppPageTransitions.page(
+          context: context,
+          state: state,
+          transition: AppTransition.sharedAxisHorizontal,
+          child: const BudgetListScreen(),
+        ),
         routes: [
           GoRoute(
             path: 'create',
             name: 'createBudget',
-            builder: (context, state) => const BudgetFormScreen(),
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.fadeScale,
+              child: const BudgetFormScreen(),
+            ),
           ),
           GoRoute(
             path: ':id',
             name: 'budgetDetails',
-            builder: (context, state) =>
-                BudgetDetailsScreen(budgetId: state.pathParameters['id']!),
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.sharedAxisHorizontal,
+              child: BudgetDetailsScreen(budgetId: state.pathParameters['id']!),
+            ),
             routes: [
               GoRoute(
                 path: 'edit',
                 name: 'editBudget',
-                builder: (context, state) =>
-                    BudgetFormScreen(budgetId: state.pathParameters['id']),
+                pageBuilder: (context, state) => AppPageTransitions.page(
+                  context: context,
+                  state: state,
+                  transition: AppTransition.fadeScale,
+                  child: BudgetFormScreen(budgetId: state.pathParameters['id']),
+                ),
               ),
             ],
           ),
@@ -107,42 +126,69 @@ class AppRouter {
       GoRoute(
         path: billsPath,
         name: 'bills',
-        builder: (context, state) => BlocProvider(
-          create: (context) => getIt<BillBloc>(),
-          child: const BillsListScreen(),
+        pageBuilder: (context, state) => AppPageTransitions.page(
+          context: context,
+          state: state,
+          transition: AppTransition.sharedAxisHorizontal,
+          child: BlocProvider(
+            create: (context) => getIt<BillBloc>(),
+            child: const BillsListScreen(),
+          ),
         ),
         routes: [
           GoRoute(
             path: 'add',
             name: 'addBill',
-            builder: (context, state) => BlocProvider(
-              create: (context) => getIt<BillBloc>(),
-              child: const BillFormScreen(),
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.fadeScale,
+              child: BlocProvider(
+                create: (context) => getIt<BillBloc>(),
+                child: const BillFormScreen(),
+              ),
             ),
           ),
           GoRoute(
             path: 'edit/:id',
             name: 'editBill',
-            builder: (context, state) => BlocProvider(
-              create: (context) => getIt<BillBloc>(),
-              child: BillFormScreen(billId: state.pathParameters['id']),
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.fadeScale,
+              child: BlocProvider(
+                create: (context) => getIt<BillBloc>(),
+                child: BillFormScreen(billId: state.pathParameters['id']),
+              ),
             ),
           ),
           GoRoute(
             path: ':id',
             name: 'billDetails',
-            builder: (context, state) => BlocProvider(
-              create: (context) => getIt<BillBloc>(),
-              child: BillDetailsScreen(billId: state.pathParameters['id']!),
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.sharedAxisHorizontal,
+              child: BlocProvider(
+                create: (context) => getIt<BillBloc>(),
+                child: BillDetailsScreen(billId: state.pathParameters['id']!),
+              ),
             ),
           ),
         ],
       ),
 
       // ── Shell route (bottom-navigation tabs) ─────────────────────────
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
+        // Branches stay mounted (like an IndexedStack) but cross-fade when
+        // the user switches tabs.
+        navigatorContainerBuilder: (context, navigationShell, children) =>
+            FadeThroughBranchContainer(
+              currentIndex: navigationShell.currentIndex,
+              children: children,
+            ),
         branches: [
           // Home / Dashboard
           StatefulShellBranch(
@@ -177,28 +223,43 @@ class AppRouter {
                   GoRoute(
                     path: 'add',
                     name: 'addExpense',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<ExpenseBloc>(),
-                      child: const ExpenseFormScreen(),
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.fadeScale,
+                      child: BlocProvider(
+                        create: (context) => getIt<ExpenseBloc>(),
+                        child: const ExpenseFormScreen(),
+                      ),
                     ),
                   ),
                   GoRoute(
                     path: 'edit/:id',
                     name: 'editExpense',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<ExpenseBloc>(),
-                      child: ExpenseFormScreen(
-                        expenseId: state.pathParameters['id'],
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.fadeScale,
+                      child: BlocProvider(
+                        create: (context) => getIt<ExpenseBloc>(),
+                        child: ExpenseFormScreen(
+                          expenseId: state.pathParameters['id'],
+                        ),
                       ),
                     ),
                   ),
                   GoRoute(
                     path: ':id',
                     name: 'expenseDetails',
-                    builder: (context, state) => BlocProvider(
-                      create: (context) => getIt<ExpenseBloc>(),
-                      child: ExpenseDetailsScreen(
-                        expenseId: state.pathParameters['id']!,
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.sharedAxisHorizontal,
+                      child: BlocProvider(
+                        create: (context) => getIt<ExpenseBloc>(),
+                        child: ExpenseDetailsScreen(
+                          expenseId: state.pathParameters['id']!,
+                        ),
                       ),
                     ),
                   ),

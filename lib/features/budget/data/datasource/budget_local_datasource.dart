@@ -54,4 +54,8 @@ abstract class BudgetLocalDataSource {
     required DateTime startDate,
     required DateTime endDate,
   });
+
+  /// Runs [action] inside a database transaction. If [action] throws, all
+  /// changes within are rolled back.
+  Future<T> transaction<T>(Future<T> Function() action);
 }

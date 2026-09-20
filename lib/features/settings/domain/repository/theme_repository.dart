@@ -1,3 +1,4 @@
+import '../entities/color_palette_entity.dart';
 import '../entities/theme_mode_entity.dart';
 import 'settings_repository.dart';
 
@@ -20,5 +21,16 @@ class ThemeRepository {
   /// Persists the selected [AppThemeMode] locally.
   Future<void> saveTheme(AppThemeMode mode) async {
     await _settingsRepository.setThemeMode(mode);
+  }
+
+  /// Loads the currently persisted [ColorPalette].
+  Future<ColorPalette> getPalette() async {
+    final settings = await _settingsRepository.loadSettings();
+    return settings.colorPalette;
+  }
+
+  /// Persists the selected [ColorPalette] locally.
+  Future<void> savePalette(ColorPalette palette) async {
+    await _settingsRepository.setPalette(palette);
   }
 }

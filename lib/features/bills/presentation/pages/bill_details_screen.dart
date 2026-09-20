@@ -4,21 +4,26 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
-import '../../../../core/widgets/status_chip.dart';
-import '../../domain/entities/bill_entity.dart';
-import '../../domain/entities/bill_enums.dart';
-import '../../domain/repository/bill_repository.dart';
+import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../../expenses/presentation/bloc/expense_bloc.dart';
 import '../../../expenses/presentation/bloc/expense_event.dart';
-import '../../../../core/di/injection.dart';
+import '../../domain/entities/bill_entity.dart';
+import '../../domain/entities/bill_enums.dart';
+import '../../domain/repository/bill_repository.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
+import 'bill_widgets.dart';
+import '../../../../core/constants/app_motion.dart';
 
 /// Detailed view of a single bill.
 class BillDetailsScreen extends StatefulWidget {
@@ -31,7 +36,9 @@ class BillDetailsScreen extends StatefulWidget {
 }
 
 class _BillDetailsScreenState extends State<BillDetailsScreen> {
-  List<BillPaymentRecord> _payments = [];
+  List<BillPaymentRecord> _payments = const [];
+  bool _paymentsFailed = false;
+  bool _deleting = false;
 
   @override
   void initState() {
@@ -42,19 +49,128 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
 
   Future<void> _loadPayments() async {
     try {
-      final repo = getIt<BillRepository>();
-      final payments = await repo.getBillPayments(widget.billId);
+      final payments = await getIt<BillRepository>().getBillPayments(
+        widget.billId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _payments = payments;
+        _paymentsFailed = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _paymentsFailed = true);
+    }
+  }
+
+  Future<void> _markPaid(BillEntity bill) async {
+    final confirmed = await ConfirmationDialog.show(
+      context: context,
+      title: 'Mark as paid?',
+      message: bill.isRecurring
+          ? '"${bill.title}" will be marked paid and its due date moves to '
+                'the next ${bill.recurrenceType.label.toLowerCase()} '
+                'occurrence.'
+          : '"${bill.title}" will be marked as paid.',
+      confirmLabel: 'Mark paid',
+      icon: Icons.check_circle_rounded,
+    );
+    if (confirmed && mounted) {
+      context.read<BillBloc>().add(BillMarkPaid(bill.id));
+    }
+  }
+
+  Future<void> _markPaidAndAddExpense(BillEntity bill) async {
+    final confirmed = await ConfirmationDialog.show(
+      context: context,
+      title: 'Mark paid & add expense?',
+      message:
+          '"${bill.title}" will be marked paid and an expense of '
+          '${CurrencyFormatter.format(bill.amount, code: bill.currency)} '
+          'will be recorded in your active budget.',
+      confirmLabel: 'Confirm',
+      icon: Icons.receipt_long_rounded,
+    );
+    if (!confirmed || !mounted) return;
+
+    context.read<BillBloc>().add(BillMarkPaid(bill.id));
+
+    // Create the corresponding expense through the existing expense system.
+    final now = DateTime.now();
+    final expense = ExpenseEntity(
+      id: const Uuid().v4(),
+      budgetId: '', // Resolved to the active budget by ExpenseBloc.
+      amount: bill.amount,
+      categoryId: 'bills',
+      note: 'Bill: ${bill.title}',
+      date: now,
+      time: now,
+      createdAt: now,
+      updatedAt: now,
+    );
+    try {
+      getIt<ExpenseBloc>().add(ExpenseCreate(expense));
       if (mounted) {
-        setState(() => _payments = payments);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Marked paid. Expense added to your active budget.',
+              ),
+            ),
+          );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Marked paid, but the expense couldn't be added. Add it from "
+                'Expenses.',
+              ),
+            ),
+          );
+      }
+    }
+  }
+
+  Future<void> _markUnpaid(BillEntity bill) async {
+    final confirmed = await ConfirmationDialog.show(
+      context: context,
+      title: 'Mark as unpaid?',
+      message: '"${bill.title}" will go back to unpaid.',
+      confirmLabel: 'Mark unpaid',
+      icon: Icons.undo_rounded,
+    );
+    if (confirmed && mounted) {
+      context.read<BillBloc>().add(BillMarkUnpaid(bill.id));
+    }
+  }
+
+  Future<void> _confirmDelete(BillEntity bill) async {
+    final confirmed = await ConfirmationDialog.show(
+      context: context,
+      title: 'Delete this bill?',
+      message:
+          '"${bill.title}" and its scheduled reminders will be removed. '
+          'Expenses you already recorded are kept.',
+      confirmLabel: 'Delete',
+      icon: Icons.delete_rounded,
+      isDestructive: true,
+    );
+    if (confirmed && mounted) {
+      setState(() => _deleting = true);
+      context.read<BillBloc>().add(BillDelete(bill.id));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bill Details'),
+        title: const Text('Bill'),
         actions: [
           BlocBuilder<BillBloc, BillState>(
             builder: (context, state) {
@@ -63,7 +179,9 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               return IconButton(
                 icon: const Icon(Icons.edit_outlined),
                 tooltip: 'Edit bill',
-                onPressed: () => context.push('/app/bills/edit/${bill.id}'),
+                onPressed: state.isBusy
+                    ? null
+                    : () => context.push('/app/bills/edit/${bill.id}'),
               );
             },
           ),
@@ -71,464 +189,417 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
       ),
       body: BlocConsumer<BillBloc, BillState>(
         listener: (context, state) {
-          if (state.status == BillBlocStatus.success &&
-              state.message?.contains('deleted') == true) {
+          if (state.status == BillBlocStatus.success) {
+            final wasDelete = _deleting;
+            context.read<BillBloc>().add(const BillClearMessage());
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
-              ..showSnackBar(const SnackBar(content: Text('Bill deleted')));
-            context.read<BillBloc>().add(const BillClearMessage());
-            context.pop();
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(
+                    state.message ?? (wasDelete ? 'Bill deleted' : 'Updated'),
+                  ),
+                ),
+              );
+            if (wasDelete) {
+              if (context.canPop()) context.pop();
+            } else {
+              _loadPayments();
+            }
           } else if (state.status == BillBlocStatus.error) {
+            setState(() => _deleting = false);
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
                   content: Text(state.message ?? 'Something went wrong'),
-                  backgroundColor: AppColors.dangerRed,
                 ),
               );
             context.read<BillBloc>().add(const BillClearMessage());
           }
         },
         builder: (context, state) {
+          final Widget child;
           if (state.status == BillBlocStatus.loading &&
               state.selectedBill == null) {
-            return const Center(child: CircularProgressIndicator());
+            child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
+          } else if (state.selectedBill == null) {
+            child = EmptyState(
+              key: const ValueKey('missing'),
+              icon: Icons.receipt_long_outlined,
+              title: 'Bill not found',
+              message: 'It may have been deleted.',
+              actionLabel: 'Back to bills',
+              actionIcon: Icons.arrow_back_rounded,
+              onAction: () =>
+                  context.canPop() ? context.pop() : context.go('/app/bills'),
+            );
+          } else {
+            child = _Details(
+              key: const ValueKey('details'),
+              bill: state.selectedBill!,
+              payments: _payments,
+              paymentsFailed: _paymentsFailed,
+              busy: state.isBusy,
+              onMarkPaid: () => _markPaid(state.selectedBill!),
+              onMarkPaidAndExpense: () =>
+                  _markPaidAndAddExpense(state.selectedBill!),
+              onMarkUnpaid: () => _markUnpaid(state.selectedBill!),
+              onDelete: () => _confirmDelete(state.selectedBill!),
+            );
           }
-
-          final bill = state.selectedBill;
-          if (bill == null) {
-            return const Center(child: Text('Bill not found'));
-          }
-
-          return _buildDetails(context, bill);
+          return AppStateSwitcher(child: child);
         },
       ),
     );
   }
+}
 
-  Widget _buildDetails(BuildContext context, BillEntity bill) {
+class _Details extends StatelessWidget {
+  final BillEntity bill;
+  final List<BillPaymentRecord> payments;
+  final bool paymentsFailed;
+  final bool busy;
+  final VoidCallback onMarkPaid;
+  final VoidCallback onMarkPaidAndExpense;
+  final VoidCallback onMarkUnpaid;
+  final VoidCallback onDelete;
+
+  const _Details({
+    super.key,
+    required this.bill,
+    required this.payments,
+    required this.paymentsFailed,
+    required this.busy,
+    required this.onMarkPaid,
+    required this.onMarkPaidAndExpense,
+    required this.onMarkUnpaid,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = context.appColors;
     final status = bill.status;
+    final color = BillVisuals.colorFor(context, status);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header card
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: status == BillStatus.paid
-                  ? LinearGradient(
-                      colors: [AppColors.successDark, AppColors.success],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : status == BillStatus.overdue
-                  ? LinearGradient(
-                      colors: [AppColors.errorDark, AppColors.error],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : AppColors.primaryGradient,
-              borderRadius: AppSpacing.borderRadiusLg,
-            ),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _iconForCategory(bill.category),
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  bill.title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  CurrencyFormatter.format(
-                    bill.amount,
-                    code: bill.currency,
-                    decimalDigits: 0,
-                  ),
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                _StatusBadge(status: status),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Info card
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Column(
+    return ListView(
+      padding: AppSpacing.pagePadding,
+      children: [
+        // Hero
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.mlg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  _infoRow(
-                    theme,
-                    Icons.category_outlined,
-                    'Category',
-                    bill.category.label,
+                  IconTile(
+                    icon: BillVisuals.iconFor(bill.category),
+                    color: color,
+                    size: AppSizes.avatarLg,
+                    animate: true,
                   ),
-                  _infoRow(
-                    theme,
-                    Icons.calendar_today_outlined,
-                    'Due Date',
-                    DateFormat('EEE, MMM d, yyyy').format(bill.dueDate),
-                  ),
-                  if (bill.dueTime != null)
-                    _infoRow(
-                      theme,
-                      Icons.access_time_rounded,
-                      'Due Time',
-                      TimeOfDay(
-                        hour: bill.dueTime!.hour,
-                        minute: bill.dueTime!.minute,
-                      ).format(context),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          bill.title,
+                          style: theme.textTheme.titleLarge,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: AppSpacing.xxs),
+                        Text(
+                          bill.category.label,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  if (bill.isRecurring)
-                    _infoRow(
-                      theme,
-                      Icons.repeat_rounded,
-                      'Recurrence',
-                      '${bill.recurrenceType.label}'
-                          '${bill.recurrenceInterval > 1 ? ' (every ${bill.recurrenceInterval})' : ''}',
-                    ),
-                  if (bill.reminderEnabled)
-                    _infoRow(
-                      theme,
-                      Icons.notifications_outlined,
-                      'Reminder',
-                      bill.reminderOffsetDays == 0
-                          ? 'On the due date'
-                          : '${bill.reminderOffsetDays} day${bill.reminderOffsetDays > 1 ? 's' : ''} before',
-                    ),
-                  if (bill.isPaid && bill.paidDate != null)
-                    _infoRow(
-                      theme,
-                      Icons.check_circle_outline,
-                      'Paid Date',
-                      DateFormat('EEE, MMM d, yyyy').format(bill.paidDate!),
-                    ),
-                  if (bill.note != null && bill.note!.isNotEmpty)
-                    _infoRow(theme, Icons.notes_rounded, 'Note', bill.note!),
-                  _infoRow(
-                    theme,
-                    Icons.add_circle_outline,
-                    'Created',
-                    DateFormat('MMM d, yyyy h:mm a').format(bill.createdAt),
                   ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Payment history (for recurring bills)
-          if (_payments.isNotEmpty) ...[
-            Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Payment History',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    ..._payments.map(
-                      (payment) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.check_circle_rounded,
-                              size: 16,
-                              color: AppColors.success,
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Text(
-                                DateFormat(
-                                  'MMM d, yyyy',
-                                ).format(payment.paidDate),
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ),
-                            Text(
-                              CurrencyFormatter.format(
-                                payment.amount,
-                                code: payment.currency,
-                                decimalDigits: 0,
-                              ),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.success,
-                              ),
-                            ),
-                          ],
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        CurrencyFormatter.format(
+                          bill.amount,
+                          code: bill.currency,
+                        ),
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  BillVisuals.chip(context, status),
+                ],
               ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-          ],
-
-          // Actions
-          if (!bill.isPaid) ...[
-            // Mark as Paid
-            FilledButton.icon(
-              onPressed: () => _markPaid(context, bill),
-              icon: const Icon(Icons.check_circle_outline_rounded),
-              label: const Text('Mark as Paid'),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-
-            // Mark Paid & Add Expense
-            OutlinedButton.icon(
-              onPressed: () => _markPaidAndAddExpense(context, bill),
-              icon: const Icon(Icons.receipt_long_rounded),
-              label: const Text('Mark Paid & Add Expense'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ] else ...[
-            // Mark as Unpaid
-            OutlinedButton.icon(
-              onPressed: () => _markUnpaid(context, bill),
-              icon: const Icon(Icons.undo_rounded),
-              label: const Text('Mark as Unpaid'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-
-          // Delete
-          OutlinedButton.icon(
-            onPressed: () => _confirmDelete(context, bill),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.dangerRed,
-              side: const BorderSide(color: AppColors.dangerRed),
-            ),
-            icon: const Icon(Icons.delete_outline_rounded),
-            label: const Text('Delete Bill'),
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                children: [
+                  Icon(
+                    BillVisuals.statusIcon(status),
+                    size: AppSizes.iconSm,
+                    color: color,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    BillVisuals.dueText(bill),
+                    style: theme.textTheme.bodyMedium?.copyWith(color: color),
+                  ),
+                ],
+              ),
+            ],
           ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // Facts
+        AppCard(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          child: Column(
+            children: [
+              _FactRow(
+                icon: Icons.calendar_today_outlined,
+                label: 'Due date',
+                value: DateFormat('EEE, d MMM yyyy').format(bill.dueDate),
+              ),
+              _FactRow(
+                icon: Icons.access_time_rounded,
+                label: 'Due time',
+                value: bill.dueTime == null
+                    ? '9:00 AM (default)'
+                    : TimeOfDay(
+                        hour: bill.dueTime!.hour,
+                        minute: bill.dueTime!.minute,
+                      ).format(context),
+              ),
+              _FactRow(
+                icon: Icons.repeat_rounded,
+                label: 'Repeats',
+                value: !bill.isRecurring
+                    ? 'One-time bill'
+                    : bill.recurrenceInterval > 1
+                    ? 'Every ${bill.recurrenceInterval} '
+                          '${bill.recurrenceType.label.toLowerCase().replaceAll('ly', 's')}'
+                    : bill.recurrenceType.label,
+              ),
+              _FactRow(
+                icon: Icons.notifications_outlined,
+                label: 'Reminder',
+                value: !bill.reminderEnabled
+                    ? 'Off'
+                    : bill.reminderOffsetDays == 0
+                    ? 'On the due date'
+                    : '${bill.reminderOffsetDays} '
+                          '${bill.reminderOffsetDays == 1 ? 'day' : 'days'} before',
+              ),
+              if (bill.isPaid && bill.paidDate != null)
+                _FactRow(
+                  icon: Icons.check_circle_outline_rounded,
+                  label: 'Paid on',
+                  value: DateFormat('EEE, d MMM yyyy').format(bill.paidDate!),
+                  valueColor: colors.success,
+                ),
+              if (bill.note != null && bill.note!.trim().isNotEmpty)
+                _FactRow(
+                  icon: Icons.notes_rounded,
+                  label: 'Note',
+                  value: bill.note!.trim(),
+                ),
+            ],
+          ),
+        ),
+
+        // Payment history
+        if (payments.isNotEmpty || paymentsFailed) ...[
           const SizedBox(height: AppSpacing.md),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _markPaid(BuildContext context, BillEntity bill) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Mark as Paid?',
-      message: 'Mark "${bill.title}" as paid?',
-      confirmLabel: 'Mark Paid',
-      icon: Icons.check_circle_rounded,
-    );
-    if (confirmed && context.mounted) {
-      context.read<BillBloc>().add(BillMarkPaid(bill.id));
-      await _loadPayments();
-    }
-  }
-
-  Future<void> _markPaidAndAddExpense(
-    BuildContext context,
-    BillEntity bill,
-  ) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Mark Paid & Add Expense?',
-      message:
-          'Mark "${bill.title}" as paid and create an expense of '
-          '${CurrencyFormatter.format(bill.amount, code: bill.currency)}?',
-      confirmLabel: 'Confirm',
-      icon: Icons.receipt_long_rounded,
-    );
-    if (!confirmed || !context.mounted) return;
-
-    // Mark as paid via bill BLoC.
-    context.read<BillBloc>().add(BillMarkPaid(bill.id));
-
-    // Create the corresponding expense using the existing expense system.
-    final now = DateTime.now();
-    final expense = ExpenseEntity(
-      id: const Uuid().v4(),
-      budgetId: '', // Will be resolved by ExpenseBloc
-      amount: bill.amount,
-      categoryId: 'bills', // Map to the "bills" expense category
-      note: 'Bill: ${bill.title}',
-      date: now,
-      time: now,
-      createdAt: now,
-      updatedAt: now,
-    );
-
-    // Access the expense BLoC to create the expense.
-    // We use the ExpenseBloc from the dependency injection.
-    try {
-      final expenseBloc = getIt<ExpenseBloc>();
-      expenseBloc.add(ExpenseCreate(expense));
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(content: Text('Bill paid and expense created')),
-          );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text('Bill paid, but failed to create expense: $e'),
-              backgroundColor: AppColors.warning,
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Payment history', style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                if (paymentsFailed)
+                  Text(
+                    "Couldn't load payment history.",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  for (final payment in payments)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.xs,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_rounded,
+                            size: AppSizes.iconSm,
+                            color: colors.success,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              DateFormat('d MMM yyyy').format(payment.paidDate),
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ),
+                          Text(
+                            CurrencyFormatter.format(
+                              payment.amount,
+                              code: payment.currency,
+                              decimalDigits: 0,
+                            ),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
             ),
-          );
-      }
-    }
+          ),
+        ],
 
-    await _loadPayments();
-  }
+        const SizedBox(height: AppSpacing.lg),
 
-  Future<void> _markUnpaid(BuildContext context, BillEntity bill) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Mark as Unpaid?',
-      message: 'Mark "${bill.title}" as unpaid?',
-      confirmLabel: 'Mark Unpaid',
-      icon: Icons.undo_rounded,
+        // Actions: the paid and unpaid sets cross-fade and the block
+        // resizes smoothly, so marking a bill paid feels like one change.
+        AnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
+          curve: AppMotion.standardCurve,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+            duration: AppMotion.respectReducedMotion(
+              context,
+              AppMotion.standard,
+            ),
+            switchInCurve: AppMotion.enter,
+            switchOutCurve: AppMotion.exit,
+            layoutBuilder: (current, previous) => Stack(
+              fit: StackFit.passthrough,
+              alignment: Alignment.topCenter,
+              children: [...previous, if (current != null) current],
+            ),
+            child: !bill.isPaid
+                ? Column(
+                    key: const ValueKey('unpaidActions'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: busy ? null : onMarkPaid,
+                        icon: const Icon(Icons.check_circle_outline_rounded),
+                        label: const Text('Mark as paid'),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      FilledButton.tonalIcon(
+                        onPressed: busy ? null : onMarkPaidAndExpense,
+                        icon: const Icon(Icons.receipt_long_rounded),
+                        label: const Text('Mark paid & add expense'),
+                      ),
+                    ],
+                  )
+                : OutlinedButton.icon(
+                    key: const ValueKey('paidActions'),
+                    onPressed: busy ? null : onMarkUnpaid,
+                    icon: const Icon(Icons.undo_rounded),
+                    label: const Text('Mark as unpaid'),
+                  ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: busy ? null : onDelete,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.error,
+            side: BorderSide(color: colors.error.withValues(alpha: 0.6)),
+          ),
+          icon: const Icon(Icons.delete_outline_rounded),
+          label: const Text('Delete bill'),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          'Added ${DateFormat('d MMM yyyy').format(bill.createdAt)}',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+      ],
     );
-    if (confirmed && context.mounted) {
-      context.read<BillBloc>().add(BillMarkUnpaid(bill.id));
-    }
   }
+}
 
-  Future<void> _confirmDelete(BuildContext context, BillEntity bill) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Delete Bill?',
-      message:
-          'Are you sure you want to delete "${bill.title}"?\n\n'
-          'This will also remove its scheduled reminders.',
-      confirmLabel: 'Delete',
-      icon: Icons.delete_rounded,
-      isDestructive: true,
-    );
-    if (confirmed && context.mounted) {
-      context.read<BillBloc>().add(BillDelete(bill.id));
-    }
-  }
+class _FactRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
 
-  Widget _infoRow(ThemeData theme, IconData icon, String label, String value) {
+  const _FactRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 20),
-          const SizedBox(width: AppSpacing.md),
-          SizedBox(
-            width: 90,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
+          Icon(
+            icon,
+            size: AppSizes.iconMd,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          const SizedBox(width: AppSpacing.sm),
+          const SizedBox(width: AppSpacing.smd),
           Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyLarge?.copyWith(color: valueColor),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  IconData _iconForCategory(BillCategory category) {
-    switch (category) {
-      case BillCategory.rent:
-        return Icons.home_rounded;
-      case BillCategory.utilities:
-        return Icons.bolt_rounded;
-      case BillCategory.electricity:
-        return Icons.electric_bolt_rounded;
-      case BillCategory.water:
-        return Icons.water_drop_rounded;
-      case BillCategory.internet:
-        return Icons.wifi_rounded;
-      case BillCategory.phone:
-        return Icons.phone_rounded;
-      case BillCategory.emi:
-        return Icons.payments_rounded;
-      case BillCategory.insurance:
-        return Icons.shield_rounded;
-      case BillCategory.subscription:
-        return Icons.subscriptions_rounded;
-      case BillCategory.education:
-        return Icons.school_rounded;
-      case BillCategory.healthcare:
-        return Icons.local_hospital_rounded;
-      case BillCategory.government:
-        return Icons.account_balance_rounded;
-      case BillCategory.creditCard:
-        return Icons.credit_card_rounded;
-      case BillCategory.other:
-        return Icons.receipt_long_rounded;
-    }
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final BillStatus status;
-
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    switch (status) {
-      case BillStatus.paid:
-        return StatusChipStyles.healthy('Paid');
-      case BillStatus.overdue:
-        return StatusChipStyles.danger('Overdue');
-      case BillStatus.dueToday:
-        return StatusChipStyles.warning('Due Today');
-      case BillStatus.upcoming:
-        return StatusChipStyles.info('Upcoming');
-    }
   }
 }

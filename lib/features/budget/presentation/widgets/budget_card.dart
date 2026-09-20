@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/widgets/status_chip.dart';
+import 'budget_visuals.dart';
+import '../../../../core/constants/app_motion.dart';
+import '../../../../core/widgets/animated_amount.dart';
 
 /// A card summarizing a single budget in the list screen.
 ///
-/// Shows the budget's remaining amount prominently, together with its amount,
-/// period, utilization progress, and an active indicator.
+/// Hierarchy: name + period → remaining amount (primary) → spent / total →
+/// progress → days left. The active budget is marked with a chip and a
+/// tinted border so it is obvious at a glance.
 class BudgetCard extends StatelessWidget {
   final BudgetEntity budget;
   final bool isActive;
@@ -26,299 +32,233 @@ class BudgetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accentColor = _accentColor(theme.brightness);
+    final colors = context.appColors;
+    final accent = BudgetVisuals.colorFor(context, budget);
+    final now = DateTime.now();
+    final phase = budget.phaseOn(now);
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: AppSpacing.borderRadiusLg,
-        border: isActive ? Border.all(color: accentColor, width: 1.5) : null,
-      ),
-      child: AppCard(
-        onTap: onTap,
-        padding: const EdgeInsets.all(AppSpacing.md),
-        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _BudgetIcon(budget: budget, accentColor: accentColor),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    final spent = (budget.monthlyAmount - budget.remainingAmount).clamp(
+      0.0,
+      double.infinity,
+    );
+    final utilization = budget.monthlyAmount <= 0
+        ? 0.0
+        : spent / budget.monthlyAmount;
+    final overBudget = budget.remainingAmount < 0;
+    final remainingColor = overBudget
+        ? colors.error
+        : AppProgress.colorFor(context, utilization);
+
+    String money(double v) =>
+        CurrencyFormatter.format(v, code: budget.currency, decimalDigits: 0);
+
+    final String daysText;
+    switch (phase) {
+      case BudgetPhase.running:
+        final left = budget.daysRemaining(now);
+        daysText = '$left ${left == 1 ? 'day' : 'days'} left';
+      case BudgetPhase.upcoming:
+        final until = budget.startDate.difference(now).inDays + 1;
+        daysText = 'Starts in $until ${until == 1 ? 'day' : 'days'}';
+      case BudgetPhase.ended:
+        daysText = 'Period ended';
+      case BudgetPhase.archived:
+        daysText = 'Archived';
+    }
+
+    return Semantics(
+      button: onTap != null,
+      label:
+          '${budget.name}${isActive ? ', active budget' : ''}. '
+          '${money(budget.remainingAmount)} remaining of '
+          '${money(budget.monthlyAmount)}. $daysText.',
+      child: ExcludeSemantics(
+        child: AnimatedOpacity(
+          opacity: phase == BudgetPhase.archived ? 0.7 : 1,
+          duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.smd),
+            // The active budget's primary border animates in via AppCard.
+            child: AppCard(
+              onTap: onTap,
+              borderColor: isActive ? theme.colorScheme.primary : null,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
+                      IconTile(
+                        icon: BudgetVisuals.iconFor(budget.icon),
+                        color: accent,
+                      ),
+                      const SizedBox(width: AppSpacing.smd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
                               budget.name,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: theme.textTheme.titleMedium,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          if (budget.isArchived) ...[
-                            const SizedBox(width: AppSpacing.xs),
-                            _StatusTag(
-                              label: 'Archived',
-                              color: theme.disabledColor,
+                            const SizedBox(height: AppSpacing.xxs),
+                            Text(
+                              formatDateRange(budget.startDate, budget.endDate),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      _PhaseChip(phase: phase, isActive: isActive),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              overBudget ? 'Over budget by' : 'Remaining',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            AnimatedAmount(
+                              amount: budget.remainingAmount.abs(),
+                              currency: budget.currency,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: overBudget
+                                    ? colors.error
+                                    : theme.colorScheme.onSurface,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${money(spent)} spent',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            'of ${money(budget.monthlyAmount)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        _formatPeriod(budget),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
-                ),
-                if (isActive) _ActiveBadge(color: accentColor),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: AppSpacing.sm),
+                  AppProgress(
+                    value: utilization,
+                    height: AppSizes.progressSm,
+                    semanticLabel: 'Budget used',
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
                     children: [
-                      Text(
-                        'Budget',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
+                      AnimatedPercent(
+                        percent: (utilization * 100).clamp(0, 999).toDouble(),
+                        suffix: '% used',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: remainingColor,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        CurrencyFormatter.format(
-                          budget.monthlyAmount,
-                          code: budget.currency,
-                          decimalDigits: 0,
-                        ),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const Spacer(),
+                      Icon(
+                        Icons.calendar_today_rounded,
+                        size: AppSizes.iconXs,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                      const SizedBox(width: AppSpacing.xs),
                       Text(
-                        'Spent',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        CurrencyFormatter.format(
-                          budget.monthlyAmount - budget.remainingAmount,
-                          code: budget.currency,
-                          decimalDigits: 0,
-                        ),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                        daysText,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Remaining',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        CurrencyFormatter.format(
-                          budget.remainingAmount,
-                          code: budget.currency,
-                          decimalDigits: 0,
-                        ),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.success,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(child: AppProgress(value: _utilization(budget))),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  '${(_utilization(budget) * 100).toStringAsFixed(0)}% used',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
-
-  double _utilization(BudgetEntity budget) {
-    if (budget.monthlyAmount <= 0) return 0;
-    final used = budget.monthlyAmount - budget.remainingAmount;
-    return used / budget.monthlyAmount;
-  }
-
-  Color _accentColor(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? AppColors.primaryLight
-        : AppColors.primary;
-  }
-
-  String _formatPeriod(BudgetEntity budget) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    String d(DateTime x) => '${two(x.day)}/${two(x.month)}/${x.year}';
-
-    return '${d(budget.startDate)} → ${d(budget.endDate)}';
-  }
 }
 
-class _BudgetIcon extends StatelessWidget {
-  final BudgetEntity budget;
-  final Color accentColor;
+class _PhaseChip extends StatelessWidget {
+  final BudgetPhase phase;
+  final bool isActive;
 
-  const _BudgetIcon({required this.budget, required this.accentColor});
+  const _PhaseChip({required this.phase, required this.isActive});
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFromHex(budget.color);
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: (color ?? accentColor).withValues(alpha: 0.15),
-        borderRadius: AppSpacing.borderRadiusMd,
+    return AnimatedSwitcher(
+      duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+      switchInCurve: AppMotion.enter,
+      switchOutCurve: AppMotion.exit,
+      transitionBuilder: (child, animation) => ScaleTransition(
+        scale: Tween<double>(begin: 0.8, end: 1).animate(animation),
+        child: FadeTransition(opacity: animation, child: child),
       ),
-      child: Icon(
-        _iconFromString(budget.icon),
-        color: color ?? accentColor,
-        size: 24,
+      child: KeyedSubtree(
+        key: ValueKey('${phase.name}_$isActive'),
+        child: _chip(context),
       ),
     );
   }
 
-  Color? _colorFromHex(String? hex) {
-    if (hex == null || hex.isEmpty) return null;
-    final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
-    if (value == null) return null;
-    return Color(0xFF000000 | value);
-  }
-
-  IconData _iconFromString(String? icon) {
-    switch (icon) {
-      case 'vacation':
-        return Icons.beach_access_rounded;
-      case 'wedding':
-        return Icons.favorite_rounded;
-      case 'business':
-        return Icons.business_center_rounded;
-      case 'personal':
-        return Icons.person_rounded;
-      case 'family':
-        return Icons.family_restroom_rounded;
-      case 'travel':
-        return Icons.flight_takeoff_rounded;
-      case 'home':
-        return Icons.home_rounded;
-      default:
-        return Icons.account_balance_wallet_rounded;
+  Widget _chip(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    if (isActive) {
+      return StatusChip(
+        label: 'Active',
+        color: theme.colorScheme.primary,
+        icon: Icons.check_circle_rounded,
+      );
     }
-  }
-}
-
-class _ActiveBadge extends StatelessWidget {
-  final Color color;
-
-  const _ActiveBadge({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 4,
+    return switch (phase) {
+      BudgetPhase.running => const SizedBox.shrink(),
+      BudgetPhase.upcoming => StatusChip(
+        label: 'Upcoming',
+        color: colors.info,
+        icon: Icons.schedule_rounded,
       ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: AppSpacing.borderRadiusSm,
+      BudgetPhase.ended => StatusChip(
+        label: 'Ended',
+        color: theme.colorScheme.onSurfaceVariant,
+        icon: Icons.event_busy_rounded,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.check_circle_rounded, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            'Active',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+      BudgetPhase.archived => StatusChip(
+        label: 'Archived',
+        color: theme.colorScheme.onSurfaceVariant,
+        icon: Icons.archive_rounded,
       ),
-    );
-  }
-}
-
-class _StatusTag extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _StatusTag({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(left: AppSpacing.xs),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: AppSpacing.borderRadiusSm,
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
-      ),
-    );
+    };
   }
 }

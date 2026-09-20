@@ -2,10 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/info_content.dart';
+import '../../../../core/widgets/info_icon.dart';
 
-/// Displays app name, version, build number, and a privacy notice.
+/// Displays app name, version, a privacy summary and the licence page link.
 class AboutCard extends StatelessWidget {
   const AboutCard({super.key});
+
+  static const _privacy = InfoContent(
+    title: 'Privacy',
+    whatIsThis:
+        'Your budgets, expenses, bills and settings are stored only on this '
+        'device, and everything works without an internet connection.',
+    additionalNotes:
+        '• No account is needed\n'
+        '• No personal or financial data is collected or sent anywhere\n'
+        '• The only network request is the optional "Check for updates", '
+        'which asks GitHub for the latest release version',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -14,57 +28,50 @@ class AboutCard extends StatelessWidget {
       future: PackageInfo.fromPlatform(),
       builder: (context, snapshot) {
         final info = snapshot.data;
-        final version = info?.version ?? '1.0.0';
-        // final buildNumber = info?.buildNumber ?? '1';
         final appName = info?.appName ?? 'Monivo';
+        final version = info == null
+            ? '…'
+            : 'v${info.version}'
+                  '${info.buildNumber.isNotEmpty ? ' (${info.buildNumber})' : ''}';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Row(label: 'App Name', value: appName),
+            _Row(label: 'App', value: appName),
             const SizedBox(height: AppSpacing.sm),
-            // _Row(label: 'Version', value: version),
-            // const SizedBox(height: AppSpacing.sm),
-            // _Row(label: 'Build Number', value: buildNumber),
-            // const SizedBox(height: AppSpacing.sm),
-            // const _Row(label: 'Database Version', value: '2'),
-            const SizedBox(height: AppSpacing.md),
-            const Divider(),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Privacy Notice',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            _Row(label: 'Version', value: version),
+            const SizedBox(height: AppSpacing.smd),
+            Row(
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: AppSizes.iconSm,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'All data stays on this device.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const InfoIcon(content: _privacy),
+              ],
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Your budgets, expenses, bills and settings are stored only on '
-              'this device, and everything you do with them works without '
-              'an internet connection. No account is needed and no personal '
-              'or financial data is collected or sent anywhere. The only '
-              'network request the app makes is the optional "Check for '
-              'Updates", which asks GitHub for the latest release version.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => showLicensePage(
+                  context: context,
+                  applicationName: appName,
+                  applicationVersion: info?.version,
+                ),
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('Open source licenses'),
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Licenses',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            TextButton.icon(
-              onPressed: () => showLicensePage(
-                context: context,
-                applicationName: appName,
-                applicationVersion: version,
-              ),
-              icon: const Icon(Icons.description_outlined, size: 18),
-              label: const Text('Open Source Licenses'),
             ),
           ],
         );
@@ -83,15 +90,16 @@ class _Row extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
-        Text(value, style: theme.textTheme.bodyMedium),
+        Text(value, style: theme.textTheme.titleSmall),
       ],
     );
   }

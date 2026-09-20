@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.3] - 2026-09-20
+
+### Added
+- Eight selectable colour palettes (Default, Blossom Vapor, Mahogany Blaze,
+	Ocean, Forest, Sunset, Violet, Rose) with a dedicated palette selection
+	screen in Settings. The palette is persisted and applies to both light and
+	dark themes.
+- A shared motion system: central motion tokens (`AppMotion`), consistent page
+	transitions (`AppPageTransitions`), animated dialogs (`AppDialog`), an
+	animated floating action button (`AppFab`), chart reveal animations
+	(`ChartReveal`) and staggered list entrances (`FadeSlideIn`). Every
+	animation honours the platform's reduced-motion setting.
+- A dedicated monochrome notification icon and brand accent colour for Android
+	notifications, applied to both budget and bill reminder channels.
 
 ### Changed
 - Audited and rewrote all user-facing explanations (info sheets, empty states,
@@ -13,13 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 	match the current implementation: multiple independent budgets, flexible
 	start/end dates, per-budget Today's Safe Spending that is never combined,
 	and rule-based (non-AI) Smart Insights.
-- Standardised terminology across the app: Today's Safe Spending, Spent Today,
-	Remaining Today, Remaining Budget, Overall Budget Progress, Active Budget,
-	Budget Period, Combined Expenses.
-- Dashboard "Total Remaining" card renamed to "Remaining Budget"; it always
-	reflected the active budget only.
-- Settings "Budget Management" renamed to "Active Budget" with accurate labels
-	("Start New Budget Period", "Change Budget Amount").
+- Standardised terminology across the app around Today's Safe Spending, Spent
+	today, budget period, active budget and Combined Expenses, so the same figure
+	is not called different things on different screens.
+- Merged the separate Remaining Budget and Budget Timeline cards on the
+	Dashboard into a single budget overview card, so the same facts are not
+	repeated. It shows what is left (or how far over), the percentage used, and
+	the position in the budget period.
+- Reworded the Settings budget section so each action says what it does:
+	"Budgets" (create, switch, edit and archive), "Start new budget period"
+	(archive the active budget and start a fresh 31-day one with the same amount)
+	and "Change active budget amount" (dates and expenses stay as they are).
 - Removed the Overspending Alerts, No-Expense Reminder and Quiet Hours toggles
 	from Settings because no notification logic implements them.
 - Home-screen widget now shows the active budget's Today's Safe Spending
@@ -30,8 +47,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The app is now consistently called "Monivo" (matching the installed app
 	label) in the onboarding, About card, widget and README instead of a mix of
 	"Smart Monivo", "Smart Budget Tracker" and "Monivo".
-- Corrected the v1.2.2 release-note bullets for the home-screen widget, which
-	described behaviour that never shipped.
+- Rewrote README, CHANGELOG and release notes against the source. Removed
+	unverifiable claims (line counts, coverage figures, performance benchmarks, a
+	`logger` dependency that is not used, an MIT licence with no `LICENSE` file)
+	and corrected the v1.2.2 home-screen widget description, which described
+	behaviour that never shipped. Added a Known Limitations section covering the
+	unwired database integrity service, the unused `recurring_expenses` and
+	`savings_goals` tables, the vestigial notification preference fields, the
+	orphaned `ResetMonthUseCase` and the declared-but-unused dependencies.
+- Theme mode and palette changes now interpolate every colour in place instead
+	of switching abruptly, and the system status-bar style follows the active
+	theme brightness on screens without an app bar.
+- Bottom-navigation branches cross-fade when switching tabs, and re-selecting
+	the current tab plays a single icon pulse.
+- Refactored the Settings screen components for consistent spacing, contrast
+	and semantics.
+- Reworked the Reports and notification copy for accuracy about what each
+	figure measures.
 
 ### Fixed
 - Today's Safe Spending on the Dashboard cards, notifications and widget now
@@ -49,6 +81,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "Create Budget" button shown on the Dashboard when no budget covers
 	today now opens the budget form.
 - Removed unused dashboard widgets that still described combined daily limits.
+
+### Technical
+- Budget amount updates now run inside a database transaction and recompute the
+	stored remaining amount from the persisted expenses within that same
+	transaction, so a concurrent write cannot leave a stale balance.
+- Added regression tests for budget amount changes and for editing a budget
+	from the Dashboard.
+
+### Breaking changes
+- None. No database migration (the schema stays at version 4), no minimum SDK
+	change, no navigation or data-model change, and no removed functionality.
 
 ## [1.2.2] - 2026-08-31
 

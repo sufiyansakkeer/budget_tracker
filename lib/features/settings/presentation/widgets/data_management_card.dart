@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 
-/// A card containing buttons for export, import, backup, and restore actions.
+/// Export, import, backup and restore actions, grouped in labelled rows.
 class DataManagementCard extends StatelessWidget {
   final VoidCallback? onExportCsv;
   final VoidCallback? onExportJson;
@@ -25,128 +25,122 @@ class DataManagementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Text(
-            'Export & Share',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+        _ActionRow(
+          icon: Icons.ios_share_rounded,
+          title: 'Export',
+          description: 'Share your expenses as a spreadsheet or JSON file.',
+          actions: [
+            _Action('CSV', Icons.table_chart_outlined, onExportCsv),
+            _Action('JSON', Icons.data_object_rounded, onExportJson),
+          ],
+          busy: isBusy,
         ),
-        Row(
-          children: [
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.table_chart_outlined,
-                label: 'CSV',
-                onPressed: isBusy ? null : onExportCsv,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.data_object_outlined,
-                label: 'JSON',
-                onPressed: isBusy ? null : onExportJson,
-              ),
+        const Divider(height: AppSpacing.lg),
+        _ActionRow(
+          icon: Icons.download_rounded,
+          title: 'Import',
+          description: 'Merge expenses from a file into your records.',
+          actions: [
+            _Action('CSV', Icons.table_chart_outlined, onImportCsv),
+            _Action('JSON', Icons.data_object_rounded, onImportJson),
+          ],
+          busy: isBusy,
+        ),
+        const Divider(height: AppSpacing.lg),
+        _ActionRow(
+          icon: Icons.backup_outlined,
+          title: 'Backup & restore',
+          description: 'A full copy of budgets, expenses, bills and settings.',
+          actions: [
+            _Action('Back up', Icons.cloud_upload_outlined, onBackup),
+            _Action(
+              'Restore',
+              Icons.settings_backup_restore_rounded,
+              onRestore,
             ),
           ],
+          busy: isBusy,
         ),
-        const SizedBox(height: AppSpacing.md),
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Text(
-            'Import',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.upload_outlined,
-                label: 'Import CSV',
-                onPressed: isBusy ? null : onImportCsv,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.upload_file_outlined,
-                label: 'Import JSON',
-                onPressed: isBusy ? null : onImportJson,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Text(
-            'Backup & Restore',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.backup_outlined,
-                label: 'Backup',
-                onPressed: isBusy ? null : onBackup,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.restore_outlined,
-                label: 'Restore',
-                onPressed: isBusy ? null : onRestore,
-              ),
-            ),
-          ],
-        ),
+        if (isBusy) ...[
+          const SizedBox(height: AppSpacing.md),
+          const LinearProgressIndicator(minHeight: AppSizes.progressThin),
+        ],
       ],
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
+class _Action {
   final String label;
+  final IconData icon;
   final VoidCallback? onPressed;
+  const _Action(this.label, this.icon, this.onPressed);
+}
 
-  const _ActionButton({
+class _ActionRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final List<_Action> actions;
+  final bool busy;
+
+  const _ActionRow({
     required this.icon,
-    required this.label,
-    this.onPressed,
+    required this.title,
+    required this.description,
+    required this.actions,
+    required this.busy,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label, style: const TextStyle(fontSize: 13)),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        side: BorderSide(
-          color: theme.colorScheme.outline.withValues(alpha: 0.5),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusMd),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: AppSizes.iconMd,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              for (var i = 0; i < actions.length; i++) ...[
+                if (i > 0) const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : actions[i].onPressed,
+                    icon: Icon(actions[i].icon, size: AppSizes.iconSm + 2),
+                    label: Text(
+                      actions[i].label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
