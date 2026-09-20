@@ -418,18 +418,17 @@ class ExpenseHistoryBloc
       return;
     }
 
-    emit(
-      state.copyWith(
-        status: ExpenseHistoryStatus.loaded,
-        allExpenses: expenses,
-        categories: categories,
-        budgetId: budgetId,
-        budgetName: budgetName,
-        clearBudgetScope: isCombined,
-      ),
+    // One emission: the freshly loaded rows go straight through search,
+    // filter and sort. Emitting the raw list first would briefly publish a
+    // "loaded" state with nothing visible, which flashes the empty state.
+    _recompute(
+      emit,
+      allExpenses: expenses,
+      categories: categories,
+      budgetId: budgetId,
+      budgetName: budgetName,
+      clearBudgetScope: isCombined,
     );
-
-    _recompute(emit);
   }
 
   /// Recomputes the visible list, summary, and first page based on the current
@@ -439,21 +438,28 @@ class ExpenseHistoryBloc
     String? query,
     ExpenseHistoryFilter? filter,
     ExpenseSortOption? sort,
+    List<ExpenseEntity>? allExpenses,
+    List<ExpenseCategory>? categories,
+    String? budgetId,
+    String? budgetName,
+    bool clearBudgetScope = false,
   }) {
     final nextQuery = query ?? state.query;
     final nextFilter = filter ?? state.filter;
     final nextSort = sort ?? state.sort;
+    final nextAll = allExpenses ?? state.allExpenses;
+    final nextCategories = categories ?? state.categories;
 
-    var visible = state.allExpenses;
+    var visible = nextAll;
     visible = searchExpensesUseCase(
       expenses: visible,
-      categories: state.categories,
+      categories: nextCategories,
       query: nextQuery,
     );
     visible = filterExpensesUseCase(expenses: visible, filter: nextFilter);
     visible = sortExpensesUseCase(
       expenses: visible,
-      categories: state.categories,
+      categories: nextCategories,
       sort: nextSort,
     );
 
@@ -467,6 +473,11 @@ class ExpenseHistoryBloc
         query: nextQuery,
         filter: nextFilter,
         sort: nextSort,
+        allExpenses: nextAll,
+        categories: nextCategories,
+        budgetId: budgetId,
+        budgetName: budgetName,
+        clearBudgetScope: clearBudgetScope,
         visibleExpenses: visible,
         pageExpenses: page.items,
         loadedExpenses: page.items,

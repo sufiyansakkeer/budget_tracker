@@ -178,6 +178,33 @@ void main() {
       expect(budgetRepository.updatedBudgetIds, contains('budget-1'));
     });
 
+    test(
+      'updateExpense recomputes only the one budget when it is unchanged',
+      () async {
+        dataSource.store['exp-1'] = makeExpense('exp-1');
+        await repository.updateExpense(makeExpense('exp-1'));
+        expect(budgetRepository.updatedBudgetIds, ['budget-1']);
+      },
+    );
+
+    test(
+      'moving an expense recomputes both budgets in one transaction',
+      () async {
+        dataSource.store['exp-1'] = makeExpense('exp-1');
+        final moved = makeExpense('exp-1').copyWith(budgetId: 'budget-2');
+
+        await repository.updateExpense(moved);
+
+        expect(dataSource.transactionCount, 1);
+        expect(
+          budgetRepository.updatedBudgetIds,
+          containsAll(['budget-1', 'budget-2']),
+          reason: 'the budget it left must be credited back',
+        );
+        expect(dataSource.store['exp-1']!.budgetId, 'budget-2');
+      },
+    );
+
     test('deleteExpense calls transaction', () async {
       dataSource.store['exp-1'] = makeExpense('exp-1');
       await repository.deleteExpense('exp-1');

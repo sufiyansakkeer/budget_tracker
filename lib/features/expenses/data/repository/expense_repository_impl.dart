@@ -23,9 +23,18 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
 
   @override
   Future<void> updateExpense(ExpenseEntity expense) async {
+    // Read the stored row first: when an expense is moved to another budget
+    // both budgets' remaining amounts have to be recomputed, otherwise the
+    // budget it left stays short by the amount forever.
+    final previous = await localDataSource.getExpenseById(expense.id);
+    final previousBudgetId = previous?.budgetId;
+
     await localDataSource.transaction(() async {
       await localDataSource.updateExpense(expense);
       await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
+      if (previousBudgetId != null && previousBudgetId != expense.budgetId) {
+        await budgetRepository.updateBudgetRemainingAmount(previousBudgetId);
+      }
     });
   }
 
