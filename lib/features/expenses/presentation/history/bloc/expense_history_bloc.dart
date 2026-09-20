@@ -38,6 +38,10 @@ class ExpenseHistoryBloc
   static const Duration searchDebounce = Duration(milliseconds: 300);
 
   Timer? _searchTimer;
+
+  /// Ids already in `loadedExpenses`, so paging never duplicates a row.
+  final Set<String> _loadedIds = <String>{};
+
   StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _budgetSwitchSubscription;
 
@@ -160,9 +164,10 @@ class ExpenseHistoryBloc
       offset: state.loadedCount,
       items: state.visibleExpenses,
     );
-    final loadedIds = state.loadedExpenses.map((expense) => expense.id).toSet();
+    // Kept as a field rather than rebuilt per page: recreating it from the
+    // loaded list made a full scroll quadratic in the number of expenses.
     final newItems = page.items
-        .where((expense) => loadedIds.add(expense.id))
+        .where((expense) => _loadedIds.add(expense.id))
         .toList();
 
     emit(
@@ -466,6 +471,9 @@ class ExpenseHistoryBloc
     final summary = calculateExpenseSummaryUseCase(visible);
 
     final page = pageExpensesUseCase(offset: 0, items: visible);
+    _loadedIds
+      ..clear()
+      ..addAll(page.items.map((expense) => expense.id));
 
     emit(
       state.copyWith(

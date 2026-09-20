@@ -99,11 +99,18 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     return _groups;
   }
 
+  /// Cached id → category lookup, rebuilt only when the list identity
+  /// changes. A linear scan per row is cheap but runs on every row of every
+  /// rebuild; the state already keeps a map for budgets.
+  List<ExpenseCategory>? _categoriesSource;
+  Map<String, ExpenseCategory> _categoryById = const {};
+
   ExpenseCategory? _findCategory(List<ExpenseCategory> categories, String id) {
-    for (final category in categories) {
-      if (category.id == id) return category;
+    if (!identical(_categoriesSource, categories)) {
+      _categoriesSource = categories;
+      _categoryById = {for (final c in categories) c.id: c};
     }
-    return null;
+    return _categoryById[id];
   }
 
   Future<void> _openFilterSheet() async {
@@ -246,6 +253,21 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           _buildModeSwitch(),
           Expanded(
             child: BlocConsumer<ExpenseHistoryBloc, ExpenseHistoryState>(
+              // The query lands in state on every keystroke but the list only
+              // changes when the debounce fires, so rebuilding the rows on
+              // each character was pure waste. The search field is driven by
+              // its own controller; the chips watch the filter separately.
+              buildWhen: (prev, curr) =>
+                  prev.status != curr.status ||
+                  !identical(prev.visibleExpenses, curr.visibleExpenses) ||
+                  !identical(prev.loadedExpenses, curr.loadedExpenses) ||
+                  !identical(prev.categories, curr.categories) ||
+                  prev.summary != curr.summary ||
+                  prev.filter != curr.filter ||
+                  prev.viewMode != curr.viewMode ||
+                  prev.budgetMap != curr.budgetMap ||
+                  prev.budgetName != curr.budgetName ||
+                  prev.errorMessage != curr.errorMessage,
               listenWhen: (prev, curr) =>
                   curr.status == ExpenseHistoryStatus.error &&
                   prev.status != ExpenseHistoryStatus.error,

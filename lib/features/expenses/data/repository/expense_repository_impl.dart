@@ -59,11 +59,15 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) {
     return localDataSource.getExpenses(
       budgetId: budgetId,
       month: month,
       year: year,
+      from: from,
+      to: to,
     );
   }
 

@@ -39,8 +39,12 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await di.initDependencyInjection();
 
-  // Initialize notifications (permission + scheduling) before UI.
-  await di.getIt<NotificationBloc>().initializeOnStartup();
+  // Notifications initialise in the background: the chain parses the IANA
+  // time-zone database, crosses several platform channels and — on Android
+  // 13+ and iOS — shows the permission dialog, so awaiting it here held the
+  // splash screen up for an unbounded, user-gated amount of time. The BLoC
+  // guards against running twice, and a failure never blocks the app.
+  unawaited(di.getIt<NotificationBloc>().initializeOnStartup());
 
   // ── Home Widget: configure iOS App Group for data sharing ────────────
   await _configureHomeWidget();
@@ -133,8 +137,10 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
   void initState() {
     super.initState();
     _themeBloc = di.getIt<ThemeBloc>();
-    _currencyProvider = di.getIt<CurrencyProvider>()
-      ..addListener(_onCurrencyChanged);
+    // Exposed below through ChangeNotifierProvider.value, so widgets that
+    // care rebuild themselves; rebuilding the whole MaterialApp here would
+    // throw away every route's element tree on a currency change.
+    _currencyProvider = di.getIt<CurrencyProvider>();
     _appUpdateBloc = di.getIt<AppUpdateBloc>();
 
     // Listen for widget clicks while app is in background/foreground (warm start).
@@ -189,14 +195,9 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
 
   @override
   void dispose() {
-    _currencyProvider.removeListener(_onCurrencyChanged);
     _widgetClickedSubscription?.cancel();
     _widgetRefreshListener?.stopListening();
     super.dispose();
-  }
-
-  void _onCurrencyChanged() {
-    setState(() {});
   }
 
   @override

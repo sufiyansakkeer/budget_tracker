@@ -194,6 +194,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: BlocConsumer<SettingsBloc, SettingsState>(
+        // Showing a snackbar immediately clears the message, so every toast
+        // emitted twice and rebuilt this ~20-tile list both times.
+        buildWhen: (prev, curr) =>
+            prev.settings != curr.settings ||
+            prev.status != curr.status ||
+            prev.isBusy != curr.isBusy ||
+            prev.isBiometricBusy != curr.isBiometricBusy,
         listener: (context, state) {
           final messenger = ScaffoldMessenger.of(context);
           if (state.integrityResult != null) {

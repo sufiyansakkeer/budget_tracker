@@ -15,11 +15,16 @@ abstract class ExpenseRepository {
   /// Returns an expense by id, or null if not found.
   Future<ExpenseEntity?> getExpenseById(String id);
 
-  /// Returns all expenses, optionally filtered by budget and/or month/year.
+  /// Returns expenses, optionally scoped to a budget and a date range.
+  ///
+  /// A [from]/[to] range is applied in SQL rather than in Dart, so a report
+  /// or a summary never loads a budget's whole history to look at one week.
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   });
 
   /// Returns expenses belonging to any of the given [budgetIds].

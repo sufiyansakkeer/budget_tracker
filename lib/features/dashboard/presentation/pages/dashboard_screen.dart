@@ -37,6 +37,10 @@ class DashboardScreen extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: BlocBuilder<DashboardBloc, DashboardState>(
+          // DashboardBloc re-emits on every expense, budget and bill change
+          // from any tab. Equatable states mean an unchanged refresh is a
+          // no-op here rather than a full-page rebuild.
+          buildWhen: (prev, curr) => prev != curr,
           builder: (context, state) {
             final child = switch (state) {
               DashboardInitial() || DashboardLoading() =>

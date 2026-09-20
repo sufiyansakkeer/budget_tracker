@@ -40,6 +40,8 @@ class FakeExpenseRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     if (throwOnWrite) throw Exception('db failure');
     return store.values.toList();

@@ -63,6 +63,8 @@ class FakeHistoryRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async => expenses;
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;

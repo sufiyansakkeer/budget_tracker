@@ -81,6 +81,8 @@ class FakeRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     if (budgetId != null) {
       return allExpenses.where((e) => e.budgetId == budgetId).toList();

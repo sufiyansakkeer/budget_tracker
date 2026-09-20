@@ -26,13 +26,6 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
     required this.sharedPreferences,
   });
 
-  Future<String?> _get(String key) async {
-    final row = await (database.select(
-      database.settings,
-    )..where((s) => s.key.equals(key))).getSingleOrNull();
-    return row?.value;
-  }
-
   Future<void> _set(String key, String value) async {
     await (database.into(
       database.settings,
@@ -41,32 +34,35 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
 
   @override
   Future<AppSettings> loadSettings() async {
-    final theme = AppThemeMode.fromString(await _get(_themeKey));
-    final palette = ColorPalette.fromString(await _get(_paletteKey));
-    final currencyCode = await _get(_currencyCodeKey) ?? 'INR';
+    // One query, not one per key. Settings are read on startup by the theme,
+    // currency, settings and notification layers, so a per-key SELECT turned
+    // into dozens of round-trips before the first frame.
+    final rows = await database.select(database.settings).get();
+    final values = {for (final row in rows) row.key: row.value};
+    String? get(String key) => values[key];
+
+    final theme = AppThemeMode.fromString(get(_themeKey));
+    final palette = ColorPalette.fromString(get(_paletteKey));
+    final currencyCode = get(_currencyCodeKey) ?? 'INR';
     final currency = currencyByCode(currencyCode);
     final notifications = NotificationSettings(
-      notificationsEnabled: (await _get('notificationsEnabled')) != 'false',
-      morningReminderEnabled: (await _get('morningReminderEnabled')) != 'false',
+      notificationsEnabled: get('notificationsEnabled') != 'false',
+      morningReminderEnabled: get('morningReminderEnabled') != 'false',
       morningReminderTime: NotificationTime.fromString(
-        await _get('morningReminderTime'),
+        get('morningReminderTime'),
       ),
-      eveningSummaryEnabled: (await _get('eveningSummaryEnabled')) != 'false',
+      eveningSummaryEnabled: get('eveningSummaryEnabled') != 'false',
       eveningSummaryTime: NotificationTime.fromString(
-        await _get('eveningSummaryTime'),
+        get('eveningSummaryTime'),
       ),
-      overspendingAlertsEnabled:
-          (await _get('overspendingAlertsEnabled')) != 'false',
-      dailyRemindersEnabled: (await _get('dailyRemindersEnabled')) != 'false',
-      noExpenseReminderEnabled:
-          (await _get('noExpenseReminderEnabled')) != 'false',
-      quietHoursEnabled: (await _get('quietHoursEnabled')) == 'true',
-      quietHoursStart: NotificationTime.fromString(
-        await _get('quietHoursStart'),
-      ),
-      quietHoursEnd: NotificationTime.fromString(await _get('quietHoursEnd')),
+      overspendingAlertsEnabled: get('overspendingAlertsEnabled') != 'false',
+      dailyRemindersEnabled: get('dailyRemindersEnabled') != 'false',
+      noExpenseReminderEnabled: get('noExpenseReminderEnabled') != 'false',
+      quietHoursEnabled: get('quietHoursEnabled') == 'true',
+      quietHoursStart: NotificationTime.fromString(get('quietHoursStart')),
+      quietHoursEnd: NotificationTime.fromString(get('quietHoursEnd')),
     );
-    final biometric = (await _get(_biometricKey)) == 'true';
+    final biometric = get(_biometricKey) == 'true';
     final firstLaunch =
         sharedPreferences.getBool(PreferenceKeys.isFirstLaunch) ?? true;
 
@@ -99,41 +95,27 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
 
   @override
   Future<void> setNotificationSettings(NotificationSettings settings) async {
-    await _set(
-      'notificationsEnabled',
-      settings.notificationsEnabled.toString(),
-    );
-    await _set(
-      'morningReminderEnabled',
-      settings.morningReminderEnabled.toString(),
-    );
-    await _set(
-      'morningReminderTime',
-      settings.morningReminderTime.toSettingString(),
-    );
-    await _set(
-      'eveningSummaryEnabled',
-      settings.eveningSummaryEnabled.toString(),
-    );
-    await _set(
-      'eveningSummaryTime',
-      settings.eveningSummaryTime.toSettingString(),
-    );
-    await _set(
-      'overspendingAlertsEnabled',
-      settings.overspendingAlertsEnabled.toString(),
-    );
-    await _set(
-      'dailyRemindersEnabled',
-      settings.dailyRemindersEnabled.toString(),
-    );
-    await _set(
-      'noExpenseReminderEnabled',
-      settings.noExpenseReminderEnabled.toString(),
-    );
-    await _set('quietHoursEnabled', settings.quietHoursEnabled.toString());
-    await _set('quietHoursStart', settings.quietHoursStart.toSettingString());
-    await _set('quietHoursEnd', settings.quietHoursEnd.toSettingString());
+    // One batch instead of eleven sequential upserts.
+    await database.batch((b) {
+      b.insertAllOnConflictUpdate(database.settings, [
+        for (final entry in <String, String>{
+          'notificationsEnabled': settings.notificationsEnabled.toString(),
+          'morningReminderEnabled': settings.morningReminderEnabled.toString(),
+          'morningReminderTime': settings.morningReminderTime.toSettingString(),
+          'eveningSummaryEnabled': settings.eveningSummaryEnabled.toString(),
+          'eveningSummaryTime': settings.eveningSummaryTime.toSettingString(),
+          'overspendingAlertsEnabled': settings.overspendingAlertsEnabled
+              .toString(),
+          'dailyRemindersEnabled': settings.dailyRemindersEnabled.toString(),
+          'noExpenseReminderEnabled': settings.noExpenseReminderEnabled
+              .toString(),
+          'quietHoursEnabled': settings.quietHoursEnabled.toString(),
+          'quietHoursStart': settings.quietHoursStart.toSettingString(),
+          'quietHoursEnd': settings.quietHoursEnd.toSettingString(),
+        }.entries)
+          SettingsCompanion.insert(key: entry.key, value: entry.value),
+      ]);
+    });
   }
 
   @override

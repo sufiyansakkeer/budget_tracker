@@ -214,9 +214,17 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
     String budgetId, {
     DateTime? referenceDate,
   }) async {
+    // One indexed SUM. Going through getBudgetStatistics would re-read the
+    // budget row and sum the whole period as well, just to discard both —
+    // and this is called once per budget on every dashboard load, every
+    // widget refresh and every notification reschedule.
     final date = referenceDate ?? DateTime.now();
-    final stats = await getBudgetStatistics(budgetId, referenceDate: date);
-    return stats.todaySpending;
+    final (:total, count: _) = await _sumAndCount(
+      budgetId,
+      start: _startOfDay(date),
+      end: _endOfDay(date),
+    );
+    return total;
   }
 
   @override

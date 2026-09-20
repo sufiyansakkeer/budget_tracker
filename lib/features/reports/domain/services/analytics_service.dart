@@ -50,6 +50,13 @@ class AnalyticsService {
           )
         : null;
 
+    // Computed once and threaded through: the trend and the time analytics
+    // each recomputed the same zero-filled series.
+    final dailySpending = calculateDailySpending(
+      expenses: filteredExpenses,
+      range: range,
+    );
+
     return ReportData(
       range: range,
       filteredExpenses: filteredExpenses,
@@ -59,10 +66,7 @@ class AnalyticsService {
         expenses: filteredExpenses,
         dayCount: range.dayCount,
       ),
-      dailySpending: calculateDailySpending(
-        expenses: filteredExpenses,
-        range: range,
-      ),
+      dailySpending: dailySpending,
       spendingBuckets: calculateBuckets(
         expenses: filteredExpenses,
         range: range,
@@ -89,6 +93,7 @@ class AnalyticsService {
         expenses: filteredExpenses,
         range: range,
         comparisonExpenses: comparisonExpenses,
+        dailySpending: dailySpending,
       ),
       weeklyComparison: weeklyComparison,
       currentBudget: currentBudget,
@@ -444,6 +449,7 @@ class AnalyticsService {
     required List<ExpenseEntity> expenses,
     required ReportRange range,
     List<ExpenseEntity>? comparisonExpenses,
+    List<DailySpendingPoint>? dailySpending,
   }) {
     if (expenses.isEmpty) {
       return SpendingTrend.empty;
@@ -474,10 +480,10 @@ class AnalyticsService {
     // Consistency from daily totals (coefficient of variation, inverted).
     double consistencyScore = 1.0;
     double sumSquares = 0;
-    for (final point in calculateDailySpending(
-      expenses: expenses,
-      range: range,
-    )) {
+    final series =
+        dailySpending ??
+        calculateDailySpending(expenses: expenses, range: range);
+    for (final point in series) {
       final diff = point.amount - dailyAverage;
       sumSquares += diff * diff;
     }

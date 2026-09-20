@@ -139,6 +139,8 @@ class FakeExpenseRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     var result = store.values.toList();
 
@@ -225,6 +227,8 @@ class FakeGetAllUseCase implements GetExpensesUseCase {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     final expenses = await repository.getExpenses(
       budgetId: budgetId,

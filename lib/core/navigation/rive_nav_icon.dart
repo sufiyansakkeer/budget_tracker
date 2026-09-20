@@ -132,14 +132,19 @@ class _RiveNavIconState extends State<RiveNavIcon> {
       return widget.fallback;
     }
     return ExcludeSemantics(
-      child: ColorFiltered(
-        colorFilter: ColorFilter.mode(widget.color, BlendMode.srcIn),
-        child: SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: Transform.scale(
-            scale: widget.spec.scale,
-            child: Rive(artboard: artboard, fit: BoxFit.contain),
+      // Rive marks itself dirty every ticker frame. Without a boundary that
+      // repaint walks up to the nearest one — outside the whole navigation
+      // bar — so the bar's indicators and labels would repaint with it.
+      child: RepaintBoundary(
+        child: ColorFiltered(
+          colorFilter: ColorFilter.mode(widget.color, BlendMode.srcIn),
+          child: SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: Transform.scale(
+              scale: widget.spec.scale,
+              child: Rive(artboard: artboard, fit: BoxFit.contain),
+            ),
           ),
         ),
       ),

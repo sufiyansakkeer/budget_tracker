@@ -32,6 +32,7 @@ import '../widgets/report_overview_card.dart';
 import '../widgets/reports_error_widget.dart';
 import '../widgets/time_analytics_card.dart';
 import '../widgets/weekly_comparison_card.dart';
+import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 
 /// Reports tab. Reading order: how much did I spend → how is the budget
 /// doing → where did it go → how did it move over time → patterns →
@@ -45,7 +46,10 @@ class ReportsScreen extends StatefulWidget {
 
 class _ReportsScreenState extends State<ReportsScreen> {
   static const _insightsCollapsed = 3;
-  bool _showAllInsights = false;
+
+  static bool _isBusy(ReportsState state) =>
+      state.status == ReportsStatus.loading ||
+      state.status == ReportsStatus.refreshing;
 
   @override
   void initState() {
@@ -134,6 +138,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ],
       ),
       body: BlocBuilder<ReportsBloc, ReportsState>(
+        // Rebuilding on every status flip reconstructed all three fl_chart
+        // data graphs; the charts only depend on the report itself.
+        buildWhen: (prev, curr) =>
+            !identical(prev.data, curr.data) ||
+            !identical(prev.insights, curr.insights) ||
+            prev.period != curr.period ||
+            prev.filter != curr.filter ||
+            prev.errorMessage != curr.errorMessage ||
+            _isBusy(prev) != _isBusy(curr),
         builder: (context, state) {
           final data = state.data;
           final Widget child;
@@ -153,15 +166,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
               key: const ValueKey('content'),
               state: state,
               data: data,
-              busy:
-                  state.status == ReportsStatus.loading ||
-                  state.status == ReportsStatus.refreshing,
+              busy: _isBusy(state),
               onPeriodSelected: _onPeriodSelected,
               onEditRange: _pickCustomRange,
               onRefresh: _refresh,
-              showAllInsights: _showAllInsights,
-              onToggleInsights: () =>
-                  setState(() => _showAllInsights = !_showAllInsights),
               insightsCollapsed: _insightsCollapsed,
             );
           }
@@ -179,8 +187,6 @@ class _ReportContent extends StatelessWidget {
   final ValueChanged<ReportPeriod> onPeriodSelected;
   final VoidCallback onEditRange;
   final Future<void> Function() onRefresh;
-  final bool showAllInsights;
-  final VoidCallback onToggleInsights;
   final int insightsCollapsed;
 
   const _ReportContent({
@@ -191,8 +197,6 @@ class _ReportContent extends StatelessWidget {
     required this.onPeriodSelected,
     required this.onEditRange,
     required this.onRefresh,
-    required this.showAllInsights,
-    required this.onToggleInsights,
     required this.insightsCollapsed,
   });
 
@@ -200,9 +204,6 @@ class _ReportContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final currency = data.currentBudget?.currency ?? '';
     final insights = state.insights ?? const [];
-    final visibleInsights = showAllInsights
-        ? insights
-        : insights.take(insightsCollapsed).toList();
     final isWeekPeriod =
         state.period == ReportPeriod.thisWeek ||
         state.period == ReportPeriod.lastWeek;
@@ -406,54 +407,10 @@ class _ReportContent extends StatelessWidget {
                                           'leaves your phone.',
                                     ),
                                   ),
-                                  // Expanding reveals the extra insights with a
-                                  // short stagger while the section grows smoothly.
-                                  AnimatedSize(
-                                    duration: AppMotion.respectReducedMotion(
-                                      context,
-                                      AppMotion.medium,
-                                    ),
-                                    curve: AppMotion.standardCurve,
-                                    alignment: Alignment.topCenter,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        for (
-                                          var i = 0;
-                                          i < visibleInsights.length;
-                                          i++
-                                        )
-                                          FadeSlideIn(
-                                            key: ValueKey('insight_$i'),
-                                            index: i < insightsCollapsed
-                                                ? index + i
-                                                : i - insightsCollapsed,
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                bottom: AppSpacing.sm,
-                                              ),
-                                              child: InsightCard(
-                                                message:
-                                                    visibleInsights[i].message,
-                                                type: visibleInsights[i].type,
-                                              ),
-                                            ),
-                                          ),
-                                        if (insights.length > insightsCollapsed)
-                                          Align(
-                                            alignment: Alignment.centerRight,
-                                            child: TextButton(
-                                              onPressed: onToggleInsights,
-                                              child: Text(
-                                                showAllInsights
-                                                    ? 'Show fewer'
-                                                    : 'Show ${insights.length - insightsCollapsed} more',
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
+                                  _InsightsList(
+                                    insights: insights,
+                                    collapsed: insightsCollapsed,
+                                    baseIndex: index,
                                   ),
                                 ],
 
@@ -481,21 +438,15 @@ class _ReportContent extends StatelessWidget {
             ],
           ),
         ),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: AnimatedOpacity(
-            opacity: busy ? 1 : 0,
-            duration: AppMotion.respectReducedMotion(
-              context,
-              AppMotion.standard,
-            ),
-            child: const LinearProgressIndicator(
-              minHeight: AppSizes.progressThin,
-            ),
+        // Built only while busy: an always-mounted indeterminate bar keeps
+        // its ticker running (and repainting) for the life of the screen.
+        if (busy)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(minHeight: AppSizes.progressThin),
           ),
-        ),
       ],
     );
   }
@@ -520,6 +471,77 @@ class _ReportsSkeleton extends StatelessWidget {
           SkeletonBox(height: 120, radius: AppSpacing.radiusLg),
           SizedBox(height: AppSpacing.lg),
           SkeletonBox(height: 320, radius: AppSpacing.radiusLg),
+        ],
+      ),
+    );
+  }
+}
+
+/// The insights list with its own show-more state.
+///
+/// Keeping the toggle here means expanding two text cards does not rebuild
+/// the report's three charts, which happens when the state lives on the
+/// screen above the BlocBuilder.
+class _InsightsList extends StatefulWidget {
+  final List<SmartInsight> insights;
+  final int collapsed;
+  final int baseIndex;
+
+  const _InsightsList({
+    required this.insights,
+    required this.collapsed,
+    required this.baseIndex,
+  });
+
+  @override
+  State<_InsightsList> createState() => _InsightsListState();
+}
+
+class _InsightsListState extends State<_InsightsList> {
+  bool _showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final insights = widget.insights;
+    final visible = _showAll
+        ? insights
+        : insights.take(widget.collapsed).toList();
+
+    // Expanding reveals the extra insights with a short stagger while the
+    // section grows smoothly.
+    return AnimatedSize(
+      duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
+      curve: AppMotion.standardCurve,
+      alignment: Alignment.topCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < visible.length; i++)
+            FadeSlideIn(
+              key: ValueKey('insight_$i'),
+              index: i < widget.collapsed
+                  ? widget.baseIndex + i
+                  : i - widget.collapsed,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: InsightCard(
+                  message: visible[i].message,
+                  type: visible[i].type,
+                ),
+              ),
+            ),
+          if (insights.length > widget.collapsed)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _showAll = !_showAll),
+                child: Text(
+                  _showAll
+                      ? 'Show fewer'
+                      : 'Show ${insights.length - widget.collapsed} more',
+                ),
+              ),
+            ),
         ],
       ),
     );

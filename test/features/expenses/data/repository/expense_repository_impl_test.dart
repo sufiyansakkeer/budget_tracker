@@ -133,6 +133,8 @@ class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     return store.values.toList();
   }

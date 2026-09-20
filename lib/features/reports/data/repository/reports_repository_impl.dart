@@ -87,7 +87,11 @@ class ReportsRepositoryImpl implements ReportsRepository {
     ExpenseHistoryFilter filter,
   ) async {
     final activeId = await budgetRepository.getActiveBudgetId();
-    final result = await getExpensesUseCase(budgetId: activeId);
+    final result = await getExpensesUseCase(
+      budgetId: activeId,
+      from: filter.dateFrom,
+      to: filter.dateTo,
+    );
     if (result case ExpenseError(:final failure)) {
       throw Exception(failure.message);
     }

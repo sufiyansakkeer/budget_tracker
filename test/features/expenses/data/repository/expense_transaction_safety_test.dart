@@ -37,6 +37,8 @@ class TrackingExpenseDataSource implements ExpenseLocalDataSource {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async => store.values.toList();
 
   @override
