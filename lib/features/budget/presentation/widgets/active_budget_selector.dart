@@ -12,6 +12,7 @@ import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
+import '../../../../core/constants/app_motion.dart';
 
 /// A tappable control that shows the active budget's name and period and
 /// opens the budget switcher.
@@ -127,26 +128,52 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
               ),
               const SizedBox(width: AppSpacing.smd),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      budget?.name ?? 'Choose a budget',
-                      style: theme.textTheme.titleSmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                // Switching budgets slides the new name in rather than
+                // swapping the text.
+                child: AnimatedSwitcher(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.standard,
+                  ),
+                  switchInCurve: AppMotion.enter,
+                  switchOutCurve: AppMotion.exit,
+                  layoutBuilder: (current, previous) => Stack(
+                    fit: StackFit.passthrough,
+                    alignment: Alignment.centerLeft,
+                    children: [...previous, if (current != null) current],
+                  ),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.25),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
                     ),
-                    Text(
-                      budget == null
-                          ? 'No active budget selected'
-                          : formatDateRange(budget.startDate, budget.endDate),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  child: Column(
+                    key: ValueKey(budget?.id ?? 'none'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        budget?.name ?? 'Choose a budget',
+                        style: theme.textTheme.titleSmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                      Text(
+                        budget == null
+                            ? 'No active budget selected'
+                            : formatDateRange(budget.startDate, budget.endDate),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),

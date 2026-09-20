@@ -19,6 +19,9 @@ import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
 import 'bill_widgets.dart';
+import '../../../../core/constants/app_motion.dart';
+import '../../../../core/widgets/animated_amount.dart';
+import '../../../../core/widgets/app_fab.dart';
 
 /// Bills & reminders: what is due next, totals by status, and the full list.
 class BillsListScreen extends StatefulWidget {
@@ -153,11 +156,11 @@ class _BillsListScreenState extends State<BillsListScreen> {
           return AppStateSwitcher(child: child);
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: AppFab(
         heroTag: 'bills_fab',
         onPressed: () => context.push('/app/bills/add'),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add bill'),
+        icon: Icons.add_rounded,
+        label: 'Add bill',
         tooltip: 'Add a new bill',
       ),
     );
@@ -180,7 +183,22 @@ class _BillsListScreenState extends State<BillsListScreen> {
           if (nextUp != null) ...[
             FadeSlideIn(
               index: index++,
-              child: _NextUpCard(bill: nextUp),
+              // When the next bill changes (e.g. one was just paid) the
+              // card cross-fades to the new one.
+              child: AnimatedSwitcher(
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.medium,
+                ),
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.exit,
+                layoutBuilder: (current, previous) => Stack(
+                  fit: StackFit.passthrough,
+                  alignment: Alignment.topCenter,
+                  children: [...previous, if (current != null) current],
+                ),
+                child: _NextUpCard(key: ValueKey(nextUp.id), bill: nextUp),
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -244,6 +262,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
           else
             for (final bill in filtered)
               FadeSlideIn(
+                key: ValueKey('bill_${bill.id}'),
                 index: index++,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -275,6 +294,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
       for (final bill in group) {
         widgets.add(
           FadeSlideIn(
+            key: ValueKey('bill_${bill.id}'),
             index: index++,
             child: Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -349,7 +369,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
 /// The single most important bill: the earliest unpaid one.
 class _NextUpCard extends StatelessWidget {
   final BillEntity bill;
-  const _NextUpCard({required this.bill});
+  const _NextUpCard({super.key, required this.bill});
 
   @override
   Widget build(BuildContext context) {
@@ -505,19 +525,11 @@ class _SummaryTile extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  CurrencyFormatter.format(
-                    amount,
-                    code: currency,
-                    decimalDigits: 0,
-                  ),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                  maxLines: 1,
+              AnimatedAmount(
+                amount: amount,
+                currency: currency,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
               Text(

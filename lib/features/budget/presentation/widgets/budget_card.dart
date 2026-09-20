@@ -9,6 +9,8 @@ import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/app_progress.dart';
 import '../../../../core/widgets/status_chip.dart';
 import 'budget_visuals.dart';
+import '../../../../core/constants/app_motion.dart';
+import '../../../../core/widgets/animated_amount.dart';
 
 /// A card summarizing a single budget in the list screen.
 ///
@@ -71,19 +73,15 @@ class BudgetCard extends StatelessWidget {
           '${money(budget.remainingAmount)} remaining of '
           '${money(budget.monthlyAmount)}. $daysText.',
       child: ExcludeSemantics(
-        child: Opacity(
+        child: AnimatedOpacity(
           opacity: phase == BudgetPhase.archived ? 0.7 : 1,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: AppSpacing.smd),
-            decoration: isActive
-                ? BoxDecoration(
-                    borderRadius: AppSpacing.borderRadiusLg,
-                    border: Border.all(color: theme.colorScheme.primary),
-                  )
-                : null,
+          duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.smd),
+            // The active budget's primary border animates in via AppCard.
             child: AppCard(
               onTap: onTap,
-              showBorder: !isActive,
+              borderColor: isActive ? theme.colorScheme.primary : null,
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,20 +133,16 @@ class BudgetCard extends StatelessWidget {
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                money(budget.remainingAmount.abs()),
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  color: overBudget
-                                      ? colors.error
-                                      : theme.colorScheme.onSurface,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                                maxLines: 1,
+                            AnimatedAmount(
+                              amount: budget.remainingAmount.abs(),
+                              currency: budget.currency,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: overBudget
+                                    ? colors.error
+                                    : theme.colorScheme.onSurface,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
                               ),
                             ),
                           ],
@@ -183,8 +177,9 @@ class BudgetCard extends StatelessWidget {
                   const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
-                      Text(
-                        '${(utilization * 100).clamp(0, 999).toStringAsFixed(0)}% used',
+                      AnimatedPercent(
+                        percent: (utilization * 100).clamp(0, 999).toDouble(),
+                        suffix: '% used',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: remainingColor,
                         ),
@@ -222,6 +217,22 @@ class _PhaseChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+      switchInCurve: AppMotion.enter,
+      switchOutCurve: AppMotion.exit,
+      transitionBuilder: (child, animation) => ScaleTransition(
+        scale: Tween<double>(begin: 0.8, end: 1).animate(animation),
+        child: FadeTransition(opacity: animation, child: child),
+      ),
+      child: KeyedSubtree(
+        key: ValueKey('${phase.name}_$isActive'),
+        child: _chip(context),
+      ),
+    );
+  }
+
+  Widget _chip(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.appColors;
     if (isActive) {

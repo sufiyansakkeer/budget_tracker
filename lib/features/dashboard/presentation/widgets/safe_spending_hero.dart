@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/app_card.dart';
@@ -143,10 +142,14 @@ class _Metric extends StatelessWidget {
     return Column(
       crossAxisAlignment: align,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        AnimatedSwitcher(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+          child: Text(
+            label,
+            key: ValueKey(label),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.xxs),
@@ -209,6 +212,7 @@ class OtherBudgetLimitTile extends StatelessWidget {
             icon: visuals.icon,
             color: visuals.color,
             size: AppSizes.avatarSm,
+            animate: true,
           ),
           const SizedBox(width: AppSpacing.smd),
           Expanded(
@@ -234,12 +238,10 @@ class OtherBudgetLimitTile extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                CurrencyFormatter.format(
-                  limit.dailyLimit,
-                  code: limit.currency,
-                  decimalDigits: 0,
-                ),
+              AnimatedAmount(
+                amount: limit.dailyLimit,
+                currency: limit.currency,
+                textAlign: TextAlign.end,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -330,18 +332,42 @@ class BudgetNotRunningCard extends StatelessWidget {
   }
 }
 
-/// Wraps [SafeSpendingHero] so status changes get a gentle emphasis.
+/// Wraps the hero so switching budgets cross-fades to the new card, while a
+/// refresh of the *same* budget only animates the numbers in place.
+///
+/// Give the child a key that changes with the active budget.
 class SafeSpendingHeroSwitcher extends StatelessWidget {
   final Widget child;
   const SafeSpendingHeroSwitcher({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
+    final duration = AppMotion.respectReducedMotion(context, AppMotion.medium);
     return AnimatedSize(
-      duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
+      duration: duration,
       curve: AppMotion.standardCurve,
       alignment: Alignment.topCenter,
-      child: child,
+      child: AnimatedSwitcher(
+        duration: duration,
+        switchInCurve: AppMotion.enter,
+        switchOutCurve: AppMotion.exit,
+        layoutBuilder: (current, previous) => Stack(
+          fit: StackFit.passthrough,
+          alignment: Alignment.topCenter,
+          children: [...previous, if (current != null) current],
+        ),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.03),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        ),
+        child: child,
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/pressable.dart';
 
 /// Sticky Save action for the expense form.
 ///
@@ -62,22 +63,28 @@ class ExpenseFormActions extends StatelessWidget {
         ],
         Expanded(
           flex: 2,
-          child: FilledButton.icon(
-            key: const Key('saveExpenseButton'),
-            onPressed: busy ? null : onSave,
-            style: isSaved
-                ? FilledButton.styleFrom(
-                    disabledBackgroundColor: theme.colorScheme.primary,
-                    disabledForegroundColor: theme.colorScheme.onPrimary,
-                  )
-                : null,
-            icon: AnimatedSwitcher(
-              duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
-              transitionBuilder: (child, anim) =>
-                  ScaleTransition(scale: anim, child: child),
-              child: icon,
+          child: Pressable(
+            enabled: !busy,
+            child: FilledButton.icon(
+              key: const Key('saveExpenseButton'),
+              onPressed: busy ? null : onSave,
+              style: isSaved
+                  ? FilledButton.styleFrom(
+                      disabledBackgroundColor: theme.colorScheme.primary,
+                      disabledForegroundColor: theme.colorScheme.onPrimary,
+                    )
+                  : null,
+              icon: AnimatedSwitcher(
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.fast,
+                ),
+                transitionBuilder: (child, anim) =>
+                    ScaleTransition(scale: anim, child: child),
+                child: icon,
+              ),
+              label: Text(label),
             ),
-            label: Text(label),
           ),
         ),
       ],

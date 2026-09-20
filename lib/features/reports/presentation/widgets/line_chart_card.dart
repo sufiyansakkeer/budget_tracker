@@ -8,6 +8,7 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../domain/entities/daily_spending_point.dart';
 import 'chart_card.dart';
+import '../../../../core/widgets/chart_reveal.dart';
 
 /// Daily spending over the period as a smooth line.
 class LineChartCard extends StatelessWidget {
@@ -72,133 +73,146 @@ class LineChartCard extends StatelessWidget {
                 label:
                     'Line chart of daily spending, ${points.length} days, '
                     'total ${money(total)}',
-                child: LineChart(
-                  duration: AppMotion.respectReducedMotion(
-                    context,
-                    AppMotion.emphasized,
-                  ),
-                  curve: AppMotion.value,
-                  LineChartData(
-                    minY: 0,
-                    lineTouchData: LineTouchData(
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor: (_) => colorScheme.inverseSurface,
-                        getTooltipItems: (spots) => [
-                          for (final spot in spots)
-                            LineTooltipItem(
-                              '${DateFormat('d MMM').format(points[spot.x.toInt()].date)}\n',
-                              theme.textTheme.labelSmall!.copyWith(
-                                color: colorScheme.onInverseSurface,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: money(spot.y),
-                                  style: theme.textTheme.labelLarge?.copyWith(
+                // The line is drawn left to right once on first appearance.
+                child: ChartReveal(
+                  builder: (context, reveal, revealing) {
+                    final chart = LineChart(
+                      duration: revealing
+                          ? Duration.zero
+                          : AppMotion.respectReducedMotion(
+                              context,
+                              AppMotion.emphasized,
+                            ),
+                      curve: AppMotion.value,
+                      LineChartData(
+                        minY: 0,
+                        lineTouchData: LineTouchData(
+                          touchTooltipData: LineTouchTooltipData(
+                            getTooltipColor: (_) => colorScheme.inverseSurface,
+                            getTooltipItems: (spots) => [
+                              for (final spot in spots)
+                                LineTooltipItem(
+                                  '${DateFormat('d MMM').format(points[spot.x.toInt()].date)}\n',
+                                  theme.textTheme.labelSmall!.copyWith(
                                     color: colorScheme.onInverseSurface,
                                   ),
+                                  children: [
+                                    TextSpan(
+                                      text: money(spot.y),
+                                      style: theme.textTheme.labelLarge
+                                          ?.copyWith(
+                                            color: colorScheme.onInverseSurface,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ),
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => FlLine(
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.6,
-                        ),
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 44,
-                          getTitlesWidget: (value, meta) {
-                            if (value == meta.max) {
-                              return const SizedBox.shrink();
-                            }
-                            return Text(
-                              NumberFormat.compact().format(value),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 28,
-                          interval: _bottomInterval(),
-                          getTitlesWidget: (value, meta) {
-                            final index = value.toInt();
-                            if (index < 0 || index >= points.length) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                top: AppSpacing.xs,
-                              ),
-                              child: Text(
-                                DateFormat(
-                                  points.length <= 7 ? 'E' : 'd MMM',
-                                ).format(points[index].date),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: [
-                          for (var i = 0; i < points.length; i++)
-                            FlSpot(i.toDouble(), points[i].amount),
-                        ],
-                        isCurved: true,
-                        curveSmoothness: 0.3,
-                        preventCurveOverShooting: true,
-                        color: colorScheme.primary,
-                        barWidth: 2.5,
-                        isStrokeCapRound: true,
-                        dotData: FlDotData(
-                          show: points.length <= 14,
-                          getDotPainter: (spot, _, __, ___) =>
-                              FlDotCirclePainter(
-                                radius: 3,
-                                color: colorScheme.primary,
-                                strokeWidth: 0,
-                              ),
-                        ),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              colorScheme.primary.withValues(alpha: 0.2),
-                              colorScheme.primary.withValues(alpha: 0.0),
                             ],
                           ),
                         ),
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          getDrawingHorizontalLine: (_) => FlLine(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.6,
+                            ),
+                            strokeWidth: 1,
+                          ),
+                        ),
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 44,
+                              getTitlesWidget: (value, meta) {
+                                if (value == meta.max) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Text(
+                                  NumberFormat.compact().format(value),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 28,
+                              interval: _bottomInterval(),
+                              getTitlesWidget: (value, meta) {
+                                final index = value.toInt();
+                                if (index < 0 || index >= points.length) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: AppSpacing.xs,
+                                  ),
+                                  child: Text(
+                                    DateFormat(
+                                      points.length <= 7 ? 'E' : 'd MMM',
+                                    ).format(points[index].date),
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: [
+                              for (var i = 0; i < points.length; i++)
+                                FlSpot(i.toDouble(), points[i].amount),
+                            ],
+                            isCurved: true,
+                            curveSmoothness: 0.3,
+                            preventCurveOverShooting: true,
+                            color: colorScheme.primary,
+                            barWidth: 2.5,
+                            isStrokeCapRound: true,
+                            dotData: FlDotData(
+                              show: points.length <= 14,
+                              getDotPainter: (spot, _, __, ___) =>
+                                  FlDotCirclePainter(
+                                    radius: 3,
+                                    color: colorScheme.primary,
+                                    strokeWidth: 0,
+                                  ),
+                            ),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  colorScheme.primary.withValues(alpha: 0.2),
+                                  colorScheme.primary.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                    if (reveal >= 1) return chart;
+                    return ClipRect(
+                      clipper: _LeftToRightClipper(reveal),
+                      child: chart,
+                    );
+                  },
                 ),
               ),
             ),
@@ -212,4 +226,18 @@ class LineChartCard extends StatelessWidget {
     if (count <= 62) return 14;
     return 30;
   }
+}
+
+/// Reveals its child from the left edge: `t` of the width is visible.
+class _LeftToRightClipper extends CustomClipper<Rect> {
+  final double t;
+  const _LeftToRightClipper(this.t);
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTWH(0, 0, size.width * t.clamp(0.0, 1.0), size.height);
+
+  @override
+  bool shouldReclip(covariant _LeftToRightClipper oldClipper) =>
+      oldClipper.t != t;
 }

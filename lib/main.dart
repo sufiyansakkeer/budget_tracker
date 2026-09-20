@@ -6,6 +6,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 import 'core/currency/currency_provider.dart';
 import 'core/notifications/notification_bloc.dart';
+import 'core/constants/app_motion.dart';
 import 'core/di/injection.dart' as di;
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -220,6 +221,14 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
                     theme: AppTheme.buildLightTheme(state.palette),
                     darkTheme: AppTheme.buildDarkTheme(state.palette),
                     themeMode: state.mode.toThemeMode(),
+                    // Light ↔ dark and palette switches lerp every colour
+                    // in place (AppColorTokens implements lerp) instead of
+                    // flashing to the new theme; no restart needed.
+                    themeAnimationDuration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.medium,
+                    ),
+                    themeAnimationCurve: AppMotion.emphasizedCurve,
                     routerConfig: AppRouter.router,
                     // The builder places a BlocListener *inside* the
                     // MaterialApp tree.  The context here is below

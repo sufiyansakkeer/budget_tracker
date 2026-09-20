@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../domain/entities/notification_settings.dart';
+import '../../../../core/constants/app_motion.dart';
 
 /// A settings row for a labelled notification time with a time-picker action.
 class NotificationTimeTile extends StatelessWidget {
@@ -40,38 +41,43 @@ class NotificationTimeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      enabled: enabled,
-      contentPadding: EdgeInsets.zero,
-      leading: IconTile(
-        icon: icon,
-        color: enabled
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant,
-        size: AppSizes.avatarSm,
-      ),
-      title: Text(title, style: theme.textTheme.titleSmall),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.smd,
-          vertical: AppSpacing.xs,
+    // Dims smoothly when notifications are switched off.
+    return AnimatedOpacity(
+      opacity: enabled ? 1 : 0.75,
+      duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+      child: ListTile(
+        enabled: enabled,
+        contentPadding: EdgeInsets.zero,
+        leading: IconTile(
+          icon: icon,
+          color: enabled
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
+          size: AppSizes.avatarSm,
         ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainer,
-          borderRadius: AppSpacing.borderRadiusSm,
-        ),
-        child: Text(
-          time.displayLabel,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: enabled
-                ? theme.colorScheme.onSurface
-                : theme.colorScheme.onSurfaceVariant,
+        title: Text(title, style: theme.textTheme.titleSmall),
+        subtitle: subtitle != null ? Text(subtitle!) : null,
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.smd,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainer,
+            borderRadius: AppSpacing.borderRadiusSm,
+          ),
+          child: Text(
+            time.displayLabel,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: enabled
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
+        onTap: enabled ? () => _pick(context) : null,
+        shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSm),
       ),
-      onTap: enabled ? () => _pick(context) : null,
-      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSm),
     );
   }
 }

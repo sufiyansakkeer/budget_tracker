@@ -35,6 +35,9 @@ import '../widgets/loading_more_indicator.dart';
 import '../widgets/quick_filter_chips.dart';
 import '../widgets/sort_bottom_sheet.dart';
 import '../widgets/summary_card.dart';
+import '../../../../../core/domain/entities/budget_entity.dart';
+import '../../../../../core/widgets/app_fab.dart';
+import '../../../../../core/widgets/fade_slide_in.dart';
 
 /// Expense history: search, filters, sorting, day grouping, pagination,
 /// swipe-to-delete, pull-to-refresh, and the combined multi-budget view.
@@ -55,6 +58,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   List<ExpenseEntity>? _groupSource;
   ExpenseSortOption? _groupSort;
   List<ExpenseGroup> _groups = const [];
+
+  /// Ids of rows that have already been shown. New rows slide in once;
+  /// rows scrolled back into view (or re-sorted) render immediately so the
+  /// list never shifts under a finger.
+  final Set<String> _seenIds = <String>{};
 
   @override
   void initState() {
@@ -275,11 +283,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
 
     return Scaffold(
       body: body,
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: AppFab(
         heroTag: 'expenses_fab',
         onPressed: () => context.push('/app/expenses/add'),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add expense'),
+        icon: Icons.add_rounded,
+        label: 'Add expense',
         tooltip: 'Add expense',
       ),
     );
@@ -472,7 +480,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               isLoading: state.status == ExpenseHistoryStatus.loadingMore,
             );
           }
-          return _buildGroup(context, groups[index - 1], state);
+          return _buildGroup(context, groups[index - 1], state, index - 1);
         },
       ),
     );
@@ -482,8 +490,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     BuildContext context,
     ExpenseGroup group,
     ExpenseHistoryState state,
+    int groupIndex,
   ) {
     final theme = Theme.of(context);
+    // Date headers stay put; only the rows animate.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -491,11 +501,17 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         for (var i = 0; i < group.expenses.length; i++) ...[
           if (i > 0)
             Divider(
+              key: ValueKey('div_${group.expenses[i].id}'),
               indent: AppSizes.avatarMd + AppSpacing.mlg,
               endIndent: AppSpacing.sm,
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
             ),
-          _buildExpenseRow(context, group.expenses[i], state),
+          _buildExpenseRow(
+            context,
+            group.expenses[i],
+            state,
+            (groupIndex + i).clamp(0, 6),
+          ),
         ],
       ],
     );
@@ -505,12 +521,29 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     BuildContext context,
     ExpenseEntity expense,
     ExpenseHistoryState state,
+    int stagger,
   ) {
     final category = _findCategory(state.categories, expense.categoryId);
     final budget = state.isCombinedMode
         ? state.budgetMap[expense.budgetId]
         : null;
+    final isNew = _seenIds.add(expense.id);
 
+    return FadeSlideIn(
+      key: ValueKey('enter_${expense.id}'),
+      animate: isNew,
+      index: stagger,
+      child: _buildDismissibleRow(context, expense, state, category, budget),
+    );
+  }
+
+  Widget _buildDismissibleRow(
+    BuildContext context,
+    ExpenseEntity expense,
+    ExpenseHistoryState state,
+    ExpenseCategory? category,
+    BudgetEntity? budget,
+  ) {
     return Dismissible(
       key: Key('dismiss_${expense.id}'),
       direction: DismissDirection.endToStart,

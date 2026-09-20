@@ -4,6 +4,7 @@ import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_history_summary.dart';
+import '../../../../../core/widgets/animated_amount.dart';
 
 /// Compact summary strip for the currently visible results.
 ///
@@ -66,15 +67,12 @@ class SummaryCard extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                money(summary.totalAmount),
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-                maxLines: 1,
+            child: AnimatedAmount(
+              amount: summary.totalAmount,
+              currency: currency,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ),

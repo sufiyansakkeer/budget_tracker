@@ -20,6 +20,8 @@ import '../widgets/quick_actions.dart';
 import '../widgets/recent_expense_tile.dart';
 import '../widgets/safe_spending_hero.dart';
 import '../widgets/upcoming_bills_section.dart';
+import '../../../../core/constants/app_motion.dart';
+import '../../../../core/widgets/app_fab.dart';
 
 /// Home tab: the financial overview for the active budget.
 ///
@@ -58,11 +60,11 @@ class DashboardScreen extends StatelessWidget {
         buildWhen: (a, b) => (a is DashboardLoaded) != (b is DashboardLoaded),
         builder: (context, state) {
           if (state is! DashboardLoaded) return const SizedBox.shrink();
-          return FloatingActionButton.extended(
+          return AppFab(
             heroTag: 'dashboard_fab',
             onPressed: () => context.push('/app/expenses/add'),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add expense'),
+            icon: Icons.add_rounded,
+            label: 'Add expense',
             tooltip: 'Add expense',
           );
         },
@@ -118,9 +120,15 @@ class _DashboardContent extends StatelessWidget {
                   FadeSlideIn(
                     index: 2,
                     child: SafeSpendingHeroSwitcher(
+                      // Keyed by budget: switching budgets cross-fades,
+                      // refreshing the same budget animates values in place.
                       child: activeLimit != null
-                          ? SafeSpendingHero(limit: activeLimit)
+                          ? SafeSpendingHero(
+                              key: ValueKey('hero_${activeLimit.budgetId}'),
+                              limit: activeLimit,
+                            )
                           : BudgetNotRunningCard(
+                              key: ValueKey('paused_${state.activeBudgetId}'),
                               startDate: summary.startDate,
                               endDate: summary.endDate,
                               onSwitch: () =>
@@ -203,58 +211,80 @@ class _DashboardContent extends StatelessWidget {
                       onAction: () => context.push('/app/expenses/add'),
                     )
                   else
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: theme.cardTheme.color,
-                        borderRadius: AppSpacing.borderRadiusLg,
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withValues(
-                            alpha: 0.6,
+                    // The card grows smoothly when a new expense arrives;
+                    // rows are keyed by id so only the new one slides in.
+                    AnimatedSize(
+                      duration: AppMotion.respectReducedMotion(
+                        context,
+                        AppMotion.medium,
+                      ),
+                      curve: AppMotion.standardCurve,
+                      alignment: Alignment.topCenter,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.cardTheme.color,
+                          borderRadius: AppSpacing.borderRadiusLg,
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xs,
-                        ),
-                        child: Column(
-                          children: [
-                            for (
-                              var i = 0;
-                              i < state.recentExpenses.length;
-                              i++
-                            ) ...[
-                              if (i > 0)
-                                Divider(
-                                  indent: AppSizes.avatarMd + AppSpacing.mlg,
-                                  color: theme.colorScheme.outlineVariant
-                                      .withValues(alpha: 0.5),
-                                ),
-                              FadeSlideIn(
-                                index: 5 + i,
-                                child: RecentExpenseTile(
-                                  expense: state.recentExpenses[i],
-                                  currency: summary.currency,
-                                  onTap: () => context.push(
-                                    '/app/expenses/${state.recentExpenses[i].id}',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.xs,
+                          ),
+                          child: Column(
+                            children: [
+                              for (
+                                var i = 0;
+                                i < state.recentExpenses.length;
+                                i++
+                              ) ...[
+                                if (i > 0)
+                                  Divider(
+                                    key: ValueKey(
+                                      'recent_div_${state.recentExpenses[i].id}',
+                                    ),
+                                    indent: AppSizes.avatarMd + AppSpacing.mlg,
+                                    color: theme.colorScheme.outlineVariant
+                                        .withValues(alpha: 0.5),
+                                  ),
+                                FadeSlideIn(
+                                  key: ValueKey(
+                                    'recent_${state.recentExpenses[i].id}',
+                                  ),
+                                  index: 4 + i,
+                                  child: RecentExpenseTile(
+                                    expense: state.recentExpenses[i],
+                                    currency: summary.currency,
+                                    onTap: () => context.push(
+                                      '/app/expenses/${state.recentExpenses[i].id}',
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
 
                   // 6. Upcoming bills
                   const SizedBox(height: AppSpacing.lg),
-                  UpcomingBillsSection(bills: state.upcomingBills),
+                  FadeSlideIn(
+                    index: 6,
+                    child: UpcomingBillsSection(bills: state.upcomingBills),
+                  ),
 
                   // 7. Quick actions
                   const SizedBox(height: AppSpacing.lg),
-                  const SectionHeader(title: 'Quick actions'),
-                  const QuickActions(),
+                  const FadeSlideIn(
+                    index: 7,
+                    child: SectionHeader(title: 'Quick actions'),
+                  ),
+                  const FadeSlideIn(index: 7, child: QuickActions()),
                 ],
               ),
             ),

@@ -5,6 +5,7 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../domain/entities/expense_category.dart';
 import 'category_visuals.dart';
 import 'form_field_error.dart';
+import '../../../../core/constants/app_motion.dart';
 
 /// Visual category selector: icon + name chips, tinted with the category
 /// color when selected.
@@ -62,24 +63,36 @@ class CategoryPicker extends StatelessWidget {
                 context,
                 category.colorHex,
               );
-              return ChoiceChip(
-                key: Key('category_${category.id}'),
-                selected: isSelected,
-                onSelected: (_) => onSelected(category.id),
-                avatar: Icon(
-                  CategoryVisuals.iconFor(category.icon),
-                  size: AppSizes.iconSm + 2,
-                  color: isSelected
-                      ? color
-                      : theme.colorScheme.onSurfaceVariant,
+              // The chosen chip lifts slightly so the selection reads at a
+              // glance; the chip itself animates its colours.
+              return AnimatedScale(
+                scale: isSelected ? 1.04 : 1,
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.fast,
                 ),
-                label: Text(category.name),
-                selectedColor: color.withValues(alpha: 0.16),
-                side: BorderSide(
-                  color: isSelected ? color : theme.colorScheme.outlineVariant,
-                ),
-                labelStyle: theme.textTheme.labelLarge?.copyWith(
-                  color: isSelected ? color : theme.colorScheme.onSurface,
+                curve: AppMotion.standardCurve,
+                child: ChoiceChip(
+                  key: Key('category_${category.id}'),
+                  selected: isSelected,
+                  onSelected: (_) => onSelected(category.id),
+                  avatar: Icon(
+                    CategoryVisuals.iconFor(category.icon),
+                    size: AppSizes.iconSm + 2,
+                    color: isSelected
+                        ? color
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  label: Text(category.name),
+                  selectedColor: color.withValues(alpha: 0.16),
+                  side: BorderSide(
+                    color: isSelected
+                        ? color
+                        : theme.colorScheme.outlineVariant,
+                  ),
+                  labelStyle: theme.textTheme.labelLarge?.copyWith(
+                    color: isSelected ? color : theme.colorScheme.onSurface,
+                  ),
                 ),
               );
             }).toList(),

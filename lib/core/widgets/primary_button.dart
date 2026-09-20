@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import 'pressable.dart';
 
 /// Standard primary action button (wraps [FilledButton]).
 ///
-/// While [isLoading] the label is replaced by a spinner in the button's
-/// foreground color and the button is disabled, so a double tap can't fire
-/// the action twice.
+/// Presses in slightly when tapped. While [isLoading] the label fades out
+/// and a spinner takes its place *without changing the button's size*, the
+/// button keeps its primary colour so the action still looks intentional,
+/// and it is disabled so a double tap can't fire the action twice.
+/// Disabled buttons never run the press animation.
 class PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -27,37 +30,61 @@ class PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final enabled = onPressed != null && !isLoading;
+    final duration = AppMotion.respectReducedMotion(context, AppMotion.fast);
+
     final button = FilledButton(
       onPressed: isLoading ? null : onPressed,
-      child: AnimatedSwitcher(
-        duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
-        child: isLoading
-            ? SizedBox(
-                key: const ValueKey('loading'),
-                width: AppSizes.iconMd,
-                height: AppSizes.iconMd,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              )
-            : Row(
-                key: const ValueKey('label'),
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: AppSizes.iconMd),
-                    const SizedBox(width: AppSpacing.sm),
-                  ],
-                  Text(label),
+      style: isLoading
+          ? FilledButton.styleFrom(
+              disabledBackgroundColor: colorScheme.primary,
+              disabledForegroundColor: colorScheme.onPrimary,
+            )
+          : null,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedOpacity(
+            opacity: isLoading ? 0 : 1,
+            duration: duration,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: AppSizes.iconMd),
+                  const SizedBox(width: AppSpacing.sm),
                 ],
-              ),
+                Text(label),
+              ],
+            ),
+          ),
+          AnimatedSwitcher(
+            duration: duration,
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: animation,
+              child: FadeTransition(opacity: animation, child: child),
+            ),
+            child: isLoading
+                ? SizedBox(
+                    key: const ValueKey('loading'),
+                    width: AppSizes.iconMd,
+                    height: AppSizes.iconMd,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colorScheme.onPrimary,
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('idle')),
+          ),
+        ],
       ),
     );
 
+    final pressable = Pressable(enabled: enabled, child: button);
     if (isExpanded) {
-      return SizedBox(width: double.infinity, child: button);
+      return SizedBox(width: double.infinity, child: pressable);
     }
-    return button;
+    return pressable;
   }
 }

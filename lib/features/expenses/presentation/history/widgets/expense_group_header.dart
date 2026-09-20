@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
-import '../../../../../core/currency/currency_formatter.dart';
 import '../../../domain/entities/expense_group.dart';
+import '../../../../../core/widgets/animated_amount.dart';
 
 /// Section header for a group of expenses sharing one calendar date.
 class ExpenseGroupHeader extends StatelessWidget {
@@ -38,12 +38,10 @@ class ExpenseGroupHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          Text(
-            CurrencyFormatter.format(
-              group.totalAmount,
-              code: currency,
-              decimalDigits: 0,
-            ),
+          AnimatedAmount(
+            amount: group.totalAmount,
+            currency: currency,
+            textAlign: TextAlign.end,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurface,
               fontFeatures: const [FontFeature.tabularFigures()],

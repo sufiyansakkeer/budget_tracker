@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/constants/app_motion.dart';
 
 /// Search field for the expense history screen.
 ///
@@ -40,15 +41,26 @@ class ExpenseSearchBar extends StatelessWidget {
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, _) {
-              if (value.text.isEmpty) return const SizedBox.shrink();
-              return IconButton(
-                key: const Key('expenseSearchClear'),
-                icon: const Icon(Icons.close_rounded),
-                tooltip: 'Clear search',
-                onPressed: () {
-                  controller.clear();
-                  onClear();
-                },
+              return AnimatedSwitcher(
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.fast,
+                ),
+                transitionBuilder: (child, animation) => ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(opacity: animation, child: child),
+                ),
+                child: value.text.isEmpty
+                    ? const SizedBox.shrink(key: ValueKey('noClear'))
+                    : IconButton(
+                        key: const Key('expenseSearchClear'),
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          controller.clear();
+                          onClear();
+                        },
+                      ),
               );
             },
           ),

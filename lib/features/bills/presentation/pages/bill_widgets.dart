@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/theme/app_colors_extension.dart';
@@ -108,6 +109,10 @@ class BillVisuals {
 }
 
 /// A card widget displaying a single bill's summary information.
+///
+/// Paid/unpaid and due/overdue changes animate in place: the icon tint,
+/// strike-through title, status icon and amount all ease to the new state,
+/// while the due text itself stays fully readable throughout.
 class BillCard extends StatelessWidget {
   final BillEntity bill;
   final String currency;
@@ -134,6 +139,30 @@ class BillCard extends StatelessWidget {
     );
     final dueText = BillVisuals.dueText(bill);
     final muted = bill.isPaid;
+    final duration = AppMotion.respectReducedMotion(
+      context,
+      AppMotion.standard,
+    );
+    final mutedColor = theme.colorScheme.onSurfaceVariant;
+    final titleStyle = (theme.textTheme.titleSmall ?? const TextStyle())
+        .copyWith(
+          decoration: muted ? TextDecoration.lineThrough : TextDecoration.none,
+          color: muted ? mutedColor : theme.colorScheme.onSurface,
+        );
+    final amountStyle = (theme.textTheme.titleSmall ?? const TextStyle())
+        .copyWith(
+          color: muted ? mutedColor : theme.colorScheme.onSurface,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        );
+    final dueStyle = (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
+      color: color,
+    );
+
+    Widget scaleFade(Widget child, Animation<double> animation) =>
+        ScaleTransition(
+          scale: Tween<double>(begin: 0.7, end: 1).animate(animation),
+          child: FadeTransition(opacity: animation, child: child),
+        );
 
     return Semantics(
       button: onTap != null,
@@ -150,7 +179,11 @@ class BillCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              IconTile(icon: BillVisuals.iconFor(bill.category), color: color),
+              IconTile(
+                icon: BillVisuals.iconFor(bill.category),
+                color: color,
+                animate: true,
+              ),
               const SizedBox(width: AppSpacing.smd),
               Expanded(
                 child: Column(
@@ -159,18 +192,15 @@ class BillCard extends StatelessWidget {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
-                            bill.title,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              decoration: muted
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              color: muted
-                                  ? theme.colorScheme.onSurfaceVariant
-                                  : null,
+                          child: AnimatedDefaultTextStyle(
+                            duration: duration,
+                            curve: AppMotion.standardCurve,
+                            style: titleStyle,
+                            child: Text(
+                              bill.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (bill.isRecurring) ...[
@@ -178,7 +208,7 @@ class BillCard extends StatelessWidget {
                           Icon(
                             Icons.repeat_rounded,
                             size: AppSizes.iconXs,
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: mutedColor,
                             semanticLabel: 'Recurring',
                           ),
                         ],
@@ -187,20 +217,29 @@ class BillCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.xxs),
                     Row(
                       children: [
-                        Icon(
-                          BillVisuals.statusIcon(status),
-                          size: AppSizes.iconXs,
-                          color: color,
+                        AnimatedSwitcher(
+                          duration: duration,
+                          switchInCurve: AppMotion.enter,
+                          switchOutCurve: AppMotion.exit,
+                          transitionBuilder: scaleFade,
+                          child: Icon(
+                            BillVisuals.statusIcon(status),
+                            key: ValueKey(status),
+                            size: AppSizes.iconXs,
+                            color: color,
+                          ),
                         ),
                         const SizedBox(width: AppSpacing.xs),
                         Flexible(
-                          child: Text(
-                            dueText,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: color,
+                          child: AnimatedDefaultTextStyle(
+                            duration: duration,
+                            curve: AppMotion.standardCurve,
+                            style: dueStyle,
+                            child: Text(
+                              dueText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -209,25 +248,33 @@ class BillCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                amount,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: muted ? theme.colorScheme.onSurfaceVariant : null,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+              AnimatedDefaultTextStyle(
+                duration: duration,
+                curve: AppMotion.standardCurve,
+                style: amountStyle,
+                child: Text(amount),
               ),
-              if (onMarkPaid != null && !bill.isPaid) ...[
-                const SizedBox(width: AppSpacing.xs),
-                IconButton(
-                  tooltip: 'Mark as paid',
-                  onPressed: onMarkPaid,
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: context.appColors.success,
-                  ),
-                ),
-              ],
+              AnimatedSwitcher(
+                duration: duration,
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.exit,
+                transitionBuilder: scaleFade,
+                child: onMarkPaid != null && !bill.isPaid
+                    ? Padding(
+                        key: const ValueKey('markPaid'),
+                        padding: const EdgeInsets.only(left: AppSpacing.xs),
+                        child: IconButton(
+                          tooltip: 'Mark as paid',
+                          onPressed: onMarkPaid,
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(
+                            Icons.check_circle_outline_rounded,
+                            color: context.appColors.success,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('noAction')),
+              ),
             ],
           ),
         ),

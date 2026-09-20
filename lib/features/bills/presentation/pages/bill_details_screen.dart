@@ -23,6 +23,7 @@ import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
 import 'bill_widgets.dart';
+import '../../../../core/constants/app_motion.dart';
 
 /// Detailed view of a single bill.
 class BillDetailsScreen extends StatefulWidget {
@@ -298,6 +299,7 @@ class _Details extends StatelessWidget {
                     icon: BillVisuals.iconFor(bill.category),
                     color: color,
                     size: AppSizes.avatarLg,
+                    animate: true,
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -483,25 +485,50 @@ class _Details extends StatelessWidget {
 
         const SizedBox(height: AppSpacing.lg),
 
-        // Actions
-        if (!bill.isPaid) ...[
-          FilledButton.icon(
-            onPressed: busy ? null : onMarkPaid,
-            icon: const Icon(Icons.check_circle_outline_rounded),
-            label: const Text('Mark as paid'),
+        // Actions: the paid and unpaid sets cross-fade and the block
+        // resizes smoothly, so marking a bill paid feels like one change.
+        AnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
+          curve: AppMotion.standardCurve,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+            duration: AppMotion.respectReducedMotion(
+              context,
+              AppMotion.standard,
+            ),
+            switchInCurve: AppMotion.enter,
+            switchOutCurve: AppMotion.exit,
+            layoutBuilder: (current, previous) => Stack(
+              fit: StackFit.passthrough,
+              alignment: Alignment.topCenter,
+              children: [...previous, if (current != null) current],
+            ),
+            child: !bill.isPaid
+                ? Column(
+                    key: const ValueKey('unpaidActions'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: busy ? null : onMarkPaid,
+                        icon: const Icon(Icons.check_circle_outline_rounded),
+                        label: const Text('Mark as paid'),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      FilledButton.tonalIcon(
+                        onPressed: busy ? null : onMarkPaidAndExpense,
+                        icon: const Icon(Icons.receipt_long_rounded),
+                        label: const Text('Mark paid & add expense'),
+                      ),
+                    ],
+                  )
+                : OutlinedButton.icon(
+                    key: const ValueKey('paidActions'),
+                    onPressed: busy ? null : onMarkUnpaid,
+                    icon: const Icon(Icons.undo_rounded),
+                    label: const Text('Mark as unpaid'),
+                  ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          FilledButton.tonalIcon(
-            onPressed: busy ? null : onMarkPaidAndExpense,
-            icon: const Icon(Icons.receipt_long_rounded),
-            label: const Text('Mark paid & add expense'),
-          ),
-        ] else
-          OutlinedButton.icon(
-            onPressed: busy ? null : onMarkUnpaid,
-            icon: const Icon(Icons.undo_rounded),
-            label: const Text('Mark as unpaid'),
-          ),
+        ),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(
           onPressed: busy ? null : onDelete,

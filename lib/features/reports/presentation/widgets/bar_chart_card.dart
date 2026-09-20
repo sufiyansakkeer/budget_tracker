@@ -8,6 +8,7 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../domain/entities/monthly_spending_bucket.dart';
 import 'chart_card.dart';
+import '../../../../core/widgets/chart_reveal.dart';
 
 /// Spending grouped into weeks (month views) or months (year view).
 class BarChartCard extends StatelessWidget {
@@ -63,103 +64,112 @@ class BarChartCard extends StatelessWidget {
               height: AppSizes.chartHeight,
               child: Semantics(
                 label: 'Bar chart of spending by $unit, ${buckets.length} bars',
-                child: BarChart(
-                  duration: AppMotion.respectReducedMotion(
-                    context,
-                    AppMotion.emphasized,
-                  ),
-                  curve: AppMotion.value,
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: _maxY(),
-                    barTouchData: BarTouchData(
-                      touchTooltipData: BarTouchTooltipData(
-                        getTooltipColor: (_) => colorScheme.inverseSurface,
-                        getTooltipItem: (group, _, rod, __) => BarTooltipItem(
-                          money(rod.toY),
-                          theme.textTheme.labelLarge!.copyWith(
-                            color: colorScheme.onInverseSurface,
+                // Bars grow upward once on first appearance; later dataset
+                // changes use fl_chart's own tween (disabled while revealing
+                // so the two never fight).
+                child: ChartReveal(
+                  builder: (context, reveal, revealing) => BarChart(
+                    duration: revealing
+                        ? Duration.zero
+                        : AppMotion.respectReducedMotion(
+                            context,
+                            AppMotion.emphasized,
+                          ),
+                    curve: AppMotion.value,
+                    BarChartData(
+                      alignment: BarChartAlignment.spaceAround,
+                      maxY: _maxY(),
+                      barTouchData: BarTouchData(
+                        touchTooltipData: BarTouchTooltipData(
+                          getTooltipColor: (_) => colorScheme.inverseSurface,
+                          getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                            money(rod.toY),
+                            theme.textTheme.labelLarge!.copyWith(
+                              color: colorScheme.onInverseSurface,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => FlLine(
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.6,
-                        ),
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 44,
-                          getTitlesWidget: (value, meta) {
-                            if (value == meta.max) {
-                              return const SizedBox.shrink();
-                            }
-                            return Text(
-                              NumberFormat.compact().format(value),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            );
-                          },
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (_) => FlLine(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                          strokeWidth: 1,
                         ),
                       ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 28,
-                          getTitlesWidget: (value, meta) {
-                            final index = value.toInt();
-                            if (index < 0 || index >= buckets.length) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                top: AppSpacing.xs,
-                              ),
-                              child: Text(
-                                _label(buckets[index]),
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 44,
+                            getTitlesWidget: (value, meta) {
+                              if (value == meta.max) {
+                                return const SizedBox.shrink();
+                              }
+                              return Text(
+                                NumberFormat.compact().format(value),
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 28,
+                            getTitlesWidget: (value, meta) {
+                              final index = value.toInt();
+                              if (index < 0 || index >= buckets.length) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                  top: AppSpacing.xs,
+                                ),
+                                child: Text(
+                                  _label(buckets[index]),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
                         ),
                       ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
+                      borderData: FlBorderData(show: false),
+                      barGroups: [
+                        for (var i = 0; i < buckets.length; i++)
+                          BarChartGroupData(
+                            x: i,
+                            barRods: [
+                              BarChartRodData(
+                                toY: buckets[i].amount * reveal,
+                                color: identical(buckets[i], top)
+                                    ? colorScheme.primary
+                                    : colorScheme.primary.withValues(
+                                        alpha: 0.55,
+                                      ),
+                                width: buckets.length > 8 ? 12 : 20,
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(AppSpacing.radiusXs),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
-                    borderData: FlBorderData(show: false),
-                    barGroups: [
-                      for (var i = 0; i < buckets.length; i++)
-                        BarChartGroupData(
-                          x: i,
-                          barRods: [
-                            BarChartRodData(
-                              toY: buckets[i].amount,
-                              color: identical(buckets[i], top)
-                                  ? colorScheme.primary
-                                  : colorScheme.primary.withValues(alpha: 0.55),
-                              width: buckets.length > 8 ? 12 : 20,
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(AppSpacing.radiusXs),
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
                   ),
                 ),
               ),

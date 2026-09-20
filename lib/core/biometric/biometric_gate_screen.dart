@@ -108,6 +108,11 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
                 ? AppTheme.darkTheme
                 : AppTheme.buildDarkTheme(themeState.palette),
             themeMode: themeState?.mode.toThemeMode() ?? ThemeMode.system,
+            themeAnimationDuration: AppMotion.respectReducedMotion(
+              context,
+              AppMotion.medium,
+            ),
+            themeAnimationCurve: AppMotion.emphasizedCurve,
             home: _LockScreenBody(
               state: state,
               onRetry: () {

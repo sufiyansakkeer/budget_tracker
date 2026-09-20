@@ -32,8 +32,6 @@ class ReportSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.appColors;
     final s = CurrencyFormatter.symbolFor(currency);
-    String money(double v) =>
-        CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
 
     final growthPct = (trend.growthRate * 100).abs();
     final hasComparison = trend.growthRate != 0 && growthPct >= 1;
@@ -135,19 +133,22 @@ class ReportSummaryCard extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: 'Per day',
-                  value: money(overview.averageDailySpending),
+                  amount: overview.averageDailySpending,
+                  currency: currency,
                 ),
               ),
               Expanded(
                 child: _Metric(
                   label: 'Per expense',
-                  value: money(overview.averageTransactionAmount),
+                  amount: overview.averageTransactionAmount,
+                  currency: currency,
                 ),
               ),
               Expanded(
                 child: _Metric(
                   label: 'Largest',
-                  value: money(overview.highestExpense),
+                  amount: overview.highestExpense,
+                  currency: currency,
                 ),
               ),
             ],
@@ -160,9 +161,14 @@ class ReportSummaryCard extends StatelessWidget {
 
 class _Metric extends StatelessWidget {
   final String label;
-  final String value;
+  final double amount;
+  final String currency;
 
-  const _Metric({required this.label, required this.value});
+  const _Metric({
+    required this.label,
+    required this.amount,
+    required this.currency,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -177,15 +183,11 @@ class _Metric extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.xxs),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-            maxLines: 1,
+        AnimatedAmount(
+          amount: amount,
+          currency: currency,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ],

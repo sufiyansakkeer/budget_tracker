@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_progress.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../budget/domain/entities/budget_summary_entity.dart';
 import 'dashboard_info.dart';
+import '../../../../core/constants/app_motion.dart';
 
 /// One card answering "how much remains, how far along am I, how many days
 /// are left" for the active budget. Replaces the separate Remaining Budget
@@ -53,13 +54,20 @@ class BudgetOverviewCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        overBudget ? 'Over budget by' : 'Remaining in budget',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                      child: AnimatedSwitcher(
+                        duration: AppMotion.respectReducedMotion(
+                          context,
+                          AppMotion.fast,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: Text(
+                          overBudget ? 'Over budget by' : 'Remaining in budget',
+                          key: ValueKey(overBudget),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                     InfoIcon(
@@ -68,8 +76,9 @@ class BudgetOverviewCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Text(
-                '${usedPercent.toStringAsFixed(0)}% used',
+              AnimatedPercent(
+                percent: usedPercent.toDouble(),
+                suffix: '% used',
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: remainingColor,
                 ),

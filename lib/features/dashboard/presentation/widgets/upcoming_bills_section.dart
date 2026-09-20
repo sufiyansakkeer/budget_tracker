@@ -42,6 +42,7 @@ class UpcomingBillsSection extends StatelessWidget {
         else
           for (var i = 0; i < bills.length; i++)
             FadeSlideIn(
+              key: ValueKey('upcoming_${bills[i].id}'),
               index: i,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),

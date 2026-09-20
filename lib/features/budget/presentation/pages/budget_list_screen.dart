@@ -20,6 +20,7 @@ import '../bloc/budget_bloc.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/budget_list_summary_card.dart';
 import '../widgets/budget_visuals.dart';
+import '../../../../core/widgets/app_fab.dart';
 
 /// Lists all budgets, grouped by where they are in their lifecycle, with the
 /// active budget marked. Each budget stays independent.
@@ -103,11 +104,11 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
         bottom: false,
         child: AppStateSwitcher(child: _buildBody()),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: AppFab(
         heroTag: 'budgets_fab',
         onPressed: () => context.push('/app/budgets/create'),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New budget'),
+        icon: Icons.add_rounded,
+        label: 'New budget',
         tooltip: 'Create a new budget',
       ),
     );
@@ -193,7 +194,10 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
             if (groups[phase] case final list? when list.isNotEmpty) ...[
               SectionHeader(title: title, subtitle: subtitle),
               for (final budget in list)
+                // Keyed by id: switching the active budget re-sorts the
+                // list without replaying entrances.
                 FadeSlideIn(
+                  key: ValueKey('budget_${budget.id}'),
                   index: index++,
                   child: BudgetCard(
                     budget: budget,

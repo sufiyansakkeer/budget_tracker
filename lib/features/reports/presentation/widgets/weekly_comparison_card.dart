@@ -7,6 +7,7 @@ import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../domain/entities/weekly_comparison.dart';
 import 'chart_card.dart';
+import '../../../../core/widgets/app_progress.dart';
 
 /// Compares this week's spending with the stretch just before it.
 class WeeklyComparisonCard extends StatelessWidget {
@@ -166,19 +167,11 @@ class _Bar extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        ClipRRect(
-          borderRadius: AppSpacing.borderRadiusFull,
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(end: fraction.clamp(0.0, 1.0)),
-            duration: const Duration(milliseconds: 450),
-            curve: Curves.easeInOutCubic,
-            builder: (context, value, _) => LinearProgressIndicator(
-              value: value,
-              minHeight: AppSizes.progressMd,
-              color: color,
-              backgroundColor: theme.colorScheme.surfaceContainerHigh,
-            ),
-          ),
+        AppProgress(
+          value: fraction.clamp(0.0, 1.0),
+          height: AppSizes.progressMd,
+          color: color,
+          semanticLabel: label,
         ),
       ],
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_spacing.dart';
 import '../theme/app_colors_extension.dart';
+import 'app_dialog.dart';
 
 /// A consistent confirmation dialog.
 class ConfirmationDialog {
@@ -18,7 +19,7 @@ class ConfirmationDialog {
     bool isDestructive = false,
   }) async {
     final appColors = context.appColors;
-    final result = await showDialog<bool>(
+    final result = await AppDialog.show<bool>(
       context: context,
       builder: (dialogContext) {
         final dc = dialogContext;

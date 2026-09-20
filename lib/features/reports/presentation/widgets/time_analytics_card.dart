@@ -10,6 +10,7 @@ import '../../domain/entities/daily_spending_point.dart';
 import '../../domain/entities/spending_trend.dart';
 import '../../domain/entities/time_analytics.dart';
 import 'chart_card.dart';
+import '../../../../core/constants/app_motion.dart';
 
 /// "Patterns": when spending happens. Weekday vs weekend split, the day of
 /// the week you spend most on, and how even your daily spending is.
@@ -34,7 +35,6 @@ class TimeAnalyticsCard extends StatelessWidget {
     final total = analytics.weekdaySpending + analytics.weekendSpending;
     final hasData = total > 0;
     final weekdayShare = hasData ? analytics.weekdaySpending / total : 0.0;
-    final weekendShare = hasData ? analytics.weekendSpending / total : 0.0;
     String money(double v) =>
         CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
 
@@ -80,55 +80,72 @@ class TimeAnalyticsCard extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Weekday / weekend split bar
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Weekdays · ${(weekdayShare * 100).toStringAsFixed(0)}%',
-                        style: theme.textTheme.labelMedium,
-                      ),
-                    ),
-                    Text(
-                      'Weekends · ${(weekendShare * 100).toStringAsFixed(0)}%',
-                      style: theme.textTheme.labelMedium,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Semantics(
-                  label:
-                      'Weekdays ${money(analytics.weekdaySpending)}, weekends '
-                      '${money(analytics.weekendSpending)}',
-                  child: ExcludeSemantics(
-                    child: ClipRRect(
-                      borderRadius: AppSpacing.borderRadiusFull,
-                      child: SizedBox(
-                        height: AppSizes.progressLg,
-                        child: Row(
+                // Weekday / weekend split bar. The split animates when the
+                // period changes so the proportion shifts rather than jumps.
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: weekdayShare),
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.emphasized,
+                  ),
+                  curve: AppMotion.value,
+                  builder: (context, weekday, _) {
+                    final weekend = 1 - weekday;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
                             Expanded(
-                              flex: (weekdayShare * 1000).round().clamp(
-                                1,
-                                1000,
-                              ),
-                              child: ColoredBox(
-                                color: theme.colorScheme.primary,
+                              child: Text(
+                                'Weekdays · ${(weekday * 100).toStringAsFixed(0)}%',
+                                style: theme.textTheme.labelMedium,
                               ),
                             ),
-                            const SizedBox(width: 2),
-                            Expanded(
-                              flex: (weekendShare * 1000).round().clamp(
-                                1,
-                                1000,
-                              ),
-                              child: ColoredBox(color: colors.tertiary),
+                            Text(
+                              'Weekends · ${(weekend * 100).toStringAsFixed(0)}%',
+                              style: theme.textTheme.labelMedium,
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                  ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Semantics(
+                          label:
+                              'Weekdays ${money(analytics.weekdaySpending)}, '
+                              'weekends ${money(analytics.weekendSpending)}',
+                          child: ExcludeSemantics(
+                            child: ClipRRect(
+                              borderRadius: AppSpacing.borderRadiusFull,
+                              child: SizedBox(
+                                height: AppSizes.progressLg,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: (weekday * 1000).round().clamp(
+                                        1,
+                                        1000,
+                                      ),
+                                      child: ColoredBox(
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Expanded(
+                                      flex: (weekend * 1000).round().clamp(
+                                        1,
+                                        1000,
+                                      ),
+                                      child: ColoredBox(color: colors.tertiary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Row(

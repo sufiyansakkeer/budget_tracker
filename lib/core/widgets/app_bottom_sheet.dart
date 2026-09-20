@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
 
 /// Convenience helper for showing a consistent modal bottom sheet.
 ///
 /// Every sheet respects the top safe area, resizes above the keyboard and can
-/// always be dismissed by dragging the handle.
+/// always be dismissed by dragging the handle. The content sits inside a
+/// bottom-only [SafeArea] *within* the sheet, so the drag gesture (owned by
+/// the sheet itself) is never intercepted.
 class AppBottomSheet {
   AppBottomSheet._();
 
@@ -28,11 +31,22 @@ class AppBottomSheet {
       showDragHandle: showDragHandle,
       useSafeArea: useSafeArea,
       isDismissible: isDismissible,
+      enableDrag: true,
+      sheetAnimationStyle: AnimationStyle(
+        duration: AppMotion.respectReducedMotion(context, AppMotion.sheet),
+        reverseDuration: AppMotion.respectReducedMotion(
+          context,
+          AppMotion.sheetExit,
+        ),
+      ),
       builder: (sheetContext) {
         final bottomInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
         return AnimatedPadding(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
+          duration: AppMotion.respectReducedMotion(
+            sheetContext,
+            AppMotion.fast,
+          ),
+          curve: AppMotion.standardCurve,
           padding: EdgeInsets.only(bottom: bottomInset),
           child: SafeArea(top: false, child: builder(sheetContext)),
         );

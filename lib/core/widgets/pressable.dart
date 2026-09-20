@@ -4,8 +4,12 @@ import '../constants/app_motion.dart';
 
 /// Adds a subtle press-scale response to any tappable surface.
 ///
-/// Wrap cards or tiles that have their own [InkWell]; the scale is applied on
-/// top of the ripple so the card feels physical without extra decoration.
+/// Wrap cards, buttons or tiles that already have their own [InkWell]; the
+/// scale is applied on top of the ripple so the surface feels physical
+/// without extra decoration. Pressing in is quick ([AppMotion.micro]) and
+/// the release eases back ([AppMotion.standard]) so a fast tap still reads.
+///
+/// Disabled controls should pass [enabled] false so they never react.
 class Pressable extends StatefulWidget {
   final Widget child;
   final bool enabled;
@@ -18,7 +22,7 @@ class Pressable extends StatefulWidget {
     super.key,
     required this.child,
     this.enabled = true,
-    this.pressedScale = 0.98,
+    this.pressedScale = AppMotion.pressedScale,
   });
 
   @override
@@ -34,6 +38,12 @@ class _PressableState extends State<Pressable> {
   }
 
   @override
+  void didUpdateWidget(covariant Pressable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && _pressed) _pressed = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.deferToChild,
@@ -42,7 +52,10 @@ class _PressableState extends State<Pressable> {
       onPointerCancel: (_) => _set(false),
       child: AnimatedScale(
         scale: _pressed ? widget.pressedScale : 1,
-        duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+        duration: AppMotion.respectReducedMotion(
+          context,
+          _pressed ? AppMotion.micro : AppMotion.standard,
+        ),
         curve: AppMotion.standardCurve,
         child: widget.child,
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
 import 'pressable.dart';
 
@@ -7,7 +8,8 @@ import 'pressable.dart';
 ///
 /// Shares the theme's card radius, color and hairline border so every screen
 /// feels like one application. When [onTap] is set the card gets a ripple and
-/// a subtle press-scale response.
+/// a subtle press-scale response. Colour and border changes (for example a
+/// budget becoming the active one) animate rather than snap.
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -20,6 +22,9 @@ class AppCard extends StatelessWidget {
   /// When false the hairline border is omitted (use on tinted surfaces).
   final bool showBorder;
 
+  /// Overrides the hairline border colour (e.g. to highlight the card).
+  final Color? borderColor;
+
   const AppCard({
     super.key,
     required this.child,
@@ -30,6 +35,7 @@ class AppCard extends StatelessWidget {
     this.onLongPress,
     this.borderRadius,
     this.showBorder = true,
+    this.borderColor,
   });
 
   @override
@@ -40,14 +46,18 @@ class AppCard extends StatelessWidget {
 
     final content = Padding(padding: padding, child: child);
 
-    Widget card = Container(
+    Widget card = AnimatedContainer(
+      duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+      curve: AppMotion.standardCurve,
       margin: margin,
       decoration: BoxDecoration(
         color: color ?? theme.cardTheme.color,
         borderRadius: radius,
         border: showBorder
             ? Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                color:
+                    borderColor ??
+                    theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
               )
             : null,
       ),
@@ -143,6 +153,10 @@ class AppCardTile extends StatelessWidget {
 
 /// A rounded, tinted square holding a single icon. The standard leading
 /// element for list rows and cards.
+///
+/// Pass [animate] true where the colour or icon reflects a status that can
+/// change while on screen (bill paid, spending over limit); the tile then
+/// cross-fades between states instead of snapping.
 class IconTile extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -152,6 +166,9 @@ class IconTile extends StatelessWidget {
   /// Renders as a circle instead of a rounded square.
   final bool circular;
 
+  /// Animate colour and icon changes.
+  final bool animate;
+
   const IconTile({
     super.key,
     required this.icon,
@@ -159,20 +176,62 @@ class IconTile extends StatelessWidget {
     this.size = AppSizes.avatarMd,
     this.iconSize,
     this.circular = false,
+    this.animate = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        shape: circular ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: circular ? null : AppSpacing.borderRadiusSmd,
-      ),
-      alignment: Alignment.center,
-      child: Icon(icon, size: iconSize ?? size * 0.5, color: color),
+    final resolvedIconSize = iconSize ?? size * 0.5;
+    if (!animate) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          shape: circular ? BoxShape.circle : BoxShape.rectangle,
+          borderRadius: circular ? null : AppSpacing.borderRadiusSmd,
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: resolvedIconSize, color: color),
+      );
+    }
+
+    final duration = AppMotion.respectReducedMotion(
+      context,
+      AppMotion.standard,
+    );
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: color),
+      duration: duration,
+      curve: AppMotion.standardCurve,
+      builder: (context, animated, _) {
+        final c = animated ?? color;
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.14),
+            shape: circular ? BoxShape.circle : BoxShape.rectangle,
+            borderRadius: circular ? null : AppSpacing.borderRadiusSmd,
+          ),
+          alignment: Alignment.center,
+          child: AnimatedSwitcher(
+            duration: duration,
+            switchInCurve: AppMotion.enter,
+            switchOutCurve: AppMotion.exit,
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: Tween<double>(begin: 0.7, end: 1).animate(animation),
+              child: FadeTransition(opacity: animation, child: child),
+            ),
+            child: Icon(
+              icon,
+              key: ValueKey(icon.codePoint),
+              size: resolvedIconSize,
+              color: c,
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -199,7 +258,7 @@ class StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
+    final card = Material(
       color: color.withValues(alpha: 0.08),
       borderRadius: AppSpacing.borderRadiusMd,
       child: InkWell(
@@ -215,6 +274,7 @@ class StatusCard extends StatelessWidget {
                 color: color,
                 size: AppSizes.avatarSm,
                 circular: true,
+                animate: true,
               ),
               const SizedBox(width: AppSpacing.smd),
               Expanded(
@@ -249,5 +309,7 @@ class StatusCard extends StatelessWidget {
         ),
       ),
     );
+    if (onTap == null) return card;
+    return Pressable(child: card);
   }
 }

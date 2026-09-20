@@ -8,6 +8,7 @@ import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../widgets/category_visuals.dart';
+import '../../../../../core/widgets/animated_amount.dart';
 
 /// A single expense row in the history list.
 ///
@@ -131,8 +132,10 @@ class ExpenseHistoryItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Text(
-                  amount,
+                AnimatedAmount(
+                  amount: expense.amount,
+                  currency: currency,
+                  textAlign: TextAlign.end,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),

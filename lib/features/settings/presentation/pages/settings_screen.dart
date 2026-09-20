@@ -33,6 +33,8 @@ import '../widgets/settings_section.dart';
 import '../widgets/settings_tile.dart';
 import '../widgets/theme_selector.dart';
 import 'palette_selection_screen.dart';
+import '../../../../core/router/app_page_transitions.dart';
+import '../../../../core/widgets/app_dialog.dart';
 
 /// Settings, grouped by what the user is trying to change.
 class SettingsScreen extends StatefulWidget {
@@ -147,7 +149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ) async {
     final controller = TextEditingController();
     try {
-      final result = await showDialog<double>(
+      final result = await AppDialog.show<double>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Change budget amount'),
@@ -440,9 +442,12 @@ class _PaletteTile extends StatelessWidget {
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      onTap: () => Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const PaletteSelectionScreen())),
+      onTap: () => Navigator.of(context).push(
+        AppPageTransitions.route<void>(
+          context: context,
+          builder: (_) => const PaletteSelectionScreen(),
+        ),
+      ),
       leading: SizedBox(
         width: AppSizes.avatarSm,
         height: AppSizes.avatarSm,

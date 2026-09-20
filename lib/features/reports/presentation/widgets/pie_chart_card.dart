@@ -12,6 +12,8 @@ import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../domain/entities/category_analytics.dart';
 import '../../domain/entities/category_slice.dart';
 import 'chart_card.dart';
+import '../../../../core/widgets/animated_amount.dart';
+import '../../../../core/widgets/chart_reveal.dart';
 
 /// Where the money went: a donut of category shares with a matching ranked
 /// list (amount, share, number of expenses). Small categories beyond the
@@ -95,52 +97,62 @@ class _CategoryBreakdownCardState extends State<CategoryBreakdownCard> {
                           label:
                               'Donut chart of spending by category, '
                               '${sorted.length} categories',
-                          child: PieChart(
-                            duration: AppMotion.respectReducedMotion(
-                              context,
-                              AppMotion.emphasized,
-                            ),
-                            curve: AppMotion.value,
-                            PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 44,
-                              startDegreeOffset: -90,
-                              pieTouchData: PieTouchData(
-                                touchCallback: (event, response) {
-                                  final index = response
-                                      ?.touchedSection
-                                      ?.touchedSectionIndex;
-                                  if (!event.isInterestedForInteractions ||
-                                      index == null ||
-                                      index < 0) {
-                                    if (_touched != null) {
-                                      setState(() => _touched = null);
+                          // The ring sweeps in and thickens once on first
+                          // appearance; later changes use fl_chart's tween.
+                          child: ChartReveal(
+                            builder: (context, reveal, revealing) => PieChart(
+                              duration: revealing
+                                  ? Duration.zero
+                                  : AppMotion.respectReducedMotion(
+                                      context,
+                                      AppMotion.emphasized,
+                                    ),
+                              curve: AppMotion.value,
+                              PieChartData(
+                                sectionsSpace: 2,
+                                centerSpaceRadius: 44,
+                                startDegreeOffset: -90 - 30 * (1 - reveal),
+                                pieTouchData: PieTouchData(
+                                  touchCallback: (event, response) {
+                                    final index = response
+                                        ?.touchedSection
+                                        ?.touchedSectionIndex;
+                                    if (!event.isInterestedForInteractions ||
+                                        index == null ||
+                                        index < 0) {
+                                      if (_touched != null) {
+                                        setState(() => _touched = null);
+                                      }
+                                      return;
                                     }
-                                    return;
-                                  }
-                                  if (index != _touched) {
-                                    setState(() => _touched = index);
-                                  }
-                                },
+                                    if (index != _touched) {
+                                      setState(() => _touched = index);
+                                    }
+                                  },
+                                ),
+                                sections: [
+                                  for (var i = 0; i < visible.length; i++)
+                                    PieChartSectionData(
+                                      value: visible[i].totalAmount,
+                                      color: _colorFor(visible[i], i),
+                                      radius:
+                                          (_touched == i ? 30 : 24) *
+                                          reveal.clamp(0.04, 1.0),
+                                      showTitle: false,
+                                    ),
+                                  if (otherTotal > 0)
+                                    PieChartSectionData(
+                                      value: otherTotal,
+                                      color: theme.colorScheme.outlineVariant,
+                                      radius:
+                                          (_touched == visible.length
+                                              ? 30
+                                              : 24) *
+                                          reveal.clamp(0.04, 1.0),
+                                      showTitle: false,
+                                    ),
+                                ],
                               ),
-                              sections: [
-                                for (var i = 0; i < visible.length; i++)
-                                  PieChartSectionData(
-                                    value: visible[i].totalAmount,
-                                    color: _colorFor(visible[i], i),
-                                    radius: _touched == i ? 30 : 24,
-                                    showTitle: false,
-                                  ),
-                                if (otherTotal > 0)
-                                  PieChartSectionData(
-                                    value: otherTotal,
-                                    color: theme.colorScheme.outlineVariant,
-                                    radius: _touched == visible.length
-                                        ? 30
-                                        : 24,
-                                    showTitle: false,
-                                  ),
-                              ],
                             ),
                           ),
                         ),
@@ -173,38 +185,54 @@ class _CategoryBreakdownCardState extends State<CategoryBreakdownCard> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                for (var i = 0; i < visible.length; i++)
-                  _CategoryRow(
-                    name: visible[i].categoryName,
-                    color: _colorFor(visible[i], i),
-                    amount: visible[i].totalAmount,
-                    share: visible[i].percentageOfTotal / 100,
-                    count: visible[i].transactionCount,
-                    currency: widget.currency,
-                    highlighted: _touched == i,
+                // Expanding to "all categories" grows the list smoothly.
+                AnimatedSize(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.medium,
                   ),
-                if (otherTotal > 0)
-                  _CategoryRow(
-                    name: 'Other (${rest.length})',
-                    color: theme.colorScheme.outlineVariant,
-                    amount: otherTotal,
-                    share: total > 0 ? otherTotal / total : 0,
-                    count: otherCount,
-                    currency: widget.currency,
-                    highlighted: _touched == visible.length,
+                  curve: AppMotion.standardCurve,
+                  alignment: Alignment.topCenter,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < visible.length; i++)
+                        _CategoryRow(
+                          key: ValueKey(visible[i].categoryId),
+                          name: visible[i].categoryName,
+                          color: _colorFor(visible[i], i),
+                          amount: visible[i].totalAmount,
+                          share: visible[i].percentageOfTotal / 100,
+                          count: visible[i].transactionCount,
+                          currency: widget.currency,
+                          highlighted: _touched == i,
+                        ),
+                      if (otherTotal > 0)
+                        _CategoryRow(
+                          key: const ValueKey('other'),
+                          name: 'Other (${rest.length})',
+                          color: theme.colorScheme.outlineVariant,
+                          amount: otherTotal,
+                          share: total > 0 ? otherTotal / total : 0,
+                          count: otherCount,
+                          currency: widget.currency,
+                          highlighted: _touched == visible.length,
+                        ),
+                      if (sorted.length > _topCount + 1)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () =>
+                                setState(() => _showAll = !_showAll),
+                            child: Text(
+                              _showAll
+                                  ? 'Show top $_topCount'
+                                  : 'Show all ${sorted.length}',
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                if (sorted.length > _topCount + 1)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => setState(() => _showAll = !_showAll),
-                      child: Text(
-                        _showAll
-                            ? 'Show top $_topCount'
-                            : 'Show all ${sorted.length}',
-                      ),
-                    ),
-                  ),
+                ),
               ],
             ),
     );
@@ -308,6 +336,7 @@ class _CategoryRow extends StatelessWidget {
   final bool highlighted;
 
   const _CategoryRow({
+    super.key,
     required this.name,
     required this.color,
     required this.amount,
@@ -349,20 +378,18 @@ class _CategoryRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                CurrencyFormatter.format(
-                  amount,
-                  code: currency,
-                  decimalDigits: 0,
-                ),
+              AnimatedAmount(
+                amount: amount,
+                currency: currency,
+                textAlign: TextAlign.end,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
               SizedBox(
                 width: 44,
-                child: Text(
-                  '${(share * 100).toStringAsFixed(0)}%',
+                child: AnimatedPercent(
+                  percent: share * 100,
                   textAlign: TextAlign.end,
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,

@@ -25,6 +25,9 @@ import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../bloc/budget_bloc.dart';
 import '../widgets/budget_visuals.dart';
+import '../../../../core/constants/app_motion.dart';
+import '../../../../core/widgets/app_dialog.dart';
+import '../../../../core/widgets/app_fab.dart';
 
 /// Entry point for a selected budget: amount, progress, period, status and
 /// actions (edit, set active, archive, duplicate, delete, add expense).
@@ -148,7 +151,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       text: '${_budget!.name} (Copy)',
     );
     try {
-      final name = await showDialog<String>(
+      final name = await AppDialog.show<String>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Duplicate budget'),
@@ -284,11 +287,11 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       ),
       body: SafeArea(bottom: false, child: AppStateSwitcher(child: _body())),
       floatingActionButton: budget != null && !budget.isArchived
-          ? FloatingActionButton.extended(
+          ? AppFab(
               heroTag: 'budget_details_fab',
               onPressed: _busy ? null : () => context.push('/app/expenses/add'),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add expense'),
+              icon: Icons.add_rounded,
+              label: 'Add expense',
             )
           : null,
     );
@@ -496,32 +499,40 @@ class _Content extends StatelessWidget {
           ),
         ),
 
-        // Not-active / archived banner
-        if (budget.isArchived || !isActive) ...[
-          const SizedBox(height: AppSpacing.smd),
-          StatusCard(
-            color: budget.isArchived
-                ? theme.colorScheme.onSurfaceVariant
-                : colors.info,
-            icon: budget.isArchived
-                ? Icons.archive_outlined
-                : Icons.info_outline_rounded,
-            message: budget.isArchived
-                ? 'This budget is archived. Restore it to record expenses '
-                      'again.'
-                : 'Not the active budget. Home, Expenses and Reports show '
-                      'the active budget.',
-            trailing: budget.isArchived
-                ? TextButton(
-                    onPressed: busy ? null : onRestore,
-                    child: const Text('Restore'),
-                  )
-                : TextButton(
-                    onPressed: busy ? null : onSetActive,
-                    child: const Text('Make active'),
+        // Not-active / archived banner. Collapses smoothly when the budget
+        // is made active or restored instead of vanishing.
+        AnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
+          curve: AppMotion.standardCurve,
+          alignment: Alignment.topCenter,
+          child: (budget.isArchived || !isActive)
+              ? Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.smd),
+                  child: StatusCard(
+                    color: budget.isArchived
+                        ? theme.colorScheme.onSurfaceVariant
+                        : colors.info,
+                    icon: budget.isArchived
+                        ? Icons.archive_outlined
+                        : Icons.info_outline_rounded,
+                    message: budget.isArchived
+                        ? 'This budget is archived. Restore it to record '
+                              'expenses again.'
+                        : 'Not the active budget. Home, Expenses and Reports '
+                              'show the active budget.',
+                    trailing: budget.isArchived
+                        ? TextButton(
+                            onPressed: busy ? null : onRestore,
+                            child: const Text('Restore'),
+                          )
+                        : TextButton(
+                            onPressed: busy ? null : onSetActive,
+                            child: const Text('Make active'),
+                          ),
                   ),
-          ),
-        ],
+                )
+              : const SizedBox(width: double.infinity),
+        ),
 
         // Stats
         const SizedBox(height: AppSpacing.md),

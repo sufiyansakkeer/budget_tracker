@@ -368,28 +368,49 @@ class _ReportContent extends StatelessWidget {
                                   'leaves your phone.',
                             ),
                           ),
-                          for (final insight in visibleInsights)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AppSpacing.sm,
-                              ),
-                              child: InsightCard(
-                                message: insight.message,
-                                type: insight.type,
-                              ),
+                          // Expanding reveals the extra insights with a
+                          // short stagger while the section grows smoothly.
+                          AnimatedSize(
+                            duration: AppMotion.respectReducedMotion(
+                              context,
+                              AppMotion.medium,
                             ),
-                          if (insights.length > insightsCollapsed)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: onToggleInsights,
-                                child: Text(
-                                  showAllInsights
-                                      ? 'Show fewer'
-                                      : 'Show ${insights.length - insightsCollapsed} more',
-                                ),
-                              ),
+                            curve: AppMotion.standardCurve,
+                            alignment: Alignment.topCenter,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (var i = 0; i < visibleInsights.length; i++)
+                                  FadeSlideIn(
+                                    key: ValueKey('insight_$i'),
+                                    index: i < insightsCollapsed
+                                        ? index + i
+                                        : i - insightsCollapsed,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: AppSpacing.sm,
+                                      ),
+                                      child: InsightCard(
+                                        message: visibleInsights[i].message,
+                                        type: visibleInsights[i].type,
+                                      ),
+                                    ),
+                                  ),
+                                if (insights.length > insightsCollapsed)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: onToggleInsights,
+                                      child: Text(
+                                        showAllInsights
+                                            ? 'Show fewer'
+                                            : 'Show ${insights.length - insightsCollapsed} more',
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
+                          ),
                         ],
 
                         // 7. Export

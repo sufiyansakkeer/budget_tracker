@@ -5,8 +5,9 @@ import '../constants/app_spacing.dart';
 import '../theme/app_colors_extension.dart';
 
 /// A reusable linear progress bar with semantic color derived from
-/// utilization. The bar animates from its previous value to the new one so
-/// updates never snap.
+/// utilization. Both the fill and its color animate from the previous state
+/// to the new one, so crossing into "near limit" or "over budget" reads as a
+/// smooth change rather than a snap.
 class AppProgress extends StatelessWidget {
   /// 0.0 – 1.0 (or beyond 1.0 to indicate over-budget).
   final double value;
@@ -47,55 +48,65 @@ class AppProgress extends StatelessWidget {
     final clamped = value.isFinite ? value.clamp(0.0, 1.0) : 0.0;
     final barColor = color ?? colorFor(context, value);
     final percentage = (value * 100).clamp(0.0, 100.0);
-
-    final bar = TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: clamped),
-      duration: AppMotion.respectReducedMotion(context, AppMotion.emphasized),
-      curve: AppMotion.value,
-      builder: (context, animated, _) {
-        return ClipRRect(
-          borderRadius: AppSpacing.borderRadiusFull,
-          child: LinearProgressIndicator(
-            value: animated,
-            minHeight: height,
-            backgroundColor: theme.colorScheme.surfaceContainerHigh,
-            color: barColor,
-          ),
-        );
-      },
+    final duration = AppMotion.respectReducedMotion(
+      context,
+      AppMotion.emphasized,
     );
 
     return Semantics(
       label: semanticLabel,
       value: '${percentage.toStringAsFixed(0)}%',
       child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (showLabel) ...[
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  '${percentage.toStringAsFixed(0)}%',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: barColor,
-                    fontWeight: FontWeight.w700,
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: barColor),
+          duration: duration,
+          curve: AppMotion.value,
+          builder: (context, animatedColor, _) {
+            final fill = animatedColor ?? barColor;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showLabel) ...[
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '${percentage.toStringAsFixed(0)}%',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: fill,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
+                  const SizedBox(height: AppSpacing.xs),
+                ],
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: clamped),
+                  duration: duration,
+                  curve: AppMotion.value,
+                  builder: (context, animated, _) {
+                    return ClipRRect(
+                      borderRadius: AppSpacing.borderRadiusFull,
+                      child: LinearProgressIndicator(
+                        value: animated,
+                        minHeight: height,
+                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                        color: fill,
+                      ),
+                    );
+                  },
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-            ],
-            bar,
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-/// A circular progress ring that animates to its value, with an optional
-/// centre child (icon or label).
+/// A circular progress ring that animates to its value and color, with an
+/// optional centre child (icon or label).
 class AppProgressRing extends StatelessWidget {
   final double value;
   final double size;
@@ -120,6 +131,10 @@ class AppProgressRing extends StatelessWidget {
     final clamped = value.isFinite ? value.clamp(0.0, 1.0) : 0.0;
     final ringColor = color ?? AppProgress.colorFor(context, value);
     final percentage = (value * 100).clamp(0.0, 100.0);
+    final duration = AppMotion.respectReducedMotion(
+      context,
+      AppMotion.emphasized,
+    );
 
     return Semantics(
       label: semanticLabel,
@@ -127,31 +142,36 @@ class AppProgressRing extends StatelessWidget {
       child: SizedBox(
         width: size,
         height: size,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: clamped),
-          duration: AppMotion.respectReducedMotion(
-            context,
-            AppMotion.emphasized,
-          ),
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: ringColor),
+          duration: duration,
           curve: AppMotion.value,
-          builder: (context, animated, child) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox.expand(
-                  child: CircularProgressIndicator(
-                    value: animated,
-                    strokeWidth: strokeWidth,
-                    strokeCap: StrokeCap.round,
-                    backgroundColor: theme.colorScheme.surfaceContainerHigh,
-                    color: ringColor,
-                  ),
-                ),
-                if (child != null) child,
-              ],
+          child: center,
+          builder: (context, animatedColor, child) {
+            return TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: clamped),
+              duration: duration,
+              curve: AppMotion.value,
+              child: child,
+              builder: (context, animated, child) {
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox.expand(
+                      child: CircularProgressIndicator(
+                        value: animated,
+                        strokeWidth: strokeWidth,
+                        strokeCap: StrokeCap.round,
+                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                        color: animatedColor ?? ringColor,
+                      ),
+                    ),
+                    if (child != null) child,
+                  ],
+                );
+              },
             );
           },
-          child: center,
         ),
       ),
     );

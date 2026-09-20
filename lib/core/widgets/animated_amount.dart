@@ -8,9 +8,12 @@ import '../currency/currency_formatter.dart';
 /// Uses [TweenAnimationBuilder], so the first build shows the final value
 /// immediately (no distracting count-up on screen entry) and only *changes*
 /// are animated. Long values are scaled down instead of overflowing.
+///
+/// The displayed value always settles on the real [amount]; intermediate
+/// frames are presentation only and never touch application state.
 class AnimatedAmount extends StatelessWidget {
   final double amount;
-  final String currency;
+  final String? currency;
   final TextStyle? style;
   final int decimalDigits;
   final TextAlign textAlign;
@@ -66,18 +69,60 @@ class AnimatedAmount extends StatelessWidget {
 }
 
 /// A percentage value (0–100) that animates between changes.
+///
+/// [suffix] follows the number, e.g. `'% used'`.
 class AnimatedPercent extends StatelessWidget {
   final double percent;
   final TextStyle? style;
+  final String suffix;
+  final TextAlign? textAlign;
 
-  const AnimatedPercent({super.key, required this.percent, this.style});
+  const AnimatedPercent({
+    super.key,
+    required this.percent,
+    this.style,
+    this.suffix = '%',
+    this.textAlign,
+  });
 
   @override
   Widget build(BuildContext context) {
     return _AnimatedValue(
       value: percent,
-      builder: (context, value) =>
-          Text('${value.toStringAsFixed(0)}%', style: style, maxLines: 1),
+      builder: (context, value) => Text(
+        '${value.toStringAsFixed(0)}$suffix',
+        style: style,
+        maxLines: 1,
+        textAlign: textAlign,
+      ),
+    );
+  }
+}
+
+/// Any numeric value that animates between changes, formatted by [format].
+///
+/// Use for counts, day numbers or custom money layouts where
+/// [AnimatedAmount] does not fit.
+class AnimatedNumber extends StatelessWidget {
+  final double value;
+  final String Function(double value) format;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+
+  const AnimatedNumber({
+    super.key,
+    required this.value,
+    required this.format,
+    this.style,
+    this.textAlign,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedValue(
+      value: value,
+      builder: (context, v) =>
+          Text(format(v), style: style, maxLines: 1, textAlign: textAlign),
     );
   }
 }
