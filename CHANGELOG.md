@@ -102,6 +102,56 @@ cleanups that review surfaced.
 - Settings shows the configured morning and evening times on the notifications
   row.
 
+### Accessibility
+- **Screen-reader activation worked on almost nothing.** Fifteen controls used
+  `Semantics(button: true)` wrapped around `ExcludeSemantics`, which publishes
+  a node that says "button" but carries no tap action, so TalkBack and
+  VoiceOver "activate" did nothing (pointer taps still worked, which is why it
+  went unnoticed). Expense rows, budget cards, recent expenses, insights, the
+  active-budget selector, date/time/colour pickers, theme and palette tiles,
+  bill cards and the onboarding date step are now activatable.
+- A bill's "Mark as paid" button was swallowed by the merged card node and was
+  unreachable; it is exposed as a custom action.
+- **Contrast**: the app's muted supporting-text colour measured 3.7:1, so
+  every piece of secondary text failed AA. Text tokens are now guaranteed AA
+  in all eight palettes, category colours are contrast-driven rather than
+  lightness-clamped (several catalogue hues were below 2:1), and status chips,
+  status cards, progress labels, budget tags, tag chips, the combined-mode
+  banner, report trend text and the safe-spending metrics derive a legible
+  variant of their accent instead of drawing it raw. The destructive dialog
+  button, the category error snackbar and the amount hint were 3.8:1, 1.4:1
+  and 1.5:1.
+- **Touch targets**: four controls had density overrides that took them to
+  40×40, including the info icon used in thirteen places.
+- **Text scaling**: the navigation bar clamps scaling the way Material's own
+  bar does, and fixed-height boxes that clipped at large font sizes are now
+  minimums.
+- **Reduced motion**: onboarding page slides, scroll-to-error and
+  swipe-to-delete now honour the setting.
+- New `test/accessibility/guidelines_test.dart` runs Flutter's tap-target,
+  labelling and contrast guidelines over representative screens; it found the
+  navigation-label and hero-metric contrast failures above.
+
+### Performance
+- `runApp` no longer waits for notification initialisation, which parses the
+  time-zone database, crosses several platform channels and shows the
+  permission dialog — an unbounded, user-gated delay on the splash screen.
+- Loading settings was one query per key, and four layers loaded them in full
+  at startup: roughly sixty round-trips before the first frame, now one.
+- Today's spending is a single indexed `SUM` instead of re-reading the budget
+  row and summing the whole period to discard both; it runs once per budget on
+  every dashboard load, widget refresh and notification reschedule.
+- Expense queries take a date range served by the `(budget_id, date)` index.
+  A report reads only its window, and reads it once instead of twice.
+- The dashboard's upcoming bills come from an ordered, limited query.
+- The integrity check is anti-joins instead of three full table reads folded
+  on the UI isolate.
+- Narrower rebuilds: typing in the expense search rebuilt every visible row
+  per keystroke, a report status flip rebuilt all three charts, and every
+  snackbar rebuilt the settings list twice.
+- Each Rive navigation icon sits behind a repaint boundary so its per-frame
+  repaint cannot escape into the rest of the bar.
+
 ### Removed
 - The orphaned `ResetMonthUseCase`, which was not registered anywhere and would
   have created a zero-amount budget.

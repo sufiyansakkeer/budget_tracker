@@ -68,11 +68,27 @@
 - Your data is better protected: the database now enforces the links between
   expenses, budgets and categories, and repairs any that had come loose.
 
+## Accessibility
+
+- **Screen readers can now use the app.** Rows and cards across the app
+  announced themselves as buttons but did nothing when activated; that is
+  fixed everywhere, and a bill's "Mark as paid" is reachable again.
+- **Text is readable.** The colour used for supporting text throughout the app
+  fell below the accessibility standard, as did category colours, status
+  chips, tags and several coloured figures. All of them now guarantee enough
+  contrast in every palette, in light and dark.
+- **Bigger touch targets** for the info buttons and a few other small controls.
+- **Large font sizes** no longer clip the navigation bar or the empty states.
+- **Reduce Motion** is now respected by the onboarding slides and
+  swipe-to-delete as well.
+
 ## Under the hood
 
-- Budget and bill totals are now calculated by the database instead of in the
-  app, with a new index behind the most frequent query, so large histories stay
-  quick.
+- **The app starts faster.** It no longer waits for the notification setup —
+  including the permission prompt — before showing the first screen.
+- Budget and bill totals are calculated by the database instead of in the app,
+  reading settings takes one query instead of sixty, and reports read only the
+  period you are looking at. Large histories stay quick.
 - New end-to-end tests drive whole flows — adding, editing, deleting and
   undoing an expense, switching budgets, building a report — against a real
   database, and a migration test upgrades a real older database.
