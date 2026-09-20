@@ -551,6 +551,7 @@ Future<void> initDependencyInjection() async {
       restoreDataUseCase: getIt<RestoreDataUseCase>(),
       resetBudgetUseCase: getIt<ResetBudgetUseCase>(),
       scheduleNotificationsUseCase: getIt<ScheduleNotificationsUseCase>(),
+      integrityService: getIt<DatabaseIntegrityService>(),
     ),
   );
 

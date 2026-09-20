@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/pressable.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 
@@ -41,51 +42,54 @@ class RecentExpenseTile extends StatelessWidget {
           '${hasNote ? expense.note : expense.categoryName}, '
           '${expense.categoryName}, $amount, $when',
       child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.smd,
-            ),
-            child: Row(
-              children: [
-                IconTile(
-                  icon: CategoryVisuals.iconFor(expense.categoryIcon),
-                  color: color,
-                ),
-                const SizedBox(width: AppSpacing.smd),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        hasNote ? expense.note! : expense.categoryName,
-                        style: theme.textTheme.titleSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: AppSpacing.xxs),
-                      Text(
-                        hasNote ? '${expense.categoryName} · $when' : when,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+        child: Pressable(
+          enabled: onTap != null,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppSpacing.borderRadiusMd,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.smd,
+              ),
+              child: Row(
+                children: [
+                  IconTile(
+                    icon: CategoryVisuals.iconFor(expense.categoryIcon),
+                    color: color,
+                  ),
+                  const SizedBox(width: AppSpacing.smd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasNote ? expense.note! : expense.categoryName,
+                          style: theme.textTheme.titleSmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                        const SizedBox(height: AppSpacing.xxs),
+                        Text(
+                          hasNote ? '${expense.categoryName} · $when' : when,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.smd),
-                Text(
-                  '−$amount',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                  const SizedBox(width: AppSpacing.smd),
+                  Text(
+                    '−$amount',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

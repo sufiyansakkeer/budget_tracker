@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/app_card.dart';
@@ -112,7 +113,82 @@ class SafeSpendingHero extends StatelessWidget {
               ),
             ],
           ),
+          if (limit.weeklyTarget > 0) ...[
+            const SizedBox(height: AppSpacing.md),
+            _WeekLine(limit: limit),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// One quiet line under the daily metrics: how the week is going for this
+/// budget (Monday to Sunday, clipped to the budget period).
+class _WeekLine extends StatelessWidget {
+  final BudgetDailyLimitEntity limit;
+
+  const _WeekLine({required this.limit});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final visuals = SpendingStatusVisuals.of(context, limit.weeklyStatus);
+    final ratio = limit.weeklyTarget > 0
+        ? limit.weeklySpent / limit.weeklyTarget
+        : 0.0;
+    final spent = CurrencyFormatter.format(
+      limit.weeklySpent,
+      code: limit.currency,
+      decimalDigits: 0,
+    );
+    final target = CurrencyFormatter.format(
+      limit.weeklyTarget,
+      code: limit.currency,
+      decimalDigits: 0,
+    );
+    return Semantics(
+      label: 'This week: $spent of $target',
+      child: ExcludeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'This week',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.fast,
+                  ),
+                  child: Text(
+                    '$spent of $target',
+                    key: ValueKey('$spent$target'),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: ratio > 1
+                          ? visuals.color
+                          : theme.colorScheme.onSurfaceVariant,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            AppProgress(
+              value: ratio,
+              height: AppSizes.progressThin,
+              semanticLabel: 'Spent this week against the weekly share',
+            ),
+          ],
+        ),
       ),
     );
   }

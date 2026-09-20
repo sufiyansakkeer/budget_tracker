@@ -114,10 +114,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           final allBills = await billRepository.getBills();
           final now = DateTime.now();
           final today = DateTime(now.year, now.month, now.day);
-          upcomingBills = allBills
-              .where((b) => !b.isPaid && !b.dueDate.isBefore(today))
-              .take(3)
-              .toList();
+          // Soonest first — the section is called "Next up".
+          upcomingBills =
+              (allBills
+                      .where((b) => !b.isPaid && !b.dueDate.isBefore(today))
+                      .toList()
+                    ..sort((a, b) => a.dueDate.compareTo(b.dueDate)))
+                  .take(3)
+                  .toList();
         } catch (_) {
           // Bills unavailable — not critical for dashboard.
         }

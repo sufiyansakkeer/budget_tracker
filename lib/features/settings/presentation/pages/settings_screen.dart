@@ -14,6 +14,7 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../app_update/presentation/bloc/app_update_bloc.dart';
 import '../../../app_update/presentation/widgets/app_update_section.dart';
 import '../../domain/entities/app_settings.dart';
+import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/color_palette_entity.dart';
 import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/theme_mode_entity.dart';
@@ -26,6 +27,7 @@ import '../widgets/about_card.dart';
 import '../widgets/biometric_tile.dart';
 import '../widgets/currency_selector.dart';
 import '../widgets/data_management_card.dart';
+import '../widgets/integrity_result_sheet.dart';
 import '../widgets/notification_time_tile.dart';
 import '../widgets/notification_toggle.dart';
 import '../widgets/reset_confirmation_dialog.dart';
@@ -194,6 +196,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: BlocConsumer<SettingsBloc, SettingsState>(
         listener: (context, state) {
           final messenger = ScaffoldMessenger.of(context);
+          if (state.integrityResult != null) {
+            final result = state.integrityResult!;
+            bloc.add(const SettingsClearMessageEvent());
+            IntegrityResultSheet.show(context, result);
+            return;
+          }
           if (state.errorMessage != null) {
             messenger
               ..hideCurrentSnackBar()
@@ -227,6 +235,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         },
       ),
     );
+  }
+
+  String _formatTime(BuildContext context, NotificationTime time) {
+    return TimeOfDay(hour: time.hour, minute: time.minute).format(context);
   }
 
   Widget _buildContent(
@@ -344,7 +356,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               NotificationToggle(
                 title: 'Daily notifications',
-                subtitle: 'Morning safe-spending reminder and evening summary',
+                subtitle: notifications.notificationsEnabled
+                    ? 'Morning at '
+                          '${_formatTime(context, notifications.morningReminderTime)}'
+                          ' · Evening at '
+                          '${_formatTime(context, notifications.eveningSummaryTime)}'
+                    : 'Morning safe-spending reminder and evening summary',
                 value: notifications.notificationsEnabled,
                 onChanged: (v) => bloc.add(
                   SettingsUpdateNotificationsEvent(
@@ -411,6 +428,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onImportJson: () => _pickAndImport(context, bloc, json: true),
                 onBackup: () => bloc.add(const SettingsBackupEvent()),
                 onRestore: () => _pickAndRestore(context, bloc),
+                onCheckIntegrity: bloc.integrityService == null
+                    ? null
+                    : () => bloc.add(const SettingsCheckIntegrityEvent()),
               ),
             ],
           ),
