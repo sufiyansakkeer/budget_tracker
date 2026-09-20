@@ -26,6 +26,28 @@ hand on a phone:
 - [ ] **Large text** — at the largest system font size, the dashboard, expense
       form and reports stay readable without clipping.
 
+## iOS builds
+
+`flutter build ios` works, but only with Swift Package Manager turned off:
+
+```bash
+flutter config --no-enable-swift-package-manager
+flutter build ios --release --no-codesign
+```
+
+**Why.** `home_widget` 0.9.2+1 ships a Swift package that points at a
+`FlutterFramework` directory it does not contain, so Xcode fails to resolve
+dependencies before compiling anything. The fix upstream is `home_widget`
+0.9.3+, which requires Flutter 3.38.1 — this project is pinned to 3.32.8 in
+CI and locally, so the upgrade is a separate, deliberate piece of work.
+
+The CI iOS workflow is unaffected: it uses the default CocoaPods path.
+
+**Minimum iOS is 15.0.** Three floors force it: the `home_widget` plugin and
+the `MonivoWidget` extension both need 14.0, and current Xcode refuses to
+build below 15.0. The Podfile pulls every pod up to the same floor, because
+several still declare an iOS 9–12 minimum.
+
 ## Known gaps
 
 - **Rive asset licence.** `assets/rive/nav_icons.riv` is a Rive Community file

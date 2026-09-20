@@ -606,6 +606,15 @@ it: long-press the home screen → Widgets → Monivo → drag to place.
 
 ## iOS Setup
 
+> **Minimum iOS version is 15.0.** The `home_widget` plugin and the
+> `MonivoWidget` extension both require iOS 14, and current Xcode refuses to
+> build below 15.0, so the Podfile sets 15.0 and pulls every pod up to it.
+>
+> **Building for iOS needs Swift Package Manager disabled**
+> (`flutter config --no-enable-swift-package-manager`) until `home_widget` can
+> be upgraded past 0.9.2+1, whose Swift package references a directory it does
+> not ship. See [`TODO.md`](TODO.md#ios-builds).
+
 | Item | Value |
 | --- | --- |
 | Display name | Monivo |
