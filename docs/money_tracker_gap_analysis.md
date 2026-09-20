@@ -8,6 +8,49 @@ Baseline of the target before any change: `flutter analyze` clean, `flutter test
 
 ---
 
+## 0. Outcome (what was actually built)
+
+This document was written as an audit and a plan before any code changed. It is
+kept as the record of *why* each decision was taken. What follows is what
+shipped, so the plan and the code do not drift apart.
+
+**Shipped** — released as 1.3.0, see [`CHANGELOG.md`](../CHANGELOG.md):
+
+| From the plan | Where it lives |
+| --- | --- |
+| P-A Foundations: one safe-spending formula, one refresh bus, one preference-key owner, dead code removed, pubspec cleaned | `lib/core/events/`, `lib/core/constants/preference_keys.dart`, `BudgetCalculationService` |
+| P-B Database: foreign keys enforced, composite index, SQL aggregation, CSV round trip, migration test | `lib/core/database/app_database.dart` (v5), `test/core/database/app_database_migration_test.dart` |
+| P-C Rive navigation | `lib/core/navigation/`, [`architecture/rive_navigation.md`](architecture/rive_navigation.md) |
+| P-D Category management | `lib/features/categories/` |
+| P-E Transaction experience: undo delete, long-press actions, duplicate, move, date presets, press feedback | `lib/features/expenses/presentation/` |
+| P-F Dashboard polish: weekly line, sorted bills, press feedback | `lib/features/dashboard/presentation/` |
+| P-G Reports: category period comparison | `lib/features/reports/` |
+| P-H Settings & notifications: database health check, notification freshness, live subtitles | `lib/features/settings/`, `lib/core/notifications/` |
+| P-I Integration tests | `test/integration/` |
+| P-K Documentation | [`architecture/`](architecture/README.md), README, CHANGELOG, release notes, TODO |
+
+**Bugs the work uncovered**, none of which came from the reference app — they
+were found by writing the tests the plan called for:
+
+1. Moving an expense between budgets never credited the budget it left, so that
+   budget stayed short by the amount permanently.
+2. Foreign keys were declared but never enforced, so orphaned rows were
+   possible; the v5 migration repairs existing databases before switching
+   enforcement on.
+3. Three different implementations of Today's Safe Spending could show
+   different numbers on different screens.
+4. A CSV exported by the app could not be imported back into it.
+5. The morning notification's text was frozen at schedule time.
+6. Dashboard "upcoming bills" were not sorted by due date.
+7. Recurring bill totals ignored the recurrence interval.
+
+**Not done, deliberately** — see §13 for the reasoning: income tracking, a
+currency converter, a speed-dial FAB, a generic `Result<T>` refactor, and
+changing the Android application id. These are recorded in
+[`TODO.md`](../TODO.md) so they are not re-litigated.
+
+---
+
 ## 1. Purpose and method
 
 Both repositories were read in full (source, assets, tests, CI, Android/iOS config).

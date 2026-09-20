@@ -176,7 +176,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
-          duration: AppMotion.medium,
+          duration: AppMotion.respectReducedMotion(ctx, AppMotion.medium),
           curve: AppMotion.standardCurve,
         );
       }
@@ -581,24 +581,24 @@ class _DateField extends StatelessWidget {
     return Semantics(
       button: true,
       label: '$label $text',
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              labelText: label,
-              prefixIcon: const Icon(Icons.event_rounded),
-              enabledBorder: hasError
-                  ? theme.inputDecorationTheme.errorBorder
-                  : null,
-            ),
-            child: Text(
-              text,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: const Icon(Icons.event_rounded),
+            enabledBorder: hasError
+                ? theme.inputDecorationTheme.errorBorder
+                : null,
+          ),
+          child: Text(
+            text,
+            style: theme.textTheme.bodyLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),
@@ -684,33 +684,30 @@ class _ColorSwatch extends StatelessWidget {
       button: true,
       selected: selected,
       label: '$name colour',
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: AppSizes.touchTarget,
-            height: AppSizes.touchTarget,
-            child: Center(
-              child: AnimatedContainer(
-                duration: AppMotion.respectReducedMotion(
-                  context,
-                  AppMotion.fast,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: AppSizes.touchTarget,
+          height: AppSizes.touchTarget,
+          child: Center(
+            child: AnimatedContainer(
+              duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+              width: selected ? 36 : 30,
+              height: selected ? 36 : 30,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? theme.colorScheme.onSurface : surface,
+                  width: 2,
                 ),
-                width: selected ? 36 : 30,
-                height: selected ? 36 : 30,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: selected ? theme.colorScheme.onSurface : surface,
-                    width: 2,
-                  ),
-                ),
-                child: selected
-                    ? Icon(Icons.check_rounded, color: onColor, size: 18)
-                    : null,
               ),
+              child: selected
+                  ? Icon(Icons.check_rounded, color: onColor, size: 18)
+                  : null,
             ),
           ),
         ),

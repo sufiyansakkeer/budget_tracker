@@ -132,7 +132,6 @@ class ActiveFilterChips extends StatelessWidget {
       onDeleted: onDeleted,
       deleteIconColor: null,
       deleteButtonTooltipMessage: 'Remove $label filter',
-      visualDensity: VisualDensity.compact,
     );
   }
 }

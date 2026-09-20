@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import '../theme/contrast.dart';
 import 'pressable.dart';
 
 /// A consistent surface container used across the app.
@@ -258,6 +259,12 @@ class StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // The card's tint is [color] at 8%; the title has to stay legible on it.
+    final tint = Color.alphaBlend(
+      color.withValues(alpha: 0.08),
+      theme.colorScheme.surface,
+    );
+    final titleColor = Contrast.ensureContrast(color, tint);
     final card = Material(
       color: color.withValues(alpha: 0.08),
       borderRadius: AppSpacing.borderRadiusMd,
@@ -285,7 +292,7 @@ class StatusCard extends StatelessWidget {
                       Text(
                         title!,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          color: color,
+                          color: titleColor,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xxs),

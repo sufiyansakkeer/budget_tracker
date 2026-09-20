@@ -195,7 +195,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (ctx == null) return;
     Scrollable.ensureVisible(
       ctx,
-      duration: AppMotion.medium,
+      duration: AppMotion.respectReducedMotion(ctx, AppMotion.medium),
       curve: AppMotion.standardCurve,
       alignment: 0.1,
     );

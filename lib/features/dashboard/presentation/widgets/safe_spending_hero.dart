@@ -5,6 +5,7 @@ import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/theme/contrast.dart';
 import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_progress.dart';
@@ -245,7 +246,14 @@ class _Metric extends StatelessWidget {
                 currency: currency,
                 textAlign: alignEnd ? TextAlign.end : TextAlign.start,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: color ?? theme.colorScheme.onSurface,
+                  // The status icon carries the colour signal at full
+                  // strength; the figure needs a legible variant of it.
+                  color: color == null
+                      ? theme.colorScheme.onSurface
+                      : Contrast.ensureContrast(
+                          color!,
+                          theme.colorScheme.surface,
+                        ),
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),

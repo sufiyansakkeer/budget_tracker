@@ -192,6 +192,7 @@ class _CategoryFormSheetState extends State<CategoryFormSheet> {
                       _ColorChoice(
                         key: Key('categoryColor_$hex'),
                         color: CategoryVisuals.adaptiveColor(context, hex),
+                        name: CategoryCatalog.colorName(hex),
                         selected: hex == _color,
                         onTap: () => setState(() => _color = hex),
                       ),
@@ -271,12 +272,14 @@ class _IconChoice extends StatelessWidget {
 
 class _ColorChoice extends StatelessWidget {
   final Color color;
+  final String name;
   final bool selected;
   final VoidCallback onTap;
 
   const _ColorChoice({
     super.key,
     required this.color,
+    required this.name,
     required this.selected,
     required this.onTap,
   });
@@ -288,7 +291,7 @@ class _ColorChoice extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: 'Colour',
+      label: '$name colour',
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),

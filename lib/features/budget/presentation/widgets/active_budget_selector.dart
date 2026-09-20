@@ -109,79 +109,79 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
           : 'Active budget ${budget.name}, '
                 '${formatDateRange(budget.startDate, budget.endDate)}. '
                 'Tap to switch budget',
-      child: ExcludeSemantics(
-        child: AppCard(
-          onTap: () => ActiveBudgetSelector.open(context),
-          borderRadius: AppSpacing.borderRadiusMd,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.smd,
-            vertical: AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              IconTile(
-                icon: Icons.account_balance_wallet_rounded,
-                color: theme.colorScheme.primary,
-                size: AppSizes.avatarSm,
-              ),
-              const SizedBox(width: AppSpacing.smd),
-              Expanded(
-                // Switching budgets slides the new name in rather than
-                // swapping the text.
-                child: AnimatedSwitcher(
-                  duration: AppMotion.respectReducedMotion(
-                    context,
-                    AppMotion.standard,
-                  ),
-                  switchInCurve: AppMotion.enter,
-                  switchOutCurve: AppMotion.exit,
-                  layoutBuilder: (current, previous) => Stack(
-                    fit: StackFit.passthrough,
-                    alignment: Alignment.centerLeft,
-                    children: [...previous, if (current != null) current],
-                  ),
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.25),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  ),
-                  child: Column(
-                    key: ValueKey(budget?.id ?? 'none'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        budget?.name ?? 'Choose a budget',
-                        style: theme.textTheme.titleSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        budget == null
-                            ? 'No active budget selected'
-                            : formatDateRange(budget.startDate, budget.endDate),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+      onTap: () => ActiveBudgetSelector.open(context),
+      excludeSemantics: true,
+      child: AppCard(
+        onTap: () => ActiveBudgetSelector.open(context),
+        borderRadius: AppSpacing.borderRadiusMd,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.smd,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            IconTile(
+              icon: Icons.account_balance_wallet_rounded,
+              color: theme.colorScheme.primary,
+              size: AppSizes.avatarSm,
+            ),
+            const SizedBox(width: AppSpacing.smd),
+            Expanded(
+              // Switching budgets slides the new name in rather than
+              // swapping the text.
+              child: AnimatedSwitcher(
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.standard,
+                ),
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.exit,
+                layoutBuilder: (current, previous) => Stack(
+                  fit: StackFit.passthrough,
+                  alignment: Alignment.centerLeft,
+                  children: [...previous, if (current != null) current],
+                ),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.25),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
                   ),
                 ),
+                child: Column(
+                  key: ValueKey(budget?.id ?? 'none'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      budget?.name ?? 'Choose a budget',
+                      style: theme.textTheme.titleSmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      budget == null
+                          ? 'No active budget selected'
+                          : formatDateRange(budget.startDate, budget.endDate),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Icon(
-                Icons.unfold_more_rounded,
-                size: AppSizes.iconMd,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Icon(
+              Icons.unfold_more_rounded,
+              size: AppSizes.iconMd,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
         ),
       ),
     );

@@ -52,14 +52,14 @@ class _OnboardingViewState extends State<_OnboardingView> {
 
   void _nextPage() {
     _pageController.nextPage(
-      duration: AppMotion.medium,
+      duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
       curve: AppMotion.emphasizedCurve,
     );
   }
 
   void _previousPage() {
     _pageController.previousPage(
-      duration: AppMotion.medium,
+      duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
       curve: AppMotion.emphasizedCurve,
     );
   }

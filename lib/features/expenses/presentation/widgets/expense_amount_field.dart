@@ -23,7 +23,7 @@ class ExpenseAmountField extends StatefulWidget {
     required this.currencySymbol,
     this.errorText,
     this.onChanged,
-    this.autofocus = true,
+    this.autofocus = false,
     this.focusNode,
   });
 
@@ -104,7 +104,8 @@ class _ExpenseAmountFieldState extends State<ExpenseAmountField> {
           labelText: 'Amount',
           hintText: '0.00',
           hintStyle: amountStyle?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+            // A hint still has to be readable; 20% opacity is ~1.5:1.
+            color: theme.colorScheme.onSurfaceVariant,
           ),
           prefixText: '${widget.currencySymbol} ',
           prefixStyle: theme.textTheme.headlineSmall?.copyWith(

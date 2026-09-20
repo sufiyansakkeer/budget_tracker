@@ -71,66 +71,66 @@ class _PaletteCard extends StatelessWidget {
       button: true,
       selected: isSelected,
       label: '${option.label} palette, ${option.description}',
-      child: ExcludeSemantics(
-        child: Pressable(
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: AppSpacing.borderRadiusLg,
-            child: AnimatedContainer(
-              duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
-              curve: AppMotion.standardCurve,
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Pressable(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppSpacing.borderRadiusLg,
+          child: AnimatedContainer(
+            duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+            curve: AppMotion.standardCurve,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? scheme.primary.withValues(alpha: 0.08)
+                  : theme.cardTheme.color,
+              borderRadius: AppSpacing.borderRadiusLg,
+              border: Border.all(
                 color: isSelected
-                    ? scheme.primary.withValues(alpha: 0.08)
-                    : theme.cardTheme.color,
-                borderRadius: AppSpacing.borderRadiusLg,
-                border: Border.all(
-                  color: isSelected
-                      ? scheme.primary
-                      : theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-                  width: isSelected ? 1.5 : 1,
-                ),
+                    ? scheme.primary
+                    : theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                width: isSelected ? 1.5 : 1,
               ),
-              child: Row(
-                children: [
-                  _Swatches(scheme: scheme),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(option.label, style: theme.textTheme.titleSmall),
-                        const SizedBox(height: AppSpacing.xxs),
-                        Text(
-                          option.description,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+            ),
+            child: Row(
+              children: [
+                _Swatches(scheme: scheme),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(option.label, style: theme.textTheme.titleSmall),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        option.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  AnimatedSwitcher(
-                    duration: AppMotion.respectReducedMotion(
-                      context,
-                      AppMotion.fast,
-                    ),
-                    child: isSelected
-                        ? Icon(
-                            Icons.check_circle,
-                            key: const ValueKey('on'),
-                            color: scheme.primary,
-                          )
-                        : Icon(
-                            Icons.radio_button_off_rounded,
-                            key: const ValueKey('off'),
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                AnimatedSwitcher(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.fast,
                   ),
-                ],
-              ),
+                  child: isSelected
+                      ? Icon(
+                          Icons.check_circle,
+                          key: const ValueKey('on'),
+                          color: scheme.primary,
+                        )
+                      : Icon(
+                          Icons.radio_button_off_rounded,
+                          key: const ValueKey('off'),
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                ),
+              ],
             ),
           ),
         ),

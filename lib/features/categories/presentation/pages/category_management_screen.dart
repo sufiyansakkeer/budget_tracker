@@ -118,8 +118,17 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(text),
+                content: Text(
+                  text,
+                  // The snackbar theme's content colour is meant for the
+                  // default dark background; on errorContainer it is white
+                  // on pink.
+                  style: isError
+                      ? TextStyle(color: scheme.onErrorContainer)
+                      : null,
+                ),
                 backgroundColor: isError ? scheme.errorContainer : null,
+                closeIconColor: isError ? scheme.onErrorContainer : null,
                 showCloseIcon: isError,
               ),
             );

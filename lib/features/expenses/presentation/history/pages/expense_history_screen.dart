@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/app_motion.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/theme/app_colors_extension.dart';
+import '../../../../../core/theme/contrast.dart';
 import '../../../../../core/widgets/app_header.dart';
 import '../../../../../core/widgets/app_state_switcher.dart';
 import '../../../../../core/widgets/info_content.dart';
@@ -588,9 +589,15 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     ExpenseCategory? category,
     BudgetEntity? budget,
   ) {
+    final dismissDuration = AppMotion.respectReducedMotion(
+      context,
+      AppMotion.standard,
+    );
     return Dismissible(
       key: Key('dismiss_${expense.id}'),
       direction: DismissDirection.endToStart,
+      movementDuration: dismissDuration,
+      resizeDuration: dismissDuration,
       confirmDismiss: (_) => _deleteWithUndo(expense),
       background: Container(
         alignment: Alignment.centerRight,
@@ -698,6 +705,15 @@ class _CombinedBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = context.appColors.tertiary;
+    // The banner tints its own background, so the title needs a colour that
+    // stays legible on that tint rather than the raw accent.
+    final onTint = Contrast.ensureContrast(
+      color,
+      Color.alphaBlend(
+        color.withValues(alpha: 0.08),
+        theme.colorScheme.surface,
+      ),
+    );
     final names = state.selectedBudgetsLabel;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -728,7 +744,7 @@ class _CombinedBanner extends StatelessWidget {
                       Text(
                         names.isEmpty ? 'Choose budgets to combine' : names,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          color: color,
+                          color: onTint,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

@@ -47,7 +47,12 @@ class ConfirmationDialog {
             ),
             FilledButton(
               style: isDestructive
-                  ? FilledButton.styleFrom(backgroundColor: appColors.error)
+                  ? FilledButton.styleFrom(
+                      backgroundColor: appColors.error,
+                      // Without this the label keeps the primary button's
+                      // onPrimary (white), which is 3.8:1 on the error red.
+                      foregroundColor: Theme.of(dc).colorScheme.onError,
+                    )
                   : null,
               onPressed: () => Navigator.of(dc).pop(true),
               child: Text(confirmLabel),

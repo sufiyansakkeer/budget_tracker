@@ -155,7 +155,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
-          duration: AppMotion.medium,
+          duration: AppMotion.respectReducedMotion(ctx, AppMotion.medium),
           curve: AppMotion.standardCurve,
         );
       }
@@ -662,30 +662,30 @@ class _PickerField extends StatelessWidget {
     return Semantics(
       button: true,
       label: '$label, $value',
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              labelText: label,
-              prefixIcon: Icon(icon),
-              errorText: errorText,
-              helperText: hint,
-              suffixIcon: onClear == null
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear',
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: onClear,
-                    ),
-            ),
-            child: Text(
-              value,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon),
+            errorText: errorText,
+            helperText: hint,
+            suffixIcon: onClear == null
+                ? null
+                : IconButton(
+                    tooltip: 'Clear',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: onClear,
+                  ),
+          ),
+          child: Text(
+            value,
+            style: theme.textTheme.bodyLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),

@@ -255,8 +255,10 @@ class _ReportContent extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               if (data.isEmpty)
-                                SizedBox(
-                                  height: 420,
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 420,
+                                  ),
                                   child: EmptyReportsState(
                                     filtered: state.filter.isActive,
                                     onAddExpense: () =>

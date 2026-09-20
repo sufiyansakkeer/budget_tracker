@@ -35,22 +35,22 @@ class ExpenseTimePicker extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Time, $display',
-      child: ExcludeSemantics(
-        child: InkWell(
-          key: const Key('expenseTimePicker'),
-          onTap: () => _pick(context),
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: InputDecorator(
-            decoration: const InputDecoration(
-              labelText: 'Time',
-              prefixIcon: Icon(Icons.access_time_rounded),
-            ),
-            child: Text(
-              display,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      onTap: () => _pick(context),
+      excludeSemantics: true,
+      child: InkWell(
+        key: const Key('expenseTimePicker'),
+        onTap: () => _pick(context),
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: InputDecorator(
+          decoration: const InputDecoration(
+            labelText: 'Time',
+            prefixIcon: Icon(Icons.access_time_rounded),
+          ),
+          child: Text(
+            display,
+            style: theme.textTheme.bodyLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/contrast.dart';
+
 /// Maps category icon names to Material icons, and hex colors to Color.
 class CategoryVisuals {
   CategoryVisuals._();
@@ -71,15 +73,18 @@ class CategoryVisuals {
     }
   }
 
-  /// Like [colorFor], but nudges the color toward better contrast on the
-  /// current surface: lighter in dark mode, slightly deeper in light mode.
+  /// Like [colorFor], but adjusted until it is legible as text on the current
+  /// surface.
+  ///
+  /// Category colours are chosen for identity, not legibility: several of the
+  /// catalogue's brighter hues land below 2:1 on a white surface. Clamping
+  /// lightness is not enough — lightness is not luminance, so a saturated
+  /// cyan stays unreadable at any "reasonable" lightness. This keeps the hue
+  /// and moves lightness only as far as WCAG AA requires.
   static Color adaptiveColor(BuildContext context, String hexColor) {
-    final base = colorFor(hexColor);
-    final hsl = HSLColor.fromColor(base);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final lightness = isDark
-        ? hsl.lightness.clamp(0.55, 0.8)
-        : hsl.lightness.clamp(0.28, 0.5);
-    return hsl.withLightness(lightness).toColor();
+    return Contrast.ensureContrast(
+      colorFor(hexColor),
+      Theme.of(context).colorScheme.surface,
+    );
   }
 }

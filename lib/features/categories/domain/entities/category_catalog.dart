@@ -50,26 +50,33 @@ abstract final class CategoryCatalog {
     'category',
   ];
 
-  /// Hex colours (`#RRGGBB`) offered by the colour picker. Chosen to stay
+  /// Hex colours (`#RRGGBB`) offered by the colour picker, each with a name
+  /// so a screen reader can tell the swatches apart. Chosen to stay
   /// distinguishable from each other after `CategoryVisuals.adaptiveColor`.
-  static const List<String> colorHexes = [
-    '#FF6B6B',
-    '#EE5253',
-    '#FF9F43',
-    '#FECA57',
-    '#10AC84',
-    '#1DD1A1',
-    '#00D2D3',
-    '#48DBFB',
-    '#54A0FF',
-    '#5F27CD',
-    '#7C4DFF',
-    '#FF9FF3',
-    '#F368E0',
-    '#8395A7',
-    '#576574',
-    '#795548',
-  ];
+  static const Map<String, String> colorNames = {
+    '#FF6B6B': 'Coral',
+    '#EE5253': 'Red',
+    '#FF9F43': 'Orange',
+    '#FECA57': 'Amber',
+    '#10AC84': 'Green',
+    '#1DD1A1': 'Mint',
+    '#00D2D3': 'Turquoise',
+    '#48DBFB': 'Sky',
+    '#54A0FF': 'Blue',
+    '#5F27CD': 'Indigo',
+    '#7C4DFF': 'Violet',
+    '#FF9FF3': 'Pink',
+    '#F368E0': 'Magenta',
+    '#8395A7': 'Grey',
+    '#576574': 'Slate',
+    '#795548': 'Brown',
+  };
+
+  static List<String> get colorHexes => colorNames.keys.toList(growable: false);
+
+  /// Display name for a catalogue colour, or "Colour" for an unknown one.
+  static String colorName(String hex) =>
+      colorNames[hex.toUpperCase()] ?? 'Colour';
 
   static bool isKnownIcon(String name) => iconNames.contains(name);
 }

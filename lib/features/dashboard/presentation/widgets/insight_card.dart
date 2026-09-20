@@ -45,15 +45,16 @@ class InsightCard extends StatelessWidget {
     };
 
     return Semantics(
+      button: onTap != null,
       label: '$title. $message',
-      child: ExcludeSemantics(
-        child: StatusCard(
-          color: color,
-          icon: icon,
-          title: title,
-          message: message,
-          onTap: onTap,
-        ),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: StatusCard(
+        color: color,
+        icon: icon,
+        title: title,
+        message: message,
+        onTap: onTap,
       ),
     );
   }

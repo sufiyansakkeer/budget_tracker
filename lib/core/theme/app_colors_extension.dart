@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../features/settings/domain/entities/color_palette_entity.dart';
 import 'color_palettes.dart';
 
+import 'contrast.dart';
+
 /// Semantic color tokens that adapt to the selected [ColorPalette] and
 /// current [Brightness].
 ///
@@ -131,15 +133,19 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       surfaceContainerHigh: containerHigh,
       card: cardColor,
       textPrimary: scheme.onSurface,
-      textSecondary: _interpolate(
-        scheme.onSurface,
+      // Supporting text is a muted onSurface, but muting it far enough to
+      // look secondary takes it under WCAG AA (the plain 45% blend measures
+      // ~3.7:1). Mute first, then pull back only as far as legibility needs.
+      textSecondary: Contrast.ensureContrast(
+        _interpolate(scheme.onSurface, scheme.surface, isDark ? 0.35 : 0.45),
         scheme.surface,
-        isDark ? 0.35 : 0.45,
       ),
-      textTertiary: _interpolate(
-        scheme.onSurface,
+      // Tertiary text is used for small incidental labels; hold it to the
+      // large-text/non-text threshold rather than the body-text one.
+      textTertiary: Contrast.ensureContrast(
+        _interpolate(scheme.onSurface, scheme.surface, isDark ? 0.55 : 0.65),
         scheme.surface,
-        isDark ? 0.55 : 0.65,
+        minRatio: Contrast.large,
       ),
       divider: _interpolate(
         scheme.onSurface,

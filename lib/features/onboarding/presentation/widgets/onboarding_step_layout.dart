@@ -135,9 +135,11 @@ class OnboardingContinueButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: double.infinity,
-      height: AppSizes.touchTarget + AppSpacing.xs,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: double.infinity,
+        minHeight: AppSizes.touchTarget + AppSpacing.xs,
+      ),
       child: ElevatedButton(
         key: buttonKey,
         onPressed: isLoading ? null : onPressed,

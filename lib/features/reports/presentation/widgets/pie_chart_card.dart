@@ -386,8 +386,8 @@ class _CategoryRow extends StatelessWidget {
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
-              SizedBox(
-                width: 44,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 44),
                 child: AnimatedPercent(
                   percent: share * 100,
                   textAlign: TextAlign.end,
@@ -411,8 +411,8 @@ class _CategoryRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              SizedBox(
-                width: 84,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 84),
                 child: Text(
                   '$count ${count == 1 ? 'expense' : 'expenses'}',
                   textAlign: TextAlign.end,

@@ -103,31 +103,37 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
         ),
         child: SafeArea(
           top: false,
-          child: SizedBox(
-            height: navTheme.height ?? AppSizes.navBarHeight,
-            child: Semantics(
-              container: true,
-              explicitChildNodes: true,
-              child: Row(
-                children: [
-                  for (var i = 0; i < widget.destinations.length; i++)
-                    Expanded(
-                      child: _NavItem(
-                        key: widget.destinations[i].key,
-                        destination: widget.destinations[i],
-                        selected: i == widget.selectedIndex,
-                        pulseToken: _pulseTokens[i],
-                        duration: duration,
-                        iconSize: iconSize,
-                        selectedIconColor: selectedIcon,
-                        unselectedIconColor: unselectedIcon,
-                        selectedLabelStyle: selectedLabel,
-                        unselectedLabelStyle: unselectedLabel,
-                        indicatorColor: indicatorColor,
-                        onTap: () => _onTap(i),
+          // Material's own NavigationBar clamps text scaling to 1.3; this
+          // bar is a fixed height too, so it needs the same guard or the
+          // labels clip at large system font sizes.
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.3,
+            child: SizedBox(
+              height: navTheme.height ?? AppSizes.navBarHeight,
+              child: Semantics(
+                container: true,
+                explicitChildNodes: true,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < widget.destinations.length; i++)
+                      Expanded(
+                        child: _NavItem(
+                          key: widget.destinations[i].key,
+                          destination: widget.destinations[i],
+                          selected: i == widget.selectedIndex,
+                          pulseToken: _pulseTokens[i],
+                          duration: duration,
+                          iconSize: iconSize,
+                          selectedIconColor: selectedIcon,
+                          unselectedIconColor: unselectedIcon,
+                          selectedLabelStyle: selectedLabel,
+                          unselectedLabelStyle: unselectedLabel,
+                          indicatorColor: indicatorColor,
+                          onTap: () => _onTap(i),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
