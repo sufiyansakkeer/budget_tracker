@@ -915,8 +915,30 @@ class $CategoriesTable extends Categories
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, name, icon, colorHex, isSystem];
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    icon,
+    colorHex,
+    isSystem,
+    isArchived,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -964,6 +986,12 @@ class $CategoriesTable extends Categories
         isSystem.isAcceptableOrUnknown(data['is_system']!, _isSystemMeta),
       );
     }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
     return context;
   }
 
@@ -993,6 +1021,10 @@ class $CategoriesTable extends Categories
         DriftSqlType.bool,
         data['${effectivePrefix}is_system'],
       )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
     );
   }
 
@@ -1008,12 +1040,16 @@ class Category extends DataClass implements Insertable<Category> {
   final String icon;
   final String colorHex;
   final bool isSystem;
+
+  /// Archived categories are hidden from pickers but keep their expenses.
+  final bool isArchived;
   const Category({
     required this.id,
     required this.name,
     required this.icon,
     required this.colorHex,
     required this.isSystem,
+    required this.isArchived,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1023,6 +1059,7 @@ class Category extends DataClass implements Insertable<Category> {
     map['icon'] = Variable<String>(icon);
     map['color_hex'] = Variable<String>(colorHex);
     map['is_system'] = Variable<bool>(isSystem);
+    map['is_archived'] = Variable<bool>(isArchived);
     return map;
   }
 
@@ -1033,6 +1070,7 @@ class Category extends DataClass implements Insertable<Category> {
       icon: Value(icon),
       colorHex: Value(colorHex),
       isSystem: Value(isSystem),
+      isArchived: Value(isArchived),
     );
   }
 
@@ -1047,6 +1085,7 @@ class Category extends DataClass implements Insertable<Category> {
       icon: serializer.fromJson<String>(json['icon']),
       colorHex: serializer.fromJson<String>(json['colorHex']),
       isSystem: serializer.fromJson<bool>(json['isSystem']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
     );
   }
   @override
@@ -1058,6 +1097,7 @@ class Category extends DataClass implements Insertable<Category> {
       'icon': serializer.toJson<String>(icon),
       'colorHex': serializer.toJson<String>(colorHex),
       'isSystem': serializer.toJson<bool>(isSystem),
+      'isArchived': serializer.toJson<bool>(isArchived),
     };
   }
 
@@ -1067,12 +1107,14 @@ class Category extends DataClass implements Insertable<Category> {
     String? icon,
     String? colorHex,
     bool? isSystem,
+    bool? isArchived,
   }) => Category(
     id: id ?? this.id,
     name: name ?? this.name,
     icon: icon ?? this.icon,
     colorHex: colorHex ?? this.colorHex,
     isSystem: isSystem ?? this.isSystem,
+    isArchived: isArchived ?? this.isArchived,
   );
   Category copyWithCompanion(CategoriesCompanion data) {
     return Category(
@@ -1081,6 +1123,9 @@ class Category extends DataClass implements Insertable<Category> {
       icon: data.icon.present ? data.icon.value : this.icon,
       colorHex: data.colorHex.present ? data.colorHex.value : this.colorHex,
       isSystem: data.isSystem.present ? data.isSystem.value : this.isSystem,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
     );
   }
 
@@ -1091,13 +1136,15 @@ class Category extends DataClass implements Insertable<Category> {
           ..write('name: $name, ')
           ..write('icon: $icon, ')
           ..write('colorHex: $colorHex, ')
-          ..write('isSystem: $isSystem')
+          ..write('isSystem: $isSystem, ')
+          ..write('isArchived: $isArchived')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, icon, colorHex, isSystem);
+  int get hashCode =>
+      Object.hash(id, name, icon, colorHex, isSystem, isArchived);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1106,7 +1153,8 @@ class Category extends DataClass implements Insertable<Category> {
           other.name == this.name &&
           other.icon == this.icon &&
           other.colorHex == this.colorHex &&
-          other.isSystem == this.isSystem);
+          other.isSystem == this.isSystem &&
+          other.isArchived == this.isArchived);
 }
 
 class CategoriesCompanion extends UpdateCompanion<Category> {
@@ -1115,6 +1163,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
   final Value<String> icon;
   final Value<String> colorHex;
   final Value<bool> isSystem;
+  final Value<bool> isArchived;
   final Value<int> rowid;
   const CategoriesCompanion({
     this.id = const Value.absent(),
@@ -1122,6 +1171,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     this.icon = const Value.absent(),
     this.colorHex = const Value.absent(),
     this.isSystem = const Value.absent(),
+    this.isArchived = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CategoriesCompanion.insert({
@@ -1130,6 +1180,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     required String icon,
     required String colorHex,
     this.isSystem = const Value.absent(),
+    this.isArchived = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -1141,6 +1192,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Expression<String>? icon,
     Expression<String>? colorHex,
     Expression<bool>? isSystem,
+    Expression<bool>? isArchived,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1149,6 +1201,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       if (icon != null) 'icon': icon,
       if (colorHex != null) 'color_hex': colorHex,
       if (isSystem != null) 'is_system': isSystem,
+      if (isArchived != null) 'is_archived': isArchived,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1159,6 +1212,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Value<String>? icon,
     Value<String>? colorHex,
     Value<bool>? isSystem,
+    Value<bool>? isArchived,
     Value<int>? rowid,
   }) {
     return CategoriesCompanion(
@@ -1167,6 +1221,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       icon: icon ?? this.icon,
       colorHex: colorHex ?? this.colorHex,
       isSystem: isSystem ?? this.isSystem,
+      isArchived: isArchived ?? this.isArchived,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1189,6 +1244,9 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     if (isSystem.present) {
       map['is_system'] = Variable<bool>(isSystem.value);
     }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1203,6 +1261,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
           ..write('icon: $icon, ')
           ..write('colorHex: $colorHex, ')
           ..write('isSystem: $isSystem, ')
+          ..write('isArchived: $isArchived, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4820,6 +4879,7 @@ typedef $$CategoriesTableCreateCompanionBuilder =
       required String icon,
       required String colorHex,
       Value<bool> isSystem,
+      Value<bool> isArchived,
       Value<int> rowid,
     });
 typedef $$CategoriesTableUpdateCompanionBuilder =
@@ -4829,6 +4889,7 @@ typedef $$CategoriesTableUpdateCompanionBuilder =
       Value<String> icon,
       Value<String> colorHex,
       Value<bool> isSystem,
+      Value<bool> isArchived,
       Value<int> rowid,
     });
 
@@ -4911,6 +4972,11 @@ class $$CategoriesTableFilterComposer
 
   ColumnFilters<bool> get isSystem => $composableBuilder(
     column: $table.isSystem,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4998,6 +5064,11 @@ class $$CategoriesTableOrderingComposer
     column: $table.isSystem,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CategoriesTableAnnotationComposer
@@ -5023,6 +5094,11 @@ class $$CategoriesTableAnnotationComposer
 
   GeneratedColumn<bool> get isSystem =>
       $composableBuilder(column: $table.isSystem, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
 
   Expression<T> expensesRefs<T extends Object>(
     Expression<T> Function($$ExpensesTableAnnotationComposer a) f,
@@ -5112,6 +5188,7 @@ class $$CategoriesTableTableManager
                 Value<String> icon = const Value.absent(),
                 Value<String> colorHex = const Value.absent(),
                 Value<bool> isSystem = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCompanion(
                 id: id,
@@ -5119,6 +5196,7 @@ class $$CategoriesTableTableManager
                 icon: icon,
                 colorHex: colorHex,
                 isSystem: isSystem,
+                isArchived: isArchived,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5128,6 +5206,7 @@ class $$CategoriesTableTableManager
                 required String icon,
                 required String colorHex,
                 Value<bool> isSystem = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCompanion.insert(
                 id: id,
@@ -5135,6 +5214,7 @@ class $$CategoriesTableTableManager
                 icon: icon,
                 colorHex: colorHex,
                 isSystem: isSystem,
+                isArchived: isArchived,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

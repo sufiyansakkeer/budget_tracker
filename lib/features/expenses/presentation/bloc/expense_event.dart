@@ -66,6 +66,16 @@ class ExpenseDelete extends ExpenseEvent {
   List<Object?> get props => [id];
 }
 
+/// Re-creates an expense that was just deleted (SnackBar "Undo").
+class ExpenseRestore extends ExpenseEvent {
+  final ExpenseEntity expense;
+
+  const ExpenseRestore(this.expense);
+
+  @override
+  List<Object?> get props => [expense];
+}
+
 /// Clears transient messages (e.g. after a snackbar is shown).
 class ExpenseClearMessage extends ExpenseEvent {
   const ExpenseClearMessage();

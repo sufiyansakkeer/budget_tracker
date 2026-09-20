@@ -10,9 +10,7 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -24,6 +22,7 @@ import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
 import '../widgets/category_visuals.dart';
 import '../widgets/delete_expense_dialog.dart';
+import '../widgets/move_expense_sheet.dart';
 
 /// Detail page for a single expense.
 class ExpenseDetailsScreen extends StatefulWidget {
@@ -88,82 +87,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   }
 
   Future<void> _moveToAnotherBudget(ExpenseEntity expense) async {
-    final candidates = _budgets
-        .where((b) => b.id != expense.budgetId && !b.isArchived)
-        .toList();
-    if (candidates.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('There is no other budget to move to.')),
-        );
-      return;
-    }
-
-    final selected = await AppBottomSheet.show<BudgetEntity>(
-      context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const AppSheetHeader(
-            title: 'Move to budget',
-            subtitle: 'The expense date must fall inside the budget period.',
-          ),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final budget in candidates)
-                  ListTile(
-                    leading: const Icon(Icons.account_balance_wallet_outlined),
-                    title: Text(budget.name),
-                    subtitle: Text(
-                      formatDateRange(budget.startDate, budget.endDate),
-                    ),
-                    onTap: () => Navigator.of(context).pop(budget),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-      ),
+    final selected = await MoveExpenseSheet.show(
+      context,
+      expense: expense,
+      budgets: _budgets,
     );
-
     if (selected == null || !mounted) return;
-
-    final expenseDay = DateTime(
-      expense.date.year,
-      expense.date.month,
-      expense.date.day,
-    );
-    final start = DateTime(
-      selected.startDate.year,
-      selected.startDate.month,
-      selected.startDate.day,
-    );
-    final end = DateTime(
-      selected.endDate.year,
-      selected.endDate.month,
-      selected.endDate.day,
-    );
-
-    if (expenseDay.isBefore(start) || expenseDay.isAfter(end)) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'This expense is dated '
-              '${DateFormat('d MMM yyyy').format(expense.date)}, outside '
-              '${selected.name}\'s period '
-              '(${formatDateRange(start, end)}).',
-            ),
-          ),
-        );
-      return;
-    }
-
     context.read<ExpenseBloc>().add(
       ExpenseUpdate(
         expense.copyWith(budgetId: selected.id, updatedAt: DateTime.now()),

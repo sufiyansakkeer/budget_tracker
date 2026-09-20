@@ -48,6 +48,15 @@ import '../../features/dashboard/data/datasource/dashboard_local_datasource.dart
 import '../../features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
 import '../../features/dashboard/data/repository/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repository/dashboard_repository.dart';
+import '../../features/categories/data/datasource/category_local_datasource.dart';
+import '../../features/categories/data/datasource/category_local_datasource_impl.dart';
+import '../../features/categories/data/repository/category_repository_impl.dart';
+import '../../features/categories/domain/repository/category_repository.dart';
+import '../../features/categories/domain/usecases/archive_category_usecase.dart';
+import '../../features/categories/domain/usecases/delete_category_usecase.dart';
+import '../../features/categories/domain/usecases/load_categories_usecase.dart';
+import '../../features/categories/domain/usecases/save_category_usecase.dart';
+import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -291,6 +300,36 @@ Future<void> initDependencyInjection() async {
       getSpendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
       billRepository: getIt<BillRepository>(),
+    ),
+  );
+
+  // 15b. Categories Feature
+  getIt.registerLazySingleton<CategoryLocalDataSource>(
+    () => CategoryLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<CategoryRepository>(
+    () => CategoryRepositoryImpl(
+      localDataSource: getIt<CategoryLocalDataSource>(),
+    ),
+  );
+  getIt.registerLazySingleton<LoadCategoriesUseCase>(
+    () => LoadCategoriesUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerLazySingleton<SaveCategoryUseCase>(
+    () => SaveCategoryUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerLazySingleton<ArchiveCategoryUseCase>(
+    () => ArchiveCategoryUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerLazySingleton<DeleteCategoryUseCase>(
+    () => DeleteCategoryUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerFactory<CategoryBloc>(
+    () => CategoryBloc(
+      loadCategories: getIt<LoadCategoriesUseCase>(),
+      saveCategory: getIt<SaveCategoryUseCase>(),
+      archiveCategory: getIt<ArchiveCategoryUseCase>(),
+      deleteCategory: getIt<DeleteCategoryUseCase>(),
     ),
   );
 

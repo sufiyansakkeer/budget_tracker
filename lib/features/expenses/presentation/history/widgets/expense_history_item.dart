@@ -9,6 +9,7 @@ import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../widgets/category_visuals.dart';
 import '../../../../../core/widgets/animated_amount.dart';
+import '../../../../../core/widgets/pressable.dart';
 
 /// A single expense row in the history list.
 ///
@@ -19,6 +20,9 @@ class ExpenseHistoryItem extends StatelessWidget {
   final ExpenseEntity expense;
   final ExpenseCategory? category;
   final VoidCallback? onTap;
+
+  /// Press-and-hold opens contextual actions (edit, duplicate, move, delete).
+  final VoidCallback? onLongPress;
 
   /// Budget name to display in combined mode (null = single budget mode).
   final String? budgetName;
@@ -34,6 +38,7 @@ class ExpenseHistoryItem extends StatelessWidget {
     required this.expense,
     this.category,
     this.onTap,
+    this.onLongPress,
     this.budgetName,
     this.onInfoTap,
     this.currency,
@@ -64,94 +69,99 @@ class ExpenseHistoryItem extends StatelessWidget {
           '${hasNote ? expense.note : categoryName}, $categoryName, $amount, '
           '$time${budgetName != null ? ', budget $budgetName' : ''}'
           '${expense.receiptImagePath != null ? ', receipt attached' : ''}',
+      onLongPressHint: onLongPress != null ? 'more actions' : null,
       child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.smd,
-            ),
-            child: Row(
-              children: [
-                IconTile(icon: icon, color: color),
-                const SizedBox(width: AppSpacing.smd),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        hasNote ? expense.note!.trim() : categoryName,
-                        style: theme.textTheme.titleSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: AppSpacing.xxs),
-                      Row(
-                        children: [
-                          if (hasNote)
-                            Flexible(
-                              child: Text(
-                                categoryName,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+        child: Pressable(
+          enabled: onTap != null || onLongPress != null,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            borderRadius: AppSpacing.borderRadiusMd,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.smd,
+              ),
+              child: Row(
+                children: [
+                  IconTile(icon: icon, color: color),
+                  const SizedBox(width: AppSpacing.smd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasNote ? expense.note!.trim() : categoryName,
+                          style: theme.textTheme.titleSmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: AppSpacing.xxs),
+                        Row(
+                          children: [
+                            if (hasNote)
+                              Flexible(
+                                child: Text(
+                                  categoryName,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          Text(
-                            hasNote ? ' · $time' : time,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                          ),
-                          if (expense.receiptImagePath != null) ...[
-                            const SizedBox(width: AppSpacing.xs),
-                            Icon(
-                              Icons.receipt_long_rounded,
-                              size: AppSizes.iconXs,
-                              color: theme.colorScheme.onSurfaceVariant,
-                              semanticLabel: 'Receipt attached',
-                            ),
-                          ],
-                          if (budgetName != null) ...[
-                            const SizedBox(width: AppSpacing.sm),
-                            Flexible(
-                              child: _BudgetTag(
-                                name: budgetName!,
-                                color: colors.tertiary,
+                            Text(
+                              hasNote ? ' · $time' : time,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
+                              maxLines: 1,
                             ),
+                            if (expense.receiptImagePath != null) ...[
+                              const SizedBox(width: AppSpacing.xs),
+                              Icon(
+                                Icons.receipt_long_rounded,
+                                size: AppSizes.iconXs,
+                                color: theme.colorScheme.onSurfaceVariant,
+                                semanticLabel: 'Receipt attached',
+                              ),
+                            ],
+                            if (budgetName != null) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              Flexible(
+                                child: _BudgetTag(
+                                  name: budgetName!,
+                                  color: colors.tertiary,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                AnimatedAmount(
-                  amount: expense.amount,
-                  currency: currency,
-                  textAlign: TextAlign.end,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                if (onInfoTap != null)
-                  IconButton(
-                    onPressed: onInfoTap,
-                    tooltip: 'Expense and budget details',
-                    visualDensity: VisualDensity.compact,
-                    iconSize: AppSizes.iconSm + 2,
-                    icon: Icon(
-                      Icons.info_outline_rounded,
-                      color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ],
                     ),
                   ),
-              ],
+                  const SizedBox(width: AppSpacing.sm),
+                  AnimatedAmount(
+                    amount: expense.amount,
+                    currency: currency,
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  if (onInfoTap != null)
+                    IconButton(
+                      onPressed: onInfoTap,
+                      tooltip: 'Expense and budget details',
+                      visualDensity: VisualDensity.compact,
+                      iconSize: AppSizes.iconSm + 2,
+                      icon: Icon(
+                        Icons.info_outline_rounded,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

@@ -25,6 +25,8 @@ import '../../features/bills/presentation/bloc/bill_bloc.dart';
 import '../../features/bills/presentation/pages/bills_list_screen.dart';
 import '../../features/bills/presentation/pages/bill_form_screen.dart';
 import '../../features/bills/presentation/pages/bill_details_screen.dart';
+import '../../features/categories/presentation/bloc/category_bloc.dart';
+import '../../features/categories/presentation/pages/category_management_screen.dart';
 import '../../features/widgets/home_widget_service.dart';
 
 /// Sentinel value for the widget-launched add-expense deep link.
@@ -41,6 +43,7 @@ class AppRouter {
   static const String budgetsPath = '/app/budgets';
   static const String settingsPath = '/app/settings';
   static const String billsPath = '/app/bills';
+  static const String categoriesPath = '/app/categories';
 
   static final GoRouter router = GoRouter(
     navigatorKey: UpdateDialogService.rootNavigatorKey,
@@ -178,6 +181,20 @@ class AppRouter {
         ],
       ),
 
+      GoRoute(
+        path: categoriesPath,
+        name: 'categories',
+        pageBuilder: (context, state) => AppPageTransitions.page(
+          context: context,
+          state: state,
+          transition: AppTransition.sharedAxisHorizontal,
+          child: BlocProvider(
+            create: (context) => getIt<CategoryBloc>(),
+            child: const CategoryManagementScreen(),
+          ),
+        ),
+      ),
+
       // ── Shell route (bottom-navigation tabs) ─────────────────────────
       StatefulShellRoute(
         builder: (context, state, navigationShell) =>
@@ -229,7 +246,9 @@ class AppRouter {
                       transition: AppTransition.fadeScale,
                       child: BlocProvider(
                         create: (context) => getIt<ExpenseBloc>(),
-                        child: const ExpenseFormScreen(),
+                        child: ExpenseFormScreen(
+                          copyFromId: state.uri.queryParameters['copy'],
+                        ),
                       ),
                     ),
                   ),

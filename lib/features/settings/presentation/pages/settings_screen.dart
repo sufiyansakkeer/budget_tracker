@@ -317,6 +317,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
 
+          // Expenses
+          SettingsSection(
+            title: 'Expenses',
+            icon: Icons.receipt_long_outlined,
+            children: [
+              SettingsTile(
+                key: const Key('settingsCategoriesTile'),
+                icon: Icons.category_outlined,
+                title: 'Categories',
+                subtitle: 'Add your own, rename, restyle or archive',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/app/categories'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
           // Notifications
           SettingsSection(
             title: 'Notifications',

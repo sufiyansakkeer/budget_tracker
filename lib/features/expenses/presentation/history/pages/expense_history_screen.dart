@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/constants/app_motion.dart';
 import '../../../../../core/constants/app_spacing.dart';
-import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/theme/app_colors_extension.dart';
 import '../../../../../core/widgets/app_header.dart';
 import '../../../../../core/widgets/app_state_switcher.dart';
-import '../../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../../core/widgets/info_content.dart';
 import '../../../../../core/widgets/info_icon.dart';
 import '../../../../../core/widgets/loading_skeleton.dart';
@@ -34,6 +33,8 @@ import '../widgets/filter_bottom_sheet.dart';
 import '../widgets/loading_more_indicator.dart';
 import '../widgets/quick_filter_chips.dart';
 import '../widgets/sort_bottom_sheet.dart';
+import '../../widgets/expense_actions_sheet.dart';
+import '../../widgets/move_expense_sheet.dart';
 import '../widgets/summary_card.dart';
 import '../../../../../core/domain/entities/budget_entity.dart';
 import '../../../../../core/widgets/app_fab.dart';
@@ -124,24 +125,48 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     }
   }
 
-  Future<bool> _confirmDelete(ExpenseEntity expense, String? currency) async {
+  /// Deletes right away and lets the SnackBar offer "Undo" — no dialog.
+  /// Returns whether the row may be dismissed (false when no bloc is wired).
+  Future<bool> _deleteWithUndo(ExpenseEntity expense) async {
     final expenseBloc = context.read<ExpenseBloc?>();
     if (expenseBloc == null) return false;
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Delete expense?',
-      message:
-          'This removes the expense of '
-          '${CurrencyFormatter.format(expense.amount, code: currency)} '
-          'permanently.',
-      confirmLabel: 'Delete',
-      icon: Icons.delete_rounded,
-      isDestructive: true,
+    HapticFeedback.mediumImpact();
+    // Let the row animate back in if the user undoes.
+    _seenIds.remove(expense.id);
+    expenseBloc.add(ExpenseDelete(expense.id));
+    return true;
+  }
+
+  Future<void> _showRowActions(
+    ExpenseEntity expense,
+    ExpenseCategory? category,
+    BudgetEntity? budget,
+  ) async {
+    HapticFeedback.selectionClick();
+    final action = await ExpenseActionsSheet.show(
+      context,
+      expense: expense,
+      category: category,
+      currency: budget?.currency,
     );
-    if (confirmed && mounted) {
-      expenseBloc.add(ExpenseDelete(expense.id));
+    if (action == null || !mounted) return;
+    switch (action) {
+      case ExpenseRowAction.edit:
+        context.push('/app/expenses/edit/${expense.id}');
+      case ExpenseRowAction.duplicate:
+        context.push('/app/expenses/add?copy=${expense.id}');
+      case ExpenseRowAction.move:
+        final expenseBloc = context.read<ExpenseBloc?>();
+        final target = await MoveExpenseSheet.show(context, expense: expense);
+        if (target == null || !mounted || expenseBloc == null) return;
+        expenseBloc.add(
+          ExpenseUpdate(
+            expense.copyWith(budgetId: target.id, updatedAt: DateTime.now()),
+          ),
+        );
+      case ExpenseRowAction.delete:
+        await _deleteWithUndo(expense);
     }
-    return confirmed;
   }
 
   /// Enters combined mode: makes sure budgets are loaded, lets the user pick
@@ -272,9 +297,28 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 curr.status == ExpenseBlocStatus.error) &&
             curr.message != null,
         listener: (context, state) {
+          final deleted = state.lastAction == ExpenseAction.deleted
+              ? state.lastDeleted
+              : null;
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(state.message!)));
+            ..showSnackBar(
+              SnackBar(
+                key: deleted != null ? const Key('undoDeleteSnackBar') : null,
+                content: Text(state.message!),
+                duration: deleted != null
+                    ? const Duration(seconds: 6)
+                    : const Duration(seconds: 4),
+                action: deleted != null
+                    ? SnackBarAction(
+                        key: const Key('undoDeleteAction'),
+                        label: 'Undo',
+                        onPressed: () =>
+                            expenseBloc.add(ExpenseRestore(deleted)),
+                      )
+                    : null,
+              ),
+            );
           expenseBloc.add(const ExpenseClearMessage());
         },
         child: body,
@@ -547,7 +591,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     return Dismissible(
       key: Key('dismiss_${expense.id}'),
       direction: DismissDirection.endToStart,
-      confirmDismiss: (_) => _confirmDelete(expense, budget?.currency),
+      confirmDismiss: (_) => _deleteWithUndo(expense),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.lg),
@@ -586,6 +630,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               )
             : null,
         onTap: () => context.push('/app/expenses/${expense.id}'),
+        onLongPress: () => _showRowActions(expense, category, budget),
       ),
     );
   }
@@ -634,8 +679,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           '• Use search, quick filters and the filter sheet to narrow the '
           'list\n'
           '• Choose "Combined" to view several budgets together\n'
-          '• Swipe an expense left to delete it, or tap it to edit or move '
-          'it to another budget',
+          '• Swipe an expense left to delete it — Undo is offered for a few '
+          'seconds\n'
+          '• Press and hold an expense to edit, duplicate, move or delete it',
     );
   }
 }

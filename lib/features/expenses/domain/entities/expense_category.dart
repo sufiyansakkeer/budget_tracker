@@ -7,7 +7,12 @@ class ExpenseCategory extends Equatable {
   final String name;
   final String icon;
   final String colorHex;
+
+  /// Seeded by the app. System categories can be edited but not deleted.
   final bool isSystem;
+
+  /// Hidden from pickers and quick filters; existing expenses keep it.
+  final bool isArchived;
 
   const ExpenseCategory({
     required this.id,
@@ -15,10 +20,28 @@ class ExpenseCategory extends Equatable {
     required this.icon,
     required this.colorHex,
     this.isSystem = true,
+    this.isArchived = false,
   });
 
+  ExpenseCategory copyWith({
+    String? name,
+    String? icon,
+    String? colorHex,
+    bool? isSystem,
+    bool? isArchived,
+  }) {
+    return ExpenseCategory(
+      id: id,
+      name: name ?? this.name,
+      icon: icon ?? this.icon,
+      colorHex: colorHex ?? this.colorHex,
+      isSystem: isSystem ?? this.isSystem,
+      isArchived: isArchived ?? this.isArchived,
+    );
+  }
+
   @override
-  List<Object?> get props => [id, name, icon, colorHex, isSystem];
+  List<Object?> get props => [id, name, icon, colorHex, isSystem, isArchived];
 }
 
 /// Default system categories seeded into the database.

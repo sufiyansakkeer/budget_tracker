@@ -40,6 +40,9 @@ class Categories extends Table {
   TextColumn get colorHex => text()();
   BoolColumn get isSystem => boolean().withDefault(const Constant(true))();
 
+  /// Archived categories are hidden from pickers but keep their expenses.
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -213,6 +216,9 @@ class AppDatabase extends _$AppDatabase {
           // 4. seed categories and repair dangling references so foreign-key
           //    enforcement (enabled in beforeOpen) can never fail a write.
           await _healLegacyColumns();
+          if (!(await _columnNames('categories')).contains('is_archived')) {
+            await m.addColumn(categories, categories.isArchived);
+          }
           await customStatement(
             'CREATE INDEX IF NOT EXISTS index_expenses_date ON expenses (date)',
           );
