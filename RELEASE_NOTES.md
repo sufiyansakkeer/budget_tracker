@@ -1,75 +1,81 @@
-# Monivo 1.2.3
+# Monivo 1.3.0
 
 ## What's New
 
-### Colour Palettes
-- Choose from eight colour palettes: Default, Blossom Vapor, Mahogany Blaze,
-  Ocean, Forest, Sunset, Violet and Rose.
-- Pick one from **Settings → Appearance → Colour palette**. Your choice is
-  remembered and works with Light, Dark and System modes.
-- Switching a palette or flipping between light and dark now fades smoothly
-  instead of snapping — no restart needed.
+### Your own categories
+- **Settings → Expenses → Categories** lets you add categories, rename them,
+  and change their icon and colour — 43 icons and 16 colours to pick from.
+- Archive a category you have stopped using and it disappears from the expense
+  form and the quick filters, while your old expenses keep their labels. You
+  can restore it at any time.
+- Categories you created can be deleted once no expense uses them. The
+  built-in ones can be renamed and restyled but not deleted, so your history
+  never loses its labels.
 
-### A Calmer, More Responsive Interface
-- Screens now slide and fade between each other instead of cutting, and
-  switching bottom-navigation tabs cross-fades.
-- Amounts count up to their new value, progress bars sweep, and charts reveal
-  themselves the first time they appear.
-- Cards and buttons give a subtle press response, and lists ease in as they
-  load.
-- If your device has "reduce motion" turned on, Monivo respects it and keeps
-  animations to a minimum.
+### Deleting an expense is now undoable
+- Swipe an expense left and it is deleted straight away, with **Undo** offered
+  for a few seconds. No dialog to dismiss first.
+- Undo brings back exactly the same expense — its note, tags and receipt — and
+  your budget goes back to where it was.
 
-### Clearer Notifications
-- Android notifications now use a proper monochrome status-bar icon and
-  Monivo's accent colour, for both daily budget reminders and bill reminders.
+### Press and hold an expense
+- A quick menu with **Edit**, **Duplicate**, **Move to another budget** and
+  **Delete**.
+- Duplicate opens the form already filled in from that expense and dated today,
+  which is handy for the coffee you buy every morning.
 
-## Improvements
+### A livelier bottom bar
+- The four tabs now have animated icons. Tapping a tab plays a short, quiet
+  animation, and the selected tab stays clearly marked.
+- Nothing loops or distracts, and if your device has "reduce motion" turned on,
+  the animation is skipped.
 
-- Every explanation in the app — info sheets, empty states, onboarding,
-  Settings descriptions, notification text and the widget description — was
-  rewritten to match how Monivo actually works: multiple independent budgets,
-  flexible start and end dates, and a Today's Safe Spending figure that is
-  calculated per budget and never combined across budgets.
-- Consistent wording everywhere: Today's Safe Spending, Spent today, budget
-  period, active budget and Combined Expenses now mean the same thing on every
-  screen.
-- The Dashboard's separate remaining and timeline cards have been merged into
-  one budget overview card. It shows what is left (or how far over you are),
-  the percentage used, and where you are in the budget period.
-- The Settings budget actions now say exactly what they do: **Budgets**,
-  **Start new budget period** and **Change active budget amount**.
-- The status bar now matches the theme you are using on screens without a
-  toolbar.
-- Toggles that had no effect — Overspending Alerts, No-Expense Reminder and
-  Quiet Hours — have been removed from Settings.
+### Better date filtering
+- Quick date presets everywhere: **Today, Yesterday, This week, Last week,
+  This month, Last month, This year**.
+- A custom range now shows as a single chip, like "12 Mar – 15 Mar", instead of
+  two separate From and To chips.
 
-## Bug Fixes
+### More in Reports
+- A new **Categories vs previous period** card shows which categories you spent
+  more or less on than in the stretch just before, with the difference in money
+  and percent, and a "New" marker for anything you had not spent on before.
 
-- **Today's Safe Spending no longer shrinks as you spend.** The Dashboard
-  cards, notifications and the home screen widget all use the same calculation
-  as the budget engine, so the figure stays fixed for the day. Previously,
-  spending exactly your safe amount could show as "Over limit".
-- **Changing your budget amount keeps your expenses.** Editing the Active
-  Budget's amount from Settings now correctly reflects what you have already
-  spent in the remaining balance.
-- **Reports comparisons work.** Growth rate and the week-over-week card now
-  compare against the previous period instead of always comparing against zero.
-- **Category sort is stable.** Sorting the expense history by category now
-  keeps expenses ordered by category within each day.
-- **"Create Budget" works on the Dashboard.** When no budget covers today, the
-  button now opens the budget form.
+### A clearer Dashboard
+- Today's Safe Spending now also shows how the week is going: what you have
+  spent against this week's share of the budget.
+- Upcoming bills are listed soonest first.
 
-## Other Changes
+### Database health check
+- **Settings → Data → Database health** checks that your budgets, expenses and
+  bills all still link up correctly, and tells you if anything looks off.
 
-- The app is consistently called **Monivo** throughout — onboarding, the About
-  card, the home screen widget and the documentation — rather than a mix of
-  "Smart Monivo", "Smart Budget Tracker" and "Monivo".
-- The project documentation (README, changelog and release notes) has been
-  rewritten against the source so it describes what the app actually does,
-  including an honest list of known limitations.
+## Fixes
 
-## Upgrade Notes
+- **Moving an expense to another budget** used to leave the budget it came from
+  short by that amount permanently. Both budgets are now corrected.
+- **Today's Safe Spending could differ between screens** because three parts of
+  the app calculated it slightly differently. There is now one calculation, and
+  it is the one the Dashboard always used: today's spending counts *against*
+  today's limit rather than shrinking it.
+- **CSV files exported by Monivo can now be imported back into Monivo.** The
+  importer also copes with columns in a different order and with notes that
+  contain commas.
+- **The morning notification could show an out-of-date figure** if you recorded
+  expenses after it was scheduled. It now refreshes when your data changes.
+- **Recurring bills due every few months** were counted as if they were due
+  monthly in the totals.
+- Your data is better protected: the database now enforces the links between
+  expenses, budgets and categories, and repairs any that had come loose.
 
-No action needed. This release contains no database migration and no breaking
-changes — your budgets, expenses and bills carry over as they are.
+## Under the hood
+
+- Budget and bill totals are now calculated by the database instead of in the
+  app, with a new index behind the most frequent query, so large histories stay
+  quick.
+- New end-to-end tests drive whole flows — adding, editing, deleting and
+  undoing an expense, switching budgets, building a report — against a real
+  database, and a migration test upgrades a real older database.
+- New architecture documentation in `docs/architecture/` explains the stack,
+  the safe-spending formula, how multiple budgets work, the animated
+  navigation, the offline-first design, notifications, and backup and restore.

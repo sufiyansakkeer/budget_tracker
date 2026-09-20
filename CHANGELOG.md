@@ -5,6 +5,113 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-20
+
+A feature release built on a review of the app against the `Money-Tracker`
+reference project (see `docs/money_tracker_gap_analysis.md`), plus the internal
+cleanups that review surfaced.
+
+### Added
+- **Category management.** Settings → Expenses → Categories creates, renames and
+  restyles categories from a catalogue of 43 icons and 16 colours, archives ones
+  you no longer use, and deletes custom categories that no expense references.
+  Built-in categories can be renamed and restyled but not deleted. Archived
+  categories disappear from pickers and quick filters while history keeps its
+  labels. New `isArchived` column on `categories`.
+- **Undo after deleting an expense.** Swiping a row deletes it immediately and
+  offers Undo in a snackbar for a few seconds; undoing restores the same row, so
+  budgets, reports and the widget stay consistent either way. The confirmation
+  dialog on swipe is gone; the details screen still confirms.
+- **Press and hold an expense** for Edit, Duplicate, Move to another budget and
+  Delete. Duplicate opens the form pre-filled from that expense, dated now.
+- **Date presets** — Today, Yesterday, This week, Last week, This month, Last
+  month, This year — as quick chips and in the filter sheet. A custom range now
+  reads as one chip ("12 Mar – 15 Mar") instead of a From/To pair.
+- **Animated bottom navigation** using Rive icons on the Material 3 bar. The
+  selected tab plays a short one-shot animation while the bar draws the steady
+  selected state from the current index, so it is correct after navigating,
+  after returning from a screen and after a restart. Nothing loops, the icon
+  falls back to its Material glyph if the asset cannot load, and reduced motion
+  skips the animation. New `lib/core/navigation/` module and `rive` dependency.
+- **Categories vs previous period** report card: which categories moved most
+  against the equal-length window before the selected range, with the change in
+  money and percent and a "New" marker.
+- **A weekly line on the safe-spending hero** — what has been spent against this
+  week's share of the budget.
+- **Database health check** in Settings → Data, which runs the previously unwired
+  `DatabaseIntegrityService` and reports orphaned rows, impossible date ranges and
+  invalid amounts in a sheet.
+- **Architecture documentation** in `docs/architecture/`: why Drift, BLoC, Clean
+  Architecture and GetIt; how safe spending is calculated; how multiple budgets
+  work; how the Rive navigation works; the offline-first data contract; the
+  notification architecture; and what backup, restore, export and import cover.
+- **Integration tests** (`test/integration/`) that wire the real datasources,
+  repositories, use cases and BLoCs against an in-memory database and drive whole
+  flows end to end, plus a v4 → v5 schema migration test against a captured
+  schema fixture.
+
+### Fixed
+- **Moving an expense to another budget left the budget it came from short.**
+  Only the destination budget's remaining amount was recomputed, so the source
+  budget stayed reduced by the amount for good. Both budgets are now recomputed
+  inside the same transaction.
+- **Foreign keys were declared but never enforced.** `PRAGMA foreign_keys` is now
+  on for every connection, so an expense can no longer reference a budget or
+  category that does not exist. The v5 migration repairs existing databases
+  first: it re-points dangling references, seeds missing categories and fixes
+  databases whose v3 migration wrote camelCase column names.
+- **Three different formulas for Today's Safe Spending.** The dashboard added
+  today's spending back before dividing while `CalculateDailyAllowanceUseCase`
+  and one branch of the spending targets did not, so the same figure could differ
+  between screens. There is now one implementation,
+  `BudgetCalculationService.calculateTodaySafeSpending`, and the rules document
+  matches it.
+- **CSV exports could not be re-imported.** The exporter and importer disagreed
+  on columns, and the importer split on commas, so any quoted field broke it. The
+  export is now one spreadsheet-friendly expense table and the importer matches
+  columns by header name, tolerates rearranged files, and falls back to "Others"
+  for unknown categories rather than failing.
+- **The morning notification showed a stale safe-spending figure**, because a
+  repeating notification stores its text when it is scheduled. It is now
+  re-scheduled after expense and budget changes, debounced.
+- **Upcoming bills on the dashboard were not sorted by due date**, despite the
+  section presenting them as what is next.
+- **Recurring bill totals ignored the interval**, so a bill due every two months
+  counted as monthly.
+- The backup file's recorded app version was hard-coded and had drifted from the
+  real one; it now comes from the package metadata.
+- The expense list briefly published a "loaded" state with an empty list before
+  filtering, which could flash the empty state.
+- Skeleton shimmer kept a ticker running when the platform asked for reduced
+  motion.
+
+### Changed
+- **Budget statistics and bill totals are computed in SQL** (`SUM`/`COUNT` over
+  the indexed columns) instead of loading every row into Dart, with a new
+  composite `(budget_id, date)` index behind the hottest query.
+- **One refresh bus implementation** (`lib/core/events/refresh_bus.dart`) replaces
+  three copy-pasted ones; `RefreshBuses.expenses`, `.budgets` and `.bills`.
+- **One place owns each shared key and value.** `PreferenceKeys` holds the
+  active-budget id and first-launch flag, previously declared in three files; the
+  default category list has a single definition used by both the database and the
+  expenses feature; onboarding uses the shared currency and budget entities
+  instead of its own copies.
+- `ResetBudgetUseCase` goes through `BudgetRepository` instead of writing to Drift
+  directly, so remaining amounts are derived in one place.
+- The two near-identical app-update dialogs were merged into one.
+- Settings shows the configured morning and evening times on the notifications
+  row.
+
+### Removed
+- The orphaned `ResetMonthUseCase`, which was not registered anywhere and would
+  have created a zero-amount budget.
+- Two dead dashboard widgets, the onboarding re-export files, and the empty
+  placeholder `create_budget_usecase.dart` in the budget feature.
+- Unused dependencies: `freezed`, `freezed_annotation`, `json_serializable`,
+  `json_annotation`, `printing`, `collection`, `cupertino_icons`, and four
+  misplaced `: any` entries that were nested under `flutter_launcher_icons` and
+  had no effect.
+
 ## [1.2.3] - 2026-09-20
 
 ### Added
