@@ -11,16 +11,15 @@ import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
-import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/budget_error.dart';
 import '../../domain/entities/budget_list_summary_entity.dart';
 import '../../domain/usecases/get_budget_list_summary_usecase.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
-import '../bloc/budget_bloc.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/budget_list_summary_card.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/widgets/app_fab.dart';
+import '../../../../core/events/refresh_bus.dart';
 
 /// Lists all budgets, grouped by where they are in their lifecycle, with the
 /// active budget marked. Each budget stays independent.
@@ -47,10 +46,10 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
   void initState() {
     super.initState();
     _load();
-    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (mounted) _load(silent: true);
     });
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (mounted) _load(silent: true);
     });
   }

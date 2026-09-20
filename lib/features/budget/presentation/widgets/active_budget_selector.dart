@@ -11,13 +11,13 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
-import '../bloc/budget_bloc.dart';
 import '../../../../core/constants/app_motion.dart';
+import '../../../../core/events/refresh_bus.dart';
 
 /// A tappable control that shows the active budget's name and period and
 /// opens the budget switcher.
 ///
-/// It listens to [BudgetRefreshBus] so it stays in sync when the active budget
+/// It listens to [RefreshBuses.budgets] so it stays in sync when the active budget
 /// changes anywhere in the app. Use [ActiveBudgetSelector.open] to show the
 /// switcher from elsewhere on the same screen.
 class ActiveBudgetSelector extends StatefulWidget {
@@ -40,17 +40,17 @@ class ActiveBudgetSelector extends StatefulWidget {
     switch (action.type) {
       case BudgetActionType.create:
         await context.push('/app/budgets/create');
-        BudgetRefreshBus.instance.notifyChanged();
+        RefreshBuses.budgets.notifyChanged();
       case BudgetActionType.open:
         await context.push('/app/budgets/${action.budget!.id}');
       case BudgetActionType.manage:
         await context.push('/app/budgets');
-        BudgetRefreshBus.instance.notifyChanged();
+        RefreshBuses.budgets.notifyChanged();
       case BudgetActionType.select:
         final budget = action.budget!;
         if (budget.isArchived || budget.id == activeId) return;
         await manageBudget.setActive(budget.id);
-        BudgetRefreshBus.instance.notifyChanged();
+        RefreshBuses.budgets.notifyChanged();
     }
   }
 
@@ -68,9 +68,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
   void initState() {
     super.initState();
     _loadActive();
-    _refreshSub = BudgetRefreshBus.instance.changes.listen(
-      (_) => _loadActive(),
-    );
+    _refreshSub = RefreshBuses.budgets.changes.listen((_) => _loadActive());
   }
 
   @override

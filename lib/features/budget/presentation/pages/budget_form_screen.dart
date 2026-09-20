@@ -17,8 +17,8 @@ import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
-import '../bloc/budget_bloc.dart';
 import '../widgets/budget_visuals.dart';
+import '../../../../core/events/refresh_bus.dart';
 
 /// Create or edit a budget.
 ///
@@ -223,7 +223,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         // A newly created budget becomes the active one.
         await _manageBudget.setActive(created.id);
       }
-      BudgetRefreshBus.instance.notifyChanged();
+      RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
       HapticFeedback.lightImpact();
       ScaffoldMessenger.of(context)

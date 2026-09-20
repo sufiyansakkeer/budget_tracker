@@ -15,8 +15,7 @@ import '../../../domain/usecases/page_expenses_usecase.dart';
 import '../../../domain/usecases/search_expenses_usecase.dart';
 import '../../../domain/usecases/sort_expenses_usecase.dart';
 import '../../../../budget/domain/repository/budget_repository.dart';
-import '../../../../budget/presentation/bloc/budget_bloc.dart';
-import '../../bloc/expense_refresh_bus.dart';
+import '../../../../../core/events/refresh_bus.dart';
 import 'expense_history_event.dart';
 import 'expense_history_state.dart';
 
@@ -70,7 +69,7 @@ class ExpenseHistoryBloc
 
     // Auto-refresh when expenses change (created, updated, or deleted) so the
     // history, Dashboard, and Budget Engine stay in sync.
-    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (!isClosed) {
         add(const ExpenseHistoryRefresh());
       }
@@ -78,7 +77,7 @@ class ExpenseHistoryBloc
 
     // Reload when the active budget is switched so the history only shows
     // expenses belonging to the newly active budget.
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (!isClosed) {
         add(const ExpenseHistoryRefresh());
       }

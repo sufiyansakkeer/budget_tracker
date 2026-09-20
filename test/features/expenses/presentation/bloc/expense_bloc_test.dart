@@ -19,6 +19,9 @@ import 'package:monivo/features/expenses/presentation/bloc/expense_event.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_state.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   String? activeId = 'budget-1';
 
   @override

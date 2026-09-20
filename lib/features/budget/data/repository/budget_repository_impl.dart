@@ -16,6 +16,11 @@ class BudgetRepositoryImpl implements BudgetRepository {
   });
 
   @override
+  Future<T> transaction<T>(Future<T> Function() action) {
+    return localDataSource.transaction(action);
+  }
+
+  @override
   Future<BudgetEntity?> getActiveBudget() async {
     final activeId = await localDataSource.getActiveBudgetId();
     if (activeId == null) return null;

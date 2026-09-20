@@ -19,15 +19,14 @@ import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/status_chip.dart';
-import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
-import '../bloc/budget_bloc.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_fab.dart';
+import '../../../../core/events/refresh_bus.dart';
 
 /// Entry point for a selected budget: amount, progress, period, status and
 /// actions (edit, set active, archive, duplicate, delete, add expense).
@@ -57,10 +56,10 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   void initState() {
     super.initState();
     _load();
-    _expenseSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _expenseSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (mounted) _load(silent: true);
     });
-    _budgetSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (mounted) _load(silent: true);
     });
   }
@@ -124,7 +123,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
 
   Future<void> _setActive() => _run(() async {
     await _manageBudget.setActive(widget.budgetId);
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
     if (!mounted) return;
     setState(() => _isActive = true);
     _notify('${_budget?.name ?? 'Budget'} is now your active budget');
@@ -132,7 +131,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
 
   Future<void> _archive() => _run(() async {
     await _manageBudget.archive(widget.budgetId, archived: true);
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
     if (!mounted) return;
     setState(() => _budget = _budget?.copyWith(isArchived: true));
     _notify('Budget archived');
@@ -140,7 +139,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
 
   Future<void> _restore() => _run(() async {
     await _manageBudget.archive(widget.budgetId, archived: false);
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
     if (!mounted) return;
     setState(() => _budget = _budget?.copyWith(isArchived: false));
     _notify('Budget restored');
@@ -178,7 +177,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       if (name == null || name.isEmpty || !mounted) return;
       await _run(() async {
         await _manageBudget.duplicate(widget.budgetId, newName: name);
-        BudgetRefreshBus.instance.notifyChanged();
+        RefreshBuses.budgets.notifyChanged();
         if (mounted) _notify('Created "$name"');
       });
     } finally {
@@ -200,7 +199,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     if (!confirmed || !mounted) return;
     await _run(() async {
       await _manageBudget.delete(widget.budgetId);
-      BudgetRefreshBus.instance.notifyChanged();
+      RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
       _notify('Budget deleted');
       context.pop(true);

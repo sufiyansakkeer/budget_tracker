@@ -5,17 +5,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../budget/domain/entities/budget_error.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
 import '../../../budget/domain/usecases/get_budget_summary_usecase.dart';
-import '../../../budget/presentation/bloc/budget_bloc.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/repository/bill_repository.dart';
-import '../../../bills/presentation/bloc/bill_refresh_bus.dart';
-import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/spending_target_entity.dart';
 import '../../domain/entities/spending_target_status.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
 import '../../domain/usecases/get_spending_targets_usecase.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
@@ -39,19 +37,19 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<DashboardRefresh>(_onRefresh);
 
     // Auto-refresh when expenses change (created, updated, or deleted).
-    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (!isClosed) {
         add(const DashboardRefresh());
       }
     });
 
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (!isClosed) {
         add(const DashboardRefresh());
       }
     });
 
-    _billRefreshSubscription = BillRefreshBus.instance.changes.listen((_) {
+    _billRefreshSubscription = RefreshBuses.bills.changes.listen((_) {
       if (!isClosed) {
         add(const DashboardRefresh());
       }

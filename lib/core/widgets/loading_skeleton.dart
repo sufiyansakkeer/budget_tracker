@@ -23,10 +23,19 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     duration: AppMotion.shimmer,
   );
 
+  bool _reduced = false;
+
   @override
-  void initState() {
-    super.initState();
-    _controller.repeat();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Start or stop the sweep as the accessibility setting changes; a static
+    // placeholder must not keep a ticker alive.
+    _reduced = AppMotion.isReduced(context);
+    if (_reduced) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -37,7 +46,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.maybeDisableAnimationsOf(context) == true) {
+    if (_reduced) {
       return widget.child;
     }
     final theme = Theme.of(context);

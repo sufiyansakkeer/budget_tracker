@@ -1,7 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/database/app_database.dart';
-import '../models/budget_model.dart';
-import '../../domain/entities/budget_entity.dart';
+import '../../../../core/data/models/budget_model.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/constants/preference_keys.dart';
 
 abstract class OnboardingLocalDataSource {
   bool getIsFirstLaunch();
@@ -10,7 +11,6 @@ abstract class OnboardingLocalDataSource {
 }
 
 class OnboardingLocalDataSourceImpl implements OnboardingLocalDataSource {
-  static const String _firstLaunchKey = 'isFirstLaunch';
   final SharedPreferences sharedPreferences;
   final AppDatabase database;
 
@@ -21,12 +21,15 @@ class OnboardingLocalDataSourceImpl implements OnboardingLocalDataSource {
 
   @override
   bool getIsFirstLaunch() {
-    return sharedPreferences.getBool(_firstLaunchKey) ?? true;
+    return sharedPreferences.getBool(PreferenceKeys.isFirstLaunch) ?? true;
   }
 
   @override
   Future<void> setIsFirstLaunch(bool isFirstLaunch) async {
-    await sharedPreferences.setBool(_firstLaunchKey, isFirstLaunch);
+    await sharedPreferences.setBool(
+      PreferenceKeys.isFirstLaunch,
+      isFirstLaunch,
+    );
   }
 
   @override

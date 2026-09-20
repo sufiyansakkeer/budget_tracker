@@ -1,4 +1,4 @@
-import '../../domain/entities/budget_entity.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
 import '../../domain/repository/onboarding_repository.dart';
 import '../datasource/onboarding_local_datasource.dart';
 

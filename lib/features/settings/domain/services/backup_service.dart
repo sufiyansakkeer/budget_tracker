@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/database/app_database.dart';
 
@@ -39,12 +40,30 @@ class ValidationError {
 /// budgets, categories, expenses, settings, recurring expenses,
 /// savings goals, bills, and bill payments.
 class BackupService {
-  static const String _appVersion = '1.2.2';
   static const int _backupFormatVersion = 2;
 
-  final AppDatabase _database;
+  /// Version string written when the platform version cannot be read (tests,
+  /// or a failed platform channel). Never hard-code the real app version here;
+  /// it comes from `package_info_plus` so it cannot drift from `pubspec.yaml`.
+  static const String unknownAppVersion = 'unknown';
 
-  BackupService({required AppDatabase database}) : _database = database;
+  final AppDatabase _database;
+  final Future<String> Function() _appVersionResolver;
+
+  BackupService({
+    required AppDatabase database,
+    Future<String> Function()? appVersionResolver,
+  }) : _database = database,
+       _appVersionResolver = appVersionResolver ?? _platformAppVersion;
+
+  static Future<String> _platformAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return info.version;
+    } catch (_) {
+      return unknownAppVersion;
+    }
+  }
 
   /// Builds the full backup payload (data + metadata) as a JSON-serializable
   /// map. This stays pure (no platform channels) so it can be unit tested.
@@ -52,7 +71,7 @@ class BackupService {
     final data = await _collectData();
     final metadata = BackupMetadata(
       createdAt: DateTime.now(),
-      appVersion: _appVersion,
+      appVersion: await _appVersionResolver(),
       schemaVersion: _database.schemaVersion,
     );
     return <String, Object?>{

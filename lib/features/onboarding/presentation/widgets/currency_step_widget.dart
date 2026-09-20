@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../bloc/onboarding_bloc.dart';
-import '../bloc/onboarding_state.dart';
+import '../../../settings/domain/entities/currency_entity.dart';
 import 'onboarding_step_layout.dart';
 
 class CurrencyStepWidget extends StatefulWidget {
-  final CurrencyItem selectedCurrency;
-  final ValueChanged<CurrencyItem> onSelected;
+  final CurrencyEntity selectedCurrency;
+  final ValueChanged<CurrencyEntity> onSelected;
   final VoidCallback onContinue;
   final VoidCallback onBack;
 
@@ -25,7 +24,7 @@ class CurrencyStepWidget extends StatefulWidget {
 
 class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
   final TextEditingController _searchController = TextEditingController();
-  List<CurrencyItem> _filtered = availableCurrencies;
+  List<CurrencyEntity> _filtered = availableCurrencies;
 
   @override
   void initState() {

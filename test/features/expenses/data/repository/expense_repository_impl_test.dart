@@ -10,6 +10,9 @@ import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 
 class MockBudgetRepository implements BudgetRepository {
   @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
+  @override
   Future<BudgetEntity?> getActiveBudget() async => null;
 
   @override

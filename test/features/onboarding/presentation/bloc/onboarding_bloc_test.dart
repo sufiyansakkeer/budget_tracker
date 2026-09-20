@@ -4,8 +4,7 @@ import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
-import 'package:monivo/features/onboarding/domain/entities/budget_entity.dart'
-    as onboarding;
+import 'package:monivo/core/domain/entities/budget_entity.dart' as onboarding;
 import 'package:monivo/features/onboarding/domain/repository/onboarding_repository.dart';
 import 'package:monivo/features/onboarding/domain/usecases/create_budget_usecase.dart';
 import 'package:monivo/features/onboarding/presentation/bloc/onboarding_bloc.dart';
@@ -32,6 +31,9 @@ class FakeOnboardingRepository implements OnboardingRepository {
 }
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   @override
   Future<BudgetEntity?> getActiveBudget() async => null;
 

@@ -1,4 +1,5 @@
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../settings/domain/entities/currency_entity.dart';
 
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 import '../entities/report_data.dart';
@@ -170,7 +171,7 @@ class ReportInsightGenerator {
   }
 
   String _money(double amount, ReportData data) {
-    final currency = data.currentBudget?.currency ?? '₹';
+    final currency = currencyByCode(data.currentBudget?.currency).code;
     return CurrencyFormatter.format(amount, code: currency, decimalDigits: 0);
   }
 

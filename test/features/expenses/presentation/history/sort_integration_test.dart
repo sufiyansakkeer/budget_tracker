@@ -51,6 +51,9 @@ class FakeRepository implements ExpenseRepository {
 }
 
 class FakeBudgetRepo implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   final BudgetEntity budget;
   FakeBudgetRepo(this.budget);
 

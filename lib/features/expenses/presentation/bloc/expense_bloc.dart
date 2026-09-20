@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../budget/domain/repository/budget_repository.dart';
-import '../../../budget/presentation/bloc/budget_bloc.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/entities/expense_failure.dart';
 import '../../domain/repository/expense_repository.dart';
@@ -13,8 +12,8 @@ import '../../domain/usecases/get_categories_usecase.dart';
 import '../../domain/usecases/get_expense_by_id_usecase.dart';
 import '../../domain/usecases/get_expenses_usecase.dart';
 import '../../domain/usecases/update_expense_usecase.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'expense_event.dart';
-import 'expense_refresh_bus.dart';
 import 'expense_state.dart';
 
 class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
@@ -48,7 +47,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
 
     // Reload the expenses list when the active budget is switched so the list
     // only shows expenses belonging to the newly active budget.
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (!isClosed) {
         add(const ExpenseLoadAll());
       }
@@ -200,7 +199,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     final result = await createExpenseUseCase(expense);
     switch (result) {
       case ExpenseSuccess():
-        ExpenseRefreshBus.instance.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
@@ -227,7 +226,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     final result = await updateExpenseUseCase(event.expense);
     switch (result) {
       case ExpenseSuccess():
-        ExpenseRefreshBus.instance.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
@@ -254,7 +253,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     final result = await deleteExpenseUseCase(event.id);
     switch (result) {
       case ExpenseSuccess():
-        ExpenseRefreshBus.instance.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,

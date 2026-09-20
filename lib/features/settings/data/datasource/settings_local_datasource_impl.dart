@@ -7,11 +7,11 @@ import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/theme_mode_entity.dart';
 import 'settings_local_datasource.dart';
+import '../../../../core/constants/preference_keys.dart';
 
 /// Concrete [SettingsLocalDataSource] backed by the Drift [Settings] table and
 /// SharedPreferences for the first-launch flag.
 class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
-  static const String _firstLaunchKey = 'isFirstLaunch';
   static const String _themeKey = 'themeMode';
   static const String _paletteKey = 'colorPalette';
   static const String _currencyCodeKey = 'currencyCode';
@@ -67,7 +67,8 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
       quietHoursEnd: NotificationTime.fromString(await _get('quietHoursEnd')),
     );
     final biometric = (await _get(_biometricKey)) == 'true';
-    final firstLaunch = sharedPreferences.getBool(_firstLaunchKey) ?? true;
+    final firstLaunch =
+        sharedPreferences.getBool(PreferenceKeys.isFirstLaunch) ?? true;
 
     return AppSettings(
       themeMode: theme,
@@ -142,6 +143,6 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
 
   @override
   Future<void> setFirstLaunchCompleted() async {
-    await sharedPreferences.setBool(_firstLaunchKey, false);
+    await sharedPreferences.setBool(PreferenceKeys.isFirstLaunch, false);
   }
 }

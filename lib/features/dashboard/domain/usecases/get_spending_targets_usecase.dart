@@ -145,11 +145,9 @@ class GetSpendingTargetsUseCase {
       );
       totalDailySpent += todaySpent;
 
-      // Same formula as BudgetCalculationService.buildSummary: today's safe
-      // spending is fixed for the day, so today's expenses are added back
-      // before dividing.
-      final dailyAllowance = calculationService.calculateDailyAllowance(
-        remainingBudget: budgetRemaining + todaySpent,
+      final dailyAllowance = calculationService.calculateTodaySafeSpending(
+        remainingBudget: budgetRemaining,
+        todaySpending: todaySpent,
         remainingDays: remainingDays,
       );
       totalDailyTarget += dailyAllowance;
@@ -237,8 +235,8 @@ class GetSpendingTargetsUseCase {
   /// - Expenses assigned to that budget
   /// - Date range
   ///
-  /// Today's Safe Spending uses the same formula as
-  /// [BudgetCalculationService.buildSummary]:
+  /// Today's Safe Spending comes from
+  /// [BudgetCalculationService.calculateTodaySafeSpending]:
   /// (remaining + spent today) ÷ remaining days, so the amount is fixed for
   /// the day and today's expenses count against it instead of shrinking it.
   Future<PerBudgetSpendingTargetResult> callPerBudget({
@@ -292,8 +290,9 @@ class GetSpendingTargetsUseCase {
         referenceDate: today,
       );
 
-      final dailyLimit = calculationService.calculateDailyAllowance(
-        remainingBudget: budgetRemaining + spentToday,
+      final dailyLimit = calculationService.calculateTodaySafeSpending(
+        remainingBudget: budgetRemaining,
+        todaySpending: spentToday,
         remainingDays: remainingDays,
       );
 

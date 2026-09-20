@@ -15,6 +15,9 @@ import 'package:monivo/features/budget/presentation/bloc/budget_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   BudgetEntity? budget;
   String? activeBudgetId;
   MonthlyStatisticsEntity statistics = MonthlyStatisticsEntity.empty;

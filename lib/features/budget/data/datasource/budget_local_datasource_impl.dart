@@ -7,10 +7,9 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../domain/entities/budget_filter.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import 'budget_local_datasource.dart';
+import '../../../../core/constants/preference_keys.dart';
 
 class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
-  static const String _activeBudgetIdKey = 'active_budget_id';
-
   final AppDatabase database;
   final SharedPreferences sharedPreferences;
 
@@ -21,12 +20,12 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
 
   @override
   Future<String?> getActiveBudgetId() async {
-    return sharedPreferences.getString(_activeBudgetIdKey);
+    return sharedPreferences.getString(PreferenceKeys.activeBudgetId);
   }
 
   @override
   Future<void> setActiveBudgetId(String budgetId) async {
-    await sharedPreferences.setString(_activeBudgetIdKey, budgetId);
+    await sharedPreferences.setString(PreferenceKeys.activeBudgetId, budgetId);
   }
 
   @override

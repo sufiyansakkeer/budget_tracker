@@ -11,8 +11,8 @@ import '../../domain/usecases/mark_bill_paid_usecase.dart';
 import '../../domain/usecases/mark_bill_unpaid_usecase.dart';
 import '../../domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../domain/usecases/update_bill_usecase.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'bill_event.dart';
-import 'bill_refresh_bus.dart';
 import 'bill_state.dart';
 
 class BillBloc extends Bloc<BillEvent, BillState> {
@@ -48,7 +48,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     on<BillClearMessage>(_onClearMessage);
 
     // Listen for bill changes from other screens.
-    _refreshSubscription = BillRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.bills.changes.listen((_) {
       if (!isClosed) {
         add(const BillRefresh());
       }
@@ -107,7 +107,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.reminderEnabled) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -135,7 +135,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.reminderEnabled && !data.isPaid) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -164,7 +164,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     final result = await deleteBillUseCase(event.id);
     switch (result) {
       case BillSuccess():
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -197,7 +197,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.isRecurring && data.reminderEnabled) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -227,7 +227,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.reminderEnabled) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,

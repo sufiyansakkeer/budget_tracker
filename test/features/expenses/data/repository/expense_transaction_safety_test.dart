@@ -63,6 +63,9 @@ class TrackingExpenseDataSource implements ExpenseLocalDataSource {
 
 /// A fake budget repository that tracks update calls.
 class TrackingBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   final List<String> updatedBudgetIds = [];
   bool throwOnUpdate = false;
 

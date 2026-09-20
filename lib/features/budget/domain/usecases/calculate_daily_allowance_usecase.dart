@@ -2,7 +2,10 @@ import '../entities/budget_error.dart';
 import '../repository/budget_repository.dart';
 import '../services/budget_calculation_service.dart';
 
-/// Calculates the daily safe spending allowance for the current budget.
+/// Calculates today's safe spending for one budget.
+///
+/// Delegates to [BudgetCalculationService.calculateTodaySafeSpending] so the
+/// number matches the dashboard, notifications and the home-screen widget.
 class CalculateDailyAllowanceUseCase {
   final BudgetRepository repository;
   final BudgetCalculationService calculationService;
@@ -48,8 +51,9 @@ class CalculateDailyAllowanceUseCase {
         endDate: context.budget.endDate,
       );
 
-      final allowance = calculationService.calculateDailyAllowance(
+      final allowance = calculationService.calculateTodaySafeSpending(
         remainingBudget: remainingBudget,
+        todaySpending: context.statistics.todaySpending,
         remainingDays: remainingDays,
       );
 

@@ -478,10 +478,7 @@ Future<void> initDependencyInjection() async {
     () => RestoreDataUseCase(backupService: getIt<BackupService>()),
   );
   getIt.registerLazySingleton<ResetBudgetUseCase>(
-    () => ResetBudgetUseCase(
-      database: getIt<AppDatabase>(),
-      sharedPreferences: getIt<SharedPreferences>(),
-    ),
+    () => ResetBudgetUseCase(repository: getIt<BudgetRepository>()),
   );
   getIt.registerLazySingleton<ScheduleNotificationsUseCase>(
     () => ScheduleNotificationsUseCase(

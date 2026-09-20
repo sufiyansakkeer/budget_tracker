@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
-import '../expenses/presentation/bloc/expense_refresh_bus.dart';
-import '../budget/presentation/bloc/budget_bloc.dart';
+import '../../core/events/refresh_bus.dart';
 import 'home_widget_service.dart';
 
 /// Subscribes to in-app data-change buses and triggers home-screen widget
@@ -26,11 +25,11 @@ class WidgetRefreshListener {
     _expenseSubscription?.cancel();
     _budgetSubscription?.cancel();
 
-    _expenseSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _expenseSubscription = RefreshBuses.expenses.changes.listen((_) {
       _updateWidget('expense change');
     });
 
-    _budgetSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSubscription = RefreshBuses.budgets.changes.listen((_) {
       _updateWidget('budget change');
     });
   }
