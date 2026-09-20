@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../features/settings/domain/entities/color_palette_entity.dart';
 import '../constants/app_spacing.dart';
@@ -109,6 +110,32 @@ class AppTheme {
       buildLightTheme(ColorPalette.defaultPalette);
   static ThemeData get darkTheme => buildDarkTheme(ColorPalette.defaultPalette);
 
+  /// System bar styling for a theme of the given [brightness].
+  ///
+  /// The app draws edge-to-edge, so the status and navigation bars show the
+  /// app's own background. Android does not infer the icon colour from that
+  /// background — it has to be told. Without this the status bar keeps light
+  /// (white) icons, so on the light theme the clock, the battery and any
+  /// notification icons turn white-on-white and disappear.
+  ///
+  /// Note the two status-bar fields mean opposite things: Android's
+  /// [SystemUiOverlayStyle.statusBarIconBrightness] is the brightness of the
+  /// *icons*, while iOS's [SystemUiOverlayStyle.statusBarBrightness] is the
+  /// brightness of the *background* behind them.
+  static SystemUiOverlayStyle systemOverlayStyle(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: isDark
+          ? Brightness.light
+          : Brightness.dark,
+    );
+  }
+
   /// Builds a light [ThemeData] for the given [palette].
   static ThemeData buildLightTheme(ColorPalette palette) =>
       _buildTheme(Brightness.light, palette);
@@ -201,6 +228,9 @@ class AppTheme {
     final appBarTheme = AppBarTheme(
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
+      // The bar is transparent, so Material cannot derive readable status-bar
+      // icons from its background — pin them to the theme instead.
+      systemOverlayStyle: systemOverlayStyle(brightness),
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
@@ -238,21 +239,31 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
                     // valid Navigator context through the root navigator key
                     // registered on GoRouter.
                     builder: (context, child) {
-                      return BlocListener<AppUpdateBloc, AppUpdateState>(
-                        listenWhen: (previous, current) {
-                          // Only listen for the *first* time an update is
-                          // available after launch; ignore subsequent state
-                          // transitions (e.g. up-to-date after manual check).
-                          if (current is! AppUpdateAvailable) return false;
-                          if (previous is AppUpdateAvailable) return false;
-                          return true;
-                        },
-                        listener: (context, state) {
-                          if (state is AppUpdateAvailable) {
-                            UpdateDialogService.show(state.result);
-                          }
-                        },
-                        child: child ?? const SizedBox.shrink(),
+                      // Most screens scroll edge-to-edge without an AppBar, so
+                      // nothing else claims the status bar. Annotating the
+                      // whole app keeps the system icons readable against the
+                      // active theme; an AppBar paints over this region and
+                      // still wins where one exists.
+                      return AnnotatedRegion<SystemUiOverlayStyle>(
+                        value: AppTheme.systemOverlayStyle(
+                          Theme.of(context).brightness,
+                        ),
+                        child: BlocListener<AppUpdateBloc, AppUpdateState>(
+                          listenWhen: (previous, current) {
+                            // Only listen for the *first* time an update is
+                            // available after launch; ignore subsequent state
+                            // transitions (e.g. up-to-date after manual check).
+                            if (current is! AppUpdateAvailable) return false;
+                            if (previous is AppUpdateAvailable) return false;
+                            return true;
+                          },
+                          listener: (context, state) {
+                            if (state is AppUpdateAvailable) {
+                              UpdateDialogService.show(state.result);
+                            }
+                          },
+                          child: child ?? const SizedBox.shrink(),
+                        ),
                       );
                     },
                   );

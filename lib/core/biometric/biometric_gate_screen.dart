@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../features/settings/presentation/bloc/theme/theme_bloc.dart';
@@ -113,6 +114,12 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
               AppMotion.medium,
             ),
             themeAnimationCurve: AppMotion.emphasizedCurve,
+            // The lock screen has no AppBar either, so it needs the same
+            // status-bar annotation the main app applies.
+            builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+              value: AppTheme.systemOverlayStyle(Theme.of(context).brightness),
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: _LockScreenBody(
               state: state,
               onRetry: () {
