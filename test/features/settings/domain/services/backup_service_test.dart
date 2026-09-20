@@ -49,6 +49,7 @@ void main() {
             icon: 'restaurant',
             colorHex: '#FF6B6B',
           ),
+          mode: InsertMode.insertOrIgnore,
         );
 
     await database

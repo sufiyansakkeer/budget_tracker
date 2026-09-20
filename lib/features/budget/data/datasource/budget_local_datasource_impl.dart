@@ -161,62 +161,53 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
       return MonthlyStatisticsEntity.empty;
     }
 
-    final start = DateTime(
-      budget.startDate.year,
-      budget.startDate.month,
-      budget.startDate.day,
+    final (:total, :count) = await _sumAndCount(
+      budgetId,
+      start: _startOfDay(budget.startDate),
+      end: _endOfDay(budget.endDate),
     );
-    final end = DateTime(
-      budget.endDate.year,
-      budget.endDate.month,
-      budget.endDate.day,
-      23,
-      59,
-      59,
-      999,
-    );
-
-    final expenses =
-        await (database.select(database.expenses)..where(
-              (expense) =>
-                  expense.budgetId.equals(budgetId) &
-                  expense.date.isBiggerOrEqualValue(start) &
-                  expense.date.isSmallerOrEqualValue(end),
-            ))
-            .get();
-
-    if (expenses.isEmpty) {
+    if (count == 0) {
       return MonthlyStatisticsEntity.empty;
     }
 
-    final totalSpent = expenses.fold<double>(
-      0,
-      (sum, expense) => sum + expense.amount,
+    final (total: todaySpending, count: _) = await _sumAndCount(
+      budgetId,
+      start: _startOfDay(referenceDate),
+      end: _endOfDay(referenceDate),
     );
-
-    final todayStart = DateTime(
-      referenceDate.year,
-      referenceDate.month,
-      referenceDate.day,
-    );
-    final todayEnd = todayStart
-        .add(const Duration(days: 1))
-        .subtract(const Duration(milliseconds: 1));
-
-    final todaySpending = expenses
-        .where(
-          (expense) =>
-              !expense.date.isBefore(todayStart) &&
-              !expense.date.isAfter(todayEnd),
-        )
-        .fold<double>(0, (sum, expense) => sum + expense.amount);
 
     return MonthlyStatisticsEntity(
-      totalSpent: totalSpent,
-      expenseCount: expenses.length,
+      totalSpent: total,
+      expenseCount: count,
       todaySpending: todaySpending,
     );
   }
+
+  /// SUM/COUNT of a budget's expenses in [start, end], computed in SQL so a
+  /// budget with thousands of expenses never loads them all into memory.
+  /// Served by `index_expenses_budget_date`.
+  Future<({double total, int count})> _sumAndCount(
+    String budgetId, {
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final sum = database.expenses.amount.sum();
+    final count = database.expenses.id.count();
+    final query = database.selectOnly(database.expenses)
+      ..addColumns([sum, count])
+      ..where(
+        database.expenses.budgetId.equals(budgetId) &
+            database.expenses.date.isBiggerOrEqualValue(start) &
+            database.expenses.date.isSmallerOrEqualValue(end),
+      );
+    final row = await query.getSingle();
+    return (total: row.read(sum) ?? 0, count: row.read(count) ?? 0);
+  }
+
+  DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  DateTime _endOfDay(DateTime d) =>
+      DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
 
   @override
   Future<double> getTodaySpending(
@@ -258,27 +249,12 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final start = DateTime(startDate.year, startDate.month, startDate.day);
-    final end = DateTime(
-      endDate.year,
-      endDate.month,
-      endDate.day,
-      23,
-      59,
-      59,
-      999,
+    final (:total, count: _) = await _sumAndCount(
+      budgetId,
+      start: _startOfDay(startDate),
+      end: _endOfDay(endDate),
     );
-
-    final expenses =
-        await (database.select(database.expenses)..where(
-              (expense) =>
-                  expense.budgetId.equals(budgetId) &
-                  expense.date.isBiggerOrEqualValue(start) &
-                  expense.date.isSmallerOrEqualValue(end),
-            ))
-            .get();
-
-    return expenses.fold<double>(0, (sum, e) => sum + e.amount);
+    return total;
   }
 
   @override

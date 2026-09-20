@@ -4294,6 +4294,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'index_expenses_budget',
     'CREATE INDEX index_expenses_budget ON expenses (budget_id)',
   );
+  late final Index indexExpensesBudgetDate = Index(
+    'index_expenses_budget_date',
+    'CREATE INDEX index_expenses_budget_date ON expenses (budget_id, date)',
+  );
   late final Index indexBillsDueDate = Index(
     'index_bills_due_date',
     'CREATE INDEX index_bills_due_date ON bills (due_date)',
@@ -4314,6 +4318,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     indexExpensesDate,
     indexExpensesCategory,
     indexExpensesBudget,
+    indexExpensesBudgetDate,
     indexBillsDueDate,
   ];
 }

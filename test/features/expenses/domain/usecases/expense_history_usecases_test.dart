@@ -37,7 +37,7 @@ ExpenseEntity expense({
 }
 
 void main() {
-  const categories = defaultCategories;
+  final categories = defaultCategories;
 
   group('SearchExpensesUseCase', () {
     const useCase = SearchExpensesUseCase();

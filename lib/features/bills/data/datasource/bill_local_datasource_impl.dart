@@ -75,19 +75,16 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
     final todayDate = DateTime(today.year, today.month, today.day);
     final cutoff = todayDate.add(Duration(days: withinDays));
 
-    final query = database.select(database.bills)
+    final sum = database.bills.amount.sum();
+    final query = database.selectOnly(database.bills)
+      ..addColumns([sum])
       ..where(
-        (b) =>
-            b.isPaid.equals(false) &
-            b.dueDate.isBiggerOrEqualValue(todayDate) &
-            b.dueDate.isSmallerOrEqualValue(cutoff),
+        database.bills.isPaid.equals(false) &
+            database.bills.dueDate.isBiggerOrEqualValue(todayDate) &
+            database.bills.dueDate.isSmallerOrEqualValue(cutoff),
       );
-    final rows = await query.get();
-    double total = 0;
-    for (final row in rows) {
-      total += row.amount;
-    }
-    return total;
+    final row = await query.getSingle();
+    return row.read(sum) ?? 0;
   }
 
   @override
@@ -97,15 +94,18 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
     final rows = await query.get();
     double total = 0;
     for (final row in rows) {
+      // "Every N weeks/months/years": a bill due every 2 months costs half
+      // of its amount per month.
+      final interval = row.recurrenceInterval < 1 ? 1 : row.recurrenceInterval;
       switch (row.recurrenceType) {
         case 'weekly':
-          total += row.amount * (52 / 12);
+          total += row.amount * (52 / 12) / interval;
           break;
         case 'monthly':
-          total += row.amount;
+          total += row.amount / interval;
           break;
         case 'yearly':
-          total += row.amount / 12;
+          total += row.amount / 12 / interval;
           break;
         default:
           break;

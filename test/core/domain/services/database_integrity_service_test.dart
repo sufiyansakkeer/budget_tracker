@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show InsertMode;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:monivo/core/database/app_database.dart';
@@ -10,6 +11,7 @@ void main() {
   late DatabaseIntegrityService service;
 
   /// Seeds the 'food' category so expense references to it are valid.
+  /// The database already seeds the defaults, so this is a no-op guard.
   Future<void> seedFoodCategory() async {
     await database
         .into(database.categories)
@@ -20,11 +22,16 @@ void main() {
             icon: 'restaurant',
             colorHex: '#FF6B6B',
           ),
+          mode: InsertMode.insertOrIgnore,
         );
   }
 
   setUp(() async {
     database = await createInMemoryDatabase();
+    // The integrity service exists to find corruption in databases written
+    // before foreign keys were enforced (schema < v5). Turn enforcement off
+    // for this connection so the fixtures below can create that corruption.
+    await database.customStatement('PRAGMA foreign_keys = OFF');
     service = DatabaseIntegrityService(database: database);
   });
 
