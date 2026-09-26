@@ -11,6 +11,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -26,6 +27,7 @@ import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
 import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense, or
 /// [copyFromId] to start a new expense pre-filled from another one (its
@@ -80,6 +82,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   bool _populated = false;
   bool _justSaved = false;
 
+  final FocusNode _amountFocus = FocusNode();
+
   bool get _isEditing => widget.expenseId != null;
   bool get _isDuplicating => widget.copyFromId != null;
 
@@ -93,10 +97,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     _loadBudgets();
     if (_isEditing) bloc.add(ExpenseLoadById(widget.expenseId!));
     if (_isDuplicating) bloc.add(ExpenseLoadById(widget.copyFromId!));
+    // Keyboard after the page has settled, not during the transition.
+    if (!_isEditing) requestFocusAfterTransition(context, _amountFocus);
   }
 
   @override
   void dispose() {
+    _amountFocus.dispose();
     _amountController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -361,9 +368,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                     key: _amountKey,
                     child: ExpenseAmountField(
                       controller: _amountController,
+                      focusNode: _amountFocus,
                       currencySymbol: _currencySymbol,
                       errorText: _amountError,
-                      autofocus: !_isEditing,
                       onChanged: (value) => setState(() {
                         _amountError = value.isEmpty
                             ? null
@@ -466,7 +473,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         message: 'Create a budget before adding expenses.',
         trailing: TextButton(
           onPressed: () async {
-            await context.push('/app/budgets/create');
+            await context.pushUnique('/app/budgets/create');
             if (mounted) _loadBudgets();
           },
           child: const Text('Create'),

@@ -23,6 +23,7 @@ import '../bloc/expense_state.dart';
 import '../widgets/category_visuals.dart';
 import '../widgets/delete_expense_dialog.dart';
 import '../widgets/move_expense_sheet.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Detail page for a single expense.
 class ExpenseDetailsScreen extends StatefulWidget {
@@ -114,8 +115,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 key: const Key('editExpenseButton'),
                 icon: const Icon(Icons.edit_outlined),
                 tooltip: 'Edit expense',
-                onPressed: () =>
-                    context.push('/app/expenses/edit/${expense.id}'),
+                onPressed: () async {
+                  final bloc = context.read<ExpenseBloc>();
+                  await context.pushUnique('/app/expenses/edit/${expense.id}');
+                  // The edit screen has its own bloc; show the saved values.
+                  if (context.mounted) bloc.add(ExpenseLoadById(expense.id));
+                },
               );
             },
           ),

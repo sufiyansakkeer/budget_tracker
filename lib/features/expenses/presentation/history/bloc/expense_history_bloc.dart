@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -70,6 +71,7 @@ class ExpenseHistoryBloc
     on<ExpenseHistoryClearBudgetSelection>(_onClearBudgetSelection);
     on<ExpenseHistoryApplyCombinedView>(_onApplyCombinedView);
     on<ExpenseHistoryExitCombinedView>(_onExitCombinedView);
+    on<ExpenseHistoryExpenseRemoved>(_onExpenseRemoved);
 
     // Auto-refresh when expenses change (created, updated, or deleted) so the
     // history, Dashboard, and Budget Engine stay in sync.
@@ -87,6 +89,12 @@ class ExpenseHistoryBloc
       }
     });
   }
+
+  /// Incremented by every load. Loads run concurrently (a bus refresh can
+  /// arrive while a pull-to-refresh is in flight) and an older one finishing
+  /// last would overwrite newer data and make the list flicker backwards, so
+  /// a load only publishes its result if it is still the latest.
+  int _loadToken = 0;
 
   @override
   Future<void> close() {
@@ -119,20 +127,25 @@ class ExpenseHistoryBloc
     ExpenseHistorySearchChanged event,
     Emitter<ExpenseHistoryState> emit,
   ) async {
+    // The query is already in state: this is the debounced re-dispatch (or
+    // a no-op edit), so apply it now. It must not arm another timer, or the
+    // re-dispatch would re-arm itself every 300 ms for the life of the bloc
+    // and keep resetting the list to its first page.
+    if (state.query == event.query) {
+      _searchTimer?.cancel();
+      _recompute(emit, query: event.query);
+      return;
+    }
+
+    // Publish the query immediately so the field and chips update, and
+    // recompute the list once typing pauses.
+    emit(state.copyWith(query: event.query));
     _searchTimer?.cancel();
     _searchTimer = Timer(searchDebounce, () {
       if (!isClosed) {
         add(ExpenseHistorySearchChanged(event.query));
       }
     });
-
-    // Emit query immediately so the UI clears/updates the search field, but
-    // only recompute once the debounce fires.
-    if (state.query == event.query) {
-      _recompute(emit, query: event.query);
-    } else {
-      emit(state.copyWith(query: event.query));
-    }
   }
 
   Future<void> _onFilterChanged(
@@ -327,13 +340,28 @@ class ExpenseHistoryBloc
     ExpenseHistoryExitCombinedView event,
     Emitter<ExpenseHistoryState> emit,
   ) async {
+    _searchTimer?.cancel();
     emit(
       state.copyWith(
         viewMode: ExpenseViewMode.singleBudget,
         selectedBudgetIds: const [],
+        // The screen clears its search field on exit; keep state in step so
+        // the reloaded list is not silently filtered by invisible text.
+        query: '',
       ),
     );
     await _load(emit, showLoading: true);
+  }
+
+  Future<void> _onExpenseRemoved(
+    ExpenseHistoryExpenseRemoved event,
+    Emitter<ExpenseHistoryState> emit,
+  ) async {
+    final id = event.expenseId;
+    if (!state.allExpenses.any((e) => e.id == id)) return;
+    final all = state.allExpenses.where((e) => e.id != id).toList();
+    _loadedIds.remove(id);
+    _recompute(emit, allExpenses: all, keepLoaded: true);
   }
 
   // ── Private helpers ─────────────────────────────────────────────────
@@ -359,6 +387,7 @@ class ExpenseHistoryBloc
     Emitter<ExpenseHistoryState> emit, {
     required bool showLoading,
   }) async {
+    final token = ++_loadToken;
     if (showLoading) {
       emit(state.copyWith(status: ExpenseHistoryStatus.refreshing));
     }
@@ -413,6 +442,9 @@ class ExpenseHistoryBloc
       }
     }
 
+    // A newer load has started since; let it publish instead.
+    if (token != _loadToken) return;
+
     if (errorMessage != null) {
       emit(
         state.copyWith(
@@ -426,6 +458,8 @@ class ExpenseHistoryBloc
     // One emission: the freshly loaded rows go straight through search,
     // filter and sort. Emitting the raw list first would briefly publish a
     // "loaded" state with nothing visible, which flashes the empty state.
+    // A refresh keeps every page the user has already scrolled through, so
+    // the list never shrinks back to its first page and jumps.
     _recompute(
       emit,
       allExpenses: expenses,
@@ -433,6 +467,7 @@ class ExpenseHistoryBloc
       budgetId: budgetId,
       budgetName: budgetName,
       clearBudgetScope: isCombined,
+      keepLoaded: showLoading,
     );
   }
 
@@ -448,6 +483,7 @@ class ExpenseHistoryBloc
     String? budgetId,
     String? budgetName,
     bool clearBudgetScope = false,
+    bool keepLoaded = false,
   }) {
     final nextQuery = query ?? state.query;
     final nextFilter = filter ?? state.filter;
@@ -470,7 +506,17 @@ class ExpenseHistoryBloc
 
     final summary = calculateExpenseSummaryUseCase(visible);
 
-    final page = pageExpensesUseCase(offset: 0, items: visible);
+    // Refreshes re-slice as many rows as were already on screen (at least
+    // one page); filter, sort and search changes start again from the top.
+    final target = keepLoaded
+        ? math.max(state.loadedExpenses.length, pageExpensesUseCase.pageSize)
+        : pageExpensesUseCase.pageSize;
+    final end = math.min(target, visible.length);
+    final page = ExpensePage(
+      items: visible.sublist(0, end),
+      offset: end,
+      hasMore: end < visible.length,
+    );
     _loadedIds
       ..clear()
       ..addAll(page.items.map((expense) => expense.id));

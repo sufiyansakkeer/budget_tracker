@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -13,6 +12,7 @@ import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import 'dashboard_info.dart';
 import 'spending_status.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// The dashboard's primary element: how much the user can still spend today
 /// in the active budget, what they have spent, and whether they are on track.
@@ -289,7 +289,7 @@ class OtherBudgetLimitTile extends StatelessWidget {
         horizontal: AppSpacing.md,
         vertical: AppSpacing.smd,
       ),
-      onTap: () => context.push('/app/budgets/${limit.budgetId}'),
+      onTap: () => context.pushUnique('/app/budgets/${limit.budgetId}'),
       child: Row(
         children: [
           IconTile(
@@ -402,7 +402,8 @@ class BudgetNotRunningCard extends StatelessWidget {
                       child: const Text('Switch budget'),
                     ),
                     TextButton(
-                      onPressed: () => context.push('/app/budgets/create'),
+                      onPressed: () =>
+                          context.pushUnique('/app/budgets/create'),
                       child: const Text('New budget'),
                     ),
                   ],

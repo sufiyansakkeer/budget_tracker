@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../domain/repository/theme_repository.dart';
@@ -13,6 +15,13 @@ import 'theme_state.dart';
 class ThemeBloc extends Bloc<ThemeEvent, ThemeState> {
   final ThemeRepository _themeRepository;
 
+  final Completer<void> _ready = Completer<void>();
+
+  /// Completes once the persisted theme has been read (or failed to read),
+  /// so the first frame can already use the user's palette and mode
+  /// instead of flashing the defaults and animating to them.
+  Future<void> get ready => _ready.future;
+
   ThemeBloc({required ThemeRepository themeRepository})
     : _themeRepository = themeRepository,
       super(const ThemeState()) {
@@ -27,6 +36,8 @@ class ThemeBloc extends Bloc<ThemeEvent, ThemeState> {
         if (!isClosed) emit(ThemeState(mode: mode, palette: palette));
       } catch (_) {
         // Keep the default theme mode on error.
+      } finally {
+        if (!_ready.isCompleted) _ready.complete();
       }
     });
     on<ThemeChanged>((event, emit) async {

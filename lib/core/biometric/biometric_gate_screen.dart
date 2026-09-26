@@ -87,45 +87,83 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
         }
       },
       builder: (context, state) {
-        // Unlocked -> reveal the real application content.
-        if (state.status == AppLockStatus.unlocked) {
-          return widget.child;
-        }
-
-        // While the app is locked, intercept the system back button so the
-        // user cannot navigate away from the biometric gate and bypass
-        // authentication. They must authenticate (or tap Re-authenticate).
+        final locked = state.status != AppLockStatus.unlocked;
         final themeBloc = context.watch<ThemeBloc?>();
         final ThemeState? themeState = themeBloc?.state;
 
-        return PopScope(
-          canPop: false,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: themeState == null
-                ? AppTheme.lightTheme
-                : AppTheme.buildLightTheme(themeState.palette),
-            darkTheme: themeState == null
-                ? AppTheme.darkTheme
-                : AppTheme.buildDarkTheme(themeState.palette),
-            themeMode: themeState?.mode.toThemeMode() ?? ThemeMode.system,
-            themeAnimationDuration: AppMotion.respectReducedMotion(
-              context,
-              AppMotion.medium,
-            ),
-            themeAnimationCurve: AppMotion.emphasizedCurve,
-            // The lock screen has no AppBar either, so it needs the same
-            // status-bar annotation the main app applies.
-            builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-              value: AppTheme.systemOverlayStyle(Theme.of(context).brightness),
-              child: child ?? const SizedBox.shrink(),
-            ),
-            home: _LockScreenBody(
-              state: state,
-              onRetry: () {
-                context.read<AppLockBloc>().add(const AppUnlockRequested());
-              },
-            ),
+        // The real application stays mounted underneath the gate the whole
+        // time. Unmounting it on lock would throw away every tab, scroll
+        // position, route-scoped BLoC and open dialog, and every unlock would
+        // then replay the cold-start skeletons. While locked the app is
+        // off-stage: not painted (so nothing leaks into the app switcher),
+        // not hit-testable, and its tickers are paused.
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Visibility(
+                visible: !locked,
+                maintainState: true,
+                child: widget.child,
+              ),
+              // Locking is instant so the content is covered before the
+              // system takes its app-switcher snapshot; unlocking fades the
+              // gate away over the already-restored app.
+              AnimatedSwitcher(
+                duration: AppMotion.respectReducedMotion(
+                  context,
+                  AppMotion.standard,
+                ),
+                switchInCurve: const Threshold(0),
+                switchOutCurve: AppMotion.exit,
+                child: locked
+                    ? PopScope(
+                        key: const ValueKey('lock_gate'),
+                        // Intercept the system back button so the user cannot
+                        // navigate away from the gate and bypass
+                        // authentication.
+                        canPop: false,
+                        child: MaterialApp(
+                          debugShowCheckedModeBanner: false,
+                          theme: themeState == null
+                              ? AppTheme.lightTheme
+                              : AppTheme.buildLightTheme(themeState.palette),
+                          darkTheme: themeState == null
+                              ? AppTheme.darkTheme
+                              : AppTheme.buildDarkTheme(themeState.palette),
+                          themeMode:
+                              themeState?.mode.toThemeMode() ??
+                              ThemeMode.system,
+                          themeAnimationDuration:
+                              AppMotion.respectReducedMotion(
+                                context,
+                                AppMotion.medium,
+                              ),
+                          themeAnimationCurve: AppMotion.emphasizedCurve,
+                          // The lock screen has no AppBar either, so it needs
+                          // the same status-bar annotation the main app
+                          // applies.
+                          builder: (context, child) =>
+                              AnnotatedRegion<SystemUiOverlayStyle>(
+                                value: AppTheme.systemOverlayStyle(
+                                  Theme.of(context).brightness,
+                                ),
+                                child: child ?? const SizedBox.shrink(),
+                              ),
+                          home: _LockScreenBody(
+                            state: state,
+                            onRetry: () {
+                              context.read<AppLockBloc>().add(
+                                const AppUnlockRequested(),
+                              );
+                            },
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('unlocked')),
+              ),
+            ],
           ),
         );
       },
@@ -148,14 +186,15 @@ class _LockScreenBody extends StatelessWidget {
     final isAuthenticating = state.isAuthenticating;
     final isChecking = state.status == AppLockStatus.checking;
 
-    final String message;
-    if (isAuthenticating) {
-      message = 'Authenticating…';
-    } else if (isChecking) {
-      message = 'Loading…';
-    } else {
-      message = 'Unlock to continue';
+    // While the app is still deciding whether biometrics are required (a few
+    // frames after launch) show a plain surface that continues the native
+    // splash. Users without biometrics then never see a lock screen flash
+    // before the dashboard fades in.
+    if (isChecking) {
+      return const Scaffold(body: SizedBox.expand());
     }
+
+    final message = isAuthenticating ? 'Authenticating…' : 'Unlock to continue';
 
     return Scaffold(
       body: SafeArea(

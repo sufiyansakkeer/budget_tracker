@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +24,7 @@ import '../widgets/safe_spending_hero.dart';
 import '../widgets/upcoming_bills_section.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/widgets/app_fab.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Home tab: the financial overview for the active budget.
 ///
@@ -66,10 +69,13 @@ class DashboardScreen extends StatelessWidget {
           if (state is! DashboardLoaded) return const SizedBox.shrink();
           return AppFab(
             heroTag: 'dashboard_fab',
-            onPressed: () => context.push('/app/expenses/add'),
+            onPressed: () => context.pushUnique('/app/expenses/add'),
             icon: Icons.add_rounded,
             label: 'Add expense',
             tooltip: 'Add expense',
+            // Appears once the dashboard has loaded; the Scaffold animates
+            // it in.
+            animateEntrance: false,
           );
         },
       ),
@@ -92,15 +98,15 @@ class _DashboardContent extends StatelessWidget {
     final theme = Theme.of(context);
 
     return RefreshIndicator(
-      onRefresh: () async {
-        final bloc = context.read<DashboardBloc>();
-        // The next emission is the refreshed result (loaded, empty or error).
-        final done = bloc.stream.first.timeout(
-          const Duration(seconds: 8),
-          onTimeout: () => state,
+      onRefresh: () {
+        // Resolves when the reload finishes, even when nothing changed (an
+        // unchanged Equatable state is never re-emitted, so the stream
+        // alone could not tell us).
+        final completion = Completer<void>();
+        context.read<DashboardBloc>().add(
+          DashboardRefresh(completion: completion),
         );
-        bloc.add(const DashboardRefresh());
-        await done;
+        return completion.future;
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -149,7 +155,7 @@ class _DashboardContent extends StatelessWidget {
                       summary: summary,
                       onTap: state.activeBudgetId == null
                           ? null
-                          : () => context.push(
+                          : () => context.pushUnique(
                               '/app/budgets/${state.activeBudgetId}',
                             ),
                     ),
@@ -164,6 +170,7 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     for (var i = 0; i < others.length; i++)
                       FadeSlideIn(
+                        key: ValueKey('other_${others[i].budgetId}'),
                         index: 4 + i,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -179,8 +186,11 @@ class _DashboardContent extends StatelessWidget {
                       title: 'Smart insights',
                       infoContent: DashboardInfo.smartInsights,
                     ),
+                    // Keyed by insight so a changed set never hands one
+                    // insight's element (and finished entrance) to another.
                     for (var i = 0; i < state.insights.length; i++)
                       FadeSlideIn(
+                        key: ValueKey('insight_${state.insights[i].id}'),
                         index: 4 + i,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -212,7 +222,7 @@ class _DashboardContent extends StatelessWidget {
                           'will update here.',
                       actionLabel: 'Add expense',
                       actionIcon: Icons.add_rounded,
-                      onAction: () => context.push('/app/expenses/add'),
+                      onAction: () => context.pushUnique('/app/expenses/add'),
                     )
                   else
                     // The card grows smoothly when a new expense arrives;
@@ -256,11 +266,14 @@ class _DashboardContent extends StatelessWidget {
                                   key: ValueKey(
                                     'recent_${state.recentExpenses[i].id}',
                                   ),
-                                  index: 4 + i,
+                                  // Relative to the card, so a newly added
+                                  // expense appears as its slot opens rather
+                                  // than leaving a gap first.
+                                  index: i,
                                   child: RecentExpenseTile(
                                     expense: state.recentExpenses[i],
                                     currency: summary.currency,
-                                    onTap: () => context.push(
+                                    onTap: () => context.pushUnique(
                                       '/app/expenses/${state.recentExpenses[i].id}',
                                     ),
                                   ),
@@ -312,13 +325,13 @@ class _NoBudgetState extends StatelessWidget {
       actionLabel: 'Create budget',
       actionIcon: Icons.add_rounded,
       onAction: () async {
-        await context.push('/app/budgets/create');
+        await context.pushUnique('/app/budgets/create');
         if (context.mounted) {
           context.read<DashboardBloc>().add(const DashboardRefresh());
         }
       },
       secondaryActionLabel: 'Open Budgets',
-      onSecondaryAction: () => context.push('/app/budgets'),
+      onSecondaryAction: () => context.pushUnique('/app/budgets'),
     );
   }
 }

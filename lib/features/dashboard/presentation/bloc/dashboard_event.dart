@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 
 abstract class DashboardEvent extends Equatable {
@@ -12,5 +14,10 @@ class DashboardLoadData extends DashboardEvent {
 }
 
 class DashboardRefresh extends DashboardEvent {
-  const DashboardRefresh();
+  /// Completed when the refresh has finished, whether or not the data
+  /// changed. Pull-to-refresh awaits it; an unchanged reload never emits a
+  /// new state, so waiting on the stream would spin until a timeout.
+  final Completer<void>? completion;
+
+  const DashboardRefresh({this.completion});
 }

@@ -111,3 +111,16 @@ class ExpenseHistoryApplyCombinedView extends ExpenseHistoryEvent {
 class ExpenseHistoryExitCombinedView extends ExpenseHistoryEvent {
   const ExpenseHistoryExitCombinedView();
 }
+
+/// Drops one expense from the list immediately, before the deletion has
+/// reached the database. Sent when a swipe-to-delete row has finished its
+/// exit animation so the row is gone in the same frame and the rows below
+/// never jump; the refresh that follows the real delete confirms it.
+class ExpenseHistoryExpenseRemoved extends ExpenseHistoryEvent {
+  final String expenseId;
+
+  const ExpenseHistoryExpenseRemoved(this.expenseId);
+
+  @override
+  List<Object?> get props => [expenseId];
+}

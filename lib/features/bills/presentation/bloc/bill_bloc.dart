@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_failure.dart';
 import '../../domain/usecases/create_bill_usecase.dart';
 import '../../domain/usecases/delete_bill_usecase.dart';
@@ -256,7 +257,25 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     final result = await getBillsUseCase();
     switch (result) {
       case BillSuccess(:final data):
-        emit(state.copyWith(status: BillBlocStatus.loaded, allBills: data));
+        // Keep the bill open on a details screen in step with the list, so
+        // "mark paid" and edits show up there without leaving the screen.
+        final openId = state.selectedBill?.id;
+        BillEntity? selected;
+        if (openId != null) {
+          for (final bill in data) {
+            if (bill.id == openId) {
+              selected = bill;
+              break;
+            }
+          }
+        }
+        emit(
+          state.copyWith(
+            status: BillBlocStatus.loaded,
+            allBills: data,
+            selectedBill: selected ?? state.selectedBill,
+          ),
+        );
       case BillError(:final failure):
         emit(
           state.copyWith(

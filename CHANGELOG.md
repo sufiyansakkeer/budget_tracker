@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Tab switching is a real fade-through.** The bottom-navigation container
+  no longer cross-dissolves and shrinks both tabs at once (which let the
+  background show through as a flash). The outgoing tab fades during the
+  first third, then the incoming tab fades and settles from 96 % to full
+  size; only those two tabs are painted and every other one is off stage.
+  Rapid taps continue from the tabs' current opacity instead of snapping,
+  tabs are never remounted, and reduced motion switches instantly. The
+  Expenses, Reports and Settings branches are preloaded so a first visit
+  fades in with data rather than a skeleton.
+- **Biometric lock keeps the app alive.** The gate used to replace the whole
+  `MaterialApp.router` with its own `MaterialApp`, so every lock (including
+  the notification shade or a share sheet) threw away all tabs, scroll
+  positions and route-scoped BLoCs, and unlocking replayed the cold-start
+  skeletons. The app now stays mounted off stage under the gate and the
+  gate fades out on unlock. Cold start shows a plain themed surface while
+  the lock state is decided instead of flashing the fingerprint screen, and
+  the saved theme is read before the first frame so it no longer animates
+  in from the defaults.
+- **Consistent route structure.** Add/edit/details expense screens and the
+  palette picker are pushed on the root navigator (full screen, over the
+  bottom bar, like bill and budget forms), so opening them from Home no
+  longer switches the shell to the Expenses tab underneath. Onboarding and
+  the shell use the app's fade-through instead of the platform default.
+  Bottom sheets open on the root navigator so they cover the bottom bar.
+  Form fields take focus after the page transition, not during it.
+- **Fewer stacked animations.** Entrance and state cross-fades are skipped
+  when a tab is hidden, so changes made from another tab do not play on top
+  of the tab transition when the user returns. Report cards stay mounted
+  across period changes and animate to the new values in place. The
+  dashboard FAB, active-budget selector and pressed cards no longer double
+  up or stay shrunk while scrolling. A second tap on a card or button while
+  its screen is animating in no longer pushes the page twice.
 - **Android release builds are 16 KB page-size compatible** (Android 15+
   devices with 16 KB memory pages, and Google Play's 16 KB requirement). The
   only 4 KB-aligned native library was `librive_text.so`, which `rive_common`
@@ -25,6 +57,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   See the README's "16 KB page-size compatibility" section.
 
 ### Fixed
+- **Expense list jumped and flickered.** The search debounce re-armed itself
+  every 300 ms for the life of the screen, resetting the list to its first
+  page; every refresh also threw away pages the user had scrolled through.
+  Refreshes now keep the loaded rows, only genuinely new rows slide in, day
+  groups are keyed so their totals never animate across dates, a swiped row
+  leaves the list the moment its exit animation ends, filter chips grow and
+  shrink smoothly, the controls stay put while the list loads, and the
+  empty state no longer flashes to a blank list on background refreshes.
+- **Dashboard pull-to-refresh** could spin for 8 s when nothing had changed
+  (an unchanged state is never re-emitted). A failed background refresh no
+  longer replaces the loaded dashboard with the error screen, overlapping
+  loads can no longer publish stale data last, and insight and other-budget
+  rows are keyed by id.
+- Settings pull-to-refresh on default settings no longer swaps in a skeleton
+  and now waits for the reload; the version line no longer blanks on theme
+  changes; the biometric availability message is shown. Reports no longer
+  show two spinners on pull-to-refresh. Deleting a budget no longer flashes
+  "Budget not found" while the screen pops, and the duplicate-budget dialog
+  no longer disposes its controller mid-animation. Onboarding no longer
+  repeats its error SnackBar on every emit. Bill details and expense details
+  now reflect edits and "mark paid" made on the screens they open.
 - **Existing data failed to load on databases upgraded by the first v5 build.**
   `categories.is_archived` was added to the table definition after schema v5
   had already been applied, inside the v5 migration step, so a database that

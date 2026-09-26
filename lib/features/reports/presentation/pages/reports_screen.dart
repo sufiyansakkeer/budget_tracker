@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -33,6 +32,7 @@ import '../widgets/reports_error_widget.dart';
 import '../widgets/time_analytics_card.dart';
 import '../widgets/weekly_comparison_card.dart';
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Reports tab. Reading order: how much did I spend → how is the budget
 /// doing → where did it go → how did it move over time → patterns →
@@ -47,9 +47,10 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   static const _insightsCollapsed = 3;
 
+  /// Shows the slim progress bar. Pull-to-refresh already has its own
+  /// spinner, so a refresh does not count.
   static bool _isBusy(ReportsState state) =>
-      state.status == ReportsStatus.loading ||
-      state.status == ReportsStatus.refreshing;
+      state.status == ReportsStatus.loading;
 
   @override
   void initState() {
@@ -236,9 +237,11 @@ class _ReportContent extends StatelessWidget {
                       ReportRangeLabel(range: data.range, onEdit: onEditRange),
                       const SizedBox(height: AppSpacing.md),
 
-                      // Switching period cross-fades the report; the cards
-                      // inside re-enter with their usual stagger because the
-                      // subtree is keyed by the range.
+                      // The cards stay mounted across period and filter
+                      // changes so amounts, bars and lines animate from the
+                      // old values to the new ones; only the switch between
+                      // "nothing in this period" and a populated report
+                      // cross-fades.
                       AnimatedSwitcher(
                         duration: AppMotion.respectReducedMotion(
                           context,
@@ -251,7 +254,7 @@ class _ReportContent extends StatelessWidget {
                           children: [...previous, if (current != null) current],
                         ),
                         child: KeyedSubtree(
-                          key: ValueKey(data.range),
+                          key: ValueKey(data.isEmpty ? 'empty' : 'report'),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -263,7 +266,7 @@ class _ReportContent extends StatelessWidget {
                                   child: EmptyReportsState(
                                     filtered: state.filter.isActive,
                                     onAddExpense: () =>
-                                        context.push('/app/expenses/add'),
+                                        context.pushUnique('/app/expenses/add'),
                                     onClearFilters: () =>
                                         context.read<ReportsBloc>().add(
                                           const ReportsFilterChanged(
@@ -518,7 +521,7 @@ class _InsightsListState extends State<_InsightsList> {
         children: [
           for (var i = 0; i < visible.length; i++)
             FadeSlideIn(
-              key: ValueKey('insight_$i'),
+              key: ValueKey('insight_${visible[i].message}'),
               index: i < widget.collapsed
                   ? widget.baseIndex + i
                   : i - widget.collapsed,

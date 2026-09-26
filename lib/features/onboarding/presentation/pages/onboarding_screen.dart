@@ -68,6 +68,10 @@ class _OnboardingViewState extends State<_OnboardingView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return BlocConsumer<OnboardingBloc, OnboardingState>(
+      // Only status transitions matter here; a failure stays in state, so
+      // without this every later emit (e.g. changing page) re-showed the
+      // same error SnackBar.
+      listenWhen: (prev, curr) => prev.status != curr.status,
       listener: (context, state) {
         if (state.status == OnboardingStatus.success) {
           context.go(AppRouter.homePath);

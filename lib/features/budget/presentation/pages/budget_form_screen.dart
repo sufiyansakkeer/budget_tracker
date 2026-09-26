@@ -12,6 +12,7 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
@@ -57,6 +58,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   String? _dateError;
   String? _saveError;
 
+  final FocusNode _nameFocus = FocusNode();
+
   bool get _isEditing => _budget != null;
 
   @override
@@ -66,7 +69,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     _startDate = DateTime(now.year, now.month, now.day);
     _endDate = _startDate.add(const Duration(days: 30));
     _currency = getIt<CurrencyProvider>().currencyCode;
-    if (widget.budgetId != null) _loadBudget();
+    if (widget.budgetId != null) {
+      _loadBudget();
+    } else {
+      // Keyboard after the page has settled, not during the transition.
+      requestFocusAfterTransition(context, _nameFocus);
+    }
   }
 
   Future<void> _loadBudget() async {
@@ -108,6 +116,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
   @override
   void dispose() {
+    _nameFocus.dispose();
     _nameController.dispose();
     _amountController.dispose();
     _notesController.dispose();
@@ -283,9 +292,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     // Name
                     TextFormField(
                       controller: _nameController,
+                      focusNode: _nameFocus,
                       textInputAction: TextInputAction.next,
                       textCapitalization: TextCapitalization.words,
-                      autofocus: !_isEditing,
                       decoration: const InputDecoration(
                         labelText: 'Budget name',
                         hintText: 'e.g. Personal, Vacation, Wedding',

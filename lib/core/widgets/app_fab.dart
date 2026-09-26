@@ -15,6 +15,11 @@ class AppFab extends StatelessWidget {
   final String label;
   final String? tooltip;
 
+  /// Plays the scale-and-fade entrance on first build. Pass false when the
+  /// button is added to a [Scaffold] after its first frame: the scaffold
+  /// then animates the button in itself and a second entrance would stack.
+  final bool animateEntrance;
+
   const AppFab({
     super.key,
     required this.heroTag,
@@ -22,6 +27,7 @@ class AppFab extends StatelessWidget {
     required this.icon,
     required this.label,
     this.tooltip,
+    this.animateEntrance = true,
   });
 
   @override
@@ -38,7 +44,7 @@ class AppFab extends StatelessWidget {
       ),
     );
 
-    if (AppMotion.isReduced(context)) return fab;
+    if (!animateEntrance || AppMotion.isReduced(context)) return fab;
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),

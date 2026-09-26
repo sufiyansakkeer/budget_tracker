@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -22,6 +21,7 @@ import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/app_fab.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Bills & reminders: what is due next, totals by status, and the full list.
 class BillsListScreen extends StatefulWidget {
@@ -148,7 +148,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
                   'get reminded before they are due.',
               actionLabel: 'Add bill',
               actionIcon: Icons.add_rounded,
-              onAction: () => context.push('/app/bills/add'),
+              onAction: () => context.pushUnique('/app/bills/add'),
             );
           } else {
             child = _buildContent(context, state);
@@ -158,7 +158,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
       ),
       floatingActionButton: AppFab(
         heroTag: 'bills_fab',
-        onPressed: () => context.push('/app/bills/add'),
+        onPressed: () => context.pushUnique('/app/bills/add'),
         icon: Icons.add_rounded,
         label: 'Add bill',
         tooltip: 'Add a new bill',
@@ -311,7 +311,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
   Widget _card(BuildContext context, BillEntity bill) {
     return BillCard(
       bill: bill,
-      onTap: () => context.push('/app/bills/${bill.id}'),
+      onTap: () => context.pushUnique('/app/bills/${bill.id}'),
       onMarkPaid: bill.isPaid ? null : () => _confirmMarkPaid(bill),
     );
   }
@@ -377,7 +377,7 @@ class _NextUpCard extends StatelessWidget {
     final status = bill.status;
     final color = BillVisuals.colorFor(context, status);
     return AppCard(
-      onTap: () => context.push('/app/bills/${bill.id}'),
+      onTap: () => context.pushUnique('/app/bills/${bill.id}'),
       color: color.withValues(alpha: 0.08),
       showBorder: false,
       child: Row(

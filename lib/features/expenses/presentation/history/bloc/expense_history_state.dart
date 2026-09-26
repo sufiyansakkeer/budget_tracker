@@ -103,8 +103,15 @@ class ExpenseHistoryState extends Equatable {
     this.budgetMap = const {},
   });
 
+  /// True when the list has been loaded and shows nothing. Refreshing and
+  /// paging keep the current view, so they count as loaded here; otherwise
+  /// every background refresh would swap the empty state for a blank list
+  /// and back.
   bool get isEmpty =>
-      status == ExpenseHistoryStatus.loaded && visibleExpenses.isEmpty;
+      visibleExpenses.isEmpty &&
+      (status == ExpenseHistoryStatus.loaded ||
+          status == ExpenseHistoryStatus.refreshing ||
+          status == ExpenseHistoryStatus.loadingMore);
 
   ExpenseHistoryState copyWith({
     ExpenseHistoryStatus? status,

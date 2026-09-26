@@ -14,11 +14,13 @@ class AppStateSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A state change while the tab is hidden (tickers paused: a preloaded
+    // tab finishing its first load, a refresh from another tab) switches
+    // instantly. Otherwise the cross-fade would start when the tab is next
+    // shown and play on top of the tab transition.
+    final instant = !TickerMode.of(context) || AppMotion.isReduced(context);
     return AnimatedSwitcher(
-      duration: AppMotion.respectReducedMotion(
-        context,
-        duration ?? AppMotion.medium,
-      ),
+      duration: instant ? Duration.zero : (duration ?? AppMotion.medium),
       switchInCurve: AppMotion.enter,
       switchOutCurve: AppMotion.exit,
       layoutBuilder: (currentChild, previousChildren) => Stack(

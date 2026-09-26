@@ -1,7 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
@@ -13,7 +12,6 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../app_update/presentation/bloc/app_update_bloc.dart';
 import '../../../app_update/presentation/widgets/app_update_section.dart';
-import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/color_palette_entity.dart';
 import '../../domain/entities/currency_entity.dart';
@@ -34,9 +32,9 @@ import '../widgets/reset_confirmation_dialog.dart';
 import '../widgets/settings_section.dart';
 import '../widgets/settings_tile.dart';
 import '../widgets/theme_selector.dart';
-import 'palette_selection_screen.dart';
-import '../../../../core/router/app_page_transitions.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/app_dialog.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Settings, grouped by what the user is trying to change.
 class SettingsScreen extends StatefulWidget {
@@ -47,6 +45,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  /// Set once a load has completed so reloads keep the list on screen.
+  bool _loadedOnce = false;
+
   @override
   void initState() {
     super.initState();
@@ -200,7 +201,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             prev.settings != curr.settings ||
             prev.status != curr.status ||
             prev.isBusy != curr.isBusy ||
-            prev.isBiometricBusy != curr.isBiometricBusy,
+            prev.isBiometricBusy != curr.isBiometricBusy ||
+            prev.biometricMessage != curr.biometricMessage,
         listener: (context, state) {
           final messenger = ScaffoldMessenger.of(context);
           if (state.integrityResult != null) {
@@ -222,7 +224,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         },
         builder: (context, state) {
-          final neverLoaded = state.settings == const AppSettings();
+          // Default settings are a valid loaded result, so "never loaded"
+          // must come from the status, not from comparing values: otherwise
+          // every reload on a fresh install swaps the list for a skeleton.
+          if (state.status == SettingsStatus.loaded) _loadedOnce = true;
+          final neverLoaded = !_loadedOnce;
           final Widget child;
           if ((state.status == SettingsStatus.initial ||
                   state.status == SettingsStatus.loading) &&
@@ -259,7 +265,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return RefreshIndicator(
       key: const ValueKey('content'),
-      onRefresh: () async => bloc.add(const SettingsLoadEvent()),
+      onRefresh: () {
+        bloc.add(const SettingsLoadEvent());
+        return bloc.stream
+            .firstWhere((s) => s.status != SettingsStatus.loading)
+            .timeout(const Duration(seconds: 8), onTimeout: () => bloc.state);
+      },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.pagePadding,
@@ -305,7 +316,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Budgets',
                 subtitle: 'Create, switch, edit and archive budgets',
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/app/budgets'),
+                onTap: () => context.pushUnique('/app/budgets'),
               ),
               SettingsTile(
                 icon: Icons.replay_rounded,
@@ -347,7 +358,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Categories',
                 subtitle: 'Add your own, rename, restyle or archive',
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/app/categories'),
+                onTap: () => context.pushUnique('/app/categories'),
               ),
             ],
           ),
@@ -415,7 +426,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Due dates, recurring bills and per-bill reminders. '
                     'Reminders are set on each bill.',
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/app/bills'),
+                onTap: () => context.pushUnique('/app/bills'),
               ),
             ],
           ),
@@ -486,12 +497,7 @@ class _PaletteTile extends StatelessWidget {
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      onTap: () => Navigator.of(context).push(
-        AppPageTransitions.route<void>(
-          context: context,
-          builder: (_) => const PaletteSelectionScreen(),
-        ),
-      ),
+      onTap: () => context.pushUnique(AppRouter.palettePath),
       leading: SizedBox(
         width: AppSizes.avatarSm,
         height: AppSizes.avatarSm,

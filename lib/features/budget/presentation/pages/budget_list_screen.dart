@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
@@ -20,6 +19,7 @@ import '../widgets/budget_list_summary_card.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Lists all budgets, grouped by where they are in their lifecycle, with the
 /// active budget marked. Each budget stays independent.
@@ -105,7 +105,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       ),
       floatingActionButton: AppFab(
         heroTag: 'budgets_fab',
-        onPressed: () => context.push('/app/budgets/create'),
+        onPressed: () => context.pushUnique('/app/budgets/create'),
         icon: Icons.add_rounded,
         label: 'New budget',
         tooltip: 'Create a new budget',
@@ -149,7 +149,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
             'tracking your spending.',
         actionLabel: 'Create budget',
         actionIcon: Icons.add_rounded,
-        onAction: () => context.push('/app/budgets/create'),
+        onAction: () => context.pushUnique('/app/budgets/create'),
       );
     }
 
@@ -201,7 +201,8 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
                   child: BudgetCard(
                     budget: budget,
                     isActive: budget.id == _activeBudgetId,
-                    onTap: () => context.push('/app/budgets/${budget.id}'),
+                    onTap: () =>
+                        context.pushUnique('/app/budgets/${budget.id}'),
                   ),
                 ),
               const SizedBox(height: AppSpacing.sm),

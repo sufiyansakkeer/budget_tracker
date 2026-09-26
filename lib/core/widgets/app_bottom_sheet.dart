@@ -9,6 +9,9 @@ import '../constants/app_spacing.dart';
 /// always be dismissed by dragging the handle. The content sits inside a
 /// bottom-only [SafeArea] *within* the sheet, so the drag gesture (owned by
 /// the sheet itself) is never intercepted.
+///
+/// Sheets open on the root navigator so they cover the bottom navigation
+/// bar (and the tabs cannot be switched underneath an open sheet).
 class AppBottomSheet {
   AppBottomSheet._();
 
@@ -24,9 +27,11 @@ class AppBottomSheet {
     bool showDragHandle = true,
     bool useSafeArea = true,
     bool isDismissible = true,
+    bool useRootNavigator = true,
   }) {
     return showModalBottomSheet<T>(
       context: context,
+      useRootNavigator: useRootNavigator,
       isScrollControlled: isScrollControlled,
       showDragHandle: showDragHandle,
       useSafeArea: useSafeArea,
@@ -40,13 +45,10 @@ class AppBottomSheet {
         ),
       ),
       builder: (sheetContext) {
+        // The keyboard inset already changes frame by frame as the keyboard
+        // slides; animating it again would make the sheet trail behind.
         final bottomInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
-        return AnimatedPadding(
-          duration: AppMotion.respectReducedMotion(
-            sheetContext,
-            AppMotion.fast,
-          ),
-          curve: AppMotion.standardCurve,
+        return Padding(
           padding: EdgeInsets.only(bottom: bottomInset),
           child: SafeArea(top: false, child: builder(sheetContext)),
         );

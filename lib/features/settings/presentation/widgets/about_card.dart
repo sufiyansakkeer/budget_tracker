@@ -21,11 +21,15 @@ class AboutCard extends StatelessWidget {
         'which asks GitHub for the latest release version',
   );
 
+  /// Read once per process: a new future on every rebuild (theme change,
+  /// settings reload) would blank the version to "…" and fill it in again.
+  static final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return FutureBuilder<PackageInfo>(
-      future: PackageInfo.fromPlatform(),
+      future: _packageInfo,
       builder: (context, snapshot) {
         final info = snapshot.data;
         final appName = info?.appName ?? 'Monivo';

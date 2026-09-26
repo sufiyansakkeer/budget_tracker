@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Secondary destinations reachable from the dashboard. Adding an expense is
 /// the FAB, so it is intentionally not repeated here.
@@ -15,17 +16,17 @@ class QuickActions extends StatelessWidget {
       _Action(
         icon: Icons.receipt_long_rounded,
         label: 'Add bill',
-        onTap: () => context.push('/app/bills/add'),
+        onTap: () => context.pushUnique('/app/bills/add'),
       ),
       _Action(
         icon: Icons.event_repeat_rounded,
         label: 'Bills',
-        onTap: () => context.push('/app/bills'),
+        onTap: () => context.pushUnique('/app/bills'),
       ),
       _Action(
         icon: Icons.account_balance_wallet_rounded,
         label: 'Budgets',
-        onTap: () => context.push('/app/budgets'),
+        onTap: () => context.pushUnique('/app/budgets'),
       ),
       _Action(
         icon: Icons.insights_rounded,

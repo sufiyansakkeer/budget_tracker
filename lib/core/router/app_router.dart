@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../di/injection.dart';
@@ -20,6 +21,7 @@ import '../../features/onboarding/presentation/pages/onboarding_screen.dart';
 import '../../features/reports/presentation/bloc/reports_bloc.dart';
 import '../../features/reports/presentation/pages/reports_screen.dart';
 import '../../features/settings/presentation/bloc/settings_bloc.dart';
+import '../../features/settings/presentation/pages/palette_selection_screen.dart';
 import '../../features/settings/presentation/pages/settings_screen.dart';
 import '../../features/bills/presentation/bloc/bill_bloc.dart';
 import '../../features/bills/presentation/pages/bills_list_screen.dart';
@@ -44,6 +46,12 @@ class AppRouter {
   static const String settingsPath = '/app/settings';
   static const String billsPath = '/app/bills';
   static const String categoriesPath = '/app/categories';
+  static const String palettePath = '/app/settings/palette';
+
+  /// The root [Navigator]. Screens that must cover the bottom navigation
+  /// (forms, details, pickers) are pushed here with `parentNavigatorKey`.
+  static GlobalKey<NavigatorState> get rootNavigatorKey =>
+      UpdateDialogService.rootNavigatorKey;
 
   static final GoRouter router = GoRouter(
     navigatorKey: UpdateDialogService.rootNavigatorKey,
@@ -75,7 +83,12 @@ class AppRouter {
       GoRoute(
         path: onboardingPath,
         name: 'onboarding',
-        builder: (context, state) => const OnboardingScreen(),
+        pageBuilder: (context, state) => AppPageTransitions.page(
+          context: context,
+          state: state,
+          transition: AppTransition.fadeThrough,
+          child: const OnboardingScreen(),
+        ),
       ),
 
       // ── Standalone routes (full-screen, not bottom-nav tabs) ──────────
@@ -197,8 +210,15 @@ class AppRouter {
 
       // ── Shell route (bottom-navigation tabs) ─────────────────────────
       StatefulShellRoute(
-        builder: (context, state, navigationShell) =>
-            AppShell(navigationShell: navigationShell),
+        // The shell itself is a page so arriving from onboarding uses the
+        // app's own fade-through instead of the platform default.
+        pageBuilder: (context, state, navigationShell) =>
+            AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.fadeThrough,
+              child: AppShell(navigationShell: navigationShell),
+            ),
         // Branches stay mounted (like an IndexedStack) but cross-fade when
         // the user switches tabs.
         navigatorContainerBuilder: (context, navigationShell, children) =>
@@ -223,6 +243,9 @@ class AppRouter {
           ),
           // Expenses
           StatefulShellBranch(
+            // Preloaded so the first visit fades in with data instead of a
+            // skeleton; everything is local so the cost is a few queries.
+            preload: true,
             routes: [
               GoRoute(
                 path: expensesPath,
@@ -240,6 +263,10 @@ class AppRouter {
                   GoRoute(
                     path: 'add',
                     name: 'addExpense',
+                    // Full-screen over the bottom bar, like the bill and
+                    // budget forms, and reachable from any tab without
+                    // switching the shell to Expenses.
+                    parentNavigatorKey: rootNavigatorKey,
                     pageBuilder: (context, state) => AppPageTransitions.page(
                       context: context,
                       state: state,
@@ -255,6 +282,10 @@ class AppRouter {
                   GoRoute(
                     path: 'edit/:id',
                     name: 'editExpense',
+                    // Full-screen over the bottom bar, like the bill and
+                    // budget forms, and reachable from any tab without
+                    // switching the shell to Expenses.
+                    parentNavigatorKey: rootNavigatorKey,
                     pageBuilder: (context, state) => AppPageTransitions.page(
                       context: context,
                       state: state,
@@ -270,6 +301,10 @@ class AppRouter {
                   GoRoute(
                     path: ':id',
                     name: 'expenseDetails',
+                    // Full-screen over the bottom bar, like the bill and
+                    // budget forms, and reachable from any tab without
+                    // switching the shell to Expenses.
+                    parentNavigatorKey: rootNavigatorKey,
                     pageBuilder: (context, state) => AppPageTransitions.page(
                       context: context,
                       state: state,
@@ -288,6 +323,7 @@ class AppRouter {
           ),
           // Reports
           StatefulShellBranch(
+            preload: true,
             routes: [
               GoRoute(
                 path: reportsPath,
@@ -301,6 +337,7 @@ class AppRouter {
           ),
           // Settings
           StatefulShellBranch(
+            preload: true,
             routes: [
               GoRoute(
                 path: settingsPath,
@@ -309,6 +346,19 @@ class AppRouter {
                   create: (context) => getIt<SettingsBloc>(),
                   child: const SettingsScreen(),
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'palette',
+                    name: 'palette',
+                    parentNavigatorKey: rootNavigatorKey,
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.sharedAxisHorizontal,
+                      child: const PaletteSelectionScreen(),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

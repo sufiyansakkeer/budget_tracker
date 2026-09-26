@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
@@ -13,6 +12,8 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/widgets/app_state_switcher.dart';
 
 /// A tappable control that shows the active budget's name and period and
 /// opens the budget switcher.
@@ -39,12 +40,12 @@ class ActiveBudgetSelector extends StatefulWidget {
 
     switch (action.type) {
       case BudgetActionType.create:
-        await context.push('/app/budgets/create');
+        await context.pushUnique('/app/budgets/create');
         RefreshBuses.budgets.notifyChanged();
       case BudgetActionType.open:
-        await context.push('/app/budgets/${action.budget!.id}');
+        await context.pushUnique('/app/budgets/${action.budget!.id}');
       case BudgetActionType.manage:
-        await context.push('/app/budgets');
+        await context.pushUnique('/app/budgets');
         RefreshBuses.budgets.notifyChanged();
       case BudgetActionType.select:
         final budget = action.budget!;
@@ -93,14 +94,23 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
 
   @override
   Widget build(BuildContext context) {
+    return AppStateSwitcher(
+      duration: AppMotion.standard,
+      child: _loading
+          ? const Shimmer(
+              key: ValueKey('loading'),
+              child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
+            )
+          : KeyedSubtree(
+              key: const ValueKey('content'),
+              child: _buildContent(context),
+            ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final theme = Theme.of(context);
     final budget = _active;
-
-    if (_loading) {
-      return const Shimmer(
-        child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
-      );
-    }
 
     return Semantics(
       button: true,
