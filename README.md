@@ -523,7 +523,9 @@ features/<feature>/
 
 - Flutter SDK — CI pins **3.32.8**; use that version or a compatible newer stable.
 - Dart SDK `^3.8.1` (bundled with Flutter).
-- Android: Android Studio with a JDK 11-compatible toolchain and NDK `27.0.12077973`.
+- Android: Android Studio with a JDK 11-compatible toolchain and NDK `29.0.14206865`
+  (r29). NDK r28 or newer is required so native libraries are linked for 16 KB
+  memory pages; see [16 KB page-size compatibility](#16-kb-page-size-compatibility).
 - iOS: Xcode with CocoaPods, on macOS.
 
 ### Installation
@@ -582,7 +584,7 @@ the debug signing config, which is fine for local testing but not for distributi
 | `minSdk` | 23 — required by `home_widget`'s `androidx.work` dependency |
 | `compileSdk` / `targetSdk` | Flutter defaults |
 | Java / Kotlin target | 11, with core library desugaring enabled |
-| NDK | `27.0.12077973` |
+| NDK | `29.0.14206865` (r29) — see [16 KB page-size compatibility](#16-kb-page-size-compatibility) |
 
 **Permissions declared** in `android/app/src/main/AndroidManifest.xml`:
 
@@ -597,6 +599,56 @@ the debug signing config, which is fine for local testing but not for distributi
 The manifest also registers the `HomeScreenWidgetProvider` receiver, the
 `flutter_local_notifications` scheduled and boot receivers, and a `monivo://`
 deep-link intent filter on `MainActivity`.
+
+### 16 KB page-size compatibility
+
+Android 15+ devices can run with 16 KB memory pages, and Google Play requires
+apps that ship native code to be 16 KB compatible. The release APK and AAB are
+genuinely aligned — no `android:pageSizeCompat` or other compatibility mode is
+used.
+
+The app has no native code of its own. The native libraries in the build come
+from Flutter (`libflutter.so`, `libapp.so`), `sqlite3_flutter_libs`
+(`libsqlite3.so`), `shared_preferences_android` via AndroidX DataStore
+(`libdatastore_shared_counter.so`) and `rive_common` (`librive_text.so`). All
+of them are prebuilt with 16 KB alignment except `librive_text.so`, which
+`rive_common` compiles from source with CMake and, by default, with NDK 25 —
+that produced 4 KB-aligned ELF `LOAD` segments. Two `gradle.properties`
+settings fix this at the source rather than patching binaries:
+
+| Setting | Why |
+| --- | --- |
+| `rive.ndk.version=29.0.14206865` | `rive_common`'s documented hook for choosing its NDK. NDK r28+ links with 16 KB-aligned `LOAD` segments by default. Kept equal to `ndkVersion` in `android/app/build.gradle.kts`. |
+| `android.ndk.suppressMinSdkVersionError=21` | NDK r28+ dropped API < 21, and the `rive_common` library module still declares `minSdkVersion 19` for its own native build. This AGP setting builds that code against API 21 instead of failing configuration (error CXX1110). The app's `minSdk` is 23, so nothing below 21 can install it. |
+
+AGP 8.7.3 already stores native libraries uncompressed and 16 KB zip-aligned,
+and writes `PAGE_ALIGNMENT_16K` into the bundle configuration.
+
+To verify a build (paths assume the default SDK location on macOS):
+
+```bash
+# ELF LOAD segment alignment of every native library in the APK
+unzip -o -d /tmp/apk build/app/outputs/flutter-apk/app-release.apk 'lib/*'
+for f in /tmp/apk/lib/*/*.so; do
+  printf '%-50s ' "${f#/tmp/apk/}"
+  ~/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readelf -l "$f"     | awk '/LOAD/{print $NF}' | sort -u | tr '
+' ' '; echo
+done            # every 64-bit library must show 0x4000 or 0x10000
+
+# Zip alignment of the APK for 16 KB pages
+~/Library/Android/sdk/build-tools/35.0.0/zipalign -c -P 16 -v 4 build/app/outputs/flutter-apk/app-release.apk
+
+# Bundle configuration (needs bundletool)
+java -jar bundletool.jar dump config --bundle=build/app/outputs/bundle/release/app-release.aab
+#   "uncompressNativeLibraries": { "enabled": true, "alignment": "PAGE_ALIGNMENT_16K" }
+
+# A 16 KB emulator (Android Studio: an "ps16k" system image) reports
+adb shell getconf PAGE_SIZE   # 16384
+```
+
+The 32-bit `armeabi-v7a` and `x86` copies of `librive_text.so` and
+`libsqlite3.so` remain 4 KB aligned. The 16 KB page-size requirement applies to
+64-bit ABIs only: 16 KB devices are 64-bit and load the `arm64-v8a` libraries.
 
 No additional Android Studio configuration is needed for the home screen widget —
 the provider, layout and `appwidget-provider` XML are all in the repository. To add

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Android release builds are 16 KB page-size compatible** (Android 15+
+  devices with 16 KB memory pages, and Google Play's 16 KB requirement). The
+  only 4 KB-aligned native library was `librive_text.so`, which `rive_common`
+  0.4.15 compiles from source with NDK 25 unless told otherwise; the Android
+  project now sets `rive.ndk.version=29.0.14206865` and uses NDK r29 for the
+  app module, so every 64-bit library (`libapp.so`, `libflutter.so`,
+  `libsqlite3.so`, `libdatastore_shared_counter.so`, `librive_text.so`) carries
+  16 KB-aligned ELF `LOAD` segments. `android.ndk.suppressMinSdkVersionError=21`
+  lets NDK r28+ build `rive_common`'s `minSdkVersion 19` module against API 21
+  (the app's `minSdk` is 23). No compatibility mode (`android:pageSizeCompat`)
+  is used, no dependency versions changed, and the CI workflows install the NDK
+  explicitly. Verified with `llvm-readelf`, `zipalign -c -P 16 -v 4`, `bundletool
+  dump config` (`PAGE_ALIGNMENT_16K`) and a 16 KB Pixel 9 Pro emulator
+  (`getconf PAGE_SIZE` = 16384) running the release build over existing data.
+  See the README's "16 KB page-size compatibility" section.
+
 ### Fixed
 - **Existing data failed to load on databases upgraded by the first v5 build.**
   `categories.is_archived` was added to the table definition after schema v5

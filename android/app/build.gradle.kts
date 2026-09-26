@@ -16,7 +16,9 @@ if (signingPropertiesFile.exists()) {
 android {
     namespace = "com.example.monivo"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    // NDK r28+ emits 16 KB-aligned ELF LOAD segments by default (Android 15+ 16 KB
+    // page-size devices). Must match rive.ndk.version in gradle.properties.
+    ndkVersion = "29.0.14206865"
 
     compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

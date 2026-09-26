@@ -4,7 +4,7 @@
 
 `ci.yml` runs on every pull request and on pushes to `developer`. It installs Flutter 3.32.8, runs `pub get`, regenerates Drift/Freezed/JSON sources, checks that generated files are committed, formats, analyzes, tests, and uploads coverage.
 
-Pushes to `developer` additionally run the Android and unsigned iOS development build workflows. There are no configured flavors, so each build uses the default Runner/Android release configuration. A push to `developer` never creates a production release.
+Pushes to `developer` additionally run the Android and unsigned iOS development build workflows. Both Android workflows install NDK `29.0.14206865` with `sdkmanager` before building, because the release binaries must be linked for 16 KB memory pages (see the README's "16 KB page-size compatibility" section); the version must match `ndkVersion` in `android/app/build.gradle.kts` and `rive.ndk.version` in `android/gradle.properties`. There are no configured flavors, so each build uses the default Runner/Android release configuration. A push to `developer` never creates a production release.
 
 Every push to `main` runs `release.yml`. A concurrency lock refreshes the latest `main`, calculates the next patch version and build number, validates, builds a signed Android APK/AAB with Flutter build overrides, then commits the new `pubspec.yaml` version, creates the matching tag, and creates or updates the GitHub Release. The version commit contains `[skip ci]`, so it cannot start another production release.
 
