@@ -14,6 +14,7 @@ class ExpenseCategoryModel {
       icon: row.icon,
       colorHex: row.colorHex,
       isSystem: row.isSystem,
+      isArchived: row.isArchived,
     );
   }
 
@@ -24,6 +25,7 @@ class ExpenseCategoryModel {
       icon: category.icon,
       colorHex: category.colorHex,
       isSystem: Value(category.isSystem),
+      isArchived: Value(category.isArchived),
     );
   }
 }

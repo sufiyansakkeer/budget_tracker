@@ -18,7 +18,7 @@ import 'package:monivo/features/expenses/domain/usecases/sort_expenses_usecase.d
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_event.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_state.dart';
-import 'package:monivo/features/expenses/presentation/bloc/expense_refresh_bus.dart';
+import 'package:monivo/core/events/refresh_bus.dart';
 
 ExpenseEntity expense({
   required String id,
@@ -63,6 +63,8 @@ class FakeHistoryRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async => expenses;
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
@@ -73,6 +75,9 @@ class FakeHistoryRepository implements ExpenseRepository {
 }
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   final BudgetEntity? budget;
   FakeBudgetRepository({this.budget});
 
@@ -271,18 +276,18 @@ void main() {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // Regression tests for ExpenseRefreshBus subscription
+  // Regression tests for RefreshBuses.expenses subscription
   // Verifies that when expenses change, the history auto-refreshes
   // ──────────────────────────────────────────────────────────────
 
-  test('auto-refreshes when ExpenseRefreshBus notifies', () async {
+  test('auto-refreshes when RefreshBuses.expenses notifies', () async {
     // Load initial expenses
     bloc.add(const ExpenseHistoryLoad());
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state.visibleExpenses.length, 3);
 
     // Simulate an external expense change (e.g., created by another BLoC)
-    ExpenseRefreshBus.instance.notifyChanged();
+    RefreshBuses.expenses.notifyChanged();
     await Future<void>.delayed(Duration.zero);
 
     // Give the async refresh event time to process
@@ -305,7 +310,7 @@ void main() {
     repository.expenses.add(newExpense);
 
     // Notify refresh bus (as would happen from ExpenseBloc)
-    ExpenseRefreshBus.instance.notifyChanged();
+    RefreshBuses.expenses.notifyChanged();
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -333,7 +338,7 @@ void main() {
     repository.expenses.add(overspentExpense);
 
     // Notify refresh bus
-    ExpenseRefreshBus.instance.notifyChanged();
+    RefreshBuses.expenses.notifyChanged();
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 

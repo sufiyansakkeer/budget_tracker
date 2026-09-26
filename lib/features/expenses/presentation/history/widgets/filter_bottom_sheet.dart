@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
+import '../../../domain/entities/quick_date_preset.dart';
 import '../../widgets/category_visuals.dart';
 
 /// Bottom sheet for applying expense filters.
@@ -100,6 +101,27 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     });
   }
 
+  bool _presetSelected(QuickDatePreset preset) {
+    if (_dateFrom == null || _dateTo == null) return false;
+    return preset.matches(
+      ExpenseHistoryFilter(dateFrom: _dateFrom, dateTo: _dateTo),
+    );
+  }
+
+  /// Tapping the selected preset again clears the range.
+  void _applyPreset(QuickDatePreset preset) {
+    setState(() {
+      if (_presetSelected(preset)) {
+        _dateFrom = null;
+        _dateTo = null;
+      } else {
+        final r = preset.range();
+        _dateFrom = r.$1;
+        _dateTo = r.$2;
+      }
+    });
+  }
+
   void _reset() {
     setState(() {
       _categoryId = null;
@@ -178,6 +200,20 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   const SizedBox(height: AppSpacing.lg),
 
                   _SectionLabel('Date range'),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      for (final preset in QuickDatePreset.values)
+                        ChoiceChip(
+                          key: Key('filter_preset_${preset.name}'),
+                          label: Text(preset.label),
+                          selected: _presetSelected(preset),
+                          onSelected: (_) => _applyPreset(preset),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
                       Expanded(

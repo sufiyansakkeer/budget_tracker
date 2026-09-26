@@ -73,15 +73,39 @@ class BudgetCalculationService {
     return monthlyAmount - totalSpent;
   }
 
-  /// Daily safe spending allowance.
+  /// Primitive division used by [calculateTodaySafeSpending].
   ///
-  /// Formula: remainingBudget ÷ remainingDays
+  /// Formula: remainingBudget ÷ remainingDays (remainingDays floored at 1).
+  ///
+  /// Callers that want "today's safe spending" must use
+  /// [calculateTodaySafeSpending] so today's expenses are added back first;
+  /// this method alone shrinks as the day's spending grows.
   double calculateDailyAllowance({
     required double remainingBudget,
     required int remainingDays,
   }) {
     final safeDays = remainingDays < 1 ? 1 : remainingDays;
     return remainingBudget / safeDays;
+  }
+
+  /// Today's safe spending — the single formula used by every screen,
+  /// notification and the home-screen widget.
+  ///
+  /// Formula: (remainingBudget + todaySpending) ÷ remainingDays
+  ///
+  /// Today's expenses are added back before dividing so the figure stays
+  /// fixed for the whole day: spending counts *against* today's limit instead
+  /// of silently lowering it after every purchase. Tomorrow the value is
+  /// recomputed from what is actually left.
+  double calculateTodaySafeSpending({
+    required double remainingBudget,
+    required double todaySpending,
+    required int remainingDays,
+  }) {
+    return calculateDailyAllowance(
+      remainingBudget: remainingBudget + todaySpending,
+      remainingDays: remainingDays,
+    );
   }
 
   /// Budget utilization as a ratio (0.0–1.0+).
@@ -196,8 +220,9 @@ class BudgetCalculationService {
       startDate: input.startDate,
       endDate: input.endDate,
     );
-    final dailySafeSpending = calculateDailyAllowance(
-      remainingBudget: remainingBudget + input.todaySpending,
+    final dailySafeSpending = calculateTodaySafeSpending(
+      remainingBudget: remainingBudget,
+      todaySpending: input.todaySpending,
       remainingDays: remainingDays,
     );
     final utilization = calculateBudgetUtilization(
@@ -288,8 +313,9 @@ class BudgetCalculationService {
       startDate: input.startDate,
       endDate: input.endDate,
     );
-    final dailySafeSpending = calculateDailyAllowance(
-      remainingBudget: remainingBudget + input.todaySpending,
+    final dailySafeSpending = calculateTodaySafeSpending(
+      remainingBudget: remainingBudget,
+      todaySpending: input.todaySpending,
       remainingDays: daysRemaining,
     );
     final spendingPercentage = calculateSpendingPercentage(

@@ -75,212 +75,118 @@ class DatabaseIntegrityService {
     return result;
   }
 
+  /// Runs [sql] and turns each returned row into an issue.
+  ///
+  /// Every check is an anti-join or a predicate, so SQLite returns only the
+  /// offending rows — usually none. Loading whole tables to fold them in Dart
+  /// froze the UI isolate on a large database.
+  Future<List<IntegrityIssue>> _query(
+    String sql, {
+    required String table,
+    required String Function(Map<String, Object?> row) describe,
+    String idColumn = 'id',
+  }) async {
+    final rows = await _database.customSelect(sql).get();
+    return [
+      for (final row in rows)
+        IntegrityIssue(
+          table: table,
+          description: describe(row.data),
+          entityId: row.data[idColumn]?.toString() ?? 'unknown',
+        ),
+    ];
+  }
+
   /// Checks for expenses that reference non-existent budgets.
-  Future<List<IntegrityIssue>> _checkOrphanedExpenses() async {
-    final issues = <IntegrityIssue>[];
-
-    final expenses = await (_database.select(_database.expenses)).get();
-    final budgetIds = (await (_database.select(
-      _database.budgets,
-    )).get()).map((b) => b.id).toSet();
-
-    for (final expense in expenses) {
-      if (!budgetIds.contains(expense.budgetId)) {
-        issues.add(
-          IntegrityIssue(
-            table: 'expenses',
-            description:
-                'Expense references non-existent budget '
-                '${expense.budgetId}',
-            entityId: expense.id,
-          ),
-        );
-      }
-    }
-
-    return issues;
+  Future<List<IntegrityIssue>> _checkOrphanedExpenses() {
+    return _query(
+      'SELECT id, budget_id FROM expenses '
+      'WHERE budget_id NOT IN (SELECT id FROM budgets)',
+      table: 'expenses',
+      describe: (row) =>
+          'Expense references non-existent budget ${row['budget_id']}',
+    );
   }
 
   /// Checks for expenses that reference non-existent categories.
-  Future<List<IntegrityIssue>> _checkInvalidBudgetReferences() async {
-    final issues = <IntegrityIssue>[];
-
-    final expenses = await (_database.select(_database.expenses)).get();
-    final categoryIds = (await (_database.select(
-      _database.categories,
-    )).get()).map((c) => c.id).toSet();
-
-    for (final expense in expenses) {
-      if (!categoryIds.contains(expense.categoryId)) {
-        issues.add(
-          IntegrityIssue(
-            table: 'expenses',
-            description:
-                'Expense references non-existent category '
-                '${expense.categoryId}',
-            entityId: expense.id,
-          ),
-        );
-      }
-    }
-
-    return issues;
+  Future<List<IntegrityIssue>> _checkInvalidBudgetReferences() {
+    return _query(
+      'SELECT id, category_id FROM expenses '
+      'WHERE category_id NOT IN (SELECT id FROM categories)',
+      table: 'expenses',
+      describe: (row) =>
+          'Expense references non-existent category ${row['category_id']}',
+    );
   }
 
   /// Checks for budgets with invalid date ranges (startDate > endDate).
-  Future<List<IntegrityIssue>> _checkBudgetDateRanges() async {
-    final issues = <IntegrityIssue>[];
+  Future<List<IntegrityIssue>> _checkBudgetDateRanges() {
+    return _query(
+      'SELECT id, start_date, end_date FROM budgets '
+      'WHERE start_date > end_date',
+      table: 'budgets',
+      describe: (row) =>
+          'Budget has start date after end date '
+          '(${_asDate(row['start_date'])} > ${_asDate(row['end_date'])})',
+    );
+  }
 
-    final budgets = await (_database.select(_database.budgets)).get();
-
-    for (final budget in budgets) {
-      if (budget.startDate.isAfter(budget.endDate)) {
-        issues.add(
-          IntegrityIssue(
-            table: 'budgets',
-            description:
-                'Budget has start date after end date '
-                '(${budget.startDate} > ${budget.endDate})',
-            entityId: budget.id,
-          ),
-        );
-      }
-    }
-
-    return issues;
+  /// Drift stores DateTime columns as unix seconds.
+  static String _asDate(Object? value) {
+    final seconds = value is int ? value : int.tryParse('$value');
+    if (seconds == null) return '$value';
+    return DateTime.fromMillisecondsSinceEpoch(
+      seconds * 1000,
+    ).toIso8601String();
   }
 
   /// Checks for expenses, budgets, and bills with invalid amounts
   /// (NaN, infinity, zero, or negative).
+  ///
+  /// `NOT (amount > 0)` also catches NaN, which compares false to everything.
   Future<List<IntegrityIssue>> _checkInvalidAmounts() async {
-    final issues = <IntegrityIssue>[];
-
-    // Check expenses
-    final expenses = await (_database.select(_database.expenses)).get();
-    for (final expense in expenses) {
-      if (!expense.amount.isFinite || expense.amount <= 0) {
-        issues.add(
-          IntegrityIssue(
-            table: 'expenses',
-            description: 'Expense has invalid amount: ${expense.amount}',
-            entityId: expense.id,
-          ),
-        );
-      }
-    }
-
-    // Check budgets
-    final budgets = await (_database.select(_database.budgets)).get();
-    for (final budget in budgets) {
-      if (!budget.monthlyAmount.isFinite || budget.monthlyAmount < 0) {
-        issues.add(
-          IntegrityIssue(
-            table: 'budgets',
-            description:
-                'Budget has invalid monthlyAmount: '
-                '${budget.monthlyAmount}',
-            entityId: budget.id,
-          ),
-        );
-      }
-    }
-
-    // Check bills
-    final bills = await (_database.select(_database.bills)).get();
-    for (final bill in bills) {
-      if (!bill.amount.isFinite || bill.amount <= 0) {
-        issues.add(
-          IntegrityIssue(
-            table: 'bills',
-            description: 'Bill has invalid amount: ${bill.amount}',
-            entityId: bill.id,
-          ),
-        );
-      }
-    }
-
-    // Check savings goals
-    final goals = await (_database.select(_database.savingsGoals)).get();
-    for (final goal in goals) {
-      if (!goal.targetAmount.isFinite || goal.targetAmount <= 0) {
-        issues.add(
-          IntegrityIssue(
-            table: 'savingsGoals',
-            description:
-                'Savings goal has invalid targetAmount: '
-                '${goal.targetAmount}',
-            entityId: goal.id,
-          ),
-        );
-      }
-      if (!goal.currentAmount.isFinite || goal.currentAmount < 0) {
-        issues.add(
-          IntegrityIssue(
-            table: 'savingsGoals',
-            description:
-                'Savings goal has invalid currentAmount: '
-                '${goal.currentAmount}',
-            entityId: goal.id,
-          ),
-        );
-      }
-    }
-
-    return issues;
+    final results = await Future.wait([
+      _query(
+        'SELECT id, amount FROM expenses WHERE NOT (amount > 0)',
+        table: 'expenses',
+        describe: (row) => 'Expense has invalid amount: ${row['amount']}',
+      ),
+      _query(
+        'SELECT id, monthly_amount FROM budgets '
+        'WHERE NOT (monthly_amount >= 0)',
+        table: 'budgets',
+        describe: (row) =>
+            'Budget has invalid monthlyAmount: ${row['monthly_amount']}',
+      ),
+      _query(
+        'SELECT id, amount FROM bills WHERE NOT (amount > 0)',
+        table: 'bills',
+        describe: (row) => 'Bill has invalid amount: ${row['amount']}',
+      ),
+    ]);
+    return results.expand((issues) => issues).toList();
   }
 
   /// Checks for bill payments that reference non-existent bills.
-  Future<List<IntegrityIssue>> _checkOrphanedBillPayments() async {
-    final issues = <IntegrityIssue>[];
-
-    final payments = await (_database.select(_database.billPayments)).get();
-    final billIds = (await (_database.select(
-      _database.bills,
-    )).get()).map((b) => b.id).toSet();
-
-    for (final payment in payments) {
-      if (!billIds.contains(payment.billId)) {
-        issues.add(
-          IntegrityIssue(
-            table: 'billPayments',
-            description:
-                'Bill payment references non-existent bill '
-                '${payment.billId}',
-            entityId: payment.id,
-          ),
-        );
-      }
-    }
-
-    return issues;
+  Future<List<IntegrityIssue>> _checkOrphanedBillPayments() {
+    return _query(
+      'SELECT id, bill_id FROM bill_payments '
+      'WHERE bill_id NOT IN (SELECT id FROM bills)',
+      table: 'billPayments',
+      describe: (row) =>
+          'Bill payment references non-existent bill ${row['bill_id']}',
+    );
   }
 
   /// Checks for recurring expenses that reference non-existent categories.
-  Future<List<IntegrityIssue>>
-  _checkOrphanedRecurringExpenseCategories() async {
-    final issues = <IntegrityIssue>[];
-
-    final recurring = await (_database.select(
-      _database.recurringExpenses,
-    )).get();
-    final categoryIds = (await (_database.select(
-      _database.categories,
-    )).get()).map((c) => c.id).toSet();
-
-    for (final rec in recurring) {
-      if (!categoryIds.contains(rec.categoryId)) {
-        issues.add(
-          IntegrityIssue(
-            table: 'recurringExpenses',
-            description:
-                'Recurring expense references non-existent category '
-                '${rec.categoryId}',
-            entityId: rec.id,
-          ),
-        );
-      }
-    }
-
-    return issues;
+  Future<List<IntegrityIssue>> _checkOrphanedRecurringExpenseCategories() {
+    return _query(
+      'SELECT id, category_id FROM recurring_expenses '
+      'WHERE category_id NOT IN (SELECT id FROM categories)',
+      table: 'recurringExpenses',
+      describe: (row) =>
+          'Recurring expense references non-existent category '
+          '${row['category_id']}',
+    );
   }
 }

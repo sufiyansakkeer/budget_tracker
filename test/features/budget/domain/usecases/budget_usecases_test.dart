@@ -14,6 +14,9 @@ import 'package:monivo/features/budget/domain/usecases/get_projected_savings_use
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   BudgetEntity? budget;
   MonthlyStatisticsEntity statistics = MonthlyStatisticsEntity.empty;
   DateTime referenceDate = DateTime(2026, 8, 10);
@@ -252,8 +255,9 @@ void main() {
         referenceDate: DateTime(2026, 8, 10),
       );
       expect(result, isA<BudgetSuccess>());
-      // (30000-800)/22 ≈ 1327.27
-      expect((result as BudgetSuccess).data, closeTo(1327.27, 0.01));
+      // Today's spend is added back so the figure is stable all day:
+      // (30000 - 800 + 800) / 22 ≈ 1363.64
+      expect((result as BudgetSuccess).data, closeTo(1363.64, 0.01));
     });
   });
 

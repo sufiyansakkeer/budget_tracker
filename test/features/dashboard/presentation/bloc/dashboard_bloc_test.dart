@@ -56,6 +56,9 @@ class MockGetBudgetSummaryUseCase implements GetBudgetSummaryUseCase {
 
 class MockBudgetRepository implements BudgetRepository {
   @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
+  @override
   Future<BudgetEntity?> getActiveBudget() async => null;
 
   @override
@@ -181,6 +184,19 @@ class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {
   }
 }
 
+class ThrowingRecentExpensesUseCase extends MockGetRecentExpensesUseCase {
+  final Object error;
+
+  ThrowingRecentExpensesUseCase(this.error);
+
+  @override
+  Future<List<RecentExpenseEntity>> call({
+    int limit = 5,
+    DateTime? referenceDate,
+    String? budgetId,
+  }) async => throw error;
+}
+
 class MockDashboardRepository implements DashboardRepository {
   @override
   Future<List<RecentExpenseEntity>> getRecentExpenses({
@@ -207,6 +223,21 @@ class FakeBillRepository implements BillRepository {
   Future<void> createBillPayment(BillPaymentRecord payment) async {}
   @override
   Future<List<BillPaymentRecord>> getBillPayments(String billId) async => [];
+  @override
+  Future<List<BillEntity>> getUpcomingBills({
+    DateTime? from,
+    int limit = 3,
+  }) async {
+    final now = from ?? DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final upcoming =
+        (await getBills())
+            .where((b) => !b.isPaid && !b.dueDate.isBefore(today))
+            .toList()
+          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return upcoming.take(limit).toList();
+  }
+
   @override
   Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
   @override
@@ -341,6 +372,45 @@ void main() {
 
       bloc.add(const DashboardLoadData());
 
+      await bloc.close();
+    },
+  );
+
+  test(
+    'emits [DashboardLoading, DashboardError] with the real message when the '
+    'storage layer throws',
+    () async {
+      // A migration gap (schema v5 → categories without is_archived) made
+      // the recent-expenses query throw. The dashboard used to swallow the
+      // exception as an unhandled bloc error and stay on its skeleton.
+      final bloc = DashboardBloc(
+        getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
+          resultToReturn: BudgetSuccess(tBudgetSummary),
+        ),
+        getRecentExpensesUseCase: ThrowingRecentExpensesUseCase(
+          StateError('Null check operator used on a null value'),
+        ),
+        getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        budgetRepository: MockBudgetRepository(),
+        billRepository: FakeBillRepository(),
+      );
+
+      final future = expectLater(
+        bloc.stream,
+        emitsInOrder([
+          const DashboardLoading(),
+          isA<DashboardError>().having(
+            (s) => s.message,
+            'message',
+            contains('Null check operator used on a null value'),
+          ),
+        ]),
+      );
+
+      bloc.add(const DashboardLoadData());
+
+      await future;
       await bloc.close();
     },
   );

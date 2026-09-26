@@ -9,6 +9,9 @@ import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_u
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   BudgetEntity? budget;
   List<BudgetEntity> budgets = [];
   double todaySpending = 0.0;

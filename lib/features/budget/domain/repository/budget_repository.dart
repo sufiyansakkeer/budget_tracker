@@ -42,6 +42,10 @@ abstract class BudgetRepository {
     DateTime? endDate,
   });
 
+  /// Runs [action] inside a single database transaction. If [action]
+  /// throws, every write performed inside it is rolled back.
+  Future<T> transaction<T>(Future<T> Function() action);
+
   /// Returns aggregated expense statistics for the given budget.
   Future<MonthlyStatisticsEntity> getBudgetStatistics(
     String budgetId, {

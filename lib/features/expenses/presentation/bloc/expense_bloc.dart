@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../budget/domain/repository/budget_repository.dart';
-import '../../../budget/presentation/bloc/budget_bloc.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/entities/expense_failure.dart';
 import '../../domain/repository/expense_repository.dart';
@@ -13,8 +12,8 @@ import '../../domain/usecases/get_categories_usecase.dart';
 import '../../domain/usecases/get_expense_by_id_usecase.dart';
 import '../../domain/usecases/get_expenses_usecase.dart';
 import '../../domain/usecases/update_expense_usecase.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'expense_event.dart';
-import 'expense_refresh_bus.dart';
 import 'expense_state.dart';
 
 class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
@@ -44,11 +43,12 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     on<ExpenseCreate>(_onCreate);
     on<ExpenseUpdate>(_onUpdate);
     on<ExpenseDelete>(_onDelete);
+    on<ExpenseRestore>(_onRestore);
     on<ExpenseClearMessage>(_onClearMessage);
 
     // Reload the expenses list when the active budget is switched so the list
     // only shows expenses belonging to the newly active budget.
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (!isClosed) {
         add(const ExpenseLoadAll());
       }
@@ -200,12 +200,14 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     final result = await createExpenseUseCase(expense);
     switch (result) {
       case ExpenseSuccess():
-        ExpenseRefreshBus.instance.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
             expense: event.expense,
             message: 'Expense added successfully',
+            lastAction: ExpenseAction.created,
+            clearLastDeleted: true,
           ),
         );
       case ExpenseError(:final failure):
@@ -227,12 +229,14 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     final result = await updateExpenseUseCase(event.expense);
     switch (result) {
       case ExpenseSuccess():
-        ExpenseRefreshBus.instance.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
             expense: event.expense,
             message: 'Expense updated successfully',
+            lastAction: ExpenseAction.updated,
+            clearLastDeleted: true,
           ),
         );
       case ExpenseError(:final failure):
@@ -245,20 +249,30 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     }
   }
 
+  /// Deletes immediately (no confirmation dialog) and remembers the row so
+  /// the UI can offer "Undo"; [ExpenseRestore] re-creates it with the same
+  /// id, so budgets, reports and the widget stay consistent either way.
   Future<void> _onDelete(
     ExpenseDelete event,
     Emitter<ExpenseState> emit,
   ) async {
     emit(state.copyWith(status: ExpenseBlocStatus.deleting));
 
+    ExpenseEntity? snapshot;
+    final loaded = await getExpenseByIdUseCase(event.id);
+    if (loaded case ExpenseSuccess(:final data)) snapshot = data;
+
     final result = await deleteExpenseUseCase(event.id);
     switch (result) {
       case ExpenseSuccess():
-        ExpenseRefreshBus.instance.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
-            message: 'Expense deleted successfully',
+            message: 'Expense deleted',
+            lastAction: ExpenseAction.deleted,
+            lastDeleted: snapshot,
+            clearLastDeleted: snapshot == null,
           ),
         );
       case ExpenseError(:final failure):
@@ -266,6 +280,34 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
           state.copyWith(
             status: ExpenseBlocStatus.error,
             message: failure.message,
+          ),
+        );
+    }
+  }
+
+  Future<void> _onRestore(
+    ExpenseRestore event,
+    Emitter<ExpenseState> emit,
+  ) async {
+    emit(state.copyWith(status: ExpenseBlocStatus.creating));
+
+    final result = await createExpenseUseCase(event.expense);
+    switch (result) {
+      case ExpenseSuccess():
+        RefreshBuses.expenses.notifyChanged();
+        emit(
+          state.copyWith(
+            status: ExpenseBlocStatus.success,
+            message: 'Expense restored',
+            lastAction: ExpenseAction.restored,
+            clearLastDeleted: true,
+          ),
+        );
+      case ExpenseError(:final failure):
+        emit(
+          state.copyWith(
+            status: ExpenseBlocStatus.error,
+            message: "Couldn't restore the expense: ${failure.message}",
           ),
         );
     }

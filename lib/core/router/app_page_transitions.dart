@@ -177,14 +177,25 @@ class AppPageTransitions {
   }
 }
 
-/// Container for [StatefulShellRoute] branches that fades between tabs
-/// instead of snapping like an [IndexedStack].
+/// Container for [StatefulShellRoute] branches that plays a Material
+/// "fade through" between tabs instead of snapping like an [IndexedStack].
 ///
-/// Every branch stays mounted so each tab keeps its scroll position and
-/// navigation stack. Inactive branches are fully transparent (skipped at
-/// paint time), ignore pointers, are excluded from focus and have their
-/// tickers paused, so the cost matches the default indexed stack.
-class FadeThroughBranchContainer extends StatelessWidget {
+/// Every branch stays mounted in its own slot of a [Stack], so each tab keeps
+/// its scroll position, navigation stack and BLoCs. Only two branches are
+/// ever painted: the one leaving and the one arriving. The outgoing tab fades
+/// out during the first third of the transition, then the incoming tab fades
+/// in and settles from 96 % to full size. They never overlap at high opacity,
+/// so the shell background never shows through as a flash. Every other
+/// branch is [Offstage] (kept alive, not painted, not hit-testable).
+///
+/// Rapid re-targeting (tapping several tabs quickly) starts each new
+/// transition from the opacity and scale the tabs currently have, so nothing
+/// ever jumps back to fully opaque or fully transparent mid-flight.
+///
+/// Inactive branches ignore pointers, are excluded from focus and have their
+/// tickers paused, so the steady-state cost matches the default indexed
+/// stack. Reduced-motion settings switch tabs instantly.
+class FadeThroughBranchContainer extends StatefulWidget {
   final int currentIndex;
   final List<Widget> children;
 
@@ -194,54 +205,230 @@ class FadeThroughBranchContainer extends StatelessWidget {
     required this.children,
   });
 
+  /// Fraction of the transition spent fading the outgoing tab out.
+  static const double outgoingFraction = 0.35;
+
+  @override
+  State<FadeThroughBranchContainer> createState() =>
+      _FadeThroughBranchContainerState();
+}
+
+class _FadeThroughBranchContainerState extends State<FadeThroughBranchContainer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppMotion.standard,
+    value: 1,
+  );
+
+  late int _current = widget.currentIndex;
+  int? _previous;
+
+  /// Motion of the arriving tab for the transition in flight.
+  _BranchMotion _incoming = const _BranchMotion.settled();
+
+  /// Motion of the leaving tab for the transition in flight.
+  _BranchMotion _outgoing = const _BranchMotion.hidden();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addStatusListener(_onStatus);
+  }
+
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && _previous != null) {
+      setState(() => _previous = null);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant FadeThroughBranchContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentIndex != _current) _switchTo(widget.currentIndex);
+  }
+
+  void _switchTo(int index) {
+    if (AppMotion.isReduced(context)) {
+      setState(() {
+        _previous = null;
+        _current = index;
+        _incoming = const _BranchMotion.settled();
+        _outgoing = const _BranchMotion.hidden();
+      });
+      _controller.value = 1;
+      return;
+    }
+
+    final t = _controller.value;
+    // Where each slot is *right now*, so a retarget mid-flight continues
+    // from the visible state instead of snapping.
+    final currentOpacity = _incoming.opacityAt(t);
+    final currentScale = _incoming.scaleAt(t);
+    final previousOpacity = _outgoing.opacityAt(t);
+    final previousScale = _outgoing.scaleAt(t);
+
+    final leaving = _current;
+    final wasFadingOut = _previous;
+
+    // If the user bounces straight back to the tab that is still fading out,
+    // pick it up from its current opacity rather than from zero.
+    final double fromOpacity;
+    final double fromScale;
+    if (index == wasFadingOut) {
+      fromOpacity = previousOpacity;
+      fromScale = previousScale;
+    } else {
+      fromOpacity = 0;
+      fromScale = 0.96;
+    }
+
+    setState(() {
+      _previous = leaving;
+      _current = index;
+      _outgoing = _BranchMotion(
+        opacityFrom: currentOpacity,
+        opacityTo: 0,
+        scaleFrom: currentScale,
+        scaleTo: currentScale,
+        curve: const Interval(
+          0,
+          FadeThroughBranchContainer.outgoingFraction,
+          curve: Curves.easeIn,
+        ),
+      );
+      _incoming = _BranchMotion(
+        opacityFrom: fromOpacity,
+        opacityTo: 1,
+        scaleFrom: fromScale,
+        scaleTo: 1,
+        curve: const Interval(
+          FadeThroughBranchContainer.outgoingFraction,
+          1,
+          curve: Curves.easeOut,
+        ),
+      );
+    });
+
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final duration = AppMotion.respectReducedMotion(
-      context,
-      AppMotion.standard,
-    );
     return Stack(
       fit: StackFit.expand,
       children: [
-        for (var i = 0; i < children.length; i++)
+        for (var i = 0; i < widget.children.length; i++)
           _Branch(
-            active: i == currentIndex,
-            duration: duration,
-            child: children[i],
+            // Slots keep their position and widget type in every state so a
+            // change of role never remounts the branch's Navigator.
+            active: i == _current,
+            visible: i == _current || i == _previous,
+            animation: _controller,
+            motion: i == _current
+                ? _incoming
+                : i == _previous
+                ? _outgoing
+                : const _BranchMotion.hidden(),
+            child: widget.children[i],
           ),
       ],
     );
   }
 }
 
+/// Opacity and scale of one branch over a transition, sampled by progress.
+class _BranchMotion {
+  final double opacityFrom;
+  final double opacityTo;
+  final double scaleFrom;
+  final double scaleTo;
+  final Curve curve;
+
+  const _BranchMotion({
+    required this.opacityFrom,
+    required this.opacityTo,
+    required this.scaleFrom,
+    required this.scaleTo,
+    required this.curve,
+  });
+
+  /// Fully visible and at rest.
+  const _BranchMotion.settled()
+    : this(
+        opacityFrom: 1,
+        opacityTo: 1,
+        scaleFrom: 1,
+        scaleTo: 1,
+        curve: Curves.linear,
+      );
+
+  /// Fully transparent and at rest.
+  const _BranchMotion.hidden()
+    : this(
+        opacityFrom: 0,
+        opacityTo: 0,
+        scaleFrom: 1,
+        scaleTo: 1,
+        curve: Curves.linear,
+      );
+
+  double opacityAt(double t) =>
+      _lerp(opacityFrom, opacityTo, curve.transform(t.clamp(0.0, 1.0)));
+
+  double scaleAt(double t) =>
+      _lerp(scaleFrom, scaleTo, curve.transform(t.clamp(0.0, 1.0)));
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
+}
+
 class _Branch extends StatelessWidget {
   final bool active;
-  final Duration duration;
+  final bool visible;
+  final Animation<double> animation;
+  final _BranchMotion motion;
   final Widget child;
 
   const _Branch({
     required this.active,
-    required this.duration,
+    required this.visible,
+    required this.animation,
+    required this.motion,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    // The implicit animations sit *outside* TickerMode so the outgoing tab
-    // can still fade out after its own tickers are paused.
-    return AnimatedOpacity(
-      opacity: active ? 1 : 0,
-      duration: duration,
-      curve: active ? Curves.easeOut : Curves.easeIn,
-      child: AnimatedScale(
-        scale: active ? 1 : 0.98,
-        duration: duration,
-        curve: AppMotion.standardCurve,
-        child: IgnorePointer(
-          ignoring: !active,
-          child: ExcludeFocus(
-            excluding: !active,
-            child: TickerMode(enabled: active, child: child),
+    // The fade/scale sit *outside* TickerMode so the outgoing tab can still
+    // animate away after its own tickers are paused. RepaintBoundary keeps
+    // the two tabs' repaints independent while both are on screen.
+    return Offstage(
+      offstage: !visible,
+      child: IgnorePointer(
+        ignoring: !active,
+        child: ExcludeFocus(
+          excluding: !active,
+          child: AnimatedBuilder(
+            animation: animation,
+            child: RepaintBoundary(
+              child: TickerMode(enabled: active, child: child),
+            ),
+            // The wrapper structure is identical on every frame (an Opacity
+            // of 1 and a scale of 1 are free); swapping wrappers in and out
+            // would remount the branch's Navigator.
+            builder: (context, child) => Opacity(
+              opacity: motion.opacityAt(animation.value),
+              child: Transform.scale(
+                scale: motion.scaleAt(animation.value),
+                child: child,
+              ),
+            ),
           ),
         ),
       ),

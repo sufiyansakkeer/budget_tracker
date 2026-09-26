@@ -15,6 +15,7 @@ import '../../domain/usecases/update_currency_usecase.dart';
 import '../../domain/usecases/update_notification_settings_usecase.dart';
 import 'settings_event.dart';
 import 'settings_state.dart';
+import '../../../../core/domain/services/database_integrity_service.dart';
 
 /// BLoC responsible for loading/saving app settings and managing data
 /// operations (export, import, backup, restore, reset).
@@ -31,6 +32,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   final ResetBudgetUseCase resetBudgetUseCase;
   final ScheduleNotificationsUseCase scheduleNotificationsUseCase;
 
+  /// Optional so lightweight tests can omit it; Settings offers the check
+  /// only when it is available.
+  final DatabaseIntegrityService? integrityService;
+
   SettingsBloc({
     required this.loadSettingsUseCase,
     required this.updateCurrencyUseCase,
@@ -43,6 +48,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     required this.restoreDataUseCase,
     required this.resetBudgetUseCase,
     required this.scheduleNotificationsUseCase,
+    this.integrityService,
   }) : super(const SettingsState()) {
     on<SettingsLoadEvent>(_onLoadSettings);
     on<SettingsUpdateCurrencyEvent>(_onUpdateCurrency);
@@ -55,6 +61,37 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<SettingsResetBudgetEvent>(_onResetBudget);
     on<SettingsResetMonthEvent>(_onResetMonth);
     on<SettingsClearMessageEvent>(_onClearMessage);
+    on<SettingsCheckIntegrityEvent>(_onCheckIntegrity);
+  }
+
+  Future<void> _onCheckIntegrity(
+    SettingsCheckIntegrityEvent event,
+    Emitter<SettingsState> emit,
+  ) async {
+    final service = integrityService;
+    if (service == null) {
+      emit(state.copyWith(errorMessage: 'Database check is unavailable.'));
+      return;
+    }
+    emit(
+      state.copyWith(
+        isBusy: true,
+        clearError: true,
+        clearInfo: true,
+        clearIntegrityResult: true,
+      ),
+    );
+    try {
+      final result = await service.runFullCheck();
+      emit(state.copyWith(isBusy: false, integrityResult: result));
+    } catch (e) {
+      emit(
+        state.copyWith(
+          isBusy: false,
+          errorMessage: 'Database check failed: $e',
+        ),
+      );
+    }
   }
 
   Future<void> _onLoadSettings(
@@ -343,6 +380,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     SettingsClearMessageEvent event,
     Emitter<SettingsState> emit,
   ) {
-    emit(state.copyWith(clearError: true, clearInfo: true));
+    emit(
+      state.copyWith(
+        clearError: true,
+        clearInfo: true,
+        clearIntegrityResult: true,
+      ),
+    );
   }
 }

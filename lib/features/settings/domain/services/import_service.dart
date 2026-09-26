@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:csv/csv.dart';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/default_categories.dart';
 
 /// Handles importing data into the application from CSV or JSON files.
 ///
@@ -15,13 +17,18 @@ class ImportService {
 
   ImportService({required AppDatabase database}) : _database = database;
 
-  /// Imports a CSV file at [path] into the expenses table.
+  /// Imports expenses from a CSV file at [path].
   ///
-  /// Skips the header row and validates required columns.
+  /// Accepts the file produced by [ExportService.exportCsv] as well as any
+  /// spreadsheet with a header row that names at least `amount`, a category
+  /// column (`category` or `categoryId`) and `date`. Columns are matched by
+  /// header name, so their order does not matter; quoted fields and embedded
+  /// commas are handled by the CSV parser. Rows that fail validation are
+  /// skipped; the valid ones are written in one transaction.
+  ///
+  /// Unknown categories are matched by name and otherwise fall back to
+  /// "Others", so a foreign-key violation can never abort the import.
   /// Returns the number of expenses imported.
-  ///
-  /// The entire import is transactional — if any record fails validation,
-  /// no data is written.
   Future<int> importCsv(String path) async {
     final file = File(path);
     if (!await file.exists()) {
@@ -29,41 +36,64 @@ class ImportService {
     }
 
     final raw = await file.readAsString();
-    final lines = raw
-        .split('\n')
-        .where((line) => line.trim().isNotEmpty)
-        .toList();
-    if (lines.length < 2) {
+    final table = const CsvToListConverter(
+      shouldParseNumbers: false,
+      eol: '\n',
+    ).convert(raw.replaceAll('\r\n', '\n'));
+
+    final headerIndex = table.indexWhere(_isExpenseHeader);
+    if (headerIndex == -1 || headerIndex == table.length - 1) {
       throw const FormatException('CSV file is empty or has no data rows.');
     }
+    final columns = _ColumnMap.fromHeader(table[headerIndex]);
+
+    await _database.seedDefaultCategories();
+    final categoryRows = await (_database.select(_database.categories)).get();
+    final categoryIds = {for (final c in categoryRows) c.id};
+    final categoryByName = {
+      for (final c in categoryRows) c.name.trim().toLowerCase(): c.id,
+    };
+    final budgetIds = {
+      for (final b in await (_database.select(_database.budgets)).get()) b.id,
+    };
 
     // First pass: validate all rows before writing anything.
     final validRows = <_CsvRow>[];
-    for (int i = 1; i < lines.length; i++) {
-      final line = lines[i].trim();
-      if (line.isEmpty) continue;
+    for (final row in table.skip(headerIndex + 1)) {
+      final cells = row.map((c) => c.toString().trim()).toList();
+      if (cells.every((c) => c.isEmpty)) continue;
 
-      final columns = line.split(',');
-      if (columns.length < 4) continue;
-
-      final amount = double.tryParse(columns[0].trim());
+      final amount = double.tryParse(columns.read(cells, 'amount') ?? '');
       if (amount == null || !amount.isFinite || amount <= 0) continue;
 
-      final categoryId = columns[1].trim();
-      if (categoryId.isEmpty) continue;
-
-      final note = columns.length > 2 ? columns[2].trim() : null;
-      final date = DateTime.tryParse(columns[3].trim());
+      final date = _parseDate(columns.read(cells, 'date'));
       if (date == null) continue;
 
-      final tags = columns.length > 4 ? columns[4].trim() : '';
+      final rawCategory =
+          columns.read(cells, 'categoryid') ??
+          columns.read(cells, 'category') ??
+          '';
+      final categoryId = categoryIds.contains(rawCategory)
+          ? rawCategory
+          : categoryByName[rawCategory.toLowerCase()] ?? fallbackCategoryId;
+
+      final rawBudget = columns.read(cells, 'budgetid');
+      final budgetId = rawBudget != null && budgetIds.contains(rawBudget)
+          ? rawBudget
+          : null;
+
+      final time = _parseDate(columns.read(cells, 'time')) ?? date;
+      final note = columns.read(cells, 'note');
+      final tags = columns.read(cells, 'tags') ?? '';
 
       validRows.add(
         _CsvRow(
           amount: amount,
           categoryId: categoryId,
+          budgetId: budgetId,
           note: note,
           date: date,
+          time: time,
           tags: tags,
         ),
       );
@@ -75,9 +105,8 @@ class ImportService {
 
     // Ensure a default budget exists BEFORE starting the transaction, so the
     // foreign key constraint on expenses.budgetId is satisfied.
-    final budgetId = await _findOrCreateDefaultBudgetId();
+    final defaultBudgetId = await _findOrCreateDefaultBudgetId();
 
-    // Write all valid rows in a transaction.
     int importedCount = 0;
     await _database.transaction(() async {
       for (final row in validRows) {
@@ -86,12 +115,12 @@ class ImportService {
             .insert(
               ExpensesCompanion.insert(
                 id: const Uuid().v4(),
-                budgetId: budgetId,
+                budgetId: row.budgetId ?? defaultBudgetId,
                 amount: row.amount,
                 categoryId: row.categoryId,
                 note: Value(row.note?.isNotEmpty == true ? row.note : null),
                 date: row.date,
-                time: Value(row.date),
+                time: Value(row.time),
                 tags: Value(row.tags.isNotEmpty ? row.tags : null),
               ),
             );
@@ -100,6 +129,18 @@ class ImportService {
     });
 
     return importedCount;
+  }
+
+  static bool _isExpenseHeader(List<dynamic> row) {
+    final names = row.map(_ColumnMap.normalize).toSet();
+    return names.contains('amount') &&
+        names.contains('date') &&
+        (names.contains('category') || names.contains('categoryid'));
+  }
+
+  static DateTime? _parseDate(String? value) {
+    if (value == null || value.isEmpty) return null;
+    return DateTime.tryParse(value);
   }
 
   /// Imports a JSON backup file at [path].
@@ -313,15 +354,45 @@ class ImportService {
 class _CsvRow {
   final double amount;
   final String categoryId;
+  final String? budgetId;
   final String? note;
   final DateTime date;
+  final DateTime time;
   final String tags;
 
   const _CsvRow({
     required this.amount,
     required this.categoryId,
-    this.note,
+    required this.budgetId,
+    required this.note,
     required this.date,
+    required this.time,
     required this.tags,
   });
+}
+
+/// Header-name → column-index lookup that ignores case, spaces and
+/// underscores (`Category Id`, `category_id` and `categoryId` all match).
+class _ColumnMap {
+  final Map<String, int> _index;
+
+  const _ColumnMap._(this._index);
+
+  factory _ColumnMap.fromHeader(List<dynamic> header) {
+    final map = <String, int>{};
+    for (var i = 0; i < header.length; i++) {
+      map.putIfAbsent(normalize(header[i]), () => i);
+    }
+    return _ColumnMap._(map);
+  }
+
+  static String normalize(Object? cell) =>
+      cell.toString().trim().toLowerCase().replaceAll(RegExp(r'[\s_\-]'), '');
+
+  String? read(List<String> cells, String name) {
+    final i = _index[name];
+    if (i == null || i >= cells.length) return null;
+    final value = cells[i];
+    return value.isEmpty ? null : value;
+  }
 }

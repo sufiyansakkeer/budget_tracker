@@ -11,10 +11,17 @@ abstract class ExpenseLocalDataSource {
 
   Future<ExpenseEntity?> getExpenseById(String id);
 
+  /// Expenses for [budgetId], newest first.
+  ///
+  /// [from]/[to] bound the date inclusively and are served by the
+  /// `(budget_id, date)` index; [month]/[year] are the older month-scoped
+  /// form and are ignored when a range is given.
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   });
 
   /// Returns expenses belonging to any of the given [budgetIds].

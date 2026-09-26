@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../../core/constants/app_motion.dart';
 import '../../../../../core/constants/app_spacing.dart';
-import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/theme/app_colors_extension.dart';
+import '../../../../../core/theme/contrast.dart';
 import '../../../../../core/widgets/app_header.dart';
 import '../../../../../core/widgets/app_state_switcher.dart';
-import '../../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../../core/widgets/info_content.dart';
 import '../../../../../core/widgets/info_icon.dart';
 import '../../../../../core/widgets/loading_skeleton.dart';
@@ -34,10 +33,13 @@ import '../widgets/filter_bottom_sheet.dart';
 import '../widgets/loading_more_indicator.dart';
 import '../widgets/quick_filter_chips.dart';
 import '../widgets/sort_bottom_sheet.dart';
+import '../../widgets/expense_actions_sheet.dart';
+import '../../widgets/move_expense_sheet.dart';
 import '../widgets/summary_card.dart';
 import '../../../../../core/domain/entities/budget_entity.dart';
 import '../../../../../core/widgets/app_fab.dart';
 import '../../../../../core/widgets/fade_slide_in.dart';
+import '../../../../../core/navigation/push_unique.dart';
 
 /// Expense history: search, filters, sorting, day grouping, pagination,
 /// swipe-to-delete, pull-to-refresh, and the combined multi-budget view.
@@ -59,10 +61,21 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   ExpenseSortOption? _groupSort;
   List<ExpenseGroup> _groups = const [];
 
-  /// Ids of rows that have already been shown. New rows slide in once;
-  /// rows scrolled back into view (or re-sorted) render immediately so the
-  /// list never shifts under a finger.
-  final Set<String> _seenIds = <String>{};
+  /// Rows that entered the list with the latest data change, in display
+  /// order. Only these play the slide-in: rows that merely scroll into view
+  /// or arrive with a "load more" page render immediately, so the list never
+  /// shows blank rows while the user is flinging.
+  Map<String, int> _entering = const {};
+  List<ExpenseEntity>? _enteringSource;
+  List<ExpenseEntity>? _enteringVisible;
+  Set<String> _knownIds = const {};
+
+  /// Last filter/sort/query the list was built for, to scroll back to the
+  /// top when they change so the user never lands mid-way through a
+  /// different list.
+  ExpenseHistoryFilter? _builtFilter;
+  ExpenseSortOption? _builtSort;
+  String? _builtQuery;
 
   @override
   void initState() {
@@ -97,11 +110,63 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     return _groups;
   }
 
-  ExpenseCategory? _findCategory(List<ExpenseCategory> categories, String id) {
-    for (final category in categories) {
-      if (category.id == id) return category;
+  /// Works out which rows are new since the previous list. A page appended
+  /// by "load more" leaves [ExpenseHistoryState.visibleExpenses] untouched,
+  /// so its rows are treated as already known.
+  void _trackEntering(ExpenseHistoryState state) {
+    if (identical(_enteringSource, state.loadedExpenses)) return;
+    final loaded = state.loadedExpenses;
+    final ids = <String>{for (final e in loaded) e.id};
+    final isPagination =
+        _enteringVisible != null &&
+        identical(_enteringVisible, state.visibleExpenses);
+    if (isPagination) {
+      _entering = const {};
+    } else {
+      var i = 0;
+      _entering = {
+        for (final e in loaded)
+          if (!_knownIds.contains(e.id)) e.id: i++,
+      };
     }
-    return null;
+    _knownIds = ids;
+    _enteringSource = loaded;
+    _enteringVisible = state.visibleExpenses;
+  }
+
+  /// Scrolls to the top when the list is about to show different content
+  /// (a new filter, sort or search), never on a plain refresh.
+  void _resetScrollIfCriteriaChanged(ExpenseHistoryState state) {
+    final changed =
+        _builtFilter != null &&
+        (_builtFilter != state.filter ||
+            _builtSort != state.sort ||
+            _builtQuery != state.query);
+    _builtFilter = state.filter;
+    _builtSort = state.sort;
+    _builtQuery = state.query;
+    if (changed) {
+      // Called from build; move the scroll view once the frame is laid out.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+      });
+    }
+  }
+
+  /// Cached id → category lookup, rebuilt only when the list identity
+  /// changes. A linear scan per row is cheap but runs on every row of every
+  /// rebuild; the state already keeps a map for budgets.
+  List<ExpenseCategory>? _categoriesSource;
+  Map<String, ExpenseCategory> _categoryById = const {};
+
+  ExpenseCategory? _findCategory(List<ExpenseCategory> categories, String id) {
+    if (!identical(_categoriesSource, categories)) {
+      _categoriesSource = categories;
+      _categoryById = {for (final c in categories) c.id: c};
+    }
+    return _categoryById[id];
   }
 
   Future<void> _openFilterSheet() async {
@@ -124,24 +189,60 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     }
   }
 
-  Future<bool> _confirmDelete(ExpenseEntity expense, String? currency) async {
+  /// Deletes right away and lets the SnackBar offer "Undo" — no dialog.
+  ///
+  /// The row is dropped from the list first so it is gone in the same frame;
+  /// the real delete follows and its refresh confirms the list. Undo
+  /// restores the expense, which then slides back in as a new row.
+  void _deleteWithUndo(ExpenseEntity expense) {
     final expenseBloc = context.read<ExpenseBloc?>();
-    if (expenseBloc == null) return false;
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Delete expense?',
-      message:
-          'This removes the expense of '
-          '${CurrencyFormatter.format(expense.amount, code: currency)} '
-          'permanently.',
-      confirmLabel: 'Delete',
-      icon: Icons.delete_rounded,
-      isDestructive: true,
+    if (expenseBloc == null) return;
+    context.read<ExpenseHistoryBloc>().add(
+      ExpenseHistoryExpenseRemoved(expense.id),
     );
-    if (confirmed && mounted) {
-      expenseBloc.add(ExpenseDelete(expense.id));
+    expenseBloc.add(ExpenseDelete(expense.id));
+  }
+
+  /// Whether a swiped row may leave. The delete itself happens once the row
+  /// has finished animating out (see [_buildDismissibleRow]); deleting here
+  /// would refresh the list mid-animation and make the rows below jump.
+  Future<bool> _confirmDismiss(ExpenseEntity expense) async {
+    if (context.read<ExpenseBloc?>() == null) return false;
+    HapticFeedback.mediumImpact();
+    return true;
+  }
+
+  Future<void> _showRowActions(
+    ExpenseEntity expense,
+    ExpenseCategory? category,
+    BudgetEntity? budget,
+  ) async {
+    HapticFeedback.selectionClick();
+    final action = await ExpenseActionsSheet.show(
+      context,
+      expense: expense,
+      category: category,
+      currency: budget?.currency,
+    );
+    if (action == null || !mounted) return;
+    switch (action) {
+      case ExpenseRowAction.edit:
+        context.pushUnique('/app/expenses/edit/${expense.id}');
+      case ExpenseRowAction.duplicate:
+        context.pushUnique('/app/expenses/add?copy=${expense.id}');
+      case ExpenseRowAction.move:
+        final expenseBloc = context.read<ExpenseBloc?>();
+        final target = await MoveExpenseSheet.show(context, expense: expense);
+        if (target == null || !mounted || expenseBloc == null) return;
+        expenseBloc.add(
+          ExpenseUpdate(
+            expense.copyWith(budgetId: target.id, updatedAt: DateTime.now()),
+          ),
+        );
+      case ExpenseRowAction.delete:
+        HapticFeedback.mediumImpact();
+        _deleteWithUndo(expense);
     }
-    return confirmed;
   }
 
   /// Enters combined mode: makes sure budgets are loaded, lets the user pick
@@ -220,6 +321,21 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           _buildModeSwitch(),
           Expanded(
             child: BlocConsumer<ExpenseHistoryBloc, ExpenseHistoryState>(
+              // The query lands in state on every keystroke but the list only
+              // changes when the debounce fires, so rebuilding the rows on
+              // each character was pure waste. The search field is driven by
+              // its own controller; the chips watch the filter separately.
+              buildWhen: (prev, curr) =>
+                  prev.status != curr.status ||
+                  !identical(prev.visibleExpenses, curr.visibleExpenses) ||
+                  !identical(prev.loadedExpenses, curr.loadedExpenses) ||
+                  !identical(prev.categories, curr.categories) ||
+                  prev.summary != curr.summary ||
+                  prev.filter != curr.filter ||
+                  prev.viewMode != curr.viewMode ||
+                  prev.budgetMap != curr.budgetMap ||
+                  prev.budgetName != curr.budgetName ||
+                  prev.errorMessage != curr.errorMessage,
               listenWhen: (prev, curr) =>
                   curr.status == ExpenseHistoryStatus.error &&
                   prev.status != ExpenseHistoryStatus.error,
@@ -238,25 +354,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                     );
                 }
               },
-              builder: (context, state) {
-                final Widget child;
-                if (state.status == ExpenseHistoryStatus.loading &&
-                    state.allExpenses.isEmpty) {
-                  child = const ExpenseListSkeleton(key: ValueKey('loading'));
-                } else if (state.status == ExpenseHistoryStatus.error &&
-                    state.allExpenses.isEmpty) {
-                  child = ExpenseHistoryErrorWidget(
-                    key: const ValueKey('error'),
-                    message: state.errorMessage ?? "Couldn't load expenses",
-                    onRetry: () => context.read<ExpenseHistoryBloc>().add(
-                      const ExpenseHistoryRefresh(),
-                    ),
-                  );
-                } else {
-                  child = _buildLoaded(context, state);
-                }
-                return AppStateSwitcher(child: child);
-              },
+              builder: (context, state) => _buildLoaded(context, state),
             ),
           ),
         ],
@@ -272,9 +370,28 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 curr.status == ExpenseBlocStatus.error) &&
             curr.message != null,
         listener: (context, state) {
+          final deleted = state.lastAction == ExpenseAction.deleted
+              ? state.lastDeleted
+              : null;
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(state.message!)));
+            ..showSnackBar(
+              SnackBar(
+                key: deleted != null ? const Key('undoDeleteSnackBar') : null,
+                content: Text(state.message!),
+                duration: deleted != null
+                    ? const Duration(seconds: 6)
+                    : const Duration(seconds: 4),
+                action: deleted != null
+                    ? SnackBarAction(
+                        key: const Key('undoDeleteAction'),
+                        label: 'Undo',
+                        onPressed: () =>
+                            expenseBloc.add(ExpenseRestore(deleted)),
+                      )
+                    : null,
+              ),
+            );
           expenseBloc.add(const ExpenseClearMessage());
         },
         child: body,
@@ -285,7 +402,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       body: body,
       floatingActionButton: AppFab(
         heroTag: 'expenses_fab',
-        onPressed: () => context.push('/app/expenses/add'),
+        onPressed: () => context.pushUnique('/app/expenses/add'),
         icon: Icons.add_rounded,
         label: 'Add expense',
         tooltip: 'Add expense',
@@ -404,11 +521,16 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
             ExpenseHistoryFilterChanged(filter),
           ),
         ),
-        ActiveFilterChips(
-          filter: state.filter,
-          categories: state.categories,
-          onChanged: (filter) => context.read<ExpenseHistoryBloc>().add(
-            ExpenseHistoryFilterChanged(filter),
+        AnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+          curve: AppMotion.standardCurve,
+          alignment: Alignment.topCenter,
+          child: ActiveFilterChips(
+            filter: state.filter,
+            categories: state.categories,
+            onChanged: (filter) => context.read<ExpenseHistoryBloc>().add(
+              ExpenseHistoryFilterChanged(filter),
+            ),
           ),
         ),
         AnimatedSize(
@@ -424,13 +546,33 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     );
   }
 
+  /// The search bar and chips above stay put; only this area switches
+  /// between skeleton, error, empty and list, so a load never makes the
+  /// controls disappear and reappear.
   Widget _buildResults(BuildContext context, ExpenseHistoryState state) {
-    if (state.isEmpty) {
-      return ExpenseHistoryEmptyState(
+    final Widget child;
+    final neverLoaded =
+        state.status == ExpenseHistoryStatus.initial ||
+        (state.status == ExpenseHistoryStatus.loading &&
+            state.allExpenses.isEmpty);
+    if (neverLoaded) {
+      child = const ExpenseListSkeleton(key: ValueKey('loading'));
+    } else if (state.status == ExpenseHistoryStatus.error &&
+        state.allExpenses.isEmpty) {
+      child = ExpenseHistoryErrorWidget(
+        key: const ValueKey('error'),
+        message: state.errorMessage ?? "Couldn't load expenses",
+        onRetry: () => context.read<ExpenseHistoryBloc>().add(
+          const ExpenseHistoryRefresh(),
+        ),
+      );
+    } else if (state.isEmpty) {
+      child = ExpenseHistoryEmptyState(
+        key: const ValueKey('empty'),
         hasAnyExpenses: state.allExpenses.isNotEmpty,
         hasSearchQuery: state.query.isNotEmpty,
         hasActiveFilters: state.filter.isActive,
-        onAddFirst: () => context.push('/app/expenses/add'),
+        onAddFirst: () => context.pushUnique('/app/expenses/add'),
         onClearFilters: () {
           _searchController.clear();
           context.read<ExpenseHistoryBloc>().add(
@@ -438,8 +580,18 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           );
         },
       );
+    } else {
+      child = KeyedSubtree(
+        key: const ValueKey('list'),
+        child: _buildList(context, state),
+      );
     }
+    return AppStateSwitcher(child: child);
+  }
 
+  Widget _buildList(BuildContext context, ExpenseHistoryState state) {
+    _trackEntering(state);
+    _resetScrollIfCriteriaChanged(state);
     final groups = _groupsFor(state);
     final summaryCaption = state.isCombinedMode
         ? 'Across ${state.selectedBudgetIds.length} budgets · '
@@ -459,9 +611,23 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           AppSizes.fabClearance,
         ),
         itemCount: groups.length + 2,
+        // Day groups are keyed so a new "Today" group (or a day emptied by a
+        // delete) never hands another day's element, and its animated
+        // total, to the wrong date.
+        findChildIndexCallback: (key) {
+          if (key is! ValueKey<String>) return null;
+          final value = key.value;
+          if (value == 'summary') return 0;
+          if (value == 'loadMore') return groups.length + 1;
+          for (var i = 0; i < groups.length; i++) {
+            if (_groupKey(groups[i]) == value) return i + 1;
+          }
+          return null;
+        },
         itemBuilder: (context, index) {
           if (index == 0) {
             return Padding(
+              key: const ValueKey('summary'),
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.sm,
                 AppSpacing.xs,
@@ -476,6 +642,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           }
           if (index == groups.length + 1) {
             return LoadingMoreIndicator(
+              key: const ValueKey('loadMore'),
               hasMore: state.hasMore,
               isLoading: state.status == ExpenseHistoryStatus.loadingMore,
             );
@@ -495,6 +662,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     final theme = Theme.of(context);
     // Date headers stay put; only the rows animate.
     return Column(
+      key: ValueKey<String>(_groupKey(group)),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExpenseGroupHeader(group: group),
@@ -504,35 +672,37 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               key: ValueKey('div_${group.expenses[i].id}'),
               indent: AppSizes.avatarMd + AppSpacing.mlg,
               endIndent: AppSpacing.sm,
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              color: theme.colorScheme.outlineVariant,
             ),
-          _buildExpenseRow(
-            context,
-            group.expenses[i],
-            state,
-            (groupIndex + i).clamp(0, 6),
-          ),
+          _buildExpenseRow(context, group.expenses[i], state),
         ],
       ],
     );
+  }
+
+  static String _groupKey(ExpenseGroup group) {
+    final date = group.date;
+    if (date == null) return 'group_${group.type.name}';
+    return 'group_${date.year}-${date.month}-${date.day}';
   }
 
   Widget _buildExpenseRow(
     BuildContext context,
     ExpenseEntity expense,
     ExpenseHistoryState state,
-    int stagger,
   ) {
     final category = _findCategory(state.categories, expense.categoryId);
     final budget = state.isCombinedMode
         ? state.budgetMap[expense.budgetId]
         : null;
-    final isNew = _seenIds.add(expense.id);
+    final enterIndex = _entering[expense.id];
 
     return FadeSlideIn(
       key: ValueKey('enter_${expense.id}'),
-      animate: isNew,
-      index: stagger,
+      animate: enterIndex != null,
+      // Stagger by arrival order (a handful of new rows cascade briefly),
+      // not by position in the whole list.
+      index: enterIndex ?? 0,
       child: _buildDismissibleRow(context, expense, state, category, budget),
     );
   }
@@ -544,10 +714,17 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     ExpenseCategory? category,
     BudgetEntity? budget,
   ) {
+    final dismissDuration = AppMotion.respectReducedMotion(
+      context,
+      AppMotion.standard,
+    );
     return Dismissible(
       key: Key('dismiss_${expense.id}'),
       direction: DismissDirection.endToStart,
-      confirmDismiss: (_) => _confirmDelete(expense, budget?.currency),
+      movementDuration: dismissDuration,
+      resizeDuration: dismissDuration,
+      confirmDismiss: (_) => _confirmDismiss(expense),
+      onDismissed: (_) => _deleteWithUndo(expense),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.lg),
@@ -585,7 +762,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 categoryName: category?.name,
               )
             : null,
-        onTap: () => context.push('/app/expenses/${expense.id}'),
+        onTap: () => context.pushUnique('/app/expenses/${expense.id}'),
+        onLongPress: () => _showRowActions(expense, category, budget),
       ),
     );
   }
@@ -634,8 +812,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           '• Use search, quick filters and the filter sheet to narrow the '
           'list\n'
           '• Choose "Combined" to view several budgets together\n'
-          '• Swipe an expense left to delete it, or tap it to edit or move '
-          'it to another budget',
+          '• Swipe an expense left to delete it — Undo is offered for a few '
+          'seconds\n'
+          '• Press and hold an expense to edit, duplicate, move or delete it',
     );
   }
 }
@@ -652,6 +831,15 @@ class _CombinedBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = context.appColors.tertiary;
+    // The banner tints its own background, so the title needs a colour that
+    // stays legible on that tint rather than the raw accent.
+    final onTint = Contrast.ensureContrast(
+      color,
+      Color.alphaBlend(
+        color.withValues(alpha: 0.08),
+        theme.colorScheme.surface,
+      ),
+    );
     final names = state.selectedBudgetsLabel;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -682,7 +870,7 @@ class _CombinedBanner extends StatelessWidget {
                       Text(
                         names.isEmpty ? 'Choose budgets to combine' : names,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          color: color,
+                          color: onTint,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

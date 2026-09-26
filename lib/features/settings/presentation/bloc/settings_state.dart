@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/app_settings.dart';
+import '../../../../core/domain/services/database_integrity_service.dart';
 
 enum SettingsStatus { initial, loading, loaded, error }
 
@@ -20,6 +21,9 @@ class SettingsState extends Equatable {
   /// or "Please set up fingerprint or Face ID on your device first.").
   final String? biometricMessage;
 
+  /// Outcome of the latest "Check database" run, shown once then cleared.
+  final IntegrityCheckResult? integrityResult;
+
   const SettingsState({
     this.status = SettingsStatus.initial,
     this.settings = const AppSettings(),
@@ -28,6 +32,7 @@ class SettingsState extends Equatable {
     this.isBusy = false,
     this.isBiometricBusy = false,
     this.biometricMessage,
+    this.integrityResult,
   });
 
   SettingsState copyWith({
@@ -41,6 +46,8 @@ class SettingsState extends Equatable {
     bool? isBiometricBusy,
     String? biometricMessage,
     bool clearBiometricMessage = false,
+    IntegrityCheckResult? integrityResult,
+    bool clearIntegrityResult = false,
   }) {
     return SettingsState(
       status: status ?? this.status,
@@ -52,6 +59,9 @@ class SettingsState extends Equatable {
       biometricMessage: clearBiometricMessage
           ? null
           : (biometricMessage ?? this.biometricMessage),
+      integrityResult: clearIntegrityResult
+          ? null
+          : (integrityResult ?? this.integrityResult),
     );
   }
 
@@ -64,5 +74,6 @@ class SettingsState extends Equatable {
     isBusy,
     isBiometricBusy,
     biometricMessage,
+    integrityResult,
   ];
 }

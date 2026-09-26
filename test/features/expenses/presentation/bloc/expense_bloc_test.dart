@@ -19,6 +19,9 @@ import 'package:monivo/features/expenses/presentation/bloc/expense_event.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_state.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   String? activeId = 'budget-1';
 
   @override
@@ -136,6 +139,8 @@ class FakeExpenseRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     var result = store.values.toList();
 
@@ -222,6 +227,8 @@ class FakeGetAllUseCase implements GetExpensesUseCase {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     final expenses = await repository.getExpenses(
       budgetId: budgetId,
@@ -339,8 +346,39 @@ void main() {
     bloc.add(const ExpenseDelete('exp-1'));
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state.status, ExpenseBlocStatus.success);
-    expect(bloc.state.message, 'Expense deleted successfully');
+    expect(bloc.state.message, 'Expense deleted');
     expect(repository.store.containsKey('exp-1'), isFalse);
+    await bloc.close();
+  });
+
+  test('delete keeps a snapshot so the UI can offer Undo', () async {
+    final entity = expenseEntity('exp-1');
+    await repository.createExpense(entity);
+    final bloc = buildBloc(repository);
+    bloc.add(const ExpenseDelete('exp-1'));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.lastAction, ExpenseAction.deleted);
+    expect(bloc.state.lastDeleted, entity);
+    // Clearing the message must not forget the snapshot.
+    bloc.add(const ExpenseClearMessage());
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.lastDeleted, entity);
+    await bloc.close();
+  });
+
+  test('restore re-creates the deleted expense with the same id', () async {
+    final entity = expenseEntity('exp-1');
+    await repository.createExpense(entity);
+    final bloc = buildBloc(repository);
+    bloc.add(const ExpenseDelete('exp-1'));
+    await Future<void>.delayed(Duration.zero);
+    bloc.add(ExpenseRestore(bloc.state.lastDeleted!));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.status, ExpenseBlocStatus.success);
+    expect(bloc.state.lastAction, ExpenseAction.restored);
+    expect(bloc.state.lastDeleted, isNull);
+    expect(bloc.state.message, 'Expense restored');
+    expect(repository.store['exp-1'], entity);
     await bloc.close();
   });
 

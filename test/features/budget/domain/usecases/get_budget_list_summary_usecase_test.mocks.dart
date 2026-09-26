@@ -3,19 +3,19 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i5;
+import 'dart:async' as _i3;
 
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i8;
+import 'package:mockito/src/dummies.dart' as _i7;
 import 'package:monivo/core/domain/entities/budget_entity.dart' as _i2;
 import 'package:monivo/features/budget/domain/entities/budget_error.dart'
-    as _i7;
+    as _i8;
 import 'package:monivo/features/budget/domain/entities/budget_filter.dart'
     as _i6;
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart'
-    as _i3;
-import 'package:monivo/features/budget/domain/repository/budget_repository.dart'
     as _i4;
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart'
+    as _i5;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -36,108 +36,113 @@ class _FakeBudgetEntity_0 extends _i1.SmartFake implements _i2.BudgetEntity {
     : super(parent, parentInvocation);
 }
 
-class _FakeMonthlyStatisticsEntity_1 extends _i1.SmartFake
-    implements _i3.MonthlyStatisticsEntity {
-  _FakeMonthlyStatisticsEntity_1(Object parent, Invocation parentInvocation)
+class _FakeFuture_1<T1> extends _i1.SmartFake implements _i3.Future<T1> {
+  _FakeFuture_1(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
+class _FakeMonthlyStatisticsEntity_2 extends _i1.SmartFake
+    implements _i4.MonthlyStatisticsEntity {
+  _FakeMonthlyStatisticsEntity_2(Object parent, Invocation parentInvocation)
     : super(parent, parentInvocation);
 }
 
 /// A class which mocks [BudgetRepository].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
+class MockBudgetRepository extends _i1.Mock implements _i5.BudgetRepository {
   MockBudgetRepository() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  _i5.Future<_i2.BudgetEntity?> getActiveBudget() =>
+  _i3.Future<_i2.BudgetEntity?> getActiveBudget() =>
       (super.noSuchMethod(
             Invocation.method(#getActiveBudget, []),
-            returnValue: _i5.Future<_i2.BudgetEntity?>.value(),
+            returnValue: _i3.Future<_i2.BudgetEntity?>.value(),
           )
-          as _i5.Future<_i2.BudgetEntity?>);
+          as _i3.Future<_i2.BudgetEntity?>);
 
   @override
-  _i5.Future<String?> getActiveBudgetId() =>
+  _i3.Future<String?> getActiveBudgetId() =>
       (super.noSuchMethod(
             Invocation.method(#getActiveBudgetId, []),
-            returnValue: _i5.Future<String?>.value(),
+            returnValue: _i3.Future<String?>.value(),
           )
-          as _i5.Future<String?>);
+          as _i3.Future<String?>);
 
   @override
-  _i5.Future<void> setActiveBudgetId(String? budgetId) =>
+  _i3.Future<void> setActiveBudgetId(String? budgetId) =>
       (super.noSuchMethod(
             Invocation.method(#setActiveBudgetId, [budgetId]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i3.Future<void>);
 
   @override
-  _i5.Future<_i2.BudgetEntity?> getBudgetById(String? id) =>
+  _i3.Future<_i2.BudgetEntity?> getBudgetById(String? id) =>
       (super.noSuchMethod(
             Invocation.method(#getBudgetById, [id]),
-            returnValue: _i5.Future<_i2.BudgetEntity?>.value(),
+            returnValue: _i3.Future<_i2.BudgetEntity?>.value(),
           )
-          as _i5.Future<_i2.BudgetEntity?>);
+          as _i3.Future<_i2.BudgetEntity?>);
 
   @override
-  _i5.Future<List<_i2.BudgetEntity>> getAllBudgets({
+  _i3.Future<List<_i2.BudgetEntity>> getAllBudgets({
     _i6.BudgetQueryOptions? options,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#getAllBudgets, [], {#options: options}),
-            returnValue: _i5.Future<List<_i2.BudgetEntity>>.value(
+            returnValue: _i3.Future<List<_i2.BudgetEntity>>.value(
               <_i2.BudgetEntity>[],
             ),
           )
-          as _i5.Future<List<_i2.BudgetEntity>>);
+          as _i3.Future<List<_i2.BudgetEntity>>);
 
   @override
-  _i5.Future<_i2.BudgetEntity> createBudget(_i2.BudgetEntity? budget) =>
+  _i3.Future<_i2.BudgetEntity> createBudget(_i2.BudgetEntity? budget) =>
       (super.noSuchMethod(
             Invocation.method(#createBudget, [budget]),
-            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+            returnValue: _i3.Future<_i2.BudgetEntity>.value(
               _FakeBudgetEntity_0(
                 this,
                 Invocation.method(#createBudget, [budget]),
               ),
             ),
           )
-          as _i5.Future<_i2.BudgetEntity>);
+          as _i3.Future<_i2.BudgetEntity>);
 
   @override
-  _i5.Future<_i2.BudgetEntity> updateBudget(_i2.BudgetEntity? budget) =>
+  _i3.Future<_i2.BudgetEntity> updateBudget(_i2.BudgetEntity? budget) =>
       (super.noSuchMethod(
             Invocation.method(#updateBudget, [budget]),
-            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+            returnValue: _i3.Future<_i2.BudgetEntity>.value(
               _FakeBudgetEntity_0(
                 this,
                 Invocation.method(#updateBudget, [budget]),
               ),
             ),
           )
-          as _i5.Future<_i2.BudgetEntity>);
+          as _i3.Future<_i2.BudgetEntity>);
 
   @override
-  _i5.Future<void> deleteBudget(String? id) =>
+  _i3.Future<void> deleteBudget(String? id) =>
       (super.noSuchMethod(
             Invocation.method(#deleteBudget, [id]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i3.Future<void>);
 
   @override
-  _i5.Future<_i2.BudgetEntity> setBudgetArchived(
+  _i3.Future<_i2.BudgetEntity> setBudgetArchived(
     String? id, {
     required bool? archived,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#setBudgetArchived, [id], {#archived: archived}),
-            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+            returnValue: _i3.Future<_i2.BudgetEntity>.value(
               _FakeBudgetEntity_0(
                 this,
                 Invocation.method(
@@ -148,10 +153,10 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               ),
             ),
           )
-          as _i5.Future<_i2.BudgetEntity>);
+          as _i3.Future<_i2.BudgetEntity>);
 
   @override
-  _i5.Future<_i2.BudgetEntity> duplicateBudget(
+  _i3.Future<_i2.BudgetEntity> duplicateBudget(
     String? id, {
     required String? newName,
     DateTime? startDate,
@@ -163,7 +168,7 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               [id],
               {#newName: newName, #startDate: startDate, #endDate: endDate},
             ),
-            returnValue: _i5.Future<_i2.BudgetEntity>.value(
+            returnValue: _i3.Future<_i2.BudgetEntity>.value(
               _FakeBudgetEntity_0(
                 this,
                 Invocation.method(
@@ -174,10 +179,29 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               ),
             ),
           )
-          as _i5.Future<_i2.BudgetEntity>);
+          as _i3.Future<_i2.BudgetEntity>);
 
   @override
-  _i5.Future<_i3.MonthlyStatisticsEntity> getBudgetStatistics(
+  _i3.Future<T> transaction<T>(_i3.Future<T> Function()? action) =>
+      (super.noSuchMethod(
+            Invocation.method(#transaction, [action]),
+            returnValue:
+                _i7.ifNotNull(
+                  _i7.dummyValueOrNull<T>(
+                    this,
+                    Invocation.method(#transaction, [action]),
+                  ),
+                  (T v) => _i3.Future<T>.value(v),
+                ) ??
+                _FakeFuture_1<T>(
+                  this,
+                  Invocation.method(#transaction, [action]),
+                ),
+          )
+          as _i3.Future<T>);
+
+  @override
+  _i3.Future<_i4.MonthlyStatisticsEntity> getBudgetStatistics(
     String? budgetId, {
     DateTime? referenceDate,
   }) =>
@@ -187,8 +211,8 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               [budgetId],
               {#referenceDate: referenceDate},
             ),
-            returnValue: _i5.Future<_i3.MonthlyStatisticsEntity>.value(
-              _FakeMonthlyStatisticsEntity_1(
+            returnValue: _i3.Future<_i4.MonthlyStatisticsEntity>.value(
+              _FakeMonthlyStatisticsEntity_2(
                 this,
                 Invocation.method(
                   #getBudgetStatistics,
@@ -198,10 +222,10 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               ),
             ),
           )
-          as _i5.Future<_i3.MonthlyStatisticsEntity>);
+          as _i3.Future<_i4.MonthlyStatisticsEntity>);
 
   @override
-  _i5.Future<double> getTodaySpending(
+  _i3.Future<double> getTodaySpending(
     String? budgetId, {
     DateTime? referenceDate,
   }) =>
@@ -211,12 +235,12 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               [budgetId],
               {#referenceDate: referenceDate},
             ),
-            returnValue: _i5.Future<double>.value(0.0),
+            returnValue: _i3.Future<double>.value(0.0),
           )
-          as _i5.Future<double>);
+          as _i3.Future<double>);
 
   @override
-  _i5.Future<int> getRemainingDays(
+  _i3.Future<int> getRemainingDays(
     String? budgetId, {
     DateTime? referenceDate,
   }) =>
@@ -226,12 +250,12 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               [budgetId],
               {#referenceDate: referenceDate},
             ),
-            returnValue: _i5.Future<int>.value(0),
+            returnValue: _i3.Future<int>.value(0),
           )
-          as _i5.Future<int>);
+          as _i3.Future<int>);
 
   @override
-  _i5.Future<_i7.BudgetResult<_i4.BudgetCalculationContext>>
+  _i3.Future<_i8.BudgetResult<_i5.BudgetCalculationContext>>
   getCalculationContext(String? budgetId, {DateTime? referenceDate}) =>
       (super.noSuchMethod(
             Invocation.method(
@@ -240,11 +264,11 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               {#referenceDate: referenceDate},
             ),
             returnValue:
-                _i5.Future<
-                  _i7.BudgetResult<_i4.BudgetCalculationContext>
+                _i3.Future<
+                  _i8.BudgetResult<_i5.BudgetCalculationContext>
                 >.value(
-                  _i8.dummyValue<
-                    _i7.BudgetResult<_i4.BudgetCalculationContext>
+                  _i7.dummyValue<
+                    _i8.BudgetResult<_i5.BudgetCalculationContext>
                   >(
                     this,
                     Invocation.method(
@@ -255,19 +279,19 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
                   ),
                 ),
           )
-          as _i5.Future<_i7.BudgetResult<_i4.BudgetCalculationContext>>);
+          as _i3.Future<_i8.BudgetResult<_i5.BudgetCalculationContext>>);
 
   @override
-  _i5.Future<void> updateBudgetRemainingAmount(String? budgetId) =>
+  _i3.Future<void> updateBudgetRemainingAmount(String? budgetId) =>
       (super.noSuchMethod(
             Invocation.method(#updateBudgetRemainingAmount, [budgetId]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i3.Future<void>);
 
   @override
-  _i5.Future<double> getExpensesTotalInRange(
+  _i3.Future<double> getExpensesTotalInRange(
     String? budgetId, {
     required DateTime? startDate,
     required DateTime? endDate,
@@ -278,7 +302,7 @@ class MockBudgetRepository extends _i1.Mock implements _i4.BudgetRepository {
               [budgetId],
               {#startDate: startDate, #endDate: endDate},
             ),
-            returnValue: _i5.Future<double>.value(0.0),
+            returnValue: _i3.Future<double>.value(0.0),
           )
-          as _i5.Future<double>);
+          as _i3.Future<double>);
 }

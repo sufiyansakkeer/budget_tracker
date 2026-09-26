@@ -2,23 +2,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../budget/domain/repository/budget_repository.dart';
-import '../../domain/entities/budget_entity.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
 import '../../domain/usecases/create_budget_usecase.dart';
 import 'onboarding_event.dart';
+import '../../../settings/domain/entities/currency_entity.dart';
 import 'onboarding_state.dart';
-
-const List<CurrencyItem> availableCurrencies = [
-  CurrencyItem(code: 'INR', symbol: '₹', name: 'Indian Rupee'),
-  CurrencyItem(code: 'USD', symbol: '\$', name: 'US Dollar'),
-  CurrencyItem(code: 'EUR', symbol: '€', name: 'Euro'),
-  CurrencyItem(code: 'AED', symbol: 'د.إ', name: 'UAE Dirham'),
-  CurrencyItem(code: 'OMR', symbol: 'ر.ع.', name: 'Omani Rial'),
-  CurrencyItem(code: 'GBP', symbol: '£', name: 'British Pound'),
-  CurrencyItem(code: 'CAD', symbol: 'C\$', name: 'Canadian Dollar'),
-  CurrencyItem(code: 'AUD', symbol: 'A\$', name: 'Australian Dollar'),
-  CurrencyItem(code: 'JPY', symbol: '¥', name: 'Japanese Yen'),
-  CurrencyItem(code: 'SGD', symbol: 'S\$', name: 'Singapore Dollar'),
-];
 
 class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   final CreateBudgetUseCase createBudgetUseCase;
@@ -54,7 +42,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     );
   }
 
-  CurrencyItem _detectCurrency(String? localeCountryCode) {
+  CurrencyEntity _detectCurrency(String? localeCountryCode) {
     if (localeCountryCode == null) return availableCurrencies.first;
     final code = localeCountryCode.toUpperCase();
     for (final currency in availableCurrencies) {
@@ -174,7 +162,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   ) {
     final found = availableCurrencies.firstWhere(
       (c) => c.code == event.code,
-      orElse: () => CurrencyItem(
+      orElse: () => CurrencyEntity(
         code: event.code,
         symbol: event.symbol,
         name: event.code,

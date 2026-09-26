@@ -1,21 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../settings/domain/entities/currency_entity.dart';
+
 enum OnboardingStatus { initial, loading, success, failure }
-
-class CurrencyItem extends Equatable {
-  final String code;
-  final String symbol;
-  final String name;
-
-  const CurrencyItem({
-    required this.code,
-    required this.symbol,
-    required this.name,
-  });
-
-  @override
-  List<Object?> get props => [code, symbol, name];
-}
 
 class OnboardingState extends Equatable {
   final int currentPageIndex;
@@ -25,7 +12,7 @@ class OnboardingState extends Equatable {
   final String? budgetValidationError;
   final String? nameValidationError;
   final String? dateValidationError;
-  final CurrencyItem selectedCurrency;
+  final CurrencyEntity selectedCurrency;
   final DateTime startDate;
   final DateTime endDate;
   final OnboardingStatus status;
@@ -39,7 +26,7 @@ class OnboardingState extends Equatable {
     this.budgetValidationError,
     this.nameValidationError,
     this.dateValidationError,
-    this.selectedCurrency = const CurrencyItem(
+    this.selectedCurrency = const CurrencyEntity(
       code: 'INR',
       symbol: '₹',
       name: 'Indian Rupee',
@@ -75,7 +62,7 @@ class OnboardingState extends Equatable {
     bool clearNameValidationError = false,
     String? dateValidationError,
     bool clearDateValidationError = false,
-    CurrencyItem? selectedCurrency,
+    CurrencyEntity? selectedCurrency,
     DateTime? startDate,
     DateTime? endDate,
     OnboardingStatus? status,

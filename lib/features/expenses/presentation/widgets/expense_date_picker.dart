@@ -54,23 +54,23 @@ class ExpenseDatePicker extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Date, $display',
-      child: ExcludeSemantics(
-        child: InkWell(
-          key: const Key('expenseDatePicker'),
-          onTap: () => _pick(context),
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              labelText: 'Date',
-              prefixIcon: const Icon(Icons.calendar_today_outlined),
-              errorText: errorText,
-            ),
-            child: Text(
-              display,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      onTap: () => _pick(context),
+      excludeSemantics: true,
+      child: InkWell(
+        key: const Key('expenseDatePicker'),
+        onTap: () => _pick(context),
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: 'Date',
+            prefixIcon: const Icon(Icons.calendar_today_outlined),
+            errorText: errorText,
+          ),
+          child: Text(
+            display,
+            style: theme.textTheme.bodyLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),

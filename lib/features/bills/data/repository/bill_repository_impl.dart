@@ -43,6 +43,10 @@ class BillRepositoryImpl implements BillRepository {
   }
 
   @override
+  Future<List<BillEntity>> getUpcomingBills({DateTime? from, int limit = 3}) =>
+      localDataSource.getUpcomingBills(from: from, limit: limit);
+
+  @override
   Future<double> getUpcomingBillsTotal({int withinDays = 30}) async {
     return localDataSource.getUpcomingBillsTotal(withinDays: withinDays);
   }

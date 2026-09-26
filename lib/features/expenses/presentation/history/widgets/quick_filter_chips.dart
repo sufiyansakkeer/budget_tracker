@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
+import '../../../domain/entities/quick_date_preset.dart';
+
+export '../../../domain/entities/quick_date_preset.dart';
 import '../../widgets/category_visuals.dart';
 
 /// Quick-select chips for common filter shortcuts.
@@ -28,7 +31,10 @@ class QuickFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shortcuts = categories.take(_maxCategoryChips).toList();
+    final shortcuts = categories
+        .where((c) => !c.isArchived)
+        .take(_maxCategoryChips)
+        .toList();
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(
@@ -106,48 +112,4 @@ class QuickFilterChips extends StatelessWidget {
     }
     return current.copyWithCategory(categoryId);
   }
-}
-
-/// Date presets shared between the quick chips and the active-filter chips,
-/// so a preset shows as one chip ("Today") rather than a From/To pair.
-enum QuickDatePreset {
-  today('Today'),
-  thisWeek('This week'),
-  thisMonth('This month');
-
-  final String label;
-  const QuickDatePreset(this.label);
-
-  (DateTime, DateTime) range() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    switch (this) {
-      case QuickDatePreset.today:
-        return (today, today);
-      case QuickDatePreset.thisWeek:
-        return (today.subtract(Duration(days: today.weekday - 1)), today);
-      case QuickDatePreset.thisMonth:
-        return (
-          DateTime(now.year, now.month, 1),
-          DateTime(now.year, now.month + 1, 0),
-        );
-    }
-  }
-
-  bool matches(ExpenseHistoryFilter f) {
-    if (f.dateFrom == null || f.dateTo == null) return false;
-    final r = range();
-    return _sameDay(f.dateFrom!, r.$1) && _sameDay(f.dateTo!, r.$2);
-  }
-
-  /// Returns the preset matching the filter's date range, if any.
-  static QuickDatePreset? of(ExpenseHistoryFilter f) {
-    for (final p in QuickDatePreset.values) {
-      if (p.matches(f)) return p;
-    }
-    return null;
-  }
-
-  static bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }

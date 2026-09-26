@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import '../theme/contrast.dart';
 import '../theme/app_colors_extension.dart';
 
 /// A small pill-shaped status indicator combining an icon + label.
@@ -30,7 +31,17 @@ class StatusChip extends StatelessWidget {
       context,
       AppMotion.standard,
     );
-    final foreground = filled ? theme.colorScheme.onPrimary : color;
+    // The tint behind an unfilled chip is [color] at 12% over the surface,
+    // which sits close enough to the surface that the accent itself is often
+    // unreadable on it (a warning amber lands near 2:1). Darken/lighten the
+    // label only as far as legibility requires; the tint keeps the meaning.
+    final tint = Color.alphaBlend(
+      color.withValues(alpha: 0.12),
+      theme.colorScheme.surface,
+    );
+    final foreground = filled
+        ? theme.colorScheme.onPrimary
+        : Contrast.ensureContrast(color, tint);
     final textStyle =
         theme.textTheme.labelSmall?.copyWith(
           color: foreground,

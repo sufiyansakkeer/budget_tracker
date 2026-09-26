@@ -48,6 +48,15 @@ import '../../features/dashboard/data/datasource/dashboard_local_datasource.dart
 import '../../features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
 import '../../features/dashboard/data/repository/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repository/dashboard_repository.dart';
+import '../../features/categories/data/datasource/category_local_datasource.dart';
+import '../../features/categories/data/datasource/category_local_datasource_impl.dart';
+import '../../features/categories/data/repository/category_repository_impl.dart';
+import '../../features/categories/domain/repository/category_repository.dart';
+import '../../features/categories/domain/usecases/archive_category_usecase.dart';
+import '../../features/categories/domain/usecases/delete_category_usecase.dart';
+import '../../features/categories/domain/usecases/load_categories_usecase.dart';
+import '../../features/categories/domain/usecases/save_category_usecase.dart';
+import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -102,6 +111,16 @@ import '../../features/app_update/data/repository/app_update_repository_impl.dar
 import '../../features/app_update/domain/repository/app_update_repository.dart';
 import '../../features/app_update/domain/usecases/check_for_app_update_usecase.dart';
 import '../../features/app_update/presentation/bloc/app_update_bloc.dart';
+import '../../features/currency_converter/data/datasources/currency_local_datasource.dart';
+import '../../features/currency_converter/data/datasources/currency_local_datasource_impl.dart';
+import '../../features/currency_converter/data/datasources/currency_remote_datasource.dart';
+import '../../features/currency_converter/data/datasources/frankfurter_remote_datasource_impl.dart';
+import '../../features/currency_converter/data/repository/currency_converter_repository_impl.dart';
+import '../../features/currency_converter/domain/repository/currency_converter_repository.dart';
+import '../../features/currency_converter/domain/usecases/converter_preferences_usecases.dart';
+import '../../features/currency_converter/domain/usecases/get_exchange_rate_usecase.dart';
+import '../../features/currency_converter/domain/usecases/get_supported_currencies_usecase.dart';
+import '../../features/currency_converter/presentation/bloc/currency_converter_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -294,6 +313,36 @@ Future<void> initDependencyInjection() async {
     ),
   );
 
+  // 15b. Categories Feature
+  getIt.registerLazySingleton<CategoryLocalDataSource>(
+    () => CategoryLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<CategoryRepository>(
+    () => CategoryRepositoryImpl(
+      localDataSource: getIt<CategoryLocalDataSource>(),
+    ),
+  );
+  getIt.registerLazySingleton<LoadCategoriesUseCase>(
+    () => LoadCategoriesUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerLazySingleton<SaveCategoryUseCase>(
+    () => SaveCategoryUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerLazySingleton<ArchiveCategoryUseCase>(
+    () => ArchiveCategoryUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerLazySingleton<DeleteCategoryUseCase>(
+    () => DeleteCategoryUseCase(repository: getIt<CategoryRepository>()),
+  );
+  getIt.registerFactory<CategoryBloc>(
+    () => CategoryBloc(
+      loadCategories: getIt<LoadCategoriesUseCase>(),
+      saveCategory: getIt<SaveCategoryUseCase>(),
+      archiveCategory: getIt<ArchiveCategoryUseCase>(),
+      deleteCategory: getIt<DeleteCategoryUseCase>(),
+    ),
+  );
+
   // 16. Expense Feature - Datasources
   getIt.registerLazySingleton<ExpenseLocalDataSource>(
     () => ExpenseLocalDataSourceImpl(database: getIt<AppDatabase>()),
@@ -478,10 +527,7 @@ Future<void> initDependencyInjection() async {
     () => RestoreDataUseCase(backupService: getIt<BackupService>()),
   );
   getIt.registerLazySingleton<ResetBudgetUseCase>(
-    () => ResetBudgetUseCase(
-      database: getIt<AppDatabase>(),
-      sharedPreferences: getIt<SharedPreferences>(),
-    ),
+    () => ResetBudgetUseCase(repository: getIt<BudgetRepository>()),
   );
   getIt.registerLazySingleton<ScheduleNotificationsUseCase>(
     () => ScheduleNotificationsUseCase(
@@ -515,6 +561,7 @@ Future<void> initDependencyInjection() async {
       restoreDataUseCase: getIt<RestoreDataUseCase>(),
       resetBudgetUseCase: getIt<ResetBudgetUseCase>(),
       scheduleNotificationsUseCase: getIt<ScheduleNotificationsUseCase>(),
+      integrityService: getIt<DatabaseIntegrityService>(),
     ),
   );
 
@@ -602,6 +649,61 @@ Future<void> initDependencyInjection() async {
   getIt.registerLazySingleton<AppUpdateBloc>(
     () => AppUpdateBloc(
       checkForAppUpdateUseCase: getIt<CheckForAppUpdateUseCase>(),
+    ),
+  );
+
+  // ============================================================
+  //  Phase 11 – Currency Converter
+  // ============================================================
+
+  // 40. Currency Converter – Data Sources
+  getIt.registerLazySingleton<CurrencyRemoteDataSource>(
+    () => FrankfurterRemoteDataSourceImpl(),
+  );
+  getIt.registerLazySingleton<CurrencyLocalDataSource>(
+    () => CurrencyLocalDataSourceImpl(
+      database: getIt<AppDatabase>(),
+      sharedPreferences: getIt<SharedPreferences>(),
+    ),
+  );
+
+  // 41. Currency Converter – Repository (cache-first)
+  getIt.registerLazySingleton<CurrencyConverterRepository>(
+    () => CurrencyConverterRepositoryImpl(
+      remoteDataSource: getIt<CurrencyRemoteDataSource>(),
+      localDataSource: getIt<CurrencyLocalDataSource>(),
+    ),
+  );
+
+  // 42. Currency Converter – Use Cases
+  getIt.registerLazySingleton<GetSupportedCurrenciesUseCase>(
+    () => GetSupportedCurrenciesUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<GetExchangeRateUseCase>(
+    () => GetExchangeRateUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<LoadConverterPreferencesUseCase>(
+    () => LoadConverterPreferencesUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<SaveConverterPreferencesUseCase>(
+    () => SaveConverterPreferencesUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+
+  // 43. Currency Converter – BLoC (one per visit)
+  getIt.registerFactory<CurrencyConverterBloc>(
+    () => CurrencyConverterBloc(
+      getSupportedCurrencies: getIt<GetSupportedCurrenciesUseCase>(),
+      getExchangeRate: getIt<GetExchangeRateUseCase>(),
+      loadPreferences: getIt<LoadConverterPreferencesUseCase>(),
+      savePreferences: getIt<SaveConverterPreferencesUseCase>(),
     ),
   );
 }

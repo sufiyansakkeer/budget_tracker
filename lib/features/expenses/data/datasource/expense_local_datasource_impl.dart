@@ -59,6 +59,8 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     final query = database.select(database.expenses);
 
@@ -66,7 +68,16 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
       query.where((e) => e.budgetId.equals(budgetId));
     }
 
-    if (month != null && year != null) {
+    if (from != null || to != null) {
+      if (from != null) {
+        final start = DateTime(from.year, from.month, from.day);
+        query.where((e) => e.date.isBiggerOrEqualValue(start));
+      }
+      if (to != null) {
+        final end = DateTime(to.year, to.month, to.day, 23, 59, 59, 999);
+        query.where((e) => e.date.isSmallerOrEqualValue(end));
+      }
+    } else if (month != null && year != null) {
       final start = DateTime(year, month, 1);
       final end = DateTime(year, month + 1, 0, 23, 59, 59, 999);
       query.where(

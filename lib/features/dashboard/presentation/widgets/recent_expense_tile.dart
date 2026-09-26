@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/pressable.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 
@@ -40,7 +41,10 @@ class RecentExpenseTile extends StatelessWidget {
       label:
           '${hasNote ? expense.note : expense.categoryName}, '
           '${expense.categoryName}, $amount, $when',
-      child: ExcludeSemantics(
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Pressable(
+        enabled: onTap != null,
         child: InkWell(
           onTap: onTap,
           borderRadius: AppSpacing.borderRadiusMd,

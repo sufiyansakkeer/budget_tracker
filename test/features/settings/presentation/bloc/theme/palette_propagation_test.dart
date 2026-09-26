@@ -1,6 +1,5 @@
 import 'package:monivo/core/theme/app_colors_extension.dart';
 import 'package:monivo/core/theme/app_theme.dart';
-import 'package:monivo/core/theme/color_palettes.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
 import 'package:monivo/features/settings/domain/repository/theme_repository.dart';
@@ -72,9 +71,12 @@ void main() {
 
       // Verify initial Default palette.
       expect(bloc.state.palette, ColorPalette.defaultPalette);
-      final defaultPrimary = getPaletteColors(
+      // Expected values come from the *built* theme: the token layer may
+      // adjust a palette's primary for legibility, and that adjusted colour
+      // is what must reach Theme.of and context.appColors.
+      final defaultPrimary = AppTheme.buildLightTheme(
         ColorPalette.defaultPalette,
-      ).lightScheme.primary.toARGB32();
+      ).colorScheme.primary.toARGB32();
       expect(
         find.text('primary:$defaultPrimary:appColors:$defaultPrimary'),
         findsOneWidget,
@@ -86,9 +88,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      final oceanPrimary = getPaletteColors(
+      final oceanPrimary = AppTheme.buildLightTheme(
         ColorPalette.ocean,
-      ).lightScheme.primary.toARGB32();
+      ).colorScheme.primary.toARGB32();
       final allTexts = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.data ?? '')
@@ -106,9 +108,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      final forestPrimary = getPaletteColors(
+      final forestPrimary = AppTheme.buildLightTheme(
         ColorPalette.forest,
-      ).lightScheme.primary.toARGB32();
+      ).colorScheme.primary.toARGB32();
       final texts2 = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.data ?? '')
@@ -156,9 +158,9 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final defaultDarkPrimary = getPaletteColors(
+    final defaultDarkPrimary = AppTheme.buildDarkTheme(
       ColorPalette.defaultPalette,
-    ).darkScheme.primary.toARGB32();
+    ).colorScheme.primary.toARGB32();
     expect(
       find.text('primary:$defaultDarkPrimary:appColors:$defaultDarkPrimary'),
       findsOneWidget,
@@ -169,9 +171,9 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final oceanDarkPrimary = getPaletteColors(
+    final oceanDarkPrimary = AppTheme.buildDarkTheme(
       ColorPalette.ocean,
-    ).darkScheme.primary.toARGB32();
+    ).colorScheme.primary.toARGB32();
     final texts = tester
         .widgetList<Text>(find.byType(Text))
         .map((t) => t.data ?? '')

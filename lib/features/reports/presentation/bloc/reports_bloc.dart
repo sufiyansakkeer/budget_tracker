@@ -2,11 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../budget/presentation/bloc/budget_bloc.dart';
-import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/report_failure.dart';
 import '../../domain/services/report_insight_generator.dart';
 import '../../domain/usecases/get_report_data_usecase.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'reports_event.dart';
 import 'reports_state.dart';
 
@@ -30,7 +29,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     on<ReportsFilterChanged>(_onFilterChanged);
 
     // Auto-refresh when expenses change so reports stay in sync.
-    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (!isClosed) {
         add(const ReportsRefresh());
       }
@@ -38,7 +37,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
 
     // Reload when the active budget is switched so reports are scoped to the
     // newly active budget.
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (!isClosed) {
         add(const ReportsRefresh());
       }

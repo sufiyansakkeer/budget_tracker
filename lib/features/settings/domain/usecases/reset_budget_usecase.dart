@@ -1,29 +1,33 @@
-import 'package:drift/drift.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/database/app_database.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../budget/domain/repository/budget_repository.dart';
 import '../entities/settings_failure.dart';
 
-/// Provides budget management actions: reset the active budget's amount and
-/// archive the active budget.
+/// Budget maintenance actions exposed from Settings: change the active
+/// budget's amount and start a fresh period.
+///
+/// Everything goes through [BudgetRepository] so the stored remaining amount
+/// is recomputed by the repository (never by hand here) and the active-budget
+/// preference has exactly one owner.
 class ResetBudgetUseCase {
-  final AppDatabase _database;
-  final SharedPreferences _sharedPreferences;
+  final BudgetRepository _repository;
 
-  static const String _activeBudgetIdKey = 'active_budget_id';
+  /// Length of the period created by [resetCurrentMonth] (inclusive of the
+  /// start day, so 31 calendar days).
+  static const Duration newPeriodLength = Duration(days: 30);
 
-  ResetBudgetUseCase({
-    required AppDatabase database,
-    required SharedPreferences sharedPreferences,
-  }) : _database = database,
-       _sharedPreferences = sharedPreferences;
+  static const String _defaultName = 'Personal Budget';
+  static const String _defaultCurrency = 'INR';
+
+  ResetBudgetUseCase({required BudgetRepository repository})
+    : _repository = repository;
 
   /// Sets the active budget's total amount to [newAmount].
   ///
-  /// Preserves existing expenses: the stored remaining amount is recomputed
-  /// as the new amount minus what has already been spent. Returns the
-  /// updated budget id.
+  /// Existing expenses are preserved; the repository recomputes the remaining
+  /// amount from them. When no budget exists yet, a default 31-day budget is
+  /// created and made active. Returns the affected budget id.
   Future<SettingsResult<String>> resetBudgetAmount(double newAmount) async {
     if (newAmount <= 0) {
       return const SettingsError(
@@ -34,126 +38,105 @@ class ResetBudgetUseCase {
       );
     }
 
-    final existing = await _activeBudgetRow();
-
     try {
+      final existing = await _activeOrLatestBudget();
+      final now = DateTime.now();
+
       if (existing == null) {
-        final id = const Uuid().v4();
-        final now = DateTime.now();
-        await _database
-            .into(_database.budgets)
-            .insert(
-              BudgetsCompanion.insert(
-                id: id,
-                name: 'Personal Budget',
-                monthlyAmount: newAmount,
-                remainingAmount: newAmount,
-                currency: 'INR',
-                startDate: DateTime(now.year, now.month, now.day),
-                endDate: DateTime(
-                  now.year,
-                  now.month,
-                  now.day,
-                ).add(const Duration(days: 30)),
-                createdAt: Value(now),
-                updatedAt: Value(now),
-              ),
-            );
-        // Persist the new budget as active.
-        await _sharedPreferences.setString(_activeBudgetIdKey, id);
-        return SettingsSuccess(id);
+        final budget = _newBudget(
+          amount: newAmount,
+          currency: _defaultCurrency,
+          now: now,
+        );
+        await _repository.createBudget(budget);
+        await _repository.setActiveBudgetId(budget.id);
+        return SettingsSuccess(budget.id);
       }
 
-      final alreadySpent = existing.monthlyAmount - existing.remainingAmount;
-      await (_database.update(
-        _database.budgets,
-      )..where((b) => b.id.equals(existing.id))).write(
-        BudgetsCompanion(
-          monthlyAmount: Value(newAmount),
-          remainingAmount: Value(newAmount - alreadySpent),
-          updatedAt: Value(DateTime.now()),
-        ),
+      await _repository.updateBudget(
+        existing.copyWith(monthlyAmount: newAmount, updatedAt: now),
       );
       return SettingsSuccess(existing.id);
     } catch (e) {
       return SettingsError(
         SettingsFailure(
           type: SettingsErrorType.saveFailure,
-          message: 'Failed to reset budget: ${e.toString()}',
+          message: 'Failed to reset budget: $e',
         ),
       );
     }
   }
 
-  /// Archives the active budget and creates a fresh 31-day budget period
-  /// starting today (same amount and currency). Returns the new budget id.
+  /// Archives the active budget and creates a fresh period starting today
+  /// with the same name, amount and currency, then makes it active.
   ///
-  /// The operation is atomic (a single [transaction]) and preserves the
-  /// previous budget's amount/currency so the dashboard never sees a budget
-  /// with a zero amount, which previously caused duplicate/empty budgets and
-  /// a "Something went wrong" error. Exactly ONE new budget is created.
+  /// Archive + create run in one transaction, so exactly one new budget is
+  /// created or nothing changes. Returns the new budget id.
   Future<SettingsResult<String>> resetCurrentMonth() async {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day);
-    final end = start.add(const Duration(days: 30));
-
     try {
-      final existing = await _activeBudgetRow();
-      final newId = const Uuid().v4();
+      final existing = await _activeOrLatestBudget();
+      final now = DateTime.now();
+      final budget = _newBudget(
+        name: existing?.name ?? _defaultName,
+        amount: existing?.monthlyAmount ?? 0,
+        currency: existing?.currency ?? _defaultCurrency,
+        color: existing?.color,
+        icon: existing?.icon,
+        now: now,
+      );
 
-      await _database.transaction(() async {
+      await _repository.transaction(() async {
         if (existing != null) {
-          await (_database.update(
-            _database.budgets,
-          )..where((b) => b.id.equals(existing.id))).write(
-            BudgetsCompanion(
-              isArchived: const Value(true),
-              updatedAt: Value(now),
-            ),
-          );
+          await _repository.setBudgetArchived(existing.id, archived: true);
         }
-
-        await _database
-            .into(_database.budgets)
-            .insert(
-              BudgetsCompanion.insert(
-                id: newId,
-                name: 'Personal Budget',
-                // Preserve the previous amount so the new period is valid.
-                monthlyAmount: existing?.monthlyAmount ?? 0,
-                remainingAmount: existing?.monthlyAmount ?? 0,
-                currency: existing?.currency ?? 'INR',
-                startDate: start,
-                endDate: end,
-                createdAt: Value(now),
-                updatedAt: Value(now),
-              ),
-            );
+        await _repository.createBudget(budget);
       });
 
-      // Persist the newly created budget as active (only after success).
-      await _sharedPreferences.setString(_activeBudgetIdKey, newId);
-      return SettingsSuccess(newId);
+      // Only after the transaction committed.
+      await _repository.setActiveBudgetId(budget.id);
+      return SettingsSuccess(budget.id);
     } catch (e) {
       return SettingsError(
         SettingsFailure(
           type: SettingsErrorType.saveFailure,
-          message: 'Failed to reset month: ${e.toString()}',
+          message: 'Failed to reset month: $e',
         ),
       );
     }
   }
 
-  Future<Budget?> _activeBudgetRow() async {
-    final activeId = _sharedPreferences.getString(_activeBudgetIdKey);
-    if (activeId == null) return null;
-    final row = await (_database.select(
-      _database.budgets,
-    )..where((b) => b.id.equals(activeId))).getSingleOrNull();
-    if (row != null) return row;
-    // Fall back to the most recent budget if the stored active id is stale.
-    return (_database.select(
-      _database.budgets,
-    )..orderBy([(b) => OrderingTerm.desc(b.startDate)])).getSingleOrNull();
+  /// The active budget, or — when the stored id is stale — the budget with
+  /// the most recent start date.
+  Future<BudgetEntity?> _activeOrLatestBudget() async {
+    final active = await _repository.getActiveBudget();
+    if (active != null) return active;
+    final all = await _repository.getAllBudgets();
+    if (all.isEmpty) return null;
+    final sorted = [...all]..sort((a, b) => b.startDate.compareTo(a.startDate));
+    return sorted.first;
+  }
+
+  BudgetEntity _newBudget({
+    String name = _defaultName,
+    required double amount,
+    required String currency,
+    String? color,
+    String? icon,
+    required DateTime now,
+  }) {
+    final start = DateTime(now.year, now.month, now.day);
+    return BudgetEntity(
+      id: const Uuid().v4(),
+      name: name,
+      monthlyAmount: amount,
+      remainingAmount: amount,
+      currency: currency,
+      startDate: start,
+      endDate: start.add(newPeriodLength),
+      color: color,
+      icon: icon,
+      createdAt: now,
+      updatedAt: now,
+    );
   }
 }

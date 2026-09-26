@@ -1,33 +1,18 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/budget_error.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/get_budget_analytics_usecase.dart';
 import '../../domain/usecases/get_budget_summary_usecase.dart';
 import '../../domain/services/budget_calculation_service.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'budget_event.dart';
 import 'budget_state.dart';
 
 /// Lightweight event bus for budget switching notifications.
-class BudgetRefreshBus {
-  BudgetRefreshBus._();
-  static final BudgetRefreshBus instance = BudgetRefreshBus._();
-
-  final StreamController<void> _controller = StreamController<void>.broadcast();
-  Stream<void> get changes => _controller.stream;
-
-  void notifyChanged() {
-    if (!_controller.isClosed) {
-      _controller.add(null);
-    }
-  }
-
-  void dispose() => _controller.close();
-}
-
 class BudgetBloc extends Bloc<BudgetEvent, BudgetState> {
   final GetBudgetSummaryUseCase getBudgetSummaryUseCase;
   final GetBudgetAnalyticsUseCase getBudgetAnalyticsUseCase;
@@ -46,14 +31,14 @@ class BudgetBloc extends Bloc<BudgetEvent, BudgetState> {
     on<BudgetSwitchEvent>(_onSwitch);
 
     // Recalculate budget when expenses change so the engine stays in sync.
-    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (!isClosed) {
         add(const BudgetRecalculateEvent());
       }
     });
 
     // Listen for budget switches from other BLoCs.
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (!isClosed) {
         add(const BudgetRecalculateEvent());
       }
@@ -102,7 +87,7 @@ class BudgetBloc extends Bloc<BudgetEvent, BudgetState> {
   ) async {
     emit(state.copyWith(status: BudgetBlocStatus.loading, clearError: true));
     await budgetRepository.setActiveBudgetId(event.budgetId);
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
     await _loadBudgetData(emit);
   }
 
@@ -114,6 +99,29 @@ class BudgetBloc extends Bloc<BudgetEvent, BudgetState> {
       emit(state.copyWith(status: BudgetBlocStatus.loading, clearError: true));
     }
 
+    try {
+      await _loadBudgetDataOrThrow(emit);
+    } catch (error, stackTrace) {
+      // Surface storage failures as an error state instead of an unhandled
+      // exception that leaves the screen loading with no message.
+      developer.log(
+        '[Budget] Failed to load budget data',
+        name: 'Budget',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      emit(
+        state.copyWith(
+          status: BudgetBlocStatus.error,
+          errorMessage: 'Could not load the budget: $error',
+          clearSummary: true,
+          clearAnalytics: true,
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadBudgetDataOrThrow(Emitter<BudgetState> emit) async {
     final activeId = await budgetRepository.getActiveBudgetId();
     if (activeId == null) {
       emit(

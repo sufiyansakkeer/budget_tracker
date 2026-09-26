@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/theme/app_colors_extension.dart';
+import '../../../../../core/theme/contrast.dart';
 import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../widgets/category_visuals.dart';
 import '../../../../../core/widgets/animated_amount.dart';
+import '../../../../../core/widgets/pressable.dart';
 
 /// A single expense row in the history list.
 ///
@@ -19,6 +21,9 @@ class ExpenseHistoryItem extends StatelessWidget {
   final ExpenseEntity expense;
   final ExpenseCategory? category;
   final VoidCallback? onTap;
+
+  /// Press-and-hold opens contextual actions (edit, duplicate, move, delete).
+  final VoidCallback? onLongPress;
 
   /// Budget name to display in combined mode (null = single budget mode).
   final String? budgetName;
@@ -34,6 +39,7 @@ class ExpenseHistoryItem extends StatelessWidget {
     required this.expense,
     this.category,
     this.onTap,
+    this.onLongPress,
     this.budgetName,
     this.onInfoTap,
     this.currency,
@@ -64,9 +70,17 @@ class ExpenseHistoryItem extends StatelessWidget {
           '${hasNote ? expense.note : categoryName}, $categoryName, $amount, '
           '$time${budgetName != null ? ', budget $budgetName' : ''}'
           '${expense.receiptImagePath != null ? ', receipt attached' : ''}',
-      child: ExcludeSemantics(
+      onLongPressHint: onLongPress != null ? 'more actions' : null,
+      // The actions must live on the node that advertises the button, or
+      // "activate" from a screen reader has nothing to invoke.
+      onTap: onTap,
+      onLongPress: onLongPress,
+      excludeSemantics: true,
+      child: Pressable(
+        enabled: onTap != null || onLongPress != null,
         child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           borderRadius: AppSpacing.borderRadiusMd,
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -144,7 +158,6 @@ class ExpenseHistoryItem extends StatelessWidget {
                   IconButton(
                     onPressed: onInfoTap,
                     tooltip: 'Expense and budget details',
-                    visualDensity: VisualDensity.compact,
                     iconSize: AppSizes.iconSm + 2,
                     icon: Icon(
                       Icons.info_outline_rounded,
@@ -180,7 +193,15 @@ class _BudgetTag extends StatelessWidget {
       ),
       child: Text(
         name,
-        style: theme.textTheme.labelSmall?.copyWith(color: color),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: Contrast.ensureContrast(
+            color,
+            Color.alphaBlend(
+              color.withValues(alpha: 0.12),
+              theme.colorScheme.surface,
+            ),
+          ),
+        ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

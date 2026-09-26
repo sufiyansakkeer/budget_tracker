@@ -52,11 +52,23 @@ Remaining Budget = Budget Amount − Total Spent
 
 ---
 
-## Daily Safe Spending (Daily Allowance)
+## Daily Safe Spending (Today's Allowance)
 
 ```
-Daily Allowance = Remaining Budget ÷ Remaining Days
+Daily Safe Spending = (Remaining Budget + Today's Spending) ÷ Remaining Days
 ```
+
+Implemented once, in `BudgetCalculationService.calculateTodaySafeSpending`.
+The dashboard hero, per-budget limits, notifications, the home-screen widget
+and `CalculateDailyAllowanceUseCase` all call it — no other code divides a
+remaining amount by remaining days.
+
+**Why add today's spending back?** The figure is a *limit for today*. Without
+the add-back it would shrink after every purchase (spend ₹300 of a ₹1,000
+limit and the limit itself would drop to ₹986), which made the number feel
+broken. With the add-back the limit stays fixed for the day and today's
+expenses are compared against it ("₹300 spent of ₹1,000"). Tomorrow the limit
+is recomputed from what is genuinely left.
 
 ### Example (early in budget period)
 
@@ -65,11 +77,18 @@ Daily Allowance = Remaining Budget ÷ Remaining Days
 - Remaining Days: 22
 - **Allowance: ₹30,000 ÷ 22 = ₹1,363.64**
 
-### Example (after spending)
+### Example (after spending today)
 
-- Remaining Budget: ₹29,200 (spent ₹800)
-- Remaining Days: 22
-- **Allowance: ₹29,200 ÷ 22 = ₹1,327.27**
+- Total spent: ₹800, all of it today
+- Remaining budget: ₹29,200
+- Remaining days: 22
+- **Allowance: (₹29,200 + ₹800) ÷ 22 = ₹1,363.64** — unchanged by today's spend
+- Spent today ₹800 of ₹1,363.64 → ₹563.64 left today
+
+### Example (spending on earlier days)
+
+- Total spent: ₹800 yesterday, ₹0 today
+- **Allowance: (₹29,200 + ₹0) ÷ 22 = ₹1,327.27**
 
 ---
 

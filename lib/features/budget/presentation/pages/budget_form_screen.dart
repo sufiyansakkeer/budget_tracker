@@ -12,13 +12,14 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
-import '../bloc/budget_bloc.dart';
 import '../widgets/budget_visuals.dart';
+import '../../../../core/events/refresh_bus.dart';
 
 /// Create or edit a budget.
 ///
@@ -57,6 +58,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   String? _dateError;
   String? _saveError;
 
+  final FocusNode _nameFocus = FocusNode();
+
   bool get _isEditing => _budget != null;
 
   @override
@@ -66,7 +69,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     _startDate = DateTime(now.year, now.month, now.day);
     _endDate = _startDate.add(const Duration(days: 30));
     _currency = getIt<CurrencyProvider>().currencyCode;
-    if (widget.budgetId != null) _loadBudget();
+    if (widget.budgetId != null) {
+      _loadBudget();
+    } else {
+      // Keyboard after the page has settled, not during the transition.
+      requestFocusAfterTransition(context, _nameFocus);
+    }
   }
 
   Future<void> _loadBudget() async {
@@ -108,6 +116,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
   @override
   void dispose() {
+    _nameFocus.dispose();
     _nameController.dispose();
     _amountController.dispose();
     _notesController.dispose();
@@ -176,7 +185,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
-          duration: AppMotion.medium,
+          duration: AppMotion.respectReducedMotion(ctx, AppMotion.medium),
           curve: AppMotion.standardCurve,
         );
       }
@@ -223,7 +232,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         // A newly created budget becomes the active one.
         await _manageBudget.setActive(created.id);
       }
-      BudgetRefreshBus.instance.notifyChanged();
+      RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
       HapticFeedback.lightImpact();
       ScaffoldMessenger.of(context)
@@ -283,9 +292,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     // Name
                     TextFormField(
                       controller: _nameController,
+                      focusNode: _nameFocus,
                       textInputAction: TextInputAction.next,
                       textCapitalization: TextCapitalization.words,
-                      autofocus: !_isEditing,
                       decoration: const InputDecoration(
                         labelText: 'Budget name',
                         hintText: 'e.g. Personal, Vacation, Wedding',
@@ -581,24 +590,24 @@ class _DateField extends StatelessWidget {
     return Semantics(
       button: true,
       label: '$label $text',
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              labelText: label,
-              prefixIcon: const Icon(Icons.event_rounded),
-              enabledBorder: hasError
-                  ? theme.inputDecorationTheme.errorBorder
-                  : null,
-            ),
-            child: Text(
-              text,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: const Icon(Icons.event_rounded),
+            enabledBorder: hasError
+                ? theme.inputDecorationTheme.errorBorder
+                : null,
+          ),
+          child: Text(
+            text,
+            style: theme.textTheme.bodyLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),
@@ -684,33 +693,30 @@ class _ColorSwatch extends StatelessWidget {
       button: true,
       selected: selected,
       label: '$name colour',
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: AppSizes.touchTarget,
-            height: AppSizes.touchTarget,
-            child: Center(
-              child: AnimatedContainer(
-                duration: AppMotion.respectReducedMotion(
-                  context,
-                  AppMotion.fast,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: AppSizes.touchTarget,
+          height: AppSizes.touchTarget,
+          child: Center(
+            child: AnimatedContainer(
+              duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+              width: selected ? 36 : 30,
+              height: selected ? 36 : 30,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? theme.colorScheme.onSurface : surface,
+                  width: 2,
                 ),
-                width: selected ? 36 : 30,
-                height: selected ? 36 : 30,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: selected ? theme.colorScheme.onSurface : surface,
-                    width: 2,
-                  ),
-                ),
-                child: selected
-                    ? Icon(Icons.check_rounded, color: onColor, size: 18)
-                    : null,
               ),
+              child: selected
+                  ? Icon(Icons.check_rounded, color: onColor, size: 18)
+                  : null,
             ),
           ),
         ),

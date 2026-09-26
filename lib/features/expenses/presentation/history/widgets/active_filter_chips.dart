@@ -44,6 +44,15 @@ class ActiveFilterChips extends StatelessWidget {
               onChanged(filter.copyWithDateFrom(null).copyWithDateTo(null)),
         ),
       );
+    } else if (filter.dateFrom != null && filter.dateTo != null) {
+      // A custom range reads as one chip: "12 Mar – 15 Mar".
+      chips.add(
+        _chip(
+          label: formatFilterDateRange(filter.dateFrom!, filter.dateTo!),
+          onDeleted: () =>
+              onChanged(filter.copyWithDateRange(from: null, to: null)),
+        ),
+      );
     } else {
       if (filter.dateFrom != null) {
         chips.add(
@@ -123,7 +132,19 @@ class ActiveFilterChips extends StatelessWidget {
       onDeleted: onDeleted,
       deleteIconColor: null,
       deleteButtonTooltipMessage: 'Remove $label filter',
-      visualDensity: VisualDensity.compact,
     );
   }
+}
+
+/// Compact label for a date range: "12 Mar" for a single day, "12 Mar – 15
+/// Mar" within one year, and years only when the range spans two.
+String formatFilterDateRange(DateTime from, DateTime to) {
+  final sameDay =
+      from.year == to.year && from.month == to.month && from.day == to.day;
+  if (sameDay) return DateFormat('d MMM').format(from);
+  if (from.year == to.year) {
+    return '${DateFormat('d MMM').format(from)} – ${DateFormat('d MMM').format(to)}';
+  }
+  final fmt = DateFormat('d MMM yyyy');
+  return '${fmt.format(from)} – ${fmt.format(to)}';
 }

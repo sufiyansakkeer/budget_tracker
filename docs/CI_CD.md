@@ -4,7 +4,7 @@
 
 `ci.yml` runs on every pull request and on pushes to `developer`. It installs Flutter 3.32.8, runs `pub get`, regenerates Drift/Freezed/JSON sources, checks that generated files are committed, formats, analyzes, tests, and uploads coverage.
 
-Pushes to `developer` additionally run the Android and unsigned iOS development build workflows. There are no configured flavors, so each build uses the default Runner/Android release configuration. A push to `developer` never creates a production release.
+Pushes to `developer` additionally run the Android and unsigned iOS development build workflows. Both Android workflows install NDK `29.0.14206865` with `sdkmanager` before building, because the release binaries must be linked for 16 KB memory pages (see the README's "16 KB page-size compatibility" section); the version must match `ndkVersion` in `android/app/build.gradle.kts` and `rive.ndk.version` in `android/gradle.properties`. There are no configured flavors, so each build uses the default Runner/Android release configuration. A push to `developer` never creates a production release.
 
 Every push to `main` runs `release.yml`. A concurrency lock refreshes the latest `main`, calculates the next patch version and build number, validates, builds a signed Android APK/AAB with Flutter build overrides, then commits the new `pubspec.yaml` version, creates the matching tag, and creates or updates the GitHub Release. The version commit contains `[skip ci]`, so it cannot start another production release.
 
@@ -39,7 +39,7 @@ No repository or environment variables are required. The CI workflows pin `FLUTT
 
 ## Versioning and releases
 
-The current version is `1.0.2+2` in `pubspec.yaml`. Each successful `main` release increments the patch and build components: `1.0.2+2` becomes `1.0.3+3`. `pubspec.yaml` is the only version source. Flutter maps the name to Android `versionName`/iOS `CFBundleShortVersionString` and the build number to Android `versionCode`/iOS `CFBundleVersion`; the release build also passes both values explicitly to Flutter.
+The version lives only in `pubspec.yaml` (`1.3.0+8` at the time of writing). Each successful `main` release increments the patch and build components: `1.3.0+8` becomes `1.3.1+9`. `pubspec.yaml` is the only version source. Flutter maps the name to Android `versionName`/iOS `CFBundleShortVersionString` and the build number to Android `versionCode`/iOS `CFBundleVersion`; the release build also passes both values explicitly to Flutter.
 
 Do not create release tags manually for normal production releases. The workflow creates `v1.0.3` from `1.0.3+3`:
 
@@ -56,7 +56,7 @@ Use `developer` for integration, `main` for production-ready code, and `vX.Y.Z` 
 1. Create or rename the integration branch to `developer` if it does not already exist.
 2. Add the four Android signing secrets and create the `production` environment.
 3. Open a pull request from `developer` into `main` and wait for CI to pass.
-4. Merge the pull request. With the current `1.0.2+2`, Actions builds `1.0.3+3`, commits that version, creates `v1.0.3`, and publishes the APK/AAB release.
+4. Merge the pull request. With `1.3.0+8` in `pubspec.yaml`, Actions builds `1.3.1+9`, commits that version, creates `v1.3.1`, and publishes the APK/AAB release.
 5. Download the APK/AAB from the GitHub Release and verify the version shown by the installed app/store metadata.
 
 To test CI safely, push a small change to `developer` or open a pull request. To test production without merging application changes, use a temporary protected test repository or a disposable `main` branch; the production workflow intentionally creates a real version commit, tag, and release.

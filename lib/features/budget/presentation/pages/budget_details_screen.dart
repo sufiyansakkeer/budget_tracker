@@ -19,15 +19,15 @@ import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/status_chip.dart';
-import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
-import '../bloc/budget_bloc.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_fab.dart';
+import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Entry point for a selected budget: amount, progress, period, status and
 /// actions (edit, set active, archive, duplicate, delete, add expense).
@@ -57,10 +57,10 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   void initState() {
     super.initState();
     _load();
-    _expenseSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _expenseSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (mounted) _load(silent: true);
     });
-    _budgetSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (mounted) _load(silent: true);
     });
   }
@@ -124,7 +124,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
 
   Future<void> _setActive() => _run(() async {
     await _manageBudget.setActive(widget.budgetId);
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
     if (!mounted) return;
     setState(() => _isActive = true);
     _notify('${_budget?.name ?? 'Budget'} is now your active budget');
@@ -132,7 +132,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
 
   Future<void> _archive() => _run(() async {
     await _manageBudget.archive(widget.budgetId, archived: true);
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
     if (!mounted) return;
     setState(() => _budget = _budget?.copyWith(isArchived: true));
     _notify('Budget archived');
@@ -140,50 +140,24 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
 
   Future<void> _restore() => _run(() async {
     await _manageBudget.archive(widget.budgetId, archived: false);
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
     if (!mounted) return;
     setState(() => _budget = _budget?.copyWith(isArchived: false));
     _notify('Budget restored');
   });
 
   Future<void> _duplicate() async {
-    final nameController = TextEditingController(
-      text: '${_budget!.name} (Copy)',
+    final name = await AppDialog.show<String>(
+      context: context,
+      builder: (context) =>
+          _DuplicateBudgetDialog(initialName: '${_budget!.name} (Copy)'),
     );
-    try {
-      final name = await AppDialog.show<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Duplicate budget'),
-          content: TextField(
-            controller: nameController,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'New budget name'),
-            onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(nameController.text.trim()),
-              child: const Text('Duplicate'),
-            ),
-          ],
-        ),
-      );
-      if (name == null || name.isEmpty || !mounted) return;
-      await _run(() async {
-        await _manageBudget.duplicate(widget.budgetId, newName: name);
-        BudgetRefreshBus.instance.notifyChanged();
-        if (mounted) _notify('Created "$name"');
-      });
-    } finally {
-      nameController.dispose();
-    }
+    if (name == null || name.isEmpty || !mounted) return;
+    await _run(() async {
+      await _manageBudget.duplicate(widget.budgetId, newName: name);
+      RefreshBuses.budgets.notifyChanged();
+      if (mounted) _notify('Created "$name"');
+    });
   }
 
   Future<void> _delete() async {
@@ -199,8 +173,13 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     );
     if (!confirmed || !mounted) return;
     await _run(() async {
+      // Stop reacting to the buses first: the delete notifies them, and a
+      // reload of a budget that no longer exists would flash "Budget not
+      // found" during the pop animation.
+      _expenseSubscription?.cancel();
+      _budgetSubscription?.cancel();
       await _manageBudget.delete(widget.budgetId);
-      BudgetRefreshBus.instance.notifyChanged();
+      RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
       _notify('Budget deleted');
       context.pop(true);
@@ -220,7 +199,9 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
               icon: const Icon(Icons.edit_outlined),
               onPressed: _busy
                   ? null
-                  : () => context.push('/app/budgets/${widget.budgetId}/edit'),
+                  : () => context.pushUnique(
+                      '/app/budgets/${widget.budgetId}/edit',
+                    ),
             ),
             PopupMenuButton<String>(
               enabled: !_busy,
@@ -289,7 +270,9 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       floatingActionButton: budget != null && !budget.isArchived
           ? AppFab(
               heroTag: 'budget_details_fab',
-              onPressed: _busy ? null : () => context.push('/app/expenses/add'),
+              onPressed: _busy
+                  ? null
+                  : () => context.pushUnique('/app/expenses/add'),
               icon: Icons.add_rounded,
               label: 'Add expense',
             )
@@ -713,6 +696,54 @@ class _StatTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Owns its text controller so it outlives the dialog's exit animation; a
+/// controller disposed the moment the dialog returns is still in use by the
+/// field while the dialog fades out.
+class _DuplicateBudgetDialog extends StatefulWidget {
+  final String initialName;
+
+  const _DuplicateBudgetDialog({required this.initialName});
+
+  @override
+  State<_DuplicateBudgetDialog> createState() => _DuplicateBudgetDialogState();
+}
+
+class _DuplicateBudgetDialogState extends State<_DuplicateBudgetDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialName,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Duplicate budget'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(labelText: 'New budget name'),
+        onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Duplicate'),
+        ),
+      ],
     );
   }
 }

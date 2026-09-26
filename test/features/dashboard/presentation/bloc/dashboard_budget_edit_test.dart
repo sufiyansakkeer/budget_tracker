@@ -8,7 +8,6 @@ import 'package:monivo/features/budget/data/repository/budget_repository_impl.da
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
-import 'package:monivo/features/budget/presentation/bloc/budget_bloc.dart';
 import 'package:monivo/features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
 import 'package:monivo/features/dashboard/data/repository/dashboard_repository_impl.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
@@ -21,13 +20,14 @@ import 'package:monivo/features/expenses/data/datasource/expense_local_datasourc
 import 'package:monivo/features/expenses/data/repository/expense_repository_impl.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../helpers/in_memory_database.dart';
 
 /// Verifies that the Dashboard rebuilds with the updated budget amount after
 /// a budget is edited through the normal ManageBudgetUseCase → repository
-/// flow followed by the existing BudgetRefreshBus notification — the exact
+/// flow followed by the existing RefreshBuses.budgets notification — the exact
 /// sequence BudgetFormScreen performs on save.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -130,7 +130,7 @@ void main() {
     await manageBudget.update(
       loaded!.copyWith(monthlyAmount: newAmount, updatedAt: DateTime.now()),
     );
-    BudgetRefreshBus.instance.notifyChanged();
+    RefreshBuses.budgets.notifyChanged();
   }
 
   Future<DashboardLoaded> nextLoaded() {
@@ -226,7 +226,7 @@ void main() {
       // Switching to b afterwards shows the updated values immediately.
       final switched = nextLoaded();
       await manageBudget.setActive('b');
-      BudgetRefreshBus.instance.notifyChanged();
+      RefreshBuses.budgets.notifyChanged();
       final afterSwitch = await switched;
       expect(afterSwitch.budgetSummary.monthlyAmount, 8000);
       expect(afterSwitch.budgetSummary.remainingBudget, 3000);

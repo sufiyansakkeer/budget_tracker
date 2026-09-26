@@ -24,6 +24,7 @@ import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
 import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
+import '../../../../core/navigation/push_unique.dart';
 
 /// Detailed view of a single bill.
 class BillDetailsScreen extends StatefulWidget {
@@ -181,7 +182,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
                 tooltip: 'Edit bill',
                 onPressed: state.isBusy
                     ? null
-                    : () => context.push('/app/bills/edit/${bill.id}'),
+                    : () => context.pushUnique('/app/bills/edit/${bill.id}'),
               );
             },
           ),

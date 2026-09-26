@@ -9,6 +9,7 @@ import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../settings/domain/entities/settings_failure.dart';
@@ -56,6 +57,8 @@ class _BillFormScreenState extends State<BillFormScreen> {
   BillEntity? _original;
   bool _populated = false;
 
+  final FocusNode _titleFocus = FocusNode();
+
   bool get _isEditing => widget.billId != null;
 
   @override
@@ -68,6 +71,8 @@ class _BillFormScreenState extends State<BillFormScreen> {
       // New bills default to being due today so the form saves in one tap.
       final now = DateTime.now();
       _dueDate = DateTime(now.year, now.month, now.day);
+      // Keyboard after the page has settled, not during the transition.
+      requestFocusAfterTransition(context, _titleFocus);
     }
   }
 
@@ -86,6 +91,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
 
   @override
   void dispose() {
+    _titleFocus.dispose();
     _titleController.dispose();
     _amountController.dispose();
     _noteController.dispose();
@@ -155,7 +161,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
-          duration: AppMotion.medium,
+          duration: AppMotion.respectReducedMotion(ctx, AppMotion.medium),
           curve: AppMotion.standardCurve,
         );
       }
@@ -294,7 +300,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
                 // What
                 TextFormField(
                   controller: _titleController,
-                  autofocus: !_isEditing,
+                  focusNode: _titleFocus,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
@@ -662,30 +668,30 @@ class _PickerField extends StatelessWidget {
     return Semantics(
       button: true,
       label: '$label, $value',
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              labelText: label,
-              prefixIcon: Icon(icon),
-              errorText: errorText,
-              helperText: hint,
-              suffixIcon: onClear == null
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear',
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: onClear,
-                    ),
-            ),
-            child: Text(
-              value,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon),
+            errorText: errorText,
+            helperText: hint,
+            suffixIcon: onClear == null
+                ? null
+                : IconButton(
+                    tooltip: 'Clear',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: onClear,
+                  ),
+          ),
+          child: Text(
+            value,
+            style: theme.textTheme.bodyLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),

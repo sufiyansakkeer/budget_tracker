@@ -11,6 +11,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -26,8 +27,12 @@ import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
 import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
+import '../../../../core/navigation/push_unique.dart';
 
-/// Add/Edit expense form. Pass [expenseId] to edit an existing expense.
+/// Add/Edit expense form. Pass [expenseId] to edit an existing expense, or
+/// [copyFromId] to start a new expense pre-filled from another one (its
+/// amount, category, note, tags and budget; the date is today and no receipt
+/// is copied).
 ///
 /// Priority order on screen: amount → category → date & time → optional
 /// details (budget, note, tags, receipt). Date and time are pre-filled by the
@@ -36,8 +41,13 @@ import '../widgets/tag_input_field.dart';
 /// inside the selected budget's period.
 class ExpenseFormScreen extends StatefulWidget {
   final String? expenseId;
+  final String? copyFromId;
 
-  const ExpenseFormScreen({super.key, this.expenseId});
+  const ExpenseFormScreen({super.key, this.expenseId, this.copyFromId})
+    : assert(
+        expenseId == null || copyFromId == null,
+        'Edit or duplicate, not both',
+      );
 
   @override
   State<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
@@ -72,7 +82,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   bool _populated = false;
   bool _justSaved = false;
 
+  final FocusNode _amountFocus = FocusNode();
+
   bool get _isEditing => widget.expenseId != null;
+  bool get _isDuplicating => widget.copyFromId != null;
 
   @override
   void initState() {
@@ -83,10 +96,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (!_isEditing) bloc.add(const ExpenseInitialize());
     _loadBudgets();
     if (_isEditing) bloc.add(ExpenseLoadById(widget.expenseId!));
+    if (_isDuplicating) bloc.add(ExpenseLoadById(widget.copyFromId!));
+    // Keyboard after the page has settled, not during the transition.
+    if (!_isEditing) requestFocusAfterTransition(context, _amountFocus);
   }
 
   @override
   void dispose() {
+    _amountFocus.dispose();
     _amountController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -124,6 +141,19 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   String get _currencySymbol =>
       CurrencyFormatter.symbolFor(_selectedBudget?.currency);
+
+  /// Pre-fills a *new* expense from [source]: what was bought and for which
+  /// budget, but dated now and without the receipt file.
+  void _populateAsCopy(ExpenseEntity source) {
+    setState(() {
+      _amountController.text = _formatAmountForInput(source.amount);
+      _noteController.text = source.note ?? '';
+      _selectedCategoryId = source.categoryId;
+      _tags = List.of(source.tags);
+      _selectedBudgetId = source.budgetId;
+      _populated = true;
+    });
+  }
 
   void _populateFromExpense(ExpenseEntity expense) {
     setState(() {
@@ -172,7 +202,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (ctx == null) return;
     Scrollable.ensureVisible(
       ctx,
-      duration: AppMotion.medium,
+      duration: AppMotion.respectReducedMotion(ctx, AppMotion.medium),
       curve: AppMotion.standardCurve,
       alignment: 0.1,
     );
@@ -263,7 +293,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit expense' : 'Add expense'),
+        title: Text(
+          _isEditing
+              ? 'Edit expense'
+              : _isDuplicating
+              ? 'Duplicate expense'
+              : 'Add expense',
+        ),
         leading: IconButton(
           tooltip: 'Close',
           icon: const Icon(Icons.close_rounded),
@@ -287,9 +323,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
           }
 
-          // Populate once the expense loads for editing.
+          // Populate once the expense loads for editing / duplicating.
           if (_isEditing && !_populated && state.expense != null) {
             _populateFromExpense(state.expense!);
+          } else if (_isDuplicating &&
+              !_populated &&
+              state.expense?.id == widget.copyFromId) {
+            _populateAsCopy(state.expense!);
           }
 
           // Apply the BLoC-provided default date/time for new expenses.
@@ -308,7 +348,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         builder: (context, state) {
           final isSaving = state.isBusy;
 
-          if (_isEditing &&
+          if ((_isEditing || _isDuplicating) &&
               !_populated &&
               state.status == ExpenseBlocStatus.loading) {
             return const FormSkeleton(rows: 5);
@@ -328,9 +368,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                     key: _amountKey,
                     child: ExpenseAmountField(
                       controller: _amountController,
+                      focusNode: _amountFocus,
                       currencySymbol: _currencySymbol,
                       errorText: _amountError,
-                      autofocus: !_isEditing,
                       onChanged: (value) => setState(() {
                         _amountError = value.isEmpty
                             ? null
@@ -433,7 +473,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         message: 'Create a budget before adding expenses.',
         trailing: TextButton(
           onPressed: () async {
-            await context.push('/app/budgets/create');
+            await context.pushUnique('/app/budgets/create');
             if (mounted) _loadBudgets();
           },
           child: const Text('Create'),

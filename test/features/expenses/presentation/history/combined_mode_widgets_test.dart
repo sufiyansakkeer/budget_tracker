@@ -73,6 +73,8 @@ class FakeRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async => expenses;
   @override
   Future<List<ExpenseEntity>> getExpensesForBudgets({
@@ -83,6 +85,9 @@ class FakeRepository implements ExpenseRepository {
 }
 
 class FakeBudgetRepo implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   final List<BudgetEntity> budgets;
   FakeBudgetRepo(this.budgets);
 

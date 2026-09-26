@@ -10,6 +10,9 @@ class DataManagementCard extends StatelessWidget {
   final VoidCallback? onImportJson;
   final VoidCallback? onBackup;
   final VoidCallback? onRestore;
+
+  /// Runs the integrity check. Hidden when null.
+  final VoidCallback? onCheckIntegrity;
   final bool isBusy;
 
   const DataManagementCard({
@@ -20,6 +23,7 @@ class DataManagementCard extends StatelessWidget {
     this.onImportJson,
     this.onBackup,
     this.onRestore,
+    this.onCheckIntegrity,
     this.isBusy = false,
   });
 
@@ -64,6 +68,25 @@ class DataManagementCard extends StatelessWidget {
           ],
           busy: isBusy,
         ),
+        if (onCheckIntegrity != null) ...[
+          const Divider(height: AppSpacing.lg),
+          _ActionRow(
+            icon: Icons.health_and_safety_outlined,
+            title: 'Database health',
+            description:
+                'Looks for expenses, bills or budgets that no longer link '
+                'up correctly.',
+            actions: [
+              _Action(
+                'Check now',
+                Icons.fact_check_outlined,
+                onCheckIntegrity,
+                key: const Key('checkIntegrityButton'),
+              ),
+            ],
+            busy: isBusy,
+          ),
+        ],
         if (isBusy) ...[
           const SizedBox(height: AppSpacing.md),
           const LinearProgressIndicator(minHeight: AppSizes.progressThin),
@@ -77,7 +100,8 @@ class _Action {
   final String label;
   final IconData icon;
   final VoidCallback? onPressed;
-  const _Action(this.label, this.icon, this.onPressed);
+  final Key? key;
+  const _Action(this.label, this.icon, this.onPressed, {this.key});
 }
 
 class _ActionRow extends StatelessWidget {
@@ -128,6 +152,7 @@ class _ActionRow extends StatelessWidget {
                 if (i > 0) const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton.icon(
+                    key: actions[i].key,
                     onPressed: busy ? null : actions[i].onPressed,
                     icon: Icon(actions[i].icon, size: AppSizes.iconSm + 2),
                     label: Text(

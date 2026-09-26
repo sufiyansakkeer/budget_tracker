@@ -42,6 +42,21 @@ class FakeBillRepository implements BillRepository {
       payments.where((p) => p.billId == billId).toList();
 
   @override
+  Future<List<BillEntity>> getUpcomingBills({
+    DateTime? from,
+    int limit = 3,
+  }) async {
+    final now = from ?? DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final upcoming =
+        (await getBills())
+            .where((b) => !b.isPaid && !b.dueDate.isBefore(today))
+            .toList()
+          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return upcoming.take(limit).toList();
+  }
+
+  @override
   Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
 
   @override

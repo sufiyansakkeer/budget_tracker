@@ -81,6 +81,8 @@ class FakeRepository implements ExpenseRepository {
     String? budgetId,
     int? month,
     int? year,
+    DateTime? from,
+    DateTime? to,
   }) async {
     if (budgetId != null) {
       return allExpenses.where((e) => e.budgetId == budgetId).toList();
@@ -98,6 +100,9 @@ class FakeRepository implements ExpenseRepository {
 }
 
 class FakeBudgetRepo implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   final List<BudgetEntity> budgets;
   final String? activeBudgetId;
 

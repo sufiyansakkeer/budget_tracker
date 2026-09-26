@@ -28,7 +28,7 @@ ExpenseEntity expense({
 
 void main() {
   const service = AnalyticsService();
-  const categories = defaultCategories;
+  final categories = defaultCategories;
 
   group('calculateOverview', () {
     test('returns empty for no expenses', () {

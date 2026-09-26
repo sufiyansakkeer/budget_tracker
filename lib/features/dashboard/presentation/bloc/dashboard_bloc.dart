@@ -1,21 +1,20 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../budget/domain/entities/budget_error.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
 import '../../../budget/domain/usecases/get_budget_summary_usecase.dart';
-import '../../../budget/presentation/bloc/budget_bloc.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/repository/bill_repository.dart';
-import '../../../bills/presentation/bloc/bill_refresh_bus.dart';
-import '../../../expenses/presentation/bloc/expense_refresh_bus.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/spending_target_entity.dart';
 import '../../domain/entities/spending_target_status.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
 import '../../domain/usecases/get_spending_targets_usecase.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
@@ -39,19 +38,19 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<DashboardRefresh>(_onRefresh);
 
     // Auto-refresh when expenses change (created, updated, or deleted).
-    _refreshSubscription = ExpenseRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
       if (!isClosed) {
         add(const DashboardRefresh());
       }
     });
 
-    _budgetSwitchSubscription = BudgetRefreshBus.instance.changes.listen((_) {
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
       if (!isClosed) {
         add(const DashboardRefresh());
       }
     });
 
-    _billRefreshSubscription = BillRefreshBus.instance.changes.listen((_) {
+    _billRefreshSubscription = RefreshBuses.bills.changes.listen((_) {
       if (!isClosed) {
         add(const DashboardRefresh());
       }
@@ -70,6 +69,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     return super.close();
   }
 
+  /// Incremented by every load. Three buses can each trigger a refresh
+  /// while another is in flight; only the latest load may publish, or an
+  /// older result landing last would make the numbers animate backwards.
+  int _loadToken = 0;
+
   Future<void> _onLoadData(
     DashboardLoadData event,
     Emitter<DashboardState> emit,
@@ -82,23 +86,54 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     DashboardRefresh event,
     Emitter<DashboardState> emit,
   ) async {
-    // Keep the current content on screen while refreshing so the dashboard
-    // never flashes back to a skeleton after adding an expense. Only the
-    // first load shows the skeleton.
-    if (state is! DashboardLoaded) {
-      emit(const DashboardLoading());
+    try {
+      // Keep the current content on screen while refreshing so the dashboard
+      // never flashes back to a skeleton after adding an expense. Only the
+      // first load shows the skeleton.
+      if (state is! DashboardLoaded) {
+        emit(const DashboardLoading());
+      }
+      await _load(emit);
+    } finally {
+      event.completion?.complete();
     }
-    await _load(emit);
   }
 
+  /// Loads everything the dashboard shows. A failure anywhere in the
+  /// storage stack becomes a [DashboardError] with the real message rather
+  /// than an unhandled exception that would leave the screen on its loading
+  /// skeleton forever with nothing in the log. A failed *refresh* keeps the
+  /// data already on screen instead of swapping the whole page for the
+  /// error view.
   Future<void> _load(Emitter<DashboardState> emit) async {
+    final token = ++_loadToken;
+    try {
+      await _loadOrThrow(emit, isCurrent: () => token == _loadToken);
+    } catch (error, stackTrace) {
+      developer.log(
+        '[Dashboard] Failed to load dashboard data',
+        name: 'Dashboard',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (token != _loadToken || state is DashboardLoaded) return;
+      emit(DashboardError(message: 'Could not load your dashboard: $error'));
+    }
+  }
+
+  Future<void> _loadOrThrow(
+    Emitter<DashboardState> emit, {
+    required bool Function() isCurrent,
+  }) async {
     final activeId = await budgetRepository.getActiveBudgetId();
+    if (!isCurrent()) return;
     if (activeId == null) {
       emit(const DashboardEmpty());
       return;
     }
 
     final budgetResult = await getBudgetSummaryUseCase(budgetId: activeId);
+    if (!isCurrent()) return;
 
     switch (budgetResult) {
       case BudgetError(:final failure):
@@ -113,13 +148,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         // Load upcoming bills for dashboard summary.
         List<BillEntity> upcomingBills = [];
         try {
-          final allBills = await billRepository.getBills();
-          final now = DateTime.now();
-          final today = DateTime(now.year, now.month, now.day);
-          upcomingBills = allBills
-              .where((b) => !b.isPaid && !b.dueDate.isBefore(today))
-              .take(3)
-              .toList();
+          // Soonest first, straight from the due-date index.
+          upcomingBills = await billRepository.getUpcomingBills();
         } catch (_) {
           // Bills unavailable — not critical for dashboard.
         }
@@ -144,6 +174,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           spendingTarget: spendingTarget,
           budgetDailyLimits: budgetDailyLimits,
         );
+
+        // A newer load started while this one was awaiting; let it publish.
+        if (!isCurrent()) return;
 
         emit(
           DashboardLoaded(

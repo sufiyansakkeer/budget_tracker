@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
@@ -31,10 +32,19 @@ class Pressable extends StatefulWidget {
 
 class _PressableState extends State<Pressable> {
   bool _pressed = false;
+  Offset? _downPosition;
 
   void _set(bool value) {
     if (!widget.enabled || _pressed == value) return;
     setState(() => _pressed = value);
+  }
+
+  void _onMove(PointerMoveEvent event) {
+    final down = _downPosition;
+    if (down == null || !_pressed) return;
+    // A drag past the touch slop is a scroll or swipe, not a press: let the
+    // surface go so it does not stay shrunk under the finger.
+    if ((event.position - down).distance > kTouchSlop) _set(false);
   }
 
   @override
@@ -47,7 +57,11 @@ class _PressableState extends State<Pressable> {
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.deferToChild,
-      onPointerDown: (_) => _set(true),
+      onPointerDown: (event) {
+        _downPosition = event.position;
+        _set(true);
+      },
+      onPointerMove: _onMove,
       onPointerUp: (_) => _set(false),
       onPointerCancel: (_) => _set(false),
       child: AnimatedScale(

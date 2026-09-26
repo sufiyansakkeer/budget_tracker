@@ -75,12 +75,7 @@ class SettingsSection extends StatelessWidget {
             child: Column(
               children: [
                 for (var i = 0; i < children.length; i++) ...[
-                  if (i > 0)
-                    Divider(
-                      color: theme.colorScheme.outlineVariant.withValues(
-                        alpha: 0.5,
-                      ),
-                    ),
+                  if (i > 0) Divider(color: theme.colorScheme.outlineVariant),
                   children[i],
                 ],
               ],

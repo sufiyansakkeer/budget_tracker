@@ -53,67 +53,69 @@ class _ThemeOptionTile extends StatelessWidget {
       button: true,
       selected: selected,
       label: '${option.label}, ${option.description}',
-      child: ExcludeSemantics(
-        child: Pressable(
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: AppSpacing.borderRadiusMd,
-            child: AnimatedContainer(
-              duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
-              curve: AppMotion.standardCurve,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.smd,
-                vertical: AppSpacing.smd,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Pressable(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppSpacing.borderRadiusMd,
+          child: AnimatedContainer(
+            duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
+            curve: AppMotion.standardCurve,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.smd,
+              vertical: AppSpacing.smd,
+            ),
+            decoration: BoxDecoration(
+              color: selected
+                  ? scheme.primaryContainer
+                  : scheme.surfaceContainer,
+              borderRadius: AppSpacing.borderRadiusMd,
+              border: Border.all(
+                color: selected ? scheme.primary : Colors.transparent,
               ),
-              decoration: BoxDecoration(
-                color: selected
-                    ? scheme.primaryContainer.withValues(alpha: 0.6)
-                    : scheme.surfaceContainer,
-                borderRadius: AppSpacing.borderRadiusMd,
-                border: Border.all(
-                  color: selected ? scheme.primary : Colors.transparent,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  option.icon,
+                  color: selected
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    option.icon,
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: AppSpacing.smd),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(option.label, style: theme.textTheme.titleSmall),
-                        Text(
-                          option.description,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
+                const SizedBox(width: AppSpacing.smd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(option.label, style: theme.textTheme.titleSmall),
+                      Text(
+                        option.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  AnimatedSwitcher(
-                    duration: AppMotion.respectReducedMotion(
-                      context,
-                      AppMotion.fast,
-                    ),
-                    child: selected
-                        ? Icon(
-                            Icons.check_circle,
-                            key: const ValueKey('on'),
-                            color: scheme.primary,
-                          )
-                        : Icon(
-                            Icons.radio_button_off_rounded,
-                            key: const ValueKey('off'),
-                            color: scheme.onSurfaceVariant,
-                          ),
+                ),
+                AnimatedSwitcher(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.fast,
                   ),
-                ],
-              ),
+                  child: selected
+                      ? Icon(
+                          Icons.check_circle,
+                          key: const ValueKey('on'),
+                          color: scheme.onPrimaryContainer,
+                        )
+                      : Icon(
+                          Icons.radio_button_off_rounded,
+                          key: const ValueKey('off'),
+                          color: scheme.onSurfaceVariant,
+                        ),
+                ),
+              ],
             ),
           ),
         ),

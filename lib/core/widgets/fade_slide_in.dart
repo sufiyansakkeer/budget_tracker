@@ -38,11 +38,24 @@ class FadeSlideIn extends StatefulWidget {
 }
 
 class _FadeSlideInState extends State<FadeSlideIn> {
-  late final bool _animate = widget.animate;
+  bool? _animate;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Decided once, on mount. A row that mounts while its tab is hidden
+    // (tickers paused, e.g. a refresh triggered from another tab) renders in
+    // place: otherwise the entrance would sit frozen at zero opacity and
+    // play on top of the tab transition when the user comes back.
+    _animate ??=
+        widget.animate &&
+        TickerMode.of(context) &&
+        !AppMotion.isReduced(context);
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!_animate || AppMotion.isReduced(context)) return widget.child;
+    if (_animate != true) return widget.child;
 
     final delay = AppMotion.staggerStep * widget.index.clamp(0, 8);
     final total = AppMotion.medium + delay;

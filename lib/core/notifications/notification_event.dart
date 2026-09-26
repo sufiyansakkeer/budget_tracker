@@ -34,3 +34,10 @@ class NotificationSchedule extends NotificationEvent {
 class NotificationCancel extends NotificationEvent {
   const NotificationCancel();
 }
+
+/// Re-reads settings and re-schedules the daily notifications so their text
+/// reflects the latest expenses and budgets. Fired (debounced) after data
+/// changes; only acts while notifications are ready.
+class NotificationRefreshSchedule extends NotificationEvent {
+  const NotificationRefreshSchedule();
+}

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:csv/csv.dart';
+import 'package:drift/drift.dart' show OrderingTerm;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -21,34 +22,52 @@ class ExportService {
 
   ExportService({required AppDatabase database}) : _database = database;
 
-  /// Collects the raw table data into a row list suitable for CSV export.
-  /// This stays pure (no platform channels) so it can be unit tested.
+  /// CSV header written by [collectCsvRows]. [ImportService.importCsv] reads
+  /// the same names, so an export can always be re-imported.
+  static const List<String> csvHeader = [
+    'id',
+    'date',
+    'time',
+    'amount',
+    'currency',
+    'category',
+    'categoryId',
+    'budget',
+    'budgetId',
+    'note',
+    'tags',
+    'receipt',
+  ];
+
+  /// One expense per row with its category and budget resolved to names, so
+  /// the file opens cleanly in a spreadsheet. Pure (no platform channels) so
+  /// it can be unit tested.
   Future<List<List<Object?>>> collectCsvRows() async {
-    final expenses = await (_database.select(_database.expenses)).get();
+    final expenses = await (_database.select(
+      _database.expenses,
+    )..orderBy([(e) => OrderingTerm.desc(e.date)])).get();
     final categories = await (_database.select(_database.categories)).get();
     final budgets = await (_database.select(_database.budgets)).get();
+    final categoryById = {for (final c in categories) c.id: c};
+    final budgetById = {for (final b in budgets) b.id: b};
 
     return <List<Object?>>[
-      ['Expenses', 'Budget', 'Categories', 'Settings'],
-      ['id', 'amount', 'categoryId', 'note', 'date', 'time', 'tags'],
+      csvHeader,
       for (final e in expenses)
         [
           e.id,
-          e.amount,
-          e.categoryId,
-          e.note ?? '',
           e.date.toIso8601String(),
           e.time.toIso8601String(),
+          e.amount,
+          budgetById[e.budgetId]?.currency ?? '',
+          categoryById[e.categoryId]?.name ?? e.categoryId,
+          e.categoryId,
+          budgetById[e.budgetId]?.name ?? '',
+          e.budgetId,
+          e.note ?? '',
           e.tags ?? '',
+          e.receiptImagePath ?? '',
         ],
-      [],
-      ['Budget', 'monthlyAmount', 'currency', 'month', 'year'],
-      for (final b in budgets)
-        [b.id, b.monthlyAmount, b.currency, b.month, b.year],
-      [],
-      ['Category', 'name', 'icon', 'colorHex', 'isSystem'],
-      for (final c in categories)
-        [c.id, c.name, c.icon, c.colorHex, '${c.isSystem}'],
     ];
   }
 
@@ -67,12 +86,18 @@ class ExportService {
           .map(
             (b) => {
               'id': b.id,
+              'name': b.name,
               'monthlyAmount': b.monthlyAmount,
               'remainingAmount': b.remainingAmount,
               'currency': b.currency,
-              'month': b.month,
-              'year': b.year,
+              'startDate': b.startDate.toIso8601String(),
+              'endDate': b.endDate.toIso8601String(),
+              'isArchived': b.isArchived,
+              'color': b.color,
+              'icon': b.icon,
+              'notes': b.notes,
               'createdAt': b.createdAt.toIso8601String(),
+              'updatedAt': b.updatedAt.toIso8601String(),
             },
           )
           .toList(),
@@ -91,6 +116,7 @@ class ExportService {
           .map(
             (e) => {
               'id': e.id,
+              'budgetId': e.budgetId,
               'amount': e.amount,
               'categoryId': e.categoryId,
               'note': e.note,

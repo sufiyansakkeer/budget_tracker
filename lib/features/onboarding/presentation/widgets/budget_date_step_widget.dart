@@ -62,51 +62,51 @@ class BudgetDateStepWidget extends StatelessWidget {
             label:
                 'Selected date ${DateFormat('d MMMM yyyy').format(date)}. '
                 'Tap to change',
-            child: ExcludeSemantics(
-              child: AppCard(
-                onTap: () => _pickDate(context),
-                child: Row(
-                  children: [
-                    IconTile(
-                      icon: Icons.calendar_month_rounded,
-                      color: hasError
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: AppSpacing.smd),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            DateFormat('EEEE').format(date),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          Text(
-                            DateFormat('d MMMM yyyy').format(date),
-                            style: theme.textTheme.titleMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (isToday)
-                      Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.sm),
-                        child: Text(
-                          'Today',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.primary,
+            onTap: () => _pickDate(context),
+            excludeSemantics: true,
+            child: AppCard(
+              onTap: () => _pickDate(context),
+              child: Row(
+                children: [
+                  IconTile(
+                    icon: Icons.calendar_month_rounded,
+                    color: hasError
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.smd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('EEEE').format(date),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                    Icon(
-                      Icons.edit_calendar_rounded,
-                      color: theme.colorScheme.onSurfaceVariant,
+                        Text(
+                          DateFormat('d MMMM yyyy').format(date),
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  if (isToday)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: Text(
+                        'Today',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  Icon(
+                    Icons.edit_calendar_rounded,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
               ),
             ),
           ),

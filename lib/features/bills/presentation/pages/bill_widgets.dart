@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_motion.dart';
@@ -170,113 +171,117 @@ class BillCard extends StatelessWidget {
           '${bill.title}, $amount, $dueText, '
           '${BillVisuals.statusLabel(status)}'
           '${bill.isRecurring ? ', repeats ${bill.recurrenceType.label.toLowerCase()}' : ''}',
-      child: ExcludeSemantics(
-        child: AppCard(
-          onTap: onTap,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.smd,
-          ),
-          child: Row(
-            children: [
-              IconTile(
-                icon: BillVisuals.iconFor(bill.category),
-                color: color,
-                animate: true,
-              ),
-              const SizedBox(width: AppSpacing.smd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: AnimatedDefaultTextStyle(
-                            duration: duration,
-                            curve: AppMotion.standardCurve,
-                            style: titleStyle,
-                            child: Text(
-                              bill.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                        if (bill.isRecurring) ...[
-                          const SizedBox(width: AppSpacing.xs),
-                          Icon(
-                            Icons.repeat_rounded,
-                            size: AppSizes.iconXs,
-                            color: mutedColor,
-                            semanticLabel: 'Recurring',
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Row(
-                      children: [
-                        AnimatedSwitcher(
+      onTap: onTap,
+      // The card merges into one node, so the nested "Mark as paid"
+      // button would be unreachable; expose it as a custom action.
+      customSemanticsActions: onMarkPaid != null && !bill.isPaid
+          ? {const CustomSemanticsAction(label: 'Mark as paid'): onMarkPaid!}
+          : null,
+      excludeSemantics: true,
+      child: AppCard(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.smd,
+        ),
+        child: Row(
+          children: [
+            IconTile(
+              icon: BillVisuals.iconFor(bill.category),
+              color: color,
+              animate: true,
+            ),
+            const SizedBox(width: AppSpacing.smd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: AnimatedDefaultTextStyle(
                           duration: duration,
-                          switchInCurve: AppMotion.enter,
-                          switchOutCurve: AppMotion.exit,
-                          transitionBuilder: scaleFade,
-                          child: Icon(
-                            BillVisuals.statusIcon(status),
-                            key: ValueKey(status),
-                            size: AppSizes.iconXs,
-                            color: color,
+                          curve: AppMotion.standardCurve,
+                          style: titleStyle,
+                          child: Text(
+                            bill.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                      ),
+                      if (bill.isRecurring) ...[
                         const SizedBox(width: AppSpacing.xs),
-                        Flexible(
-                          child: AnimatedDefaultTextStyle(
-                            duration: duration,
-                            curve: AppMotion.standardCurve,
-                            style: dueStyle,
-                            child: Text(
-                              dueText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                        Icon(
+                          Icons.repeat_rounded,
+                          size: AppSizes.iconXs,
+                          color: mutedColor,
+                          semanticLabel: 'Recurring',
                         ),
                       ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              AnimatedDefaultTextStyle(
-                duration: duration,
-                curve: AppMotion.standardCurve,
-                style: amountStyle,
-                child: Text(amount),
-              ),
-              AnimatedSwitcher(
-                duration: duration,
-                switchInCurve: AppMotion.enter,
-                switchOutCurve: AppMotion.exit,
-                transitionBuilder: scaleFade,
-                child: onMarkPaid != null && !bill.isPaid
-                    ? Padding(
-                        key: const ValueKey('markPaid'),
-                        padding: const EdgeInsets.only(left: AppSpacing.xs),
-                        child: IconButton(
-                          tooltip: 'Mark as paid',
-                          onPressed: onMarkPaid,
-                          visualDensity: VisualDensity.compact,
-                          icon: Icon(
-                            Icons.check_circle_outline_rounded,
-                            color: context.appColors.success,
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Row(
+                    children: [
+                      AnimatedSwitcher(
+                        duration: duration,
+                        switchInCurve: AppMotion.enter,
+                        switchOutCurve: AppMotion.exit,
+                        transitionBuilder: scaleFade,
+                        child: Icon(
+                          BillVisuals.statusIcon(status),
+                          key: ValueKey(status),
+                          size: AppSizes.iconXs,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Flexible(
+                        child: AnimatedDefaultTextStyle(
+                          duration: duration,
+                          curve: AppMotion.standardCurve,
+                          style: dueStyle,
+                          child: Text(
+                            dueText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('noAction')),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            AnimatedDefaultTextStyle(
+              duration: duration,
+              curve: AppMotion.standardCurve,
+              style: amountStyle,
+              child: Text(amount),
+            ),
+            AnimatedSwitcher(
+              duration: duration,
+              switchInCurve: AppMotion.enter,
+              switchOutCurve: AppMotion.exit,
+              transitionBuilder: scaleFade,
+              child: onMarkPaid != null && !bill.isPaid
+                  ? Padding(
+                      key: const ValueKey('markPaid'),
+                      padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      child: IconButton(
+                        tooltip: 'Mark as paid',
+                        onPressed: onMarkPaid,
+                        icon: Icon(
+                          Icons.check_circle_outline_rounded,
+                          color: context.appColors.success,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('noAction')),
+            ),
+          ],
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import '../theme/contrast.dart';
 import '../theme/app_colors_extension.dart';
 
 /// A reusable linear progress bar with semantic color derived from
@@ -73,7 +74,12 @@ class AppProgress extends StatelessWidget {
                     child: Text(
                       '${percentage.toStringAsFixed(0)}%',
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: fill,
+                        // The bar already carries the colour meaning; the
+                        // number needs a guaranteed-legible colour.
+                        color: Contrast.ensureContrast(
+                          fill,
+                          theme.colorScheme.surface,
+                        ),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -90,7 +96,8 @@ class AppProgress extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: animated,
                         minHeight: height,
-                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
                         color: fill,
                       ),
                     );
@@ -162,7 +169,8 @@ class AppProgressRing extends StatelessWidget {
                         value: animated,
                         strokeWidth: strokeWidth,
                         strokeCap: StrokeCap.round,
-                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
                         color: animatedColor ?? ringColor,
                       ),
                     ),

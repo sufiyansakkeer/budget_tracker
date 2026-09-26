@@ -57,45 +57,48 @@ class CategoryPicker extends StatelessWidget {
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
-            children: categories.map((category) {
-              final isSelected = category.id == selectedCategoryId;
-              final color = CategoryVisuals.adaptiveColor(
-                context,
-                category.colorHex,
-              );
-              // The chosen chip lifts slightly so the selection reads at a
-              // glance; the chip itself animates its colours.
-              return AnimatedScale(
-                scale: isSelected ? 1.04 : 1,
-                duration: AppMotion.respectReducedMotion(
-                  context,
-                  AppMotion.fast,
-                ),
-                curve: AppMotion.standardCurve,
-                child: ChoiceChip(
-                  key: Key('category_${category.id}'),
-                  selected: isSelected,
-                  onSelected: (_) => onSelected(category.id),
-                  avatar: Icon(
-                    CategoryVisuals.iconFor(category.icon),
-                    size: AppSizes.iconSm + 2,
-                    color: isSelected
-                        ? color
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  label: Text(category.name),
-                  selectedColor: color.withValues(alpha: 0.16),
-                  side: BorderSide(
-                    color: isSelected
-                        ? color
-                        : theme.colorScheme.outlineVariant,
-                  ),
-                  labelStyle: theme.textTheme.labelLarge?.copyWith(
-                    color: isSelected ? color : theme.colorScheme.onSurface,
-                  ),
-                ),
-              );
-            }).toList(),
+            children: categories
+                .where((c) => !c.isArchived || c.id == selectedCategoryId)
+                .map((category) {
+                  final isSelected = category.id == selectedCategoryId;
+                  final color = CategoryVisuals.adaptiveColor(
+                    context,
+                    category.colorHex,
+                  );
+                  // The chosen chip lifts slightly so the selection reads at a
+                  // glance; the chip itself animates its colours.
+                  return AnimatedScale(
+                    scale: isSelected ? 1.04 : 1,
+                    duration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.fast,
+                    ),
+                    curve: AppMotion.standardCurve,
+                    child: ChoiceChip(
+                      key: Key('category_${category.id}'),
+                      selected: isSelected,
+                      onSelected: (_) => onSelected(category.id),
+                      avatar: Icon(
+                        CategoryVisuals.iconFor(category.icon),
+                        size: AppSizes.iconSm + 2,
+                        color: isSelected
+                            ? color
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      label: Text(category.name),
+                      selectedColor: color.withValues(alpha: 0.16),
+                      side: BorderSide(
+                        color: isSelected
+                            ? color
+                            : theme.colorScheme.outlineVariant,
+                      ),
+                      labelStyle: theme.textTheme.labelLarge?.copyWith(
+                        color: isSelected ? color : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  );
+                })
+                .toList(),
           ),
         if (errorText != null) FormFieldError(message: errorText!),
       ],

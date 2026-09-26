@@ -5,6 +5,7 @@ import '../../../expenses/domain/entities/expense_category.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../../expenses/domain/entities/expense_history_filter.dart';
 import 'category_analytics.dart';
+import 'category_comparison.dart';
 import 'category_slice.dart';
 import 'daily_spending_point.dart';
 import 'monthly_spending_bucket.dart';
@@ -44,6 +45,9 @@ class ReportData extends Equatable {
   /// Ordered (highest first) category analytics.
   final List<CategoryAnalytics> categoryAnalytics;
 
+  /// Per-category change versus the preceding equal-length period.
+  final List<CategoryComparison> categoryComparison;
+
   final TimeAnalytics timeAnalytics;
   final SpendingTrend trend;
   final WeeklyComparison? weeklyComparison;
@@ -64,6 +68,7 @@ class ReportData extends Equatable {
     required this.spendingBuckets,
     required this.categorySlices,
     required this.categoryAnalytics,
+    this.categoryComparison = const [],
     required this.timeAnalytics,
     required this.trend,
     this.weeklyComparison,
@@ -85,6 +90,7 @@ class ReportData extends Equatable {
     spendingBuckets,
     categorySlices,
     categoryAnalytics,
+    categoryComparison,
     timeAnalytics,
     trend,
     weeklyComparison,

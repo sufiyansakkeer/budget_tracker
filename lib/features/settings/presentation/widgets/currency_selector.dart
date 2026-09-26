@@ -11,10 +11,15 @@ class CurrencySelector extends StatefulWidget {
   final String selectedCode;
   final ValueChanged<CurrencyEntity> onSelected;
 
+  /// The currencies to offer. Defaults to the app's settings currencies; the
+  /// currency converter passes every currency its rate provider supports.
+  final List<CurrencyEntity> currencies;
+
   const CurrencySelector({
     super.key,
     required this.selectedCode,
     required this.onSelected,
+    this.currencies = availableCurrencies,
   });
 
   @override
@@ -26,8 +31,8 @@ class _CurrencySelectorState extends State<CurrencySelector> {
 
   List<CurrencyEntity> get _filtered {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return availableCurrencies;
-    return availableCurrencies
+    if (q.isEmpty) return widget.currencies;
+    return widget.currencies
         .where(
           (c) =>
               c.name.toLowerCase().contains(q) ||
@@ -99,12 +104,16 @@ class _CurrencySelectorState extends State<CurrencySelector> {
                               : theme.colorScheme.surfaceContainer,
                           shape: BoxShape.circle,
                         ),
-                        child: Text(
-                          currency.symbol,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: selected
-                                ? theme.colorScheme.onPrimary
-                                : theme.colorScheme.onSurface,
+                        padding: const EdgeInsets.all(AppSpacing.xs),
+                        // Some symbols are several characters ("oz t").
+                        child: FittedBox(
+                          child: Text(
+                            currency.symbol,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: selected
+                                  ? theme.colorScheme.onPrimary
+                                  : theme.colorScheme.onSurface,
+                            ),
                           ),
                         ),
                       ),

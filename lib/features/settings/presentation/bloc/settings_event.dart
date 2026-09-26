@@ -101,3 +101,8 @@ class SettingsResetMonthEvent extends SettingsEvent {
 class SettingsClearMessageEvent extends SettingsEvent {
   const SettingsClearMessageEvent();
 }
+
+/// Runs the database integrity check and reports the result.
+class SettingsCheckIntegrityEvent extends SettingsEvent {
+  const SettingsCheckIntegrityEvent();
+}

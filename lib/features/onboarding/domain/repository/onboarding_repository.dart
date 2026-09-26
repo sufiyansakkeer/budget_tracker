@@ -1,4 +1,4 @@
-import '../entities/budget_entity.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
 
 abstract class OnboardingRepository {
   Future<bool> checkIsFirstLaunch();

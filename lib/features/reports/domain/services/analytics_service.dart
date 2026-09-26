@@ -5,6 +5,7 @@ import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../../expenses/domain/entities/expense_history_filter.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../entities/category_analytics.dart';
+import '../entities/category_comparison.dart';
 import '../entities/category_slice.dart';
 import '../entities/daily_spending_point.dart';
 import '../entities/monthly_spending_bucket.dart';
@@ -49,6 +50,13 @@ class AnalyticsService {
           )
         : null;
 
+    // Computed once and threaded through: the trend and the time analytics
+    // each recomputed the same zero-filled series.
+    final dailySpending = calculateDailySpending(
+      expenses: filteredExpenses,
+      range: range,
+    );
+
     return ReportData(
       range: range,
       filteredExpenses: filteredExpenses,
@@ -58,10 +66,7 @@ class AnalyticsService {
         expenses: filteredExpenses,
         dayCount: range.dayCount,
       ),
-      dailySpending: calculateDailySpending(
-        expenses: filteredExpenses,
-        range: range,
-      ),
+      dailySpending: dailySpending,
       spendingBuckets: calculateBuckets(
         expenses: filteredExpenses,
         range: range,
@@ -74,6 +79,12 @@ class AnalyticsService {
         expenses: filteredExpenses,
         categories: categories,
       ),
+      categoryComparison: calculateCategoryComparison(
+        expenses: filteredExpenses,
+        range: range,
+        categories: categories,
+        comparisonExpenses: comparisonExpenses,
+      ),
       timeAnalytics: calculateTimeAnalytics(
         expenses: filteredExpenses,
         range: range,
@@ -82,6 +93,7 @@ class AnalyticsService {
         expenses: filteredExpenses,
         range: range,
         comparisonExpenses: comparisonExpenses,
+        dailySpending: dailySpending,
       ),
       weeklyComparison: weeklyComparison,
       currentBudget: currentBudget,
@@ -281,6 +293,60 @@ class AnalyticsService {
     return result;
   }
 
+  /// Per-category spending in [range] versus the equal-length period right
+  /// before it, biggest movers first (by absolute difference).
+  ///
+  /// Categories that appear in either period are included, so a category
+  /// that vanished or is new still shows up. [comparisonExpenses], when
+  /// provided, is searched for the previous period instead of [expenses].
+  List<CategoryComparison> calculateCategoryComparison({
+    required List<ExpenseEntity> expenses,
+    required ReportRange range,
+    required List<ExpenseCategory> categories,
+    List<ExpenseEntity>? comparisonExpenses,
+  }) {
+    final dayCount = range.dayCount < 1 ? 1 : range.dayCount;
+    final currentStart = _dateOnly(range.start);
+    final currentEnd = _dateOnly(range.end);
+    final previousStart = currentStart.subtract(Duration(days: dayCount));
+    final previousEnd = currentStart.subtract(const Duration(days: 1));
+
+    final current = <String, double>{};
+    for (final e in expenses) {
+      final d = _dateOnly(e.date);
+      if (d.isBefore(currentStart) || d.isAfter(currentEnd)) continue;
+      current[e.categoryId] = (current[e.categoryId] ?? 0) + e.amount;
+    }
+    final previous = <String, double>{};
+    for (final e in comparisonExpenses ?? expenses) {
+      final d = _dateOnly(e.date);
+      if (d.isBefore(previousStart) || d.isAfter(previousEnd)) continue;
+      previous[e.categoryId] = (previous[e.categoryId] ?? 0) + e.amount;
+    }
+    if (current.isEmpty && previous.isEmpty) return const [];
+
+    final nameById = {for (final c in categories) c.id: c.name};
+    final colorById = {for (final c in categories) c.id: c.colorHex};
+    final ids = {...current.keys, ...previous.keys};
+    final result =
+        [
+          for (final id in ids)
+            CategoryComparison(
+              categoryId: id,
+              categoryName: nameById[id] ?? 'Unknown',
+              colorHex: colorById[id] ?? '#8395A7',
+              currentAmount: current[id] ?? 0,
+              previousAmount: previous[id] ?? 0,
+            ),
+        ]..sort((a, b) {
+          final byChange = b.difference.abs().compareTo(a.difference.abs());
+          return byChange != 0
+              ? byChange
+              : a.categoryName.compareTo(b.categoryName);
+        });
+    return result;
+  }
+
   /// Time-based analytics: most/least active days, weekday & weekend totals.
   TimeAnalytics calculateTimeAnalytics({
     required List<ExpenseEntity> expenses,
@@ -383,6 +449,7 @@ class AnalyticsService {
     required List<ExpenseEntity> expenses,
     required ReportRange range,
     List<ExpenseEntity>? comparisonExpenses,
+    List<DailySpendingPoint>? dailySpending,
   }) {
     if (expenses.isEmpty) {
       return SpendingTrend.empty;
@@ -413,10 +480,10 @@ class AnalyticsService {
     // Consistency from daily totals (coefficient of variation, inverted).
     double consistencyScore = 1.0;
     double sumSquares = 0;
-    for (final point in calculateDailySpending(
-      expenses: expenses,
-      range: range,
-    )) {
+    final series =
+        dailySpending ??
+        calculateDailySpending(expenses: expenses, range: range);
+    for (final point in series) {
       final diff = point.amount - dailyAverage;
       sumSquares += diff * diff;
     }

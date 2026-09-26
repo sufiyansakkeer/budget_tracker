@@ -211,19 +211,23 @@ After midnight, the next app launch or periodic refresh will show the new day's 
 
 ## Multiple Budgets
 
-The widget shows a **combined total** across all active budgets:
+The widget is scoped to the **active budget only** — the same budget the
+dashboard shows. Budgets are never combined, because each budget has its own
+currency, period and safe-spending limit:
 
 ```
-Today's Safe Spending     ← Combined across all active budgets
+Today's Safe Spending     ← active budget: (remaining + spent today) ÷ remaining days
 ₹1,300
 
-Spent Today               ← Combined across all active budgets
+Spent Today               ← expenses assigned to the active budget, today
 ₹860
 
-On Track                  ← Based on combined spending vs. combined limit
+On Track                  ← spent today vs. today's limit for that budget
 ```
 
-This matches the existing dashboard behavior (the legacy `SpendingTargetEntity`).
+Switching the active budget in the app (dashboard selector or Settings →
+Budgets) refreshes the widget through `RefreshBuses.budgets`. When no budget
+covers today the widget shows its "No Budget" state.
 
 ---
 
@@ -264,5 +268,5 @@ Run `flutter test` — all existing 595 tests pass.
 - [ ] Widget shows "Over" amount when over daily limit
 - [ ] Widget shows empty state when no budget exists
 - [ ] Widget updates at midnight (new day)
-- [ ] Multiple budgets show combined totals correctly
+- [ ] Switching the active budget updates the widget (never a combined total)
 - [ ] Currency symbol matches app settings

@@ -92,7 +92,7 @@ class ChartPlaceholder extends StatelessWidget {
             Icon(
               icon,
               size: AppSizes.iconXl,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(

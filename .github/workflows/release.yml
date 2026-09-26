@@ -46,6 +46,10 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install Android NDK r29 (16 KB page-size aligned native builds)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;29.0.14206865"
       - name: Install dependencies and generate sources
         run: |
           flutter pub get

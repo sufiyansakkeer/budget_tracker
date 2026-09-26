@@ -53,10 +53,9 @@ class GetReportDataUseCase {
         receiptOnly: filter.receiptOnly,
       );
 
-      final expenses = await repository.getFilteredExpenses(boundedFilter);
-
-      // Expenses covering the equal-length period just before the selected
-      // range, used only for the growth rate and week-over-week comparison.
+      // The comparison window starts one period earlier and ends with the
+      // selected range, so it is a superset: one query serves both, and the
+      // narrower set is taken from it rather than read again.
       final comparisonFilter = ExpenseHistoryFilter(
         categoryId: filter.categoryId,
         dateFrom: effectiveFrom.subtract(Duration(days: range.dayCount)),
@@ -69,6 +68,15 @@ class GetReportDataUseCase {
       final comparisonExpenses = await repository.getFilteredExpenses(
         comparisonFilter,
       );
+      final rangeStart = DateTime(
+        effectiveFrom.year,
+        effectiveFrom.month,
+        effectiveFrom.day,
+      );
+      final expenses = comparisonExpenses.where((e) {
+        final day = DateTime(e.date.year, e.date.month, e.date.day);
+        return !day.isBefore(rangeStart);
+      }).toList();
       final categories = await repository.getCategories();
 
       // Current-month budget context only when the range covers the current

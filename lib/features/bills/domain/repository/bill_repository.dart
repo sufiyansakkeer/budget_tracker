@@ -25,6 +25,12 @@ abstract class BillRepository {
 
   /// Returns the sum of upcoming (unpaid, non-overdue) bill amounts
   /// within the given number of days from now.
+  /// Unpaid bills due on or after [from] (default: today), soonest first.
+  ///
+  /// Used by the dashboard, which shows only the next few — loading every
+  /// bill to sort and take three in Dart wasted the due-date index.
+  Future<List<BillEntity>> getUpcomingBills({DateTime? from, int limit = 3});
+
   Future<double> getUpcomingBillsTotal({int withinDays = 30});
 
   /// Returns the sum of all recurring bill amounts per month.

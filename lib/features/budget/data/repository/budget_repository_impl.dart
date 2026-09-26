@@ -16,15 +16,48 @@ class BudgetRepositoryImpl implements BudgetRepository {
   });
 
   @override
+  Future<T> transaction<T>(Future<T> Function() action) {
+    return localDataSource.transaction(action);
+  }
+
+  @override
   Future<BudgetEntity?> getActiveBudget() async {
-    final activeId = await localDataSource.getActiveBudgetId();
+    final activeId = await getActiveBudgetId();
     if (activeId == null) return null;
     return localDataSource.getBudgetById(activeId);
   }
 
+  /// The id of the active budget, guaranteed to reference a stored budget.
+  ///
+  /// The id lives in preferences while budgets live in the database, so the
+  /// two can drift apart: the active budget is deleted, a backup is restored
+  /// with different ids, or the app is opened on data written before the
+  /// preference existed. A dangling id used to make every scoped screen
+  /// (dashboard, history, reports, widget) report "no budget" while the
+  /// budgets list showed the rows. When the stored id no longer resolves,
+  /// the most recently started non-archived budget (or, failing that, the
+  /// most recently started budget) is made active and returned. `null` means
+  /// there is genuinely no budget.
   @override
-  Future<String?> getActiveBudgetId() {
-    return localDataSource.getActiveBudgetId();
+  Future<String?> getActiveBudgetId() async {
+    final storedId = await localDataSource.getActiveBudgetId();
+    if (storedId != null &&
+        await localDataSource.getBudgetById(storedId) != null) {
+      return storedId;
+    }
+
+    // Both queries are ordered by start date, newest first.
+    var candidates = await localDataSource.getAllBudgets(
+      options: const BudgetQueryOptions(filter: BudgetFilter.active),
+    );
+    if (candidates.isEmpty) {
+      candidates = await localDataSource.getAllBudgets();
+    }
+    if (candidates.isEmpty) return null;
+
+    final fallback = candidates.first;
+    await localDataSource.setActiveBudgetId(fallback.id);
+    return fallback.id;
   }
 
   @override
@@ -128,7 +161,11 @@ class BudgetRepositoryImpl implements BudgetRepository {
 
     final date = referenceDate ?? DateTime.now();
 
-    if (date.isBefore(budget.startDate) || date.isAfter(budget.endDate)) {
+    // Compared by calendar day, like every other period rule (remaining
+    // days, statistics ranges, `isActiveOn`). A budget whose stored dates
+    // carry a time of day — onboarding stores the creation instant — would
+    // otherwise be "outside its period" for part of its first and last day.
+    if (!budget.isActiveOn(date)) {
       return BudgetError(
         BudgetFailure(
           type: BudgetErrorType.invalidDate,

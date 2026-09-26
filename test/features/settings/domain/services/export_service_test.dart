@@ -45,6 +45,7 @@ void main() {
             icon: 'restaurant',
             colorHex: '#FF6B6B',
           ),
+          mode: InsertMode.insertOrIgnore,
         );
     await database
         .into(database.expenses)
@@ -70,15 +71,23 @@ void main() {
 
       final rows = await exportService.collectCsvRows();
 
-      expect(rows.length, greaterThan(2));
-      expect(rows.any((r) => r.contains('exp-1')), isTrue);
-      expect(rows.any((r) => r.contains('Lunch')), isTrue);
+      // Header + one expense row, with category and budget names resolved.
+      expect(rows.length, 2);
+      expect(rows.first, ExportService.csvHeader);
+      final row = rows[1];
+      expect(row[ExportService.csvHeader.indexOf('id')], 'exp-1');
+      expect(row[ExportService.csvHeader.indexOf('note')], 'Lunch');
+      expect(row[ExportService.csvHeader.indexOf('category')], 'Food');
+      expect(row[ExportService.csvHeader.indexOf('budget')], 'Personal');
+      expect(row[ExportService.csvHeader.indexOf('currency')], 'INR');
     });
 
     test('collectCsvRows handles empty database gracefully', () async {
+      // Header row only.
       final rows = await exportService.collectCsvRows();
 
-      expect(rows.length, greaterThan(2));
+      expect(rows.length, 1);
+      expect(rows.first, ExportService.csvHeader);
       expect(rows.any((r) => r.contains('exp-1')), isFalse);
     });
 

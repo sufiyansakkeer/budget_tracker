@@ -34,7 +34,6 @@ class InfoIcon extends StatelessWidget {
     return IconButton(
       onPressed: () => showSheet(context, content),
       tooltip: 'About ${content.title}',
-      visualDensity: VisualDensity.compact,
       iconSize: AppSizes.iconSm + 2,
       icon: Icon(
         Icons.info_outline_rounded,

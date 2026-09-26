@@ -18,7 +18,11 @@ abstract class ReportsRepository {
     DateTime? customEnd,
   });
 
-  /// Loads all expenses and filters them by [filter].
+  /// Expenses of the active budget matching [filter].
+  ///
+  /// The filter's date range is pushed into SQL, so a one-week report does
+  /// not read a budget's whole history; the remaining clauses (category,
+  /// amount, tags, receipt) are applied in Dart.
   Future<List<ExpenseEntity>> getFilteredExpenses(ExpenseHistoryFilter filter);
 
   /// Loads all categories.

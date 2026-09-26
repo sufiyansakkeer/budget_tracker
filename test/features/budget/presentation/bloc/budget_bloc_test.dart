@@ -15,6 +15,9 @@ import 'package:monivo/features/budget/presentation/bloc/budget_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action) => action();
+
   BudgetEntity? budget;
   String? activeBudgetId;
   MonthlyStatisticsEntity statistics = MonthlyStatisticsEntity.empty;
@@ -139,6 +142,13 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async => 0.0;
 }
 
+/// Fails like a database whose file cannot be read.
+class ThrowingBudgetRepository extends FakeBudgetRepository {
+  @override
+  Future<String?> getActiveBudgetId() async =>
+      throw StateError('disk I/O error');
+}
+
 void main() {
   late FakeBudgetRepository repository;
   late BudgetCalculationService calculationService;
@@ -214,6 +224,27 @@ void main() {
       isA<BudgetState>()
           .having((s) => s.status, 'status', BudgetBlocStatus.error)
           .having((s) => s.errorMessage, 'error', isNotNull),
+    ],
+  );
+
+  blocTest<BudgetBloc, BudgetState>(
+    'emits error with the real message when the repository throws',
+    build: () {
+      repository = ThrowingBudgetRepository()..budget = repository.budget;
+      return buildBloc();
+    },
+    skip: 2, // Skip the constructor's auto-load [loading, error] emissions.
+    act: (bloc) => bloc.add(const BudgetLoadSummaryEvent()),
+    expect: () => [
+      isA<BudgetState>().having(
+        (s) => s.status,
+        'status',
+        BudgetBlocStatus.loading,
+      ),
+      isA<BudgetState>()
+          .having((s) => s.status, 'status', BudgetBlocStatus.error)
+          .having((s) => s.errorMessage, 'error', contains('disk I/O error'))
+          .having((s) => s.summary, 'summary', isNull),
     ],
   );
 

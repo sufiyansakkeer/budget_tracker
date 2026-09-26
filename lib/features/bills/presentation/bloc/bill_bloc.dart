@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_failure.dart';
 import '../../domain/usecases/create_bill_usecase.dart';
 import '../../domain/usecases/delete_bill_usecase.dart';
@@ -11,8 +12,8 @@ import '../../domain/usecases/mark_bill_paid_usecase.dart';
 import '../../domain/usecases/mark_bill_unpaid_usecase.dart';
 import '../../domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../domain/usecases/update_bill_usecase.dart';
+import '../../../../core/events/refresh_bus.dart';
 import 'bill_event.dart';
-import 'bill_refresh_bus.dart';
 import 'bill_state.dart';
 
 class BillBloc extends Bloc<BillEvent, BillState> {
@@ -48,7 +49,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     on<BillClearMessage>(_onClearMessage);
 
     // Listen for bill changes from other screens.
-    _refreshSubscription = BillRefreshBus.instance.changes.listen((_) {
+    _refreshSubscription = RefreshBuses.bills.changes.listen((_) {
       if (!isClosed) {
         add(const BillRefresh());
       }
@@ -107,7 +108,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.reminderEnabled) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -135,7 +136,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.reminderEnabled && !data.isPaid) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -164,7 +165,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     final result = await deleteBillUseCase(event.id);
     switch (result) {
       case BillSuccess():
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -197,7 +198,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.isRecurring && data.reminderEnabled) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -227,7 +228,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         if (data.reminderEnabled) {
           await reminderService.scheduleReminder(data);
         }
-        BillRefreshBus.instance.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
@@ -256,7 +257,25 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     final result = await getBillsUseCase();
     switch (result) {
       case BillSuccess(:final data):
-        emit(state.copyWith(status: BillBlocStatus.loaded, allBills: data));
+        // Keep the bill open on a details screen in step with the list, so
+        // "mark paid" and edits show up there without leaving the screen.
+        final openId = state.selectedBill?.id;
+        BillEntity? selected;
+        if (openId != null) {
+          for (final bill in data) {
+            if (bill.id == openId) {
+              selected = bill;
+              break;
+            }
+          }
+        }
+        emit(
+          state.copyWith(
+            status: BillBlocStatus.loaded,
+            allBills: data,
+            selectedBill: selected ?? state.selectedBill,
+          ),
+        );
       case BillError(:final failure):
         emit(
           state.copyWith(

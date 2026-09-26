@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:csv/csv.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:monivo/core/database/app_database.dart';
+import 'package:monivo/core/database/default_categories.dart';
+import 'package:monivo/features/settings/domain/services/export_service.dart';
 import 'package:monivo/features/settings/domain/services/import_service.dart';
 
 import '../../../../helpers/in_memory_database.dart';
@@ -55,6 +59,81 @@ void main() {
         final expenses = await (database.select(database.expenses)).get();
         expect(expenses.length, 2);
       });
+
+      test('re-imports the file produced by ExportService', () async {
+        // Seed one budget + expense, export, wipe expenses, import again.
+        final now = DateTime(2024, 1, 10, 12, 30);
+        await database
+            .into(database.budgets)
+            .insert(
+              BudgetsCompanion.insert(
+                id: 'budget-1',
+                name: 'Personal',
+                monthlyAmount: 50000,
+                remainingAmount: 40000,
+                currency: 'INR',
+                startDate: DateTime(2024, 1, 1),
+                endDate: DateTime(2024, 1, 31),
+              ),
+            );
+        await database
+            .into(database.expenses)
+            .insert(
+              ExpensesCompanion.insert(
+                id: 'exp-1',
+                budgetId: 'budget-1',
+                amount: 1250.5,
+                categoryId: 'food',
+                note: const Value('Lunch, with a comma'),
+                date: DateTime(2024, 1, 10),
+                time: Value(now),
+                tags: const Value('work,team'),
+              ),
+            );
+        final rows = await ExportService(database: database).collectCsvRows();
+        final csv = const ListToCsvConverter().convert(rows);
+        await (database.delete(database.expenses)).go();
+
+        final file = File('${Directory.systemTemp.path}/round_trip.csv');
+        await file.writeAsString(csv);
+        final count = await importService.importCsv(file.path);
+
+        expect(count, 1);
+        final imported = await (database.select(database.expenses)).get();
+        expect(imported.single.amount, 1250.5);
+        expect(imported.single.categoryId, 'food');
+        expect(imported.single.budgetId, 'budget-1');
+        expect(imported.single.note, 'Lunch, with a comma');
+        expect(imported.single.tags, 'work,team');
+        expect(imported.single.date, DateTime(2024, 1, 10));
+        expect(imported.single.time, now);
+      });
+
+      test(
+        'matches columns by header name and maps unknown categories',
+        () async {
+          final file = File('${Directory.systemTemp.path}/import_headers.csv');
+          await file.writeAsString(
+            'Date,Note,Category,Amount\n'
+            '2024-02-01,Groceries,grocery,45.5\n'
+            '2024-02-02,Cinema,Entertainment,12\n'
+            '2024-02-03,Mystery,no-such-category,7\n',
+          );
+
+          final count = await importService.importCsv(file.path);
+
+          expect(count, 3);
+          final expenses = await (database.select(database.expenses)).get();
+          final byNote = {for (final e in expenses) e.note: e};
+          expect(byNote['Groceries']!.categoryId, 'grocery');
+          expect(
+            byNote['Cinema']!.categoryId,
+            'entertainment',
+            reason: 'matched by category name, case-insensitive',
+          );
+          expect(byNote['Mystery']!.categoryId, fallbackCategoryId);
+        },
+      );
 
       test('rejects a missing file', () async {
         expect(
@@ -110,7 +189,13 @@ void main() {
         expect(budgets.first.id, 'budget-x');
 
         final categories = await (database.select(database.categories)).get();
-        expect(categories.length, 1);
+        // Defaults are seeded by the database; the imported 'food' row
+        // replaces the seeded one instead of duplicating it.
+        expect(categories.length, defaultCategoryRows.length);
+        expect(
+          categories.firstWhere((c) => c.id == 'food').colorHex,
+          '#FF0000',
+        );
       });
 
       test('rejects JSON with a newer schema version', () async {
