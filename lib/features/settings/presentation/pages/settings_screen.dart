@@ -362,6 +362,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
+
+          // Tools
+          SettingsSection(
+            title: 'Tools',
+            icon: Icons.handyman_outlined,
+            children: [
+              SettingsTile(
+                key: const Key('settingsCurrencyConverterTile'),
+                icon: Icons.currency_exchange_rounded,
+                title: 'Currency converter',
+                subtitle:
+                    'Convert between currencies with daily reference rates. '
+                    'Works offline with saved rates.',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () =>
+                    context.pushUnique(AppRouter.currencyConverterPath),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.lg),
 
           // Notifications

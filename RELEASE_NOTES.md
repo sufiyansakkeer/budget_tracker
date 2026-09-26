@@ -2,6 +2,20 @@
 
 ## What's New
 
+### Currency converter
+- **Settings → Tools → Currency converter** converts an amount between about
+  160 currencies — OMR to INR, USD to AED, EUR to OMR and so on.
+- Rates are the **daily reference rates** that central banks publish, provided
+  by Frankfurter. They are not live market or bank rates, and the screen always
+  shows the rate's date and whether it was just fetched or saved earlier.
+- **Works offline.** Once a pair has been looked up, you can keep converting it
+  without a connection; the app tells you it is using a saved rate and from
+  which day. Tap **Refresh rate** when you are back online.
+- Change the amount as often as you like — the conversion happens on your
+  phone, so it is instant and uses no data.
+- Swap the two currencies with one tap. The converter remembers your last pair
+  and amount.
+
 ### Your own categories
 - **Settings → Expenses → Categories** lets you add categories, rename them,
   and change their icon and colour — 43 icons and 16 colours to pick from.

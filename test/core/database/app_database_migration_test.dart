@@ -38,6 +38,11 @@ Future<AppDatabase> openUpgradedFromFirstV5(
   void Function(sqlite.Database raw) seed,
 ) => openUpgradedFrom('schema_v5_pre_category_archive.sql', 5, seed);
 
+/// Schema v6: the last schema before the currency-converter caches.
+Future<AppDatabase> openUpgradedFromV6(
+  void Function(sqlite.Database raw) seed,
+) => openUpgradedFrom('schema_v6.sql', 6, seed);
+
 /// Every table's column set plus the index names, for comparing a migrated
 /// database against a freshly created one.
 Future<Map<String, Set<String>>> schemaOf(AppDatabase db) async {
@@ -366,6 +371,12 @@ void main() {
       },
     );
 
+    test('upgrading from v6 yields the fresh-install schema', () async {
+      final db = await openUpgradedFromV6((_) {});
+      addTearDown(db.close);
+      expect(await schemaOf(db), fresh);
+    });
+
     test('the v4 fixture really differs from the current schema', () async {
       // If this fails the fixture was regenerated from the current schema
       // and the parity tests above no longer prove anything.
@@ -373,6 +384,106 @@ void main() {
       raw.execute(File('test/fixtures/schema_v4.sql').readAsStringSync());
       final cols = raw.select('PRAGMA table_info(categories)');
       expect(cols.map((r) => r['name']), isNot(contains('is_archived')));
+      raw.dispose();
+    });
+  });
+
+  group('schema v6 → v7 migration (currency converter caches)', () {
+    late AppDatabase db;
+
+    setUp(() async {
+      db = await openUpgradedFromV6((raw) {
+        raw.execute('''
+          INSERT INTO budgets (id, name, monthly_amount, remaining_amount,
+            currency, start_date, end_date, is_archived, created_at, updated_at)
+          VALUES ('b1', 'Home', 500, 320.5, 'OMR', 1789669800, 1792261800, 0,
+            1, 1);
+          INSERT INTO categories (id, name, icon, color_hex, is_system,
+            is_archived)
+          VALUES ('coffee', 'Coffee', 'coffee', '#123456', 0, 0);
+          INSERT INTO expenses (id, budget_id, amount, category_id, note, date,
+            time, created_at, updated_at)
+          VALUES ('e1', 'b1', 179.5, 'coffee', 'beans', 1789756200,
+            1789756200, 1, 1);
+          INSERT INTO settings (key, value) VALUES ('currency_code', 'OMR');
+        ''');
+      });
+    });
+
+    tearDown(() => db.close());
+
+    test('moves the user version to 7', () async {
+      final row = await db.customSelect('PRAGMA user_version').getSingle();
+      expect(row.data['user_version'], 7);
+      expect(db.schemaVersion, 7);
+    });
+
+    test('creates the exchange-rate and currency cache tables', () async {
+      final tables = (await schemaOf(db));
+      expect(tables['exchange_rates'], {
+        'id',
+        'base_currency',
+        'quote_currency',
+        'rate',
+        'rate_date',
+        'fetched_at',
+        'provider',
+      });
+      expect(tables['converter_currencies'], {
+        'code',
+        'name',
+        'symbol',
+        'fetched_at',
+      });
+      expect(await db.select(db.exchangeRates).get(), isEmpty);
+    });
+
+    test('keeps every existing row exactly as it was', () async {
+      final budget = await db.select(db.budgets).getSingle();
+      expect(budget.name, 'Home');
+      expect(budget.monthlyAmount, 500);
+      expect(budget.remainingAmount, 320.5);
+      expect(budget.currency, 'OMR');
+
+      final expense = await db.select(db.expenses).getSingle();
+      expect(expense.amount, 179.5);
+      expect(expense.note, 'beans');
+      expect(expense.categoryId, 'coffee');
+
+      final categories = await db.select(db.categories).get();
+      expect(categories.any((c) => c.id == 'coffee' && !c.isSystem), isTrue);
+
+      final setting = await db.select(db.settings).getSingle();
+      expect(setting.value, 'OMR');
+    });
+
+    test('the new tables accept writes after the upgrade', () async {
+      await db
+          .into(db.exchangeRates)
+          .insert(
+            ExchangeRatesCompanion.insert(
+              id: 'OMR_INR',
+              baseCurrency: 'OMR',
+              quoteCurrency: 'INR',
+              rate: '249.33',
+              rateDate: '2026-09-26',
+              fetchedAt: DateTime.utc(2026, 9, 26, 12),
+              provider: 'Frankfurter',
+            ),
+          );
+      final row = await db.select(db.exchangeRates).getSingle();
+      expect(row.rate, '249.33');
+    });
+
+    test('the v6 fixture really lacks the converter tables', () async {
+      final raw = sqlite.sqlite3.openInMemory();
+      raw.execute(File('test/fixtures/schema_v6.sql').readAsStringSync());
+      final tables = raw
+          .select("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .map((r) => r['name'])
+          .toSet();
+      expect(tables, isNot(contains('exchange_rates')));
+      expect(tables, contains('categories'));
       raw.dispose();
     });
   });

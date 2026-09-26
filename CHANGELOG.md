@@ -7,7 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Currency converter** (Settings → Tools → Currency converter). Converts any
+  amount between the ~160 currencies published by
+  [Frankfurter](https://frankfurter.dev/) (`https://api.frankfurter.dev/v2/`,
+  HTTPS, no API key). Frankfurter serves daily *reference* rates from central
+  banks and official sources, and the screen says so; it never claims live
+  market pricing.
+  - **Cache-first rates.** The exchange rate itself (never a converted amount)
+    is stored per pair (`OMR_INR`) with the provider's rate date, the local
+    fetch time and the provider name. A rate whose reference day is today
+    (UTC) is used without a request; an older one is re-checked at most every
+    6 hours (weekends and holidays keep yesterday's rate as the latest). The
+    amount is converted locally, so typing 1 → 10 → 50 → 100 never calls the
+    API, and neither do swapping back and forth, reopening the screen or
+    theme changes. Concurrent requests for one pair share a single call.
+  - **Offline.** When a fetch fails, the newest saved rate is used and labelled
+    ("Offline — using saved rate from …" / "Couldn't update. Using saved
+    rate from …"). With nothing saved, the screen explains that an internet
+    connection is needed for that pair instead of a generic error, and offers
+    a retry.
+  - **Refresh rate** forces a fetch; a failed refresh keeps the saved rate.
+  - **Reverse pairs** (INR → OMR from a saved OMR → INR) are derived as
+    `1 / rate` and marked "Calculated from the OMR → INR rate". Only rates of
+    1 or more are inverted: Frankfurter quotes those to about five significant
+    digits (249.33) but rounds rates below 1 to about five decimal places
+    (0.00401), so 1 / 249.33 is *more* precise than the provider's own reverse
+    rate, while inverting 0.00401 would give 249.38.
+  - **Exact money arithmetic.** Rates are stored as exact decimal text and the
+    conversion runs on a new `ExactDecimal` (BigInt-backed, no new package),
+    rounding once, half away from zero, to the target currency's ISO 4217
+    decimals (OMR 3, INR 2, JPY 0). 24,933 INR converts back to exactly
+    100.000 OMR.
+  - Searchable currency picker with code, name and symbol; the supported list
+    is cached for 7 days and falls back to the saved list (or the app's ten
+    built-in currencies) when offline. The last pair and amount are restored
+    on the next visit (first launch: OMR → INR).
+  - Input validation (empty, zero, negative, above 1 trillion, more than 8
+    decimals, invalid characters), subtle swap and result animations that
+    respect Reduce Motion, and no animation per keystroke.
+- `CurrencyFormatter.resolveSymbol`, `decimalDigitsFor`, `formatDecimal` and
+  `formatRate` format any ISO currency exactly. `symbolFor` still falls back
+  to ₹ for app-wide amounts; the converter never uses that fallback, so an
+  unknown currency shows its code, not a rupee sign.
+
 ### Changed
+- **Database schema v7.** Adds the `exchange_rates` and `converter_currencies`
+  cache tables. The migration only creates tables; no existing row is read,
+  changed or removed. A v6 fixture (`test/fixtures/schema_v6.sql`) and a
+  parity test prove an upgraded database matches a fresh install.
 - **Tab switching is a real fade-through.** The bottom-navigation container
   no longer cross-dissolves and shrinks both tabs at once (which let the
   background show through as a flash). The outgoing tab fades during the

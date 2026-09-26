@@ -10,4 +10,13 @@ abstract final class PreferenceKeys {
 
   /// `true` until onboarding has completed once.
   static const String isFirstLaunch = 'isFirstLaunch';
+
+  /// Currency converter: last source currency code (e.g. `OMR`).
+  static const String converterSourceCurrency = 'converter_source_currency';
+
+  /// Currency converter: last target currency code (e.g. `INR`).
+  static const String converterTargetCurrency = 'converter_target_currency';
+
+  /// Currency converter: last valid amount the user entered, as typed.
+  static const String converterAmount = 'converter_amount';
 }

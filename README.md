@@ -292,6 +292,49 @@ currency is chosen during onboarding, can be changed in Settings for new budgets
 app-wide display, and each budget also stores its own currency code. All formatting
 goes through one central formatter.
 
+### Currency Converter
+
+**Settings → Tools → Currency converter** converts an amount between any two of
+the ~160 currencies published by [Frankfurter](https://frankfurter.dev/)
+(`https://api.frankfurter.dev/v2/`, HTTPS only, no API key). Frankfurter serves
+daily **reference rates** from central banks and other official sources — not
+real-time trading rates — and the screen always shows the rate date and where
+the rate came from (online, saved, offline, or calculated from the reverse pair).
+
+How it avoids network calls:
+
+```text
+request pair → saved rate (direct, or 1/x of the reverse) fresh? ──yes──▶ convert locally
+                        │ no / stale / "Refresh rate"
+                        ▼
+                 GET /v2/rate/{base}/{quote} ──ok──▶ save rate ──▶ convert locally
+                        │ fails
+                        ▼
+          newest saved rate (flagged offline / couldn't update)
+                        │ none
+                        ▼
+          "An internet connection is required …" + Try again
+```
+
+- **What is stored:** the rate itself per pair (`OMR_INR`), as exact decimal
+  text, with the provider's rate date, the local fetch time and the provider —
+  never a converted amount. Tables `exchange_rates` and `converter_currencies`.
+- **Freshness:** a rate whose reference day is today (UTC) is used as is; an
+  older one is re-checked at most every 6 hours. The currency list is cached
+  for 7 days.
+- **Amount changes, swapping back, reopening the screen and theme changes never
+  call the API.** Concurrent lookups of one pair share one request.
+- **Offline:** conversion keeps working with the newest saved rate. With none
+  saved, the screen explains that a connection is needed for that pair.
+- **Refresh rate** forces a fetch; if it fails the saved rate stays.
+- **Reverse pairs** are derived as `1 / rate` only from rates ≥ 1: Frankfurter
+  quotes those to ~5 significant digits (249.33) but rounds rates below 1 to
+  ~5 decimal places (0.00401), so the inverse of the strong direction is the
+  more precise number.
+- **Precision:** conversion uses `ExactDecimal` (`lib/core/currency/`), exact
+  BigInt arithmetic with a single final rounding to the target currency's
+  ISO 4217 decimals (OMR 3, INR 2, JPY 0).
+
 ### App Updates
 
 Monivo checks the GitHub Releases API
@@ -421,7 +464,7 @@ lazy singletons for shared state and factories for per-screen BLoCs.
 
 ### Database
 
-Drift over SQLite, database name `smart_monivo_db`, **schema version 5**.
+Drift over SQLite, database name `smart_monivo_db`, **schema version 7**.
 
 Foreign keys are **enforced** (`PRAGMA foreign_keys = ON` on every connection), and
 the default categories are seeded by the database itself, so an expense can always
@@ -437,6 +480,8 @@ be written and can never point at a budget or category that does not exist.
 | 6 | `savings_goals` | Defined in the schema; not used by any feature |
 | 7 | `bills` | Bills, indexed on due date |
 | 8 | `bill_payments` | Payment history for recurring bills |
+| 9 | `exchange_rates` | Currency converter: cached provider rate per pair (`OMR_INR`) |
+| 10 | `converter_currencies` | Currency converter: cached supported-currency list |
 
 Migrations:
 
@@ -455,6 +500,12 @@ Migrations:
   gone dangling. Covered by
   [`test/core/database/app_database_migration_test.dart`](test/core/database/app_database_migration_test.dart),
   which runs a real v4 database through the upgrade.
+- **v5 → v6** — re-runs the idempotent `categories.is_archived` step for
+  databases created by the first v5 build, and normalises budget dates a broken
+  earlier heal left in milliseconds.
+- **v6 → v7** — creates the currency converter's `exchange_rates` and
+  `converter_currencies` cache tables. Nothing existing is touched; covered by a
+  v6 fixture and the schema-parity test.
 
 Aggregates (a budget's total and today's spend, bill totals) are computed with SQL
 `SUM`/`COUNT` over the indexed columns rather than by loading rows into Dart.
@@ -472,8 +523,8 @@ lib/
 ├── main.dart                      App bootstrap, home-widget wiring, root widget
 ├── core/
 │   ├── biometric/                 App lock BLoC + full-screen gate
-│   ├── constants/                 Motion tokens, spacing, GitHub config
-│   ├── currency/                  Central formatter + currency ChangeNotifier
+│   ├── constants/                 Motion tokens, spacing, GitHub/Frankfurter config
+│   ├── currency/                  Central formatter, ExactDecimal, currency ChangeNotifier
 │   ├── data/models/               Shared budget model
 │   ├── database/                  Drift schema, migrations, generated code
 │   ├── di/                        get_it registrations
@@ -489,6 +540,7 @@ lib/
     ├── bills/                     Bills & Reminders
     ├── budget/                    Budgets and the calculation engine
     ├── categories/                Category management (create, archive, delete)
+    ├── currency_converter/        Cache-first currency converter (Frankfurter)
     ├── dashboard/                 Dashboard + Smart Insights
     ├── expenses/                  Expenses and expense history (incl. combined view)
     ├── onboarding/                First-launch flow

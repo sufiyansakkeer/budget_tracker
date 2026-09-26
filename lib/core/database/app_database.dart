@@ -145,6 +145,40 @@ class BillPayments extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+// 9. Exchange Rates Table (currency converter cache)
+//
+// One row per provider rate, keyed `BASE_QUOTE` (e.g. `OMR_INR`). The rate
+// itself is stored, never a converted amount, so any later amount converts
+// locally. `rate` is exact decimal text as the provider returned it (a REAL
+// column would be fine for 249.33 but not for arithmetic done on it), and
+// `rate_date` is the provider's reference day as `yyyy-MM-dd`, which stays
+// timezone-proof unlike a DateTime column.
+@DataClassName('ExchangeRateRow')
+class ExchangeRates extends Table {
+  TextColumn get id => text()();
+  TextColumn get baseCurrency => text()();
+  TextColumn get quoteCurrency => text()();
+  TextColumn get rate => text()();
+  TextColumn get rateDate => text()();
+  DateTimeColumn get fetchedAt => dateTime()();
+  TextColumn get provider => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// 10. Converter Currencies Table (supported-currency list cache)
+@DataClassName('ConverterCurrencyRow')
+class ConverterCurrencies extends Table {
+  TextColumn get code => text()();
+  TextColumn get name => text()();
+  TextColumn get symbol => text().nullable()();
+  DateTimeColumn get fetchedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {code};
+}
+
 @DriftDatabase(
   tables: [
     Budgets,
@@ -155,13 +189,15 @@ class BillPayments extends Table {
     SavingsGoals,
     Bills,
     BillPayments,
+    ExchangeRates,
+    ConverterCurrencies,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration {
@@ -249,6 +285,12 @@ class AppDatabase extends _$AppDatabase {
           // Same class of repair: budgets healed from the camelCase columns
           // by an earlier v5 build kept their millisecond timestamps.
           await _normaliseBudgetDateUnits();
+        }
+        if (from < 7) {
+          // Currency converter caches. New tables only: no existing row is
+          // read, changed or removed.
+          await m.createTable(exchangeRates);
+          await m.createTable(converterCurrencies);
         }
       },
       beforeOpen: (details) async {

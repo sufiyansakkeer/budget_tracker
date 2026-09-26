@@ -29,6 +29,8 @@ import '../../features/bills/presentation/pages/bill_form_screen.dart';
 import '../../features/bills/presentation/pages/bill_details_screen.dart';
 import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/categories/presentation/pages/category_management_screen.dart';
+import '../../features/currency_converter/presentation/bloc/currency_converter_bloc.dart';
+import '../../features/currency_converter/presentation/pages/currency_converter_screen.dart';
 import '../../features/widgets/home_widget_service.dart';
 
 /// Sentinel value for the widget-launched add-expense deep link.
@@ -47,6 +49,7 @@ class AppRouter {
   static const String billsPath = '/app/bills';
   static const String categoriesPath = '/app/categories';
   static const String palettePath = '/app/settings/palette';
+  static const String currencyConverterPath = '/app/settings/converter';
 
   /// The root [Navigator]. Screens that must cover the bottom navigation
   /// (forms, details, pickers) are pushed here with `parentNavigatorKey`.
@@ -356,6 +359,24 @@ class AppRouter {
                       state: state,
                       transition: AppTransition.sharedAxisHorizontal,
                       child: const PaletteSelectionScreen(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'converter',
+                    name: 'currencyConverter',
+                    parentNavigatorKey: rootNavigatorKey,
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.sharedAxisHorizontal,
+                      // Started is dispatched once per visit, here — never
+                      // from a build method.
+                      child: BlocProvider(
+                        create: (context) =>
+                            getIt<CurrencyConverterBloc>()
+                              ..add(const CurrencyConverterStarted()),
+                        child: const CurrencyConverterScreen(),
+                      ),
                     ),
                   ),
                 ],

@@ -111,6 +111,16 @@ import '../../features/app_update/data/repository/app_update_repository_impl.dar
 import '../../features/app_update/domain/repository/app_update_repository.dart';
 import '../../features/app_update/domain/usecases/check_for_app_update_usecase.dart';
 import '../../features/app_update/presentation/bloc/app_update_bloc.dart';
+import '../../features/currency_converter/data/datasources/currency_local_datasource.dart';
+import '../../features/currency_converter/data/datasources/currency_local_datasource_impl.dart';
+import '../../features/currency_converter/data/datasources/currency_remote_datasource.dart';
+import '../../features/currency_converter/data/datasources/frankfurter_remote_datasource_impl.dart';
+import '../../features/currency_converter/data/repository/currency_converter_repository_impl.dart';
+import '../../features/currency_converter/domain/repository/currency_converter_repository.dart';
+import '../../features/currency_converter/domain/usecases/converter_preferences_usecases.dart';
+import '../../features/currency_converter/domain/usecases/get_exchange_rate_usecase.dart';
+import '../../features/currency_converter/domain/usecases/get_supported_currencies_usecase.dart';
+import '../../features/currency_converter/presentation/bloc/currency_converter_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -639,6 +649,61 @@ Future<void> initDependencyInjection() async {
   getIt.registerLazySingleton<AppUpdateBloc>(
     () => AppUpdateBloc(
       checkForAppUpdateUseCase: getIt<CheckForAppUpdateUseCase>(),
+    ),
+  );
+
+  // ============================================================
+  //  Phase 11 – Currency Converter
+  // ============================================================
+
+  // 40. Currency Converter – Data Sources
+  getIt.registerLazySingleton<CurrencyRemoteDataSource>(
+    () => FrankfurterRemoteDataSourceImpl(),
+  );
+  getIt.registerLazySingleton<CurrencyLocalDataSource>(
+    () => CurrencyLocalDataSourceImpl(
+      database: getIt<AppDatabase>(),
+      sharedPreferences: getIt<SharedPreferences>(),
+    ),
+  );
+
+  // 41. Currency Converter – Repository (cache-first)
+  getIt.registerLazySingleton<CurrencyConverterRepository>(
+    () => CurrencyConverterRepositoryImpl(
+      remoteDataSource: getIt<CurrencyRemoteDataSource>(),
+      localDataSource: getIt<CurrencyLocalDataSource>(),
+    ),
+  );
+
+  // 42. Currency Converter – Use Cases
+  getIt.registerLazySingleton<GetSupportedCurrenciesUseCase>(
+    () => GetSupportedCurrenciesUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<GetExchangeRateUseCase>(
+    () => GetExchangeRateUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<LoadConverterPreferencesUseCase>(
+    () => LoadConverterPreferencesUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<SaveConverterPreferencesUseCase>(
+    () => SaveConverterPreferencesUseCase(
+      repository: getIt<CurrencyConverterRepository>(),
+    ),
+  );
+
+  // 43. Currency Converter – BLoC (one per visit)
+  getIt.registerFactory<CurrencyConverterBloc>(
+    () => CurrencyConverterBloc(
+      getSupportedCurrencies: getIt<GetSupportedCurrenciesUseCase>(),
+      getExchangeRate: getIt<GetExchangeRateUseCase>(),
+      loadPreferences: getIt<LoadConverterPreferencesUseCase>(),
+      savePreferences: getIt<SaveConverterPreferencesUseCase>(),
     ),
   );
 }
