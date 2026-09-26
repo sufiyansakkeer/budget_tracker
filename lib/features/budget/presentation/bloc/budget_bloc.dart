@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -98,6 +99,29 @@ class BudgetBloc extends Bloc<BudgetEvent, BudgetState> {
       emit(state.copyWith(status: BudgetBlocStatus.loading, clearError: true));
     }
 
+    try {
+      await _loadBudgetDataOrThrow(emit);
+    } catch (error, stackTrace) {
+      // Surface storage failures as an error state instead of an unhandled
+      // exception that leaves the screen loading with no message.
+      developer.log(
+        '[Budget] Failed to load budget data',
+        name: 'Budget',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      emit(
+        state.copyWith(
+          status: BudgetBlocStatus.error,
+          errorMessage: 'Could not load the budget: $error',
+          clearSummary: true,
+          clearAnalytics: true,
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadBudgetDataOrThrow(Emitter<BudgetState> emit) async {
     final activeId = await budgetRepository.getActiveBudgetId();
     if (activeId == null) {
       emit(

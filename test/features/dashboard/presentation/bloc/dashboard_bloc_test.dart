@@ -184,6 +184,19 @@ class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {
   }
 }
 
+class ThrowingRecentExpensesUseCase extends MockGetRecentExpensesUseCase {
+  final Object error;
+
+  ThrowingRecentExpensesUseCase(this.error);
+
+  @override
+  Future<List<RecentExpenseEntity>> call({
+    int limit = 5,
+    DateTime? referenceDate,
+    String? budgetId,
+  }) async => throw error;
+}
+
 class MockDashboardRepository implements DashboardRepository {
   @override
   Future<List<RecentExpenseEntity>> getRecentExpenses({
@@ -359,6 +372,45 @@ void main() {
 
       bloc.add(const DashboardLoadData());
 
+      await bloc.close();
+    },
+  );
+
+  test(
+    'emits [DashboardLoading, DashboardError] with the real message when the '
+    'storage layer throws',
+    () async {
+      // A migration gap (schema v5 → categories without is_archived) made
+      // the recent-expenses query throw. The dashboard used to swallow the
+      // exception as an unhandled bloc error and stay on its skeleton.
+      final bloc = DashboardBloc(
+        getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
+          resultToReturn: BudgetSuccess(tBudgetSummary),
+        ),
+        getRecentExpensesUseCase: ThrowingRecentExpensesUseCase(
+          StateError('Null check operator used on a null value'),
+        ),
+        getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        budgetRepository: MockBudgetRepository(),
+        billRepository: FakeBillRepository(),
+      );
+
+      final future = expectLater(
+        bloc.stream,
+        emitsInOrder([
+          const DashboardLoading(),
+          isA<DashboardError>().having(
+            (s) => s.message,
+            'message',
+            contains('Null check operator used on a null value'),
+          ),
+        ]),
+      );
+
+      bloc.add(const DashboardLoadData());
+
+      await future;
       await bloc.close();
     },
   );

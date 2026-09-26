@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -89,7 +90,25 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     await _load(emit);
   }
 
+  /// Loads everything the dashboard shows. A failure anywhere in the
+  /// storage stack becomes a [DashboardError] with the real message rather
+  /// than an unhandled exception that would leave the screen on its loading
+  /// skeleton forever with nothing in the log.
   Future<void> _load(Emitter<DashboardState> emit) async {
+    try {
+      await _loadOrThrow(emit);
+    } catch (error, stackTrace) {
+      developer.log(
+        '[Dashboard] Failed to load dashboard data',
+        name: 'Dashboard',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      emit(DashboardError(message: 'Could not load your dashboard: $error'));
+    }
+  }
+
+  Future<void> _loadOrThrow(Emitter<DashboardState> emit) async {
     final activeId = await budgetRepository.getActiveBudgetId();
     if (activeId == null) {
       emit(const DashboardEmpty());

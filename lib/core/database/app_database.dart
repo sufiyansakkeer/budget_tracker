@@ -161,7 +161,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -216,9 +216,7 @@ class AppDatabase extends _$AppDatabase {
           // 4. seed categories and repair dangling references so foreign-key
           //    enforcement (enabled in beforeOpen) can never fail a write.
           await _healLegacyColumns();
-          if (!(await _columnNames('categories')).contains('is_archived')) {
-            await m.addColumn(categories, categories.isArchived);
-          }
+          await _ensureCategoryArchiveColumn(m);
           await customStatement(
             'CREATE INDEX IF NOT EXISTS index_expenses_date ON expenses (date)',
           );
@@ -239,6 +237,18 @@ class AppDatabase extends _$AppDatabase {
           );
           await seedDefaultCategories();
           await _repairOrphanExpenses();
+        }
+        if (from < 6) {
+          // `categories.is_archived` was added to the table definition after
+          // v5 had already shipped to test devices, inside the `from < 5`
+          // block above — so a database that was upgraded (or created) by
+          // that first v5 build sat at version 5 without the column and
+          // every category read failed with a null-check error. v6 exists
+          // only to run the same idempotent step for those databases.
+          await _ensureCategoryArchiveColumn(m);
+          // Same class of repair: budgets healed from the camelCase columns
+          // by an earlier v5 build kept their millisecond timestamps.
+          await _normaliseBudgetDateUnits();
         }
       },
       beforeOpen: (details) async {
@@ -327,16 +337,41 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Adds `categories.is_archived` when it is missing. Idempotent, so every
+  /// migration step that may run against a database without it can call it.
+  Future<void> _ensureCategoryArchiveColumn(Migrator m) async {
+    if (!(await _columnNames('categories')).contains('is_archived')) {
+      await m.addColumn(categories, categories.isArchived);
+    }
+  }
+
   /// Budgets created before v3 only had month/year: derive the date range.
-  /// Drift stores DateTime columns as unix *seconds*.
+  /// Drift stores DateTime columns as unix *seconds* and reads them back in
+  /// local time, so the boundaries are local midnight (the `'utc'` modifier
+  /// tells SQLite the literal date is local and converts it to UTC), never
+  /// UTC midnight, which would land on the previous day west of Greenwich.
   Future<void> _backfillLegacyBudgetDates() async {
     await customStatement(
       'UPDATE budgets SET '
-      "start_date = strftime('%s', year || '-' || printf('%02d', month) || '-01'), "
-      "end_date = strftime('%s', year || '-' || printf('%02d', month) || '-01', '+1 month', '-1 day') "
+      "start_date = strftime('%s', year || '-' || printf('%02d', month) || '-01', 'utc'), "
+      "end_date = strftime('%s', year || '-' || printf('%02d', month) || '-01', '+1 month', '-1 day', 'utc') "
       'WHERE (start_date IS NULL OR start_date = 0) '
       'AND year IS NOT NULL AND month IS NOT NULL',
     );
+  }
+
+  /// The migration shipped in every 1.x release wrote the legacy camelCase
+  /// `startDate`/`endDate` in unix *milliseconds*. Drift reads seconds, so a
+  /// value copied verbatim lands in the year 57,000 and the budget never
+  /// contains today. Anything above 10^11 (the year 5138 in seconds) can only
+  /// be milliseconds.
+  Future<void> _normaliseBudgetDateUnits() async {
+    const threshold = 100000000000;
+    for (final column in ['start_date', 'end_date']) {
+      await customStatement(
+        'UPDATE budgets SET $column = $column / 1000 WHERE $column > $threshold',
+      );
+    }
   }
 
   /// Adds any snake_case column a broken earlier migration left out and
@@ -364,6 +399,7 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     }
+    await _normaliseBudgetDateUnits();
     await _backfillLegacyBudgetDates();
 
     final expenseColumns = await _columnNames('expenses');

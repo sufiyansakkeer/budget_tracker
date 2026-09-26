@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Existing data failed to load on databases upgraded by the first v5 build.**
+  `categories.is_archived` was added to the table definition after schema v5
+  had already been applied, inside the v5 migration step, so a database that
+  was already at version 5 never received the column. Every category read then
+  failed with a null-check error: the dashboard stayed on its loading skeleton,
+  history and the expense form reported "Failed to load categories", and
+  existing expenses could not be shown. Schema v6 adds the column when it is
+  missing. Nothing is deleted or reset; existing rows are kept as they are.
+- **Budgets migrated from a 1.x install landed in the year 57,000.** The v3
+  migration every 1.x release shipped stored budget dates in milliseconds where
+  Drift reads seconds; the repair that copies those columns now converts the
+  unit, and month/year budgets from before v3 are given local-midnight
+  boundaries instead of UTC midnight.
+- **A stale active-budget id no longer empties the app.** When the id stored in
+  preferences no longer matches a budget (after deleting the active budget or
+  restoring a backup with different ids), the most recently started
+  non-archived budget is made active instead of the dashboard, history, reports
+  and widget all reporting "no budget" while the budgets list shows the rows.
+- **The dashboard and budget screens now report storage failures** with the
+  real error and a retry, instead of an unhandled exception that left them on
+  the loading state with nothing in the log.
+- **Budget periods are judged by calendar day everywhere.** A budget whose
+  stored dates carry a time of day (onboarding stores the creation instant) was
+  reported as outside its period for part of its first and last day.
+
+### Added
+- Migration tests for the first-v5-build schema (`test/fixtures/
+  schema_v5_pre_category_archive.sql`, captured from a real device), a schema
+  parity check that fails when a column is added without a migration step, and
+  a file-backed persistence suite (`test/integration/persistence_test.dart`)
+  that closes and reopens the database between steps like an app restart.
+
 ## [1.3.0] - 2026-09-20
 
 A feature release built on a review of the app against the `Money-Tracker`
