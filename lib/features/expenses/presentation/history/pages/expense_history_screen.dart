@@ -571,7 +571,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               key: ValueKey('div_${group.expenses[i].id}'),
               indent: AppSizes.avatarMd + AppSpacing.mlg,
               endIndent: AppSpacing.sm,
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              color: theme.colorScheme.outlineVariant,
             ),
           _buildExpenseRow(
             context,

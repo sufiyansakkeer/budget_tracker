@@ -80,7 +80,7 @@ class CategoryComparisonCard extends StatelessWidget {
             if (i > 0)
               Divider(
                 height: AppSpacing.md,
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                color: theme.colorScheme.outlineVariant,
               ),
             _ComparisonRow(
               key: ValueKey('comparison_${rows[i].categoryId}'),

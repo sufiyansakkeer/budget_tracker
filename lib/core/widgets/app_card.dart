@@ -55,11 +55,7 @@ class AppCard extends StatelessWidget {
         color: color ?? theme.cardTheme.color,
         borderRadius: radius,
         border: showBorder
-            ? Border.all(
-                color:
-                    borderColor ??
-                    theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-              )
+            ? Border.all(color: borderColor ?? theme.colorScheme.outlineVariant)
             : null,
       ),
       clipBehavior: Clip.antiAlias,

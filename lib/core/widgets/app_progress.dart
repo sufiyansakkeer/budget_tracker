@@ -96,7 +96,8 @@ class AppProgress extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: animated,
                         minHeight: height,
-                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
                         color: fill,
                       ),
                     );
@@ -168,7 +169,8 @@ class AppProgressRing extends StatelessWidget {
                         value: animated,
                         strokeWidth: strokeWidth,
                         strokeCap: StrokeCap.round,
-                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
                         color: animatedColor ?? ringColor,
                       ),
                     ),

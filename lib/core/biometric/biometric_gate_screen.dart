@@ -178,7 +178,7 @@ class _LockScreenBody extends StatelessWidget {
                     child: Icon(
                       Icons.fingerprint_rounded,
                       size: AppSizes.iconHero,
-                      color: colorScheme.primary,
+                      color: colorScheme.onPrimaryContainer,
                       semanticLabel: 'Biometric lock',
                     ),
                   ),

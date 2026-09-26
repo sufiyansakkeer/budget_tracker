@@ -89,7 +89,7 @@ class _PaletteCard extends StatelessWidget {
               border: Border.all(
                 color: isSelected
                     ? scheme.primary
-                    : theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                    : theme.colorScheme.outlineVariant,
                 width: isSelected ? 1.5 : 1,
               ),
             ),

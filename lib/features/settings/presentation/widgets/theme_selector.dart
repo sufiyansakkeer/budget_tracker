@@ -68,7 +68,7 @@ class _ThemeOptionTile extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: selected
-                  ? scheme.primaryContainer.withValues(alpha: 0.6)
+                  ? scheme.primaryContainer
                   : scheme.surfaceContainer,
               borderRadius: AppSpacing.borderRadiusMd,
               border: Border.all(
@@ -79,7 +79,9 @@ class _ThemeOptionTile extends StatelessWidget {
               children: [
                 Icon(
                   option.icon,
-                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                  color: selected
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: AppSpacing.smd),
                 Expanded(
@@ -105,7 +107,7 @@ class _ThemeOptionTile extends StatelessWidget {
                       ? Icon(
                           Icons.check_circle,
                           key: const ValueKey('on'),
-                          color: scheme.primary,
+                          color: scheme.onPrimaryContainer,
                         )
                       : Icon(
                           Icons.radio_button_off_rounded,

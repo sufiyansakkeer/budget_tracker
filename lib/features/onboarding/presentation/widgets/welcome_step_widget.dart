@@ -33,7 +33,7 @@ class WelcomeStepWidget extends StatelessWidget {
                   child: Icon(
                     Icons.account_balance_wallet_rounded,
                     size: AppSizes.iconHero,
-                    color: theme.colorScheme.primary,
+                    color: theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),

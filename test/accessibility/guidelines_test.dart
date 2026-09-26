@@ -36,34 +36,40 @@ void main() {
   );
 
   group('bottom navigation', () {
-    testWidgets('meets tap target, labelling and contrast guidelines', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        NavIconMode(
-          renderer: NavIconRenderer.material,
-          child: MaterialApp(
-            theme: AppTheme.lightTheme,
-            home: Scaffold(
-              body: const SizedBox.expand(),
-              bottomNavigationBar: AnimatedBottomNavigation(
-                destinations: appNavDestinations,
-                selectedIndex: 0,
-                onDestinationSelected: (_) {},
+    for (final (name, theme) in [
+      ('light', AppTheme.lightTheme),
+      ('dark', AppTheme.darkTheme),
+    ]) {
+      testWidgets(
+        'meets tap target, labelling and contrast guidelines ($name)',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            NavIconMode(
+              renderer: NavIconRenderer.material,
+              child: MaterialApp(
+                theme: theme,
+                home: Scaffold(
+                  body: const SizedBox.expand(),
+                  bottomNavigationBar: AnimatedBottomNavigation(
+                    destinations: appNavDestinations,
+                    selectedIndex: 0,
+                    onDestinationSelected: (_) {},
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
+          );
+          await tester.pumpAndSettle();
 
-      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
-      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-      await expectLater(tester, meetsGuideline(textContrastGuideline));
-      handle.dispose();
-    });
+          await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+          await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+          await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+          await expectLater(tester, meetsGuideline(textContrastGuideline));
+          handle.dispose();
+        },
+      );
+    }
   });
 
   group('category management', () {

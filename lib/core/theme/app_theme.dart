@@ -5,6 +5,7 @@ import '../../features/settings/domain/entities/color_palette_entity.dart';
 import '../constants/app_spacing.dart';
 import 'app_colors_extension.dart';
 import 'color_palettes.dart';
+import 'contrast.dart';
 
 /// Central Material 3 theme for Monivo.
 ///
@@ -149,63 +150,72 @@ class AppTheme {
     final colors = getPaletteColors(palette);
     final baseScheme = isDark ? colors.darkScheme : colors.lightScheme;
 
-    // Semantic tokens are computed exactly once per theme build.
+    // Semantic tokens are computed exactly once per theme build. They are
+    // the single source of truth: every ColorScheme role below is mapped from
+    // a token, and the tokens already guarantee legibility (see
+    // [AppColorTokens.fromPalette]).
     final tokens = AppColorTokens.fromPalette(palette, brightness);
     final bg = tokens.background;
+    final surface = tokens.surface;
     final surfaceContainer = tokens.surfaceContainer;
     final surfaceContainerHigh = tokens.surfaceContainerHigh;
+    final surfaceContainerHighest = tokens.surfaceContainerHighest;
     final outline = tokens.outline;
     final dividerColor = tokens.divider;
     final textSecondary = tokens.textSecondary;
     final cardColor = tokens.card;
 
+    // "On" colours are held to AA against the colour they sit on. Container
+    // "on" colours are the accent itself made legible on its container, so a
+    // tinted chip, nav indicator or icon tile keeps the brand hue in both
+    // themes instead of collapsing to near-black / near-white.
+    Color on(Color foreground, Color background) =>
+        Contrast.ensureContrast(foreground, background);
+
+    final inverseSurface = isDark
+        ? colors.lightScheme.surface
+        : colors.darkScheme.surface;
+
     final colorScheme = ColorScheme(
       brightness: brightness,
-      primary: baseScheme.primary,
-      onPrimary: baseScheme.onPrimary,
-      secondary: baseScheme.secondary,
-      onSecondary: baseScheme.onSecondary,
-      error: baseScheme.error,
-      onError: baseScheme.onError,
-      surface: baseScheme.surface,
+      primary: tokens.primary,
+      onPrimary: on(baseScheme.onPrimary, tokens.primary),
+      primaryContainer: baseScheme.primaryContainer,
+      onPrimaryContainer: on(tokens.primary, baseScheme.primaryContainer),
+      secondary: tokens.secondary,
+      onSecondary: on(baseScheme.onSecondary, tokens.secondary),
+      secondaryContainer: baseScheme.secondaryContainer,
+      onSecondaryContainer: on(tokens.secondary, baseScheme.secondaryContainer),
+      tertiary: tokens.tertiary,
+      onTertiary: on(baseScheme.onTertiary, tokens.tertiary),
+      tertiaryContainer: baseScheme.tertiaryContainer,
+      onTertiaryContainer: on(tokens.tertiary, baseScheme.tertiaryContainer),
+      error: tokens.error,
+      onError: on(baseScheme.onError, tokens.error),
+      errorContainer: baseScheme.errorContainer,
+      onErrorContainer: on(tokens.error, baseScheme.errorContainer),
+      surface: surface,
       onSurface: baseScheme.onSurface,
       onSurfaceVariant: textSecondary,
-      surfaceContainerHighest: surfaceContainerHigh,
-      surfaceContainerHigh: surfaceContainerHigh,
+      surfaceContainerLowest: isDark ? bg : surface,
+      surfaceContainerLow: cardColor,
       surfaceContainer: surfaceContainer,
-      surfaceContainerLow: surfaceContainer,
-      surfaceContainerLowest: baseScheme.surface,
-      surfaceTint: surfaceContainer,
+      surfaceContainerHigh: surfaceContainerHigh,
+      surfaceContainerHighest: surfaceContainerHighest,
+      // Every component theme below disables surface tint explicitly; making
+      // the scheme value transparent keeps any un-themed Material honest too.
+      surfaceTint: Colors.transparent,
       outline: outline,
       outlineVariant: dividerColor,
       shadow: Colors.black,
-      inverseSurface: isDark
-          ? colors.lightScheme.surface
-          : colors.darkScheme.surface,
+      inverseSurface: inverseSurface,
       onInverseSurface: isDark
           ? colors.lightScheme.onSurface
           : colors.darkScheme.onSurface,
-      inversePrimary: isDark
-          ? colors.lightScheme.primary
-          : colors.darkScheme.primary,
-      primaryContainer: isDark
-          ? surfaceContainerHigh
-          : baseScheme.primary.withValues(alpha: 0.12),
-      onPrimaryContainer: isDark
-          ? baseScheme.primary
-          : _darken(baseScheme.primary, 0.2),
-      secondaryContainer: isDark
-          ? surfaceContainerHigh
-          : baseScheme.secondary.withValues(alpha: 0.12),
-      onSecondaryContainer: isDark
-          ? baseScheme.secondary
-          : baseScheme.secondary,
-      tertiary: baseScheme.tertiary,
-      onTertiary: baseScheme.onTertiary,
-      tertiaryContainer: baseScheme.tertiaryContainer,
-      onTertiaryContainer: baseScheme.onTertiaryContainer,
-      errorContainer: baseScheme.error.withValues(alpha: isDark ? 0.2 : 0.12),
-      onErrorContainer: baseScheme.error,
+      inversePrimary: on(
+        isDark ? colors.lightScheme.primary : colors.darkScheme.primary,
+        inverseSurface,
+      ),
     );
 
     final base = ThemeData(
@@ -250,7 +260,7 @@ class AppTheme {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusLg,
-        side: BorderSide(color: dividerColor.withValues(alpha: 0.6)),
+        side: BorderSide(color: dividerColor),
       ),
     );
 
@@ -261,13 +271,19 @@ class AppTheme {
         horizontal: AppSpacing.md,
         vertical: AppSpacing.md,
       ),
+      // The fill alone is only ~1.1:1 against a card, so a hairline keeps the
+      // field a visible shape on every surface in both themes.
       border: OutlineInputBorder(
         borderRadius: AppSpacing.borderRadiusMd,
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: dividerColor),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: AppSpacing.borderRadiusMd,
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: dividerColor),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: AppSpacing.borderRadiusMd,
+        borderSide: BorderSide(color: dividerColor.withValues(alpha: 0.5)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: AppSpacing.borderRadiusMd,
@@ -283,7 +299,7 @@ class AppTheme {
       ),
       labelStyle: TextStyle(color: textSecondary),
       floatingLabelStyle: TextStyle(color: colorScheme.primary),
-      hintStyle: TextStyle(color: textSecondary.withValues(alpha: 0.7)),
+      hintStyle: TextStyle(color: textSecondary),
       helperStyle: _textTheme.bodySmall?.copyWith(color: textSecondary),
       errorStyle: _textTheme.bodySmall?.copyWith(color: colorScheme.error),
       prefixIconColor: textSecondary,
@@ -299,7 +315,9 @@ class AppTheme {
       }),
       foregroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.disabled)) {
-          return colorScheme.onSurface.withValues(alpha: 0.38);
+          // Material's 38% reads as barely-there on a tinted fill; 50% keeps
+          // the label understandable while still clearly not actionable.
+          return colorScheme.onSurface.withValues(alpha: 0.5);
         }
         return colorScheme.onPrimary;
       }),
@@ -385,13 +403,30 @@ class AppTheme {
       ),
     );
 
+    // Navigation bar: Material 3 places it on surfaceContainer so it reads
+    // as its own surface over the page. The indicator is the primary
+    // container held to a visible ratio against that bar, and the selected
+    // icon is primary made legible on the indicator — so both themes keep a
+    // brand-coloured selected tab that is guaranteed readable.
+    final navBackground = surfaceContainer;
+    // Near black, equal ratios look fainter, so the dark floor is higher.
+    final navIndicator = Contrast.ensureContrast(
+      colorScheme.primaryContainer,
+      navBackground,
+      minRatio: isDark ? 1.8 : 1.4,
+    );
+    final navSelectedIcon = Contrast.ensureContrast(
+      colorScheme.primary,
+      navIndicator,
+    );
+
     final navigationBarTheme = NavigationBarThemeData(
-      backgroundColor: baseScheme.surface,
+      backgroundColor: navBackground,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
       height: AppSizes.navBarHeight,
-      indicatorColor: colorScheme.primaryContainer,
+      indicatorColor: navIndicator,
       indicatorShape: const StadiumBorder(),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
@@ -405,7 +440,7 @@ class AppTheme {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
           size: AppSizes.iconLg,
-          color: selected ? colorScheme.primary : textSecondary,
+          color: selected ? navSelectedIcon : textSecondary,
         );
       }),
     );
@@ -432,10 +467,15 @@ class AppTheme {
       iconTheme: IconThemeData(size: AppSizes.iconSm, color: textSecondary),
     );
 
+    // Raised surfaces (sheets, dialogs, pickers). In light they are the
+    // plain surface; in dark they use the card tone so they sit *above* the
+    // page and the inputs inside them still step lighter again.
+    final raisedSurface = isDark ? cardColor : surface;
+
     final bottomSheetTheme = BottomSheetThemeData(
-      backgroundColor: baseScheme.surface,
+      backgroundColor: raisedSurface,
       surfaceTintColor: Colors.transparent,
-      modalBackgroundColor: baseScheme.surface,
+      modalBackgroundColor: raisedSurface,
       showDragHandle: true,
       dragHandleColor: outline,
       dragHandleSize: const Size(
@@ -451,7 +491,7 @@ class AppTheme {
     );
 
     final dialogTheme = DialogThemeData(
-      backgroundColor: baseScheme.surface,
+      backgroundColor: raisedSurface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shape: lgShape,
@@ -471,7 +511,7 @@ class AppTheme {
     );
 
     final popupMenuTheme = PopupMenuThemeData(
-      color: isDark ? surfaceContainerHigh : baseScheme.surface,
+      color: isDark ? surfaceContainerHigh : surface,
       surfaceTintColor: Colors.transparent,
       elevation: 3,
       shadowColor: Colors.black.withValues(alpha: isDark ? 0.4 : 0.12),
@@ -497,10 +537,12 @@ class AppTheme {
       ),
     );
 
+    // Tracks use the highest container so they stay visible on a card (the
+    // "high" step is only ~1.2:1 against it in light).
     final progressIndicatorTheme = ProgressIndicatorThemeData(
       color: colorScheme.primary,
-      linearTrackColor: surfaceContainerHigh,
-      circularTrackColor: surfaceContainerHigh,
+      linearTrackColor: surfaceContainerHighest,
+      circularTrackColor: surfaceContainerHighest,
     );
 
     final listTileTheme = ListTileThemeData(
@@ -573,7 +615,7 @@ class AppTheme {
 
     final sliderTheme = SliderThemeData(
       activeTrackColor: colorScheme.primary,
-      inactiveTrackColor: surfaceContainerHigh,
+      inactiveTrackColor: surfaceContainerHighest,
       thumbColor: colorScheme.primary,
       overlayColor: colorScheme.primary.withValues(alpha: 0.12),
     );
@@ -589,7 +631,7 @@ class AppTheme {
     );
 
     final datePickerTheme = DatePickerThemeData(
-      backgroundColor: baseScheme.surface,
+      backgroundColor: raisedSurface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shape: lgShape,
@@ -600,7 +642,7 @@ class AppTheme {
     );
 
     final timePickerTheme = TimePickerThemeData(
-      backgroundColor: baseScheme.surface,
+      backgroundColor: raisedSurface,
       elevation: 0,
       shape: lgShape,
       dialBackgroundColor: surfaceContainer,
@@ -616,7 +658,7 @@ class AppTheme {
       inputDecorationTheme: inputDecorationTheme,
       menuStyle: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(
-          isDark ? surfaceContainerHigh : baseScheme.surface,
+          isDark ? surfaceContainerHigh : surface,
         ),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         shape: WidgetStatePropertyAll(mdShape),
@@ -665,10 +707,5 @@ class AppTheme {
       dropdownMenuTheme: dropdownMenuTheme,
       pageTransitionsTheme: pageTransitionsTheme,
     );
-  }
-
-  static Color _darken(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0, 1)).toColor();
   }
 }

@@ -95,11 +95,7 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
       color: navTheme.backgroundColor ?? colorScheme.surface,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.6),
-            ),
-          ),
+          border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
         ),
         child: SafeArea(
           top: false,

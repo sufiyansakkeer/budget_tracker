@@ -94,9 +94,7 @@ class BarChartCard extends StatelessWidget {
                         show: true,
                         drawVerticalLine: false,
                         getDrawingHorizontalLine: (_) => FlLine(
-                          color: colorScheme.outlineVariant.withValues(
-                            alpha: 0.6,
-                          ),
+                          color: colorScheme.outlineVariant,
                           strokeWidth: 1,
                         ),
                       ),

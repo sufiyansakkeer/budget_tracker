@@ -53,7 +53,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     final base = theme.colorScheme.surfaceContainerHigh;
     final highlight = theme.brightness == Brightness.dark
         ? Color.lerp(base, theme.colorScheme.surface, -0.25)!
-        : Color.lerp(base, Colors.white, 0.6)!;
+        : Color.lerp(base, theme.colorScheme.surface, 0.6)!;
 
     return AnimatedBuilder(
       animation: _controller,

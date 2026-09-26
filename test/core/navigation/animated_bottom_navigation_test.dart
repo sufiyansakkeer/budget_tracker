@@ -159,6 +159,10 @@ void main() {
           )
           .first,
     );
-    expect(material.color, AppTheme.darkTheme.colorScheme.surface);
+    // The bar sits on the theme's navigation surface (Material 3's
+    // surfaceContainer), never on a literal colour.
+    final navTheme = AppTheme.darkTheme.navigationBarTheme;
+    expect(material.color, navTheme.backgroundColor);
+    expect(material.color, AppTheme.darkTheme.colorScheme.surfaceContainer);
   });
 }

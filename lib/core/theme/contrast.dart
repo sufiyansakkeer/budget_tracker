@@ -32,7 +32,14 @@ abstract final class Contrast {
   }
 
   /// Returns [color], or the nearest variant of it that reaches [minRatio]
-  /// against [background], by moving lightness toward the opposite end.
+  /// against [background], by moving lightness away from the background.
+  ///
+  /// The colour keeps its own side of the background: a foreground that is
+  /// already darker than the background is darkened, one that is lighter is
+  /// lightened. That matters on mid-tone fills (a button in dark mode, a
+  /// tinted chip) where a dark label must stay dark rather than being pushed
+  /// through the fill toward white. Only if that side cannot reach the ratio
+  /// at all is the other end used.
   ///
   /// Hue and saturation are preserved. If even pure black or white cannot
   /// reach the ratio (impossible for a real background), the closest attempt
@@ -44,17 +51,32 @@ abstract final class Contrast {
   }) {
     if (ratio(color, background) >= minRatio) return color;
 
+    final own = luminance(color) < luminance(background) ? 0.0 : 1.0;
+    final preferred = _towards(color, background, own, minRatio);
+    if (preferred != null) return preferred;
+    return _towards(color, background, 1 - own, minRatio) ??
+        HSLColor.fromColor(color).withLightness(1 - own).toColor();
+  }
+
+  /// Walks [color]'s lightness toward [target] (0 = black, 1 = white) and
+  /// returns the smallest change that reaches [minRatio] on [background], or
+  /// null when even the extreme cannot.
+  static Color? _towards(
+    Color color,
+    Color background,
+    double target,
+    double minRatio,
+  ) {
     final hsl = HSLColor.fromColor(color);
-    // A dark background needs a lighter accent and vice versa. Walking
-    // lightness toward that end raises contrast monotonically, so a binary
-    // search finds the smallest change that satisfies [minRatio].
-    final target = luminance(background) < 0.5 ? 1.0 : 0.0;
     Color at(double t) => hsl
         .withLightness(hsl.lightness + (target - hsl.lightness) * t)
         .toColor();
 
+    // Moving lightness toward one end raises contrast monotonically, so a
+    // binary search finds the smallest change that satisfies [minRatio].
+    if (ratio(at(1), background) < minRatio) return null;
     var lo = 0.0; // the original colour: known to fail
-    var hi = 1.0; // pure white or black: passes against any real background
+    var hi = 1.0; // the extreme: known to pass
     var best = at(1);
     for (var i = 0; i < 12; i++) {
       final mid = (lo + hi) / 2;

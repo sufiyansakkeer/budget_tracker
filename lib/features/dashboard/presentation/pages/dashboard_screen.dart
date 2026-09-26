@@ -229,9 +229,7 @@ class _DashboardContent extends StatelessWidget {
                           color: theme.cardTheme.color,
                           borderRadius: AppSpacing.borderRadiusLg,
                           border: Border.all(
-                            color: theme.colorScheme.outlineVariant.withValues(
-                              alpha: 0.6,
-                            ),
+                            color: theme.colorScheme.outlineVariant,
                           ),
                         ),
                         child: Padding(
@@ -252,8 +250,7 @@ class _DashboardContent extends StatelessWidget {
                                       'recent_div_${state.recentExpenses[i].id}',
                                     ),
                                     indent: AppSizes.avatarMd + AppSpacing.mlg,
-                                    color: theme.colorScheme.outlineVariant
-                                        .withValues(alpha: 0.5),
+                                    color: theme.colorScheme.outlineVariant,
                                   ),
                                 FadeSlideIn(
                                   key: ValueKey(

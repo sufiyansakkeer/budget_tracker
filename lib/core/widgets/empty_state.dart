@@ -63,14 +63,14 @@ class EmptyState extends StatelessWidget {
             width: _compact ? AppSizes.avatarLg : AppSizes.avatarXl,
             height: _compact ? AppSizes.avatarLg : AppSizes.avatarXl,
             decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withValues(alpha: 0.6),
+              color: colorScheme.primaryContainer,
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
             child: Icon(
               icon,
               size: _compact ? AppSizes.iconLg : AppSizes.iconHero,
-              color: colorScheme.primary,
+              color: colorScheme.onPrimaryContainer,
             ),
           ),
         ),
