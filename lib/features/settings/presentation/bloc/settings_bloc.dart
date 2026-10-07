@@ -16,6 +16,7 @@ import '../../domain/usecases/update_notification_settings_usecase.dart';
 import 'settings_event.dart';
 import 'settings_state.dart';
 import '../../../../core/domain/services/database_integrity_service.dart';
+import '../../../../core/events/refresh_bus.dart';
 
 /// BLoC responsible for loading/saving app settings and managing data
 /// operations (export, import, backup, restore, reset).
@@ -305,6 +306,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     final result = await importDataUseCase(event.path, json: event.json);
     switch (result) {
       case SettingsSuccess(:final data):
+        // Budgets and expenses were written: tabs stay mounted, so tell them
+        // (dashboard, widget, morning notification, bills' budget names) to
+        // re-read.
+        RefreshBuses.budgets.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(isBusy: false, infoMessage: 'Imported $data items.'),
         );
@@ -335,6 +342,11 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     final result = await restoreDataUseCase(event.path);
     switch (result) {
       case SettingsSuccess(:final data):
+        // Every table was replaced: tabs stay mounted, so tell them to
+        // re-read (dashboard, budgets, expenses, bills, widget).
+        RefreshBuses.budgets.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(state.copyWith(isBusy: false, infoMessage: data));
       case SettingsError(:final failure):
         emit(state.copyWith(isBusy: false, errorMessage: failure.message));
@@ -349,6 +361,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     final result = await resetBudgetUseCase.resetBudgetAmount(event.amount);
     switch (result) {
       case SettingsSuccess():
+        // The active budget's amount changed (or a budget was created), so
+        // its safe-to-spend did too.
+        RefreshBuses.budgets.notifyChanged();
         emit(
           state.copyWith(isBusy: false, infoMessage: 'Budget amount updated.'),
         );
@@ -365,6 +380,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     final result = await resetBudgetUseCase.resetCurrentMonth();
     switch (result) {
       case SettingsSuccess():
+        // A new active budget, and its unpaid bills re-linked to it.
+        RefreshBuses.budgets.notifyChanged();
+        RefreshBuses.bills.notifyChanged();
         emit(
           state.copyWith(
             isBusy: false,

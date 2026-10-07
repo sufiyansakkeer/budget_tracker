@@ -19,6 +19,8 @@ class BudgetModel {
       notes: row.notes,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      reservedAmount: row.reservedAmount,
+      savingsTarget: row.savingsTarget,
     );
   }
 
@@ -37,6 +39,8 @@ class BudgetModel {
       notes: Value(entity.notes),
       createdAt: Value(entity.createdAt),
       updatedAt: Value(entity.updatedAt),
+      reservedAmount: Value(entity.reservedAmount),
+      savingsTarget: Value(entity.savingsTarget),
     );
   }
 }

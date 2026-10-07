@@ -138,7 +138,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: 'Start a new budget period?',
       message:
           'The active budget is archived (its expenses are kept) and a new '
-          '31-day budget with the same amount and currency starts today.',
+          '31-day budget with the same amount and currency starts today. '
+          'Unpaid bills paid from it, and its kept-aside and savings '
+          'amounts, move to the new budget.',
       confirmLabel: 'Start',
       icon: Icons.replay_rounded,
       isDestructive: false,

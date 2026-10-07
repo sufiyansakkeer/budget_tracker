@@ -1,13 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/bills/data/datasource/bill_local_datasource_impl.dart';
+import 'package:monivo/features/bills/data/repository/bill_repository_impl.dart';
 import 'package:monivo/features/budget/data/datasource/budget_local_datasource_impl.dart';
 import 'package:monivo/features/budget/data/repository/budget_repository_impl.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/services/safe_to_spend_calculator.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
+import 'package:monivo/features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
+import 'package:monivo/features/dashboard/data/repository/dashboard_repository_impl.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/expenses/data/datasource/expense_local_datasource_impl.dart';
 import 'package:monivo/features/expenses/data/repository/expense_repository_impl.dart';
@@ -69,6 +75,16 @@ void main() {
     getSpendingTargets = GetSpendingTargetsUseCase(
       repository: budgetRepository,
       calculationService: calculationService,
+      safeToSpend: GetSafeToSpendUseCase(
+        budgetRepository: budgetRepository,
+        billRepository: BillRepositoryImpl(
+          localDataSource: BillLocalDataSourceImpl(database: database),
+        ),
+        dashboardRepository: DashboardRepositoryImpl(
+          localDataSource: DashboardLocalDataSourceImpl(database: database),
+        ),
+        calculator: SafeToSpendCalculator(calculationService),
+      ),
     );
     getListSummary = GetBudgetListSummaryUseCase(repository: budgetRepository);
 

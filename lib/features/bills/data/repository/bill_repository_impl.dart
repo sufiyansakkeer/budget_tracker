@@ -43,6 +43,10 @@ class BillRepositoryImpl implements BillRepository {
   }
 
   @override
+  Future<void> deleteBillPayment(String paymentId) =>
+      localDataSource.deleteBillPayment(paymentId);
+
+  @override
   Future<List<BillEntity>> getUpcomingBills({DateTime? from, int limit = 3}) =>
       localDataSource.getUpcomingBills(from: from, limit: limit);
 

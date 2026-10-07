@@ -215,8 +215,10 @@ struct MonivoWidgetEntryView: View {
     // MARK: - Helpers
 
     private var statusColor: Color {
-        if entry.status.hasPrefix("over:") {
+        if entry.status.hasPrefix("over:") || entry.status.hasPrefix("short:") {
             return .red
+        } else if entry.status == "careful" {
+            return .orange
         } else if entry.status == "on_track" {
             return .green
         } else {
@@ -226,10 +228,18 @@ struct MonivoWidgetEntryView: View {
 
     private var statusLabel: String {
         if entry.status.hasPrefix("over:") {
-            let amount = entry.status
-                .replacingOccurrences(of: "over:", with: "")
-                .flatMap(Double.init) ?? 0
+            let amount = Double(
+                entry.status.replacingOccurrences(of: "over:", with: "")
+            ) ?? 0
             return "\(CurrencyHelper.format(amount, code: entry.currency)) over"
+        } else if entry.status.hasPrefix("short:") {
+            // Over budget, or bills and money set aside exceed what's left.
+            let amount = Double(
+                entry.status.replacingOccurrences(of: "short:", with: "")
+            ) ?? 0
+            return "\(CurrencyHelper.format(amount, code: entry.currency)) short"
+        } else if entry.status == "careful" {
+            return "Spend carefully"
         } else if entry.status == "on_track" {
             return "On Track"
         } else if entry.status == "no_budget" {

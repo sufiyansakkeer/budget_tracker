@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:home_widget/home_widget.dart';
 
 import '../../core/di/injection.dart';
+import '../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../budget/domain/repository/budget_repository.dart';
 import '../dashboard/domain/entities/budget_daily_limit_entity.dart';
 import '../dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -146,16 +147,7 @@ class HomeWidgetService {
       final currency = active.currency;
 
       // ── Derive status ─────────────────────────────────────────────────
-      final bool isOverToday = spentToday > dailySafe && dailySafe > 0;
-      final double overspent = isOverToday ? spentToday - dailySafe : 0;
-      final String status;
-      if (isOverToday) {
-        status = 'over:${overspent.toStringAsFixed(0)}';
-      } else if (dailySafe > 0) {
-        status = 'on_track';
-      } else {
-        status = 'no_budget';
-      }
+      final status = statusFor(active);
 
       // ── Write data to SharedPreferences via home_widget ───────────────
       await _saveString(
@@ -189,6 +181,45 @@ class HomeWidgetService {
       await _writeErrorState();
       await _updateNativeWidgets();
     }
+  }
+
+  /// The status string the native widgets parse, for a budget running
+  /// today (taken from the safe-to-spend engine, never recomputed here):
+  /// - `short:<amount>` — over budget, or bills and money set aside exceed
+  ///   what is left (the daily amount is 0, so it is not "no budget");
+  /// - `over:<amount>` — spent more than today's safe amount;
+  /// - `careful` — spend carefully, or the budget is at risk;
+  /// - `on_track`.
+  ///
+  /// `no_budget` is written only when no budget is running today. Amounts
+  /// are rounded up to whole units, so a shortfall is never understated.
+  static String statusFor(BudgetDailyLimitEntity limit) {
+    final entity = limit.safeToSpend;
+    if (entity == null) {
+      // Legacy figures without an engine result.
+      if (limit.exceededToday > 0) {
+        return 'over:${_wholeUnits(limit.exceededToday)}';
+      }
+      return limit.dailyLimit > 0 ? 'on_track' : 'careful';
+    }
+    return switch (entity.status) {
+      SafeToSpendStatus.overBudget || SafeToSpendStatus.overcommitted =>
+        'short:${_wholeUnits(entity.shortfall)}',
+      SafeToSpendStatus.overDailyAllowance =>
+        'over:${_wholeUnits(entity.overToday)}',
+      SafeToSpendStatus.budgetAtRisk ||
+      SafeToSpendStatus.spendingCarefully => 'careful',
+      SafeToSpendStatus.onTrack => 'on_track',
+      // Not running today: callers write the no-budget state instead.
+      SafeToSpendStatus.notStarted ||
+      SafeToSpendStatus.periodEnded => 'no_budget',
+    };
+  }
+
+  static String _wholeUnits(double amount) {
+    // The epsilon keeps float noise (300.0000000001) from adding a unit.
+    final units = (amount - 1e-9).ceil();
+    return (units < 0 ? 0 : units).toString();
   }
 
   /// Saves the quick-action payload so the widget can trigger navigation.

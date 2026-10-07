@@ -5,7 +5,10 @@ import '../../domain/entities/expense_entity.dart';
 abstract class ExpenseLocalDataSource {
   Future<void> createExpense(ExpenseEntity expense);
 
-  Future<void> updateExpense(ExpenseEntity expense);
+  /// Writes the editable fields of [expense]. `bill_id` is never taken from
+  /// the entity (edit forms build a fresh one); [clearBillId] is the only way
+  /// to change it, used when the expense moves to another budget.
+  Future<void> updateExpense(ExpenseEntity expense, {bool clearBillId = false});
 
   Future<void> deleteExpense(String id);
 
@@ -28,6 +31,9 @@ abstract class ExpenseLocalDataSource {
   Future<List<ExpenseEntity>> getExpensesForBudgets({
     required List<String> budgetIds,
   });
+
+  /// Expenses whose `bill_id` is [billId], newest first.
+  Future<List<ExpenseEntity>> getExpensesForBill(String billId);
 
   Future<List<ExpenseCategory>> getCategories();
 

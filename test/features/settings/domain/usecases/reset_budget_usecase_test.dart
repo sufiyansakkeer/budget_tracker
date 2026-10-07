@@ -3,6 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/constants/preference_keys.dart';
 import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/bills/data/datasource/bill_local_datasource_impl.dart';
+import 'package:monivo/features/bills/data/repository/bill_repository_impl.dart';
+import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
+import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
 import 'package:monivo/features/budget/data/datasource/budget_local_datasource_impl.dart';
 import 'package:monivo/features/budget/data/repository/budget_repository_impl.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
@@ -16,6 +20,7 @@ void main() {
   late AppDatabase database;
   late SharedPreferences prefs;
   late BudgetRepositoryImpl repository;
+  late BillRepositoryImpl billRepository;
   late ResetBudgetUseCase useCase;
 
   BudgetEntity budget({
@@ -51,12 +56,30 @@ void main() {
       ),
       calculationService: BudgetCalculationService(),
     );
-    useCase = ResetBudgetUseCase(repository: repository);
+    billRepository = BillRepositoryImpl(
+      localDataSource: BillLocalDataSourceImpl(database: database),
+    );
+    useCase = ResetBudgetUseCase(
+      repository: repository,
+      billRepository: billRepository,
+    );
   });
 
   tearDown(() => database.close());
 
   group('resetBudgetAmount', () {
+    test(
+      'rejects amounts at or above the 1e12 limit (review: overflow)',
+      () async {
+        final result = await useCase.resetBudgetAmount(1e17);
+        expect(result, isA<SettingsError>());
+        expect(
+          (result as SettingsError).failure.message,
+          'Budget amount must be less than 1,000,000,000,000.',
+        );
+      },
+    );
+
     test('rejects non-positive amounts', () async {
       final result = await useCase.resetBudgetAmount(0);
       expect(result, isA<SettingsError>());
@@ -152,6 +175,96 @@ void main() {
       expect(prefs.getString(PreferenceKeys.activeBudgetId), newId);
     });
 
+    BillEntity bill(
+      String id, {
+      String? budgetId,
+      bool isPaid = false,
+      bool recurring = true,
+    }) => BillEntity(
+      id: id,
+      title: 'Bill $id',
+      amount: 500,
+      currency: 'USD',
+      category: BillCategory.rent,
+      dueDate: DateTime(2026, 9, 20),
+      isRecurring: recurring,
+      recurrenceType: recurring ? RecurrenceType.monthly : RecurrenceType.none,
+      isPaid: isPaid,
+      paidDate: isPaid ? DateTime(2026, 9, 18) : null,
+      budgetId: budgetId,
+      createdAt: DateTime(2026, 9, 1),
+      updatedAt: DateTime(2026, 9, 1),
+    );
+
+    test('re-links the unpaid bills of the archived budget to the new one '
+        'and carries kept-aside and savings amounts over', () async {
+      await repository.createBudget(
+        budget().copyWith(reservedAmount: 2000, savingsTarget: 5000),
+      );
+      await repository.createBudget(budget(id: 'other'));
+      await repository.setActiveBudgetId('b1');
+      await billRepository.createBill(bill('rent', budgetId: 'b1'));
+      await billRepository.createBill(
+        bill('done', budgetId: 'b1', isPaid: true, recurring: false),
+      );
+      await billRepository.createBill(bill('elsewhere', budgetId: 'other'));
+      await billRepository.createBill(bill('unlinked'));
+
+      final result = await useCase.resetCurrentMonth();
+      final newId = (result as SettingsSuccess<String>).data;
+
+      expect((await billRepository.getBillById('rent'))!.budgetId, newId);
+      expect(
+        (await billRepository.getBillById('done'))!.budgetId,
+        'b1',
+        reason: 'a paid bill stays with the period it was paid in',
+      );
+      expect(
+        (await billRepository.getBillById('elsewhere'))!.budgetId,
+        'other',
+      );
+      expect((await billRepository.getBillById('unlinked'))!.budgetId, isNull);
+
+      final fresh = (await repository.getBudgetById(newId))!;
+      expect(fresh.reservedAmount, 2000);
+      expect(fresh.savingsTarget, 5000);
+    });
+
+    test(
+      'a budget without kept-aside or savings amounts stays "not set"',
+      () async {
+        await repository.createBudget(budget());
+        await repository.setActiveBudgetId('b1');
+
+        final result = await useCase.resetCurrentMonth();
+        final fresh = (await repository.getBudgetById(
+          (result as SettingsSuccess<String>).data,
+        ))!;
+
+        expect(fresh.reservedAmount, isNull);
+        expect(fresh.savingsTarget, isNull);
+      },
+    );
+
+    test('nothing changes when re-linking fails', () async {
+      await repository.createBudget(budget());
+      await repository.setActiveBudgetId('b1');
+      await billRepository.createBill(bill('rent', budgetId: 'b1'));
+      final failing = ResetBudgetUseCase(
+        repository: repository,
+        billRepository: _FailingBillRepository(billRepository),
+      );
+
+      final result = await failing.resetCurrentMonth();
+
+      expect(result, isA<SettingsError<String>>());
+      final all = await repository.getAllBudgets();
+      expect(all.map((b) => b.id), ['b1'], reason: 'no new budget');
+      expect(all.single.isArchived, isFalse);
+      expect((await billRepository.getBillById('rent'))!.budgetId, 'b1');
+      expect(prefs.getString(PreferenceKeys.activeBudgetId), 'b1');
+    });
+
     test('creates a default period when there is no budget at all', () async {
       final result = await useCase.resetCurrentMonth();
       final id = (result as SettingsSuccess<String>).data;
@@ -162,4 +275,14 @@ void main() {
       expect(prefs.getString(PreferenceKeys.activeBudgetId), id);
     });
   });
+}
+
+/// Reads bills through [inner] but fails every bill update.
+class _FailingBillRepository extends BillRepositoryImpl {
+  _FailingBillRepository(BillRepositoryImpl inner)
+    : super(localDataSource: inner.localDataSource);
+
+  @override
+  Future<void> updateBill(BillEntity bill) async =>
+      throw StateError('disk full');
 }

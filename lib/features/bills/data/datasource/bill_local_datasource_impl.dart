@@ -70,6 +70,13 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
   }
 
   @override
+  Future<void> deleteBillPayment(String paymentId) async {
+    await (database.delete(
+      database.billPayments,
+    )..where((p) => p.id.equals(paymentId))).go();
+  }
+
+  @override
   Future<List<BillEntity>> getUpcomingBills({
     DateTime? from,
     int limit = 3,

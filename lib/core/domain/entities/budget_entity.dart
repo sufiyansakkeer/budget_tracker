@@ -20,6 +20,14 @@ class BudgetEntity extends Equatable {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Money in this budget kept out of safe-to-spend. Null = not set, which is
+  /// distinct from 0.
+  final double? reservedAmount;
+
+  /// Money the user wants left unspent at the end of the period. Null = not
+  /// set, which is distinct from 0.
+  final double? savingsTarget;
+
   const BudgetEntity({
     required this.id,
     required this.name,
@@ -34,15 +42,24 @@ class BudgetEntity extends Equatable {
     this.notes,
     required this.createdAt,
     required this.updatedAt,
+    this.reservedAmount,
+    this.savingsTarget,
   });
 
   /// Total number of days in this budget's period (inclusive).
-  int get totalDays => endDate.difference(startDate).inDays + 1;
+  int get totalDays {
+    // UTC calendar dates, as BudgetCalculationService.calendarDaysBetween:
+    // time of day and daylight-saving changes cannot shift the count.
+    final start = DateTime.utc(startDate.year, startDate.month, startDate.day);
+    final end = DateTime.utc(endDate.year, endDate.month, endDate.day);
+    return end.difference(start).inDays + 1;
+  }
 
   /// Number of days elapsed from the budget start up to [date] (inclusive).
   int daysElapsed(DateTime date) {
-    final ref = DateTime(date.year, date.month, date.day);
-    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    // UTC calendar dates: a 23-hour DST day must still count as one day.
+    final ref = DateTime.utc(date.year, date.month, date.day);
+    final start = DateTime.utc(startDate.year, startDate.month, startDate.day);
     final diff = ref.difference(start).inDays;
     if (diff < 0) return 0;
     return diff + 1;
@@ -50,8 +67,9 @@ class BudgetEntity extends Equatable {
 
   /// Number of days remaining from [date] through the budget end (inclusive).
   int daysRemaining(DateTime date) {
-    final ref = DateTime(date.year, date.month, date.day);
-    final end = DateTime(endDate.year, endDate.month, endDate.day);
+    // UTC calendar dates: a 23-hour DST day must still count as one day.
+    final ref = DateTime.utc(date.year, date.month, date.day);
+    final end = DateTime.utc(endDate.year, endDate.month, endDate.day);
     final diff = end.difference(ref).inDays;
     if (diff < 0) return 0;
     return diff + 1;
@@ -82,6 +100,10 @@ class BudgetEntity extends Equatable {
     String? notes,
     DateTime? createdAt,
     DateTime? updatedAt,
+    double? reservedAmount,
+    double? savingsTarget,
+    bool clearReservedAmount = false,
+    bool clearSavingsTarget = false,
   }) {
     return BudgetEntity(
       id: id ?? this.id,
@@ -97,6 +119,12 @@ class BudgetEntity extends Equatable {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      reservedAmount: clearReservedAmount
+          ? null
+          : (reservedAmount ?? this.reservedAmount),
+      savingsTarget: clearSavingsTarget
+          ? null
+          : (savingsTarget ?? this.savingsTarget),
     );
   }
 
@@ -115,5 +143,7 @@ class BudgetEntity extends Equatable {
     notes,
     createdAt,
     updatedAt,
+    reservedAmount,
+    savingsTarget,
   ];
 }

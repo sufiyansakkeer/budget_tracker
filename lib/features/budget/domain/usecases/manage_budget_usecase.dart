@@ -1,4 +1,5 @@
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/currency/money_math.dart';
 import '../entities/budget_filter.dart';
 import '../repository/budget_repository.dart';
 
@@ -72,6 +73,9 @@ class ManageBudgetUseCase {
     }
     if (amount <= 0) {
       return 'Budget amount must be greater than zero.';
+    }
+    if (!MoneyMath.isWithinLimit(amount)) {
+      return 'Budget amount must be less than ${MoneyMath.maxAmountLabel}.';
     }
     if (!endDate.isAfter(startDate)) {
       return 'End date must be after the start date.';

@@ -48,6 +48,10 @@ class FakeRepository implements ExpenseRepository {
   Future<List<ExpenseEntity>> getExpensesForBudgets({
     required List<String> budgetIds,
   }) async => expenses.where((e) => budgetIds.contains(e.budgetId)).toList();
+
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBill(String billId) async =>
+      expenses.where((e) => e.billId == billId).toList();
   @override
   Future<List<ExpenseCategory>> getCategories() async => defaultCategories;
 }

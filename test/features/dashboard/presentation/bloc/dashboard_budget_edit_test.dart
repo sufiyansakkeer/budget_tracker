@@ -6,11 +6,13 @@ import 'package:monivo/features/bills/data/repository/bill_repository_impl.dart'
 import 'package:monivo/features/budget/data/datasource/budget_local_datasource_impl.dart';
 import 'package:monivo/features/budget/data/repository/budget_repository_impl.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/services/safe_to_spend_calculator.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
 import 'package:monivo/features/dashboard/data/repository/dashboard_repository_impl.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -63,25 +65,35 @@ void main() {
     );
     manageBudget = ManageBudgetUseCase(repository: budgetRepository);
 
+    final billRepository = BillRepositoryImpl(
+      localDataSource: BillLocalDataSourceImpl(database: database),
+    );
+    final dashboardRepository = DashboardRepositoryImpl(
+      localDataSource: DashboardLocalDataSourceImpl(database: database),
+    );
+    final safeToSpend = GetSafeToSpendUseCase(
+      budgetRepository: budgetRepository,
+      billRepository: billRepository,
+      dashboardRepository: dashboardRepository,
+      calculator: SafeToSpendCalculator(calculationService),
+    );
     bloc = DashboardBloc(
       getBudgetSummaryUseCase: GetBudgetSummaryUseCase(
         repository: budgetRepository,
         calculationService: calculationService,
       ),
       getRecentExpensesUseCase: GetRecentExpensesUseCase(
-        repository: DashboardRepositoryImpl(
-          localDataSource: DashboardLocalDataSourceImpl(database: database),
-        ),
+        repository: dashboardRepository,
       ),
       getSmartInsightsUseCase: const GetSmartInsightsUseCase(),
       getSpendingTargetsUseCase: GetSpendingTargetsUseCase(
         repository: budgetRepository,
         calculationService: calculationService,
+        safeToSpend: safeToSpend,
       ),
+      getSafeToSpendUseCase: safeToSpend,
       budgetRepository: budgetRepository,
-      billRepository: BillRepositoryImpl(
-        localDataSource: BillLocalDataSourceImpl(database: database),
-      ),
+      billRepository: billRepository,
     );
 
     final now = DateTime.now();

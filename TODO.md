@@ -16,6 +16,15 @@ hand on a phone:
 - [ ] **Home-screen widget** — Android and iOS both render, follow the active
       budget, refresh after adding an expense, and the "Add Expense" button deep
       links into the form.
+- [ ] **Widget safe-to-spend statuses** — the `short:<amount>` ("… short") and
+      `careful` ("Spend carefully") statuses render with the right colours, and
+      Android shows "Open app to refresh" for an unknown status. The parser
+      changes in `HomeScreenWidgetProvider.kt` and `MonivoWidget.swift` have only
+      been compiled (`./gradlew :app:compileDebugKotlin`) and type-checked
+      (`swiftc -typecheck`); no device or simulator has run them.
+- [ ] **Safe-to-spend after linking and paying a bill** — the daily amount drops
+      when a bill is linked, holds when it is paid with "Mark paid & record
+      expense", and the widget and morning notification match the dashboard.
 - [ ] **Biometric lock** — locking on background, unlocking, and a pending
       widget deep link surviving the unlock.
 - [ ] **Animated bottom navigation on device** — the Rive icons load in a
@@ -61,6 +70,36 @@ several still declare an iOS 9–12 minimum.
 - **`recurring_expenses` and `savings_goals` tables have no feature.** They are
   in the schema and are backed up, but nothing reads or writes them. Removing
   them needs a migration with no user benefit; leave until a feature needs them.
+  The budget form's "Savings goal" is the `budgets.savings_target` column, not
+  this table.
+- **Savings contributions are not tracked.** There is no savings ledger and
+  there are no transfers, so the safe-to-spend engine deducts the whole savings
+  goal for the whole period (`SafeToSpendEntity.savingsContributionsTracked` is
+  always false). The app never shows progress toward the goal.
+- **The budget list's remaining amount can be stale after a restore or
+  import.** `BudgetCard` shows the stored `budgets.remaining_amount`. Expense
+  writes recompute it. Restore and JSON import write the value from the file,
+  and CSV import adds expenses without recomputing it. The dashboard and the
+  safe-to-spend figures use SQL period totals and are not affected.
+- **Native widgets do not floor the daily amount.** `HomeWidgetService` writes
+  it with two decimals, and Android (`%,.0f`) and iOS round it themselves, so
+  the widget can show a whole unit more than the dashboard's floored figure.
+- **Backup restore fails for tagged expenses.** `tags` is exported as the
+  stored JSON string but read back as a `List`, so restoring a backup that
+  contains a tagged expense throws a type error, and the transaction rolls
+  back.
+- **Bills list summary mixes currencies.** The totals row in
+  `bills_list_screen.dart` adds bill amounts across currencies and labels the
+  sum with the first bill's currency.
+- **Kept-aside and savings inputs accept two decimals,** like the existing
+  amount field, so OMR's third decimal cannot be typed.
+- **No "move bills" prompt** after creating, duplicating or archiving a
+  budget. Unlinked bills are surfaced by the dashboard's "Not linked" notice
+  and its Link bills sheet instead.
+- **Legacy pooled figure.** `GetSpendingTargetsUseCase.combinedDailyTarget`
+  and the deprecated `call()` paths still compute a bill-blind figure across
+  budgets. No production surface shows them, and they are kept only for
+  existing test doubles.
 - **Vestigial notification preferences.** `NotificationSettings` still carries
   `overspendingAlertsEnabled`, `noExpenseReminderEnabled` and quiet hours. They
   are persisted but nothing schedules them, and the toggles are not in Settings.
@@ -75,8 +114,11 @@ Decisions recorded so they are not re-litigated. Full reasoning in
   ledger would fork the safe-spending calculation the product rests on. If it is
   wanted, the shape is an income type that optionally tops up a budget's amount,
   with the formula unchanged.
-- **Currency conversion.** Each budget stores its own currency. Converting with
-  hard-coded rates would present stale numbers as fact.
+- **Converting budget amounts.** Each budget stores its own currency, and
+  expenses and bills are never converted into it. A linked bill in another
+  currency is left out of safe-to-spend and disclosed instead. The standalone
+  converter in Settings → Tools uses cached reference rates, never hard-coded
+  ones.
 - **A speed-dial floating action button.** One primary action per screen; bills
   are one tap away in Quick actions.
 - **A generic `Result<T>` across features.** The five sealed result types share

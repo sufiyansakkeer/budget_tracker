@@ -276,6 +276,10 @@ class ImportService {
 
   /// Inserts or updates data from an import payload, avoiding full replacement
   /// so the user can selectively import.
+  ///
+  /// Budgets and expenses are upserts (ON CONFLICT DO UPDATE), never REPLACE:
+  /// a key missing from an older export is [Value.absent], so the stored
+  /// reserve, savings goal or bill link of an existing row is kept.
   Future<void> _upsertAll(Map<String, Object?> data) async {
     await _database.transaction(() async {
       final budgets = (data['budgets'] as List?) ?? [];
@@ -283,7 +287,7 @@ class ImportService {
         final map = item as Map;
         await _database
             .into(_database.budgets)
-            .insert(
+            .insertOnConflictUpdate(
               BudgetsCompanion.insert(
                 id: map['id'] as String,
                 name: (map['name'] as String?) ?? 'Personal Budget',
@@ -298,8 +302,9 @@ class ImportService {
                 notes: Value(map['notes'] as String?),
                 createdAt: Value(DateTime.parse(map['createdAt'] as String)),
                 updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+                reservedAmount: _optionalDouble(map, 'reservedAmount'),
+                savingsTarget: _optionalDouble(map, 'savingsTarget'),
               ),
-              mode: InsertMode.insertOrReplace,
             );
       }
 
@@ -329,7 +334,7 @@ class ImportService {
             (await _findOrCreateDefaultBudgetId());
         await _database
             .into(_database.expenses)
-            .insert(
+            .insertOnConflictUpdate(
               ExpensesCompanion.insert(
                 id: (map['id'] as String?) ?? const Uuid().v4(),
                 budgetId: mappedBudgetId,
@@ -342,11 +347,20 @@ class ImportService {
                 tags: Value(jsonEncode(tags)),
                 createdAt: Value(DateTime.parse(map['createdAt'] as String)),
                 updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+                billId: map.containsKey('billId')
+                    ? Value(map['billId'] as String?)
+                    : const Value.absent(),
               ),
-              mode: InsertMode.insertOrReplace,
             );
       }
     });
+  }
+
+  /// A nullable money field from an import record: absent when the key is
+  /// missing (keep the stored value), otherwise the value or null.
+  static Value<double?> _optionalDouble(Map map, String key) {
+    if (!map.containsKey(key)) return const Value.absent();
+    return Value((map[key] as num?)?.toDouble());
   }
 }
 

@@ -28,6 +28,7 @@ class BillModel {
       paidDate: row.paidDate,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      budgetId: row.budgetId,
     );
   }
 
@@ -51,6 +52,7 @@ class BillModel {
       paidDate: Value(entity.paidDate),
       createdAt: Value(entity.createdAt),
       updatedAt: Value(entity.updatedAt),
+      budgetId: Value(entity.budgetId),
     );
   }
 
@@ -74,6 +76,7 @@ class BillModel {
       paidDate: Value(entity.paidDate),
       createdAt: Value(entity.createdAt),
       updatedAt: Value(entity.updatedAt),
+      budgetId: Value(entity.budgetId),
     );
   }
 

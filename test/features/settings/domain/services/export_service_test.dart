@@ -104,5 +104,47 @@ void main() {
       expect(data.containsKey('expenses'), isTrue);
       expect(data['settings'], containsPair('themeMode', 'dark'));
     });
+
+    test('collectJsonData exports the schema v8 fields', () async {
+      await database
+          .into(database.budgets)
+          .insert(
+            BudgetsCompanion.insert(
+              id: 'b-v8',
+              name: 'Home',
+              monthlyAmount: 500,
+              remainingAmount: 500,
+              currency: 'OMR',
+              startDate: DateTime(2026, 8, 1),
+              endDate: DateTime(2026, 8, 31),
+              reservedAmount: const Value(40),
+            ),
+          );
+      await database
+          .into(database.expenses)
+          .insert(
+            ExpensesCompanion.insert(
+              id: 'e-v8',
+              budgetId: 'b-v8',
+              amount: 20,
+              categoryId: 'bills',
+              date: DateTime(2026, 8, 20),
+              billId: const Value('bill-1'),
+            ),
+          );
+
+      final data = await exportService.collectJsonData();
+
+      final budget = (data['budgets'] as List).cast<Map>().firstWhere(
+        (b) => b['id'] == 'b-v8',
+      );
+      expect(budget['reservedAmount'], 40);
+      expect(budget.containsKey('savingsTarget'), isTrue);
+      expect(budget['savingsTarget'], null);
+      final expense = (data['expenses'] as List).cast<Map>().firstWhere(
+        (e) => e['id'] == 'e-v8',
+      );
+      expect(expense['billId'], 'bill-1');
+    });
   });
 }

@@ -167,21 +167,14 @@ class DashboardSkeleton extends StatelessWidget {
           SizedBox(height: AppSpacing.sm),
           SkeletonBox(width: 220, height: 36, radius: AppSpacing.radiusFull),
           SizedBox(height: AppSpacing.lg),
-          // Hero card
-          SkeletonBox(height: 220, radius: AppSpacing.radiusLg),
-          SizedBox(height: AppSpacing.md),
-          // Overview row
-          Row(
-            children: [
-              Expanded(
-                child: SkeletonBox(height: 96, radius: AppSpacing.radiusLg),
-              ),
-              SizedBox(width: AppSpacing.smd),
-              Expanded(
-                child: SkeletonBox(height: 96, radius: AppSpacing.radiusLg),
-              ),
-            ],
-          ),
+          // Hero card (amount, progress, metrics, explanation line)
+          SkeletonBox(height: 248, radius: AppSpacing.radiusLg),
+          SizedBox(height: AppSpacing.smd),
+          // "Free to spend" breakdown + forecast
+          SkeletonBox(height: 200, radius: AppSpacing.radiusLg),
+          SizedBox(height: AppSpacing.smd),
+          // Budget overview card (full width)
+          SkeletonBox(height: 140, radius: AppSpacing.radiusLg),
           SizedBox(height: AppSpacing.lg),
           // Recent list
           SkeletonBox(width: 160, height: 18),

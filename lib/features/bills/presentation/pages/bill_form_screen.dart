@@ -8,10 +8,17 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/currency/money_math.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
+import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../../settings/domain/entities/settings_failure.dart';
 import '../../../settings/domain/usecases/load_settings_usecase.dart';
 import '../../domain/entities/bill_entity.dart';
@@ -19,11 +26,19 @@ import '../../domain/entities/bill_enums.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
+import 'bill_budget_link.dart';
 import 'bill_widgets.dart';
 
 /// Add/Edit bill form screen.
 ///
-/// Order: what and how much → when it is due → repeat → reminder → note.
+/// Order: what and how much → which budget pays it → when it is due →
+/// repeat → reminder → note.
+///
+/// The budget picker is optional and starts at "Not linked". A bill is only
+/// set aside from a budget in its own currency, so picking a budget in
+/// another currency switches the bill to it: silently on create (with a
+/// helper saying so), after a confirmation on edit, where the amount was
+/// entered in the old currency.
 /// The save button is pinned to the bottom so it is never hidden behind
 /// the keyboard.
 class BillFormScreen extends StatefulWidget {
@@ -57,6 +72,18 @@ class _BillFormScreenState extends State<BillFormScreen> {
   BillEntity? _original;
   bool _populated = false;
 
+  List<BudgetEntity> _budgets = const [];
+  bool _loadingBudgets = true;
+  bool _budgetsFailed = false;
+  String? _budgetId;
+
+  /// Set when picking a budget switched the bill's currency.
+  String? _currencyNote;
+
+  /// Bumped to rebuild the picker when a currency change is cancelled, so
+  /// it shows the budget that is still selected.
+  int _pickerResets = 0;
+
   final FocusNode _titleFocus = FocusNode();
 
   bool get _isEditing => widget.billId != null;
@@ -65,6 +92,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   void initState() {
     super.initState();
     _loadCurrency();
+    _loadBudgets();
     if (_isEditing) {
       context.read<BillBloc>().add(BillLoadById(widget.billId!));
     } else {
@@ -80,13 +108,96 @@ class _BillFormScreenState extends State<BillFormScreen> {
     try {
       final result = await getIt<LoadSettingsUseCase>()();
       if (result case SettingsSuccess(:final data)) {
-        if (mounted && !_populated) {
+        // A budget picked meanwhile already set the currency.
+        if (mounted && !_populated && _budgetId == null) {
           setState(() => _currency = data.currencyCode);
         }
       }
     } catch (_) {
       // Keep default.
     }
+  }
+
+  Future<void> _loadBudgets() async {
+    setState(() {
+      _loadingBudgets = true;
+      _budgetsFailed = false;
+    });
+    try {
+      final budgets = await getIt<ManageBudgetUseCase>().getAll();
+      if (!mounted) return;
+      setState(() {
+        _budgets = budgets;
+        _loadingBudgets = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingBudgets = false;
+        _budgetsFailed = true;
+      });
+    }
+  }
+
+  /// The budget id to save. While budgets are unknown (loading or failed)
+  /// the bill keeps its link; once loaded, a link to a budget that no longer
+  /// exists is dropped rather than written back.
+  String? get _budgetIdToSave {
+    if (_budgetId == null || _loadingBudgets || _budgetsFailed) {
+      return _budgetId;
+    }
+    return _budgets.any((b) => b.id == _budgetId) ? _budgetId : null;
+  }
+
+  Future<void> _onBudgetPicked(String? id) async {
+    if (id == null) {
+      setState(() {
+        _budgetId = null;
+        _currencyNote = null;
+      });
+      return;
+    }
+    final budget = _budgets.firstWhere((b) => b.id == id);
+    final note =
+        'Amount is in ${budget.currency}, the currency of ${budget.name}';
+    if (budget.currency == _currency) {
+      setState(() {
+        _budgetId = id;
+        _currencyNote = null;
+      });
+      return;
+    }
+    if (!_isEditing) {
+      setState(() {
+        _budgetId = id;
+        _currency = budget.currency;
+        _currencyNote = note;
+      });
+      return;
+    }
+
+    final amount = _amountController.text.trim();
+    final confirmed = await ConfirmationDialog.show(
+      context: context,
+      title: 'Change this bill to ${budget.currency}?',
+      message: amount.isEmpty
+          ? 'A bill is set aside only from a budget in its own currency. '
+                'Enter the amount in ${budget.currency}.'
+          : 'The amount $amount will mean ${budget.currency} $amount. '
+                "Edit the amount if that's wrong.",
+      confirmLabel: 'Change to ${budget.currency}',
+      icon: Icons.currency_exchange_rounded,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (confirmed) {
+        _budgetId = id;
+        _currency = budget.currency;
+        _currencyNote = note;
+      } else {
+        _pickerResets++;
+      }
+    });
   }
 
   @override
@@ -125,6 +236,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
       _reminderEnabled = bill.reminderEnabled;
       _reminderOffsetDays = bill.reminderOffsetDays;
       _currency = bill.currency;
+      _budgetId = bill.budgetId;
     });
   }
 
@@ -141,6 +253,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
     final value = double.tryParse(text);
     if (value == null) return 'Enter a valid number.';
     if (value <= 0) return 'The amount must be greater than zero.';
+    if (!MoneyMath.isWithinLimit(value)) {
+      return 'The amount must be less than ${MoneyMath.maxAmountLabel}.';
+    }
     return null;
   }
 
@@ -178,6 +293,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
       amount: double.parse(_amountController.text.trim()),
       currency: _currency,
       category: _selectedCategory,
+      budgetId: _budgetIdToSave,
       dueDate: _dueDate!,
       dueTime: _dueTime != null
           ? DateTime(
@@ -345,6 +461,10 @@ class _BillFormScreenState extends State<BillFormScreen> {
                     }
                   },
                 ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Which budget pays it
+                _buildBudgetPicker(theme),
                 const SizedBox(height: AppSpacing.md),
 
                 // Category
@@ -608,6 +728,92 @@ class _BillFormScreenState extends State<BillFormScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBudgetPicker(ThemeData theme) {
+    if (_loadingBudgets) {
+      return const Shimmer(
+        child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
+      );
+    }
+    if (_budgetsFailed) {
+      return StatusCard(
+        color: theme.colorScheme.error,
+        icon: Icons.error_outline_rounded,
+        message: _budgetId == null
+            ? "Couldn't load your budgets."
+            : "Couldn't load your budgets. The bill keeps its budget.",
+        trailing: TextButton(
+          onPressed: _loadBudgets,
+          child: const Text('Retry'),
+        ),
+      );
+    }
+
+    final today = DateTime.now();
+    final options = BillBudgetLink.pickerOptions(
+      _budgets,
+      currentId: _original?.budgetId,
+      today: today,
+    );
+    if (options.isEmpty) {
+      return StatusCard(
+        key: const ValueKey('billBudgetPickerEmpty'),
+        color: context.appColors.info,
+        icon: Icons.account_balance_wallet_outlined,
+        message:
+            'No budget is running or upcoming. You can link this bill later.',
+      );
+    }
+
+    final selected = options.any((b) => b.id == _budgetId) ? _budgetId : null;
+    final selectedBudget = selected == null
+        ? null
+        : options.firstWhere((b) => b.id == selected);
+    // A link kept from before the budget's currency changed.
+    final mismatch =
+        selectedBudget != null && selectedBudget.currency != _currency;
+    final helper = selectedBudget == null
+        ? BillBudgetLink.pickerHelper
+        : mismatch
+        ? '${selectedBudget.name} uses ${selectedBudget.currency}, so this '
+              "bill isn't set aside until it's in ${selectedBudget.currency}."
+        : _currencyNote ?? BillBudgetLink.pickerHelper;
+    return DropdownButtonFormField<String?>(
+      key: ValueKey('billBudgetPicker_$_pickerResets'),
+      value: selected,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Paid from',
+        prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+        helperText: helper,
+        helperMaxLines: 2,
+      ),
+      items: [
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text(BillBudgetLink.notLinked),
+        ),
+        for (final b in options)
+          DropdownMenuItem<String?>(
+            value: b.id,
+            child: Text(
+              '${BillBudgetLink.budgetLabel(b, today)} · '
+              '${formatShortDateRange(b.startDate, b.endDate)} · ${b.currency}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      selectedItemBuilder: (context) => [
+        const Text(BillBudgetLink.notLinked),
+        for (final b in options)
+          Text(
+            BillBudgetLink.budgetLabel(b, today),
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
+      onChanged: _onBudgetPicked,
     );
   }
 

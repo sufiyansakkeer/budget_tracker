@@ -1,3 +1,5 @@
+import '../../../../core/currency/money_math.dart';
+
 /// Reusable, pure validation logic for expense inputs.
 /// Kept outside the UI so it can be unit-tested independently.
 class ExpenseValidator {
@@ -22,6 +24,9 @@ class ExpenseValidator {
     if (value <= 0) {
       return 'Amount must be greater than zero';
     }
+    if (!MoneyMath.isWithinLimit(value)) {
+      return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
+    }
 
     final decimalParts = input.trim().split('.');
     if (decimalParts.length > 1 && decimalParts[1].length > 2) {
@@ -41,6 +46,9 @@ class ExpenseValidator {
     }
     if (value <= 0) {
       return 'Amount must be greater than zero';
+    }
+    if (!MoneyMath.isWithinLimit(value)) {
+      return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
     }
     return null;
   }

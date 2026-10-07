@@ -1,3 +1,4 @@
+import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/budget/domain/entities/budget_calculation_input.dart';
 import 'package:monivo/features/budget/domain/entities/budget_status.dart';
 import 'package:monivo/features/budget/domain/entities/budget_thresholds.dart';
@@ -456,6 +457,253 @@ void main() {
       // Fewer remaining days → higher daily allowance than if money were removed
       expect(summaryDay2.dailySafeSpending, greaterThan(0));
       expect(summaryDay2.remainingDays, 21);
+    });
+  });
+
+  group('calendar day counts', () {
+    test('calendarDaysBetween counts dates, ignoring time of day', () {
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 8, 1, 23, 59),
+          DateTime(2026, 8, 2, 0, 1),
+        ),
+        1,
+      );
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 8, 2, 0, 1),
+          DateTime(2026, 8, 1, 23, 59),
+        ),
+        -1,
+      );
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 8, 10, 6),
+          DateTime(2026, 8, 10, 22),
+        ),
+        0,
+      );
+    });
+
+    test('calendarDaysBetween is DST-proof for local DateTimes', () {
+      // US DST starts 8 Mar 2026 (23-hour day) and ends 1 Nov 2026 (25-hour
+      // day). Local DateTimes in a DST zone made `difference().inDays`
+      // truncate a 23-hour span to 0; calendar dates cannot.
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 3, 8),
+          DateTime(2026, 3, 9),
+        ),
+        1,
+      );
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 3, 1),
+          DateTime(2026, 3, 31),
+        ),
+        30,
+      );
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 11, 1),
+          DateTime(2026, 11, 2),
+        ),
+        1,
+      );
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 10, 25),
+          DateTime(2026, 11, 8),
+        ),
+        14,
+      );
+    });
+
+    test('calendarDaysBetween handles leap years and year ends', () {
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2028, 2, 28),
+          DateTime(2028, 3, 1),
+        ),
+        2,
+      );
+      expect(
+        BudgetCalculationService.calendarDaysBetween(
+          DateTime(2026, 12, 31),
+          DateTime(2027, 1, 1),
+        ),
+        1,
+      );
+    });
+
+    test('daysInPeriod normalises start and end to dates', () {
+      // Old: (31 Aug 09:00 − 1 Aug 18:00).inDays + 1 = 30.
+      expect(
+        service.daysInPeriod(
+          startDate: DateTime(2026, 8, 1, 18),
+          endDate: DateTime(2026, 8, 31, 9),
+        ),
+        31,
+      );
+      expect(
+        service.daysInPeriod(
+          startDate: DateTime(2026, 8, 10, 23, 59),
+          endDate: DateTime(2026, 8, 10),
+        ),
+        1,
+      );
+    });
+
+    test('day counts across a DST month are calendar days', () {
+      final marchStart = DateTime(2026, 3, 1);
+      final marchEnd = DateTime(2026, 3, 31);
+      expect(
+        service.daysInPeriod(startDate: marchStart, endDate: marchEnd),
+        31,
+      );
+      expect(
+        service.calculateRemainingDays(
+          referenceDate: DateTime(2026, 3, 8, 12),
+          startDate: marchStart,
+          endDate: marchEnd,
+        ),
+        24,
+      );
+      expect(
+        service.calculateDaysPassed(
+          referenceDate: DateTime(2026, 3, 9),
+          startDate: marchStart,
+          endDate: marchEnd,
+        ),
+        9,
+      );
+      final novStart = DateTime(2026, 11, 1);
+      final novEnd = DateTime(2026, 11, 30);
+      expect(service.daysInPeriod(startDate: novStart, endDate: novEnd), 30);
+      expect(
+        service.calculateRemainingDays(
+          referenceDate: DateTime(2026, 11, 1, 23),
+          startDate: novStart,
+          endDate: novEnd,
+        ),
+        30,
+      );
+    });
+
+    test('Feb 2028 (leap) period has 29 days', () {
+      final febStart = DateTime(2028, 2, 1);
+      final febEnd = DateTime(2028, 2, 29);
+      expect(service.daysInPeriod(startDate: febStart, endDate: febEnd), 29);
+      expect(
+        service.calculateRemainingDays(
+          referenceDate: DateTime(2028, 2, 29),
+          startDate: febStart,
+          endDate: febEnd,
+        ),
+        1,
+      );
+      expect(
+        service.calculateDaysPassed(
+          referenceDate: DateTime(2028, 2, 29),
+          startDate: febStart,
+          endDate: febEnd,
+        ),
+        29,
+      );
+    });
+
+    test('reference date with a time on the last day is still inside', () {
+      expect(
+        service.calculateRemainingDays(
+          referenceDate: DateTime(2026, 8, 31, 23, 59),
+          startDate: start,
+          endDate: end,
+        ),
+        1,
+      );
+      expect(
+        () => service.calculateRemainingDays(
+          referenceDate: DateTime(2026, 9, 1),
+          startDate: start,
+          endDate: DateTime(2026, 8, 31, 23, 59),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('BudgetEntity day counts match the service', () {
+      final budget = BudgetEntity(
+        id: 'b',
+        name: 'March',
+        monthlyAmount: 1000,
+        remainingAmount: 1000,
+        currency: 'INR',
+        startDate: DateTime(2026, 3, 1, 18),
+        endDate: DateTime(2026, 3, 31, 9),
+        createdAt: DateTime(2026, 3, 1),
+        updatedAt: DateTime(2026, 3, 1),
+      );
+      expect(budget.totalDays, 31);
+      for (final day in [1, 8, 9, 15, 31]) {
+        final ref = DateTime(2026, 3, day, 12);
+        expect(
+          budget.daysRemaining(ref),
+          service.calculateRemainingDays(
+            referenceDate: ref,
+            startDate: budget.startDate,
+            endDate: budget.endDate,
+          ),
+        );
+        expect(
+          budget.daysElapsed(ref),
+          service.calculateDaysPassed(
+            referenceDate: ref,
+            startDate: budget.startDate,
+            endDate: budget.endDate,
+          ),
+        );
+      }
+      expect(budget.daysRemaining(DateTime(2026, 4, 1)), 0);
+      expect(budget.daysElapsed(DateTime(2026, 2, 28)), 0);
+    });
+  });
+
+  group('memo cache keying', () {
+    BudgetCalculationInput input(double spent) => BudgetCalculationInput(
+      monthlyAmount: 30000,
+      totalSpent: spent,
+      todaySpending: 0,
+      referenceDate: _aug10,
+      startDate: start,
+      endDate: end,
+    );
+
+    test('analytics of B is not served after analytics(A), summary(B)', () {
+      final a = input(1000);
+      final b = input(9000);
+      service.buildAnalytics(a);
+      service.buildSummary(b, currency: 'INR');
+      final analyticsB = service.buildAnalytics(b);
+      expect(analyticsB.totalSpent, 9000);
+      expect(analyticsB, equals(BudgetCalculationService().buildAnalytics(b)));
+    });
+
+    test('summary of A survives an analytics call for B', () {
+      final a = input(1000);
+      final first = service.buildSummary(a, currency: 'INR');
+      service.buildAnalytics(input(9000));
+      expect(
+        identical(service.buildSummary(a, currency: 'INR'), first),
+        isTrue,
+      );
+    });
+
+    test('summary cache includes the currency', () {
+      final a = input(1000);
+      final inr = service.buildSummary(a, currency: 'INR');
+      final omr = service.buildSummary(a, currency: 'OMR');
+      expect(inr.currency, 'INR');
+      expect(omr.currency, 'OMR');
     });
   });
 }

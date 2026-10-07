@@ -59,6 +59,9 @@ class BillState extends Equatable {
       case BillFilter.recurring:
         result = result.where((b) => b.isRecurring).toList();
         break;
+      case BillFilter.notLinked:
+        result = result.where((b) => b.budgetId == null).toList();
+        break;
     }
 
     // Apply search.

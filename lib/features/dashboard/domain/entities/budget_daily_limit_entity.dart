@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../budget/domain/entities/budget_status.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../domain/entities/spending_target_status.dart';
 
 /// Per-budget daily spending limit — the single source of truth for
@@ -15,13 +16,16 @@ class BudgetDailyLimitEntity extends Equatable {
   /// Display name of the budget (e.g. "Food", "Travel").
   final String budgetName;
 
-  /// The daily spending limit for this budget.
+  /// The daily spending limit for this budget (Today's Safe Spending).
   ///
-  /// Formula: (budget remaining + spent today) ÷ remaining days, i.e. the
-  /// amount available for today before today's expenses were recorded.
+  /// Formula: (free to spend + spent today) ÷ remaining days, i.e. the
+  /// amount available for today before today's expenses were recorded, once
+  /// bills, money kept aside and the savings goal are protected. Never
+  /// negative.
   final double dailyLimit;
 
-  /// Amount spent today against THIS budget only.
+  /// Amount spent today against THIS budget only, excluding payments of
+  /// bills the budget had set aside.
   final double spentToday;
 
   /// Remaining amount for today within this budget (never negative).
@@ -84,6 +88,10 @@ class BudgetDailyLimitEntity extends Equatable {
   /// End date of this budget's period.
   final DateTime endDate;
 
+  /// The full safe-to-spend result this limit was derived from (breakdown,
+  /// forecast, status, reasons). Null for limits not built by the engine.
+  final SafeToSpendEntity? safeToSpend;
+
   const BudgetDailyLimitEntity({
     required this.budgetId,
     required this.budgetName,
@@ -109,6 +117,7 @@ class BudgetDailyLimitEntity extends Equatable {
     required this.currency,
     required this.startDate,
     required this.endDate,
+    this.safeToSpend,
   });
 
   @override
@@ -137,5 +146,6 @@ class BudgetDailyLimitEntity extends Equatable {
     currency,
     startDate,
     endDate,
+    safeToSpend,
   ];
 }

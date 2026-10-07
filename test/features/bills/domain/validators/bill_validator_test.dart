@@ -29,6 +29,18 @@ void main() {
   });
 
   group('BillValidator.validateAmount', () {
+    test('rejects amounts at or above the 1e12 limit (review: overflow)', () {
+      expect(
+        BillValidator.validateAmount('100000000000000000'),
+        'Amount must be less than 1,000,000,000,000',
+      );
+      expect(BillValidator.validateAmount('999999999999.99'), isNull);
+      expect(
+        BillValidator.validateAmountValue(1e12),
+        'Amount must be less than 1,000,000,000,000',
+      );
+    });
+
     test('returns error for null input', () {
       expect(BillValidator.validateAmount(null), isNotNull);
     });

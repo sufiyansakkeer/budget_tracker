@@ -56,6 +56,10 @@ class DatabaseIntegrityService {
     issues.addAll(await _checkInvalidAmounts());
     issues.addAll(await _checkOrphanedBillPayments());
     issues.addAll(await _checkOrphanedRecurringExpenseCategories());
+    issues.addAll(await _checkOrphanedBillBudgets());
+    issues.addAll(await _checkInvalidBudgetSetAside());
+    issues.addAll(await _checkLinkedBillCurrencies());
+    issues.addAll(await _checkUnpaidBillsWithPayment());
 
     final result = IntegrityCheckResult(
       passed: issues.isEmpty,
@@ -187,6 +191,68 @@ class DatabaseIntegrityService {
       describe: (row) =>
           'Recurring expense references non-existent category '
           '${row['category_id']}',
+    );
+  }
+
+  /// Checks for bills linked to a budget that does not exist. A dangling
+  /// `expenses.bill_id` is allowed by design (bill deleted, history kept) and
+  /// deliberately not checked.
+  Future<List<IntegrityIssue>> _checkOrphanedBillBudgets() {
+    return _query(
+      'SELECT id, budget_id FROM bills '
+      'WHERE budget_id IS NOT NULL '
+      'AND budget_id NOT IN (SELECT id FROM budgets)',
+      table: 'bills',
+      describe: (row) =>
+          'Bill is linked to non-existent budget ${row['budget_id']}',
+    );
+  }
+
+  /// Checks for a negative reserve or savings goal. Null means "not set" and
+  /// is valid; `NOT (x >= 0)` also catches NaN.
+  Future<List<IntegrityIssue>> _checkInvalidBudgetSetAside() {
+    return _query(
+      'SELECT id, reserved_amount, savings_target FROM budgets '
+      'WHERE (reserved_amount IS NOT NULL AND NOT (reserved_amount >= 0)) '
+      'OR (savings_target IS NOT NULL AND NOT (savings_target >= 0))',
+      table: 'budgets',
+      describe: (row) =>
+          'Budget has invalid set-aside amounts '
+          '(reserved: ${row['reserved_amount']}, '
+          'savings goal: ${row['savings_target']})',
+    );
+  }
+
+  /// Checks for bills whose currency differs from their linked budget's: the
+  /// amount cannot be set aside from that budget without a conversion.
+  Future<List<IntegrityIssue>> _checkLinkedBillCurrencies() {
+    return _query(
+      'SELECT b.id, b.currency, bu.currency AS budget_currency '
+      'FROM bills b JOIN budgets bu ON bu.id = b.budget_id '
+      'WHERE b.currency <> bu.currency',
+      table: 'bills',
+      describe: (row) =>
+          'Bill currency ${row['currency']} differs from its budget currency '
+          '${row['budget_currency']}',
+    );
+  }
+
+  /// Checks for an unpaid one-time bill with a payment expense whose payment
+  /// record is gone: marking it unpaid deletes the newest payment record and
+  /// the expense recorded with it, so an expense left without its record was
+  /// missed. Paying writes both with the same `created_at`. An expense whose
+  /// record still exists paid an earlier occurrence (the bill was recurring
+  /// then) and is valid history.
+  Future<List<IntegrityIssue>> _checkUnpaidBillsWithPayment() {
+    return _query(
+      'SELECT b.id FROM bills b '
+      'WHERE b.is_paid = 0 '
+      "AND (b.is_recurring = 0 OR b.recurrence_type = 'none') "
+      'AND EXISTS (SELECT 1 FROM expenses e WHERE e.bill_id = b.id '
+      'AND NOT EXISTS (SELECT 1 FROM bill_payments p '
+      'WHERE p.bill_id = b.id AND p.created_at = e.created_at))',
+      table: 'bills',
+      describe: (_) => 'Unpaid one-time bill already has a payment expense',
     );
   }
 }

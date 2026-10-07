@@ -28,11 +28,15 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
     // budget it left stays short by the amount forever.
     final previous = await localDataSource.getExpenseById(expense.id);
     final previousBudgetId = previous?.budgetId;
+    // A bill payment is committed spending only in the budget the bill was
+    // set aside in; moved elsewhere it becomes plain spending.
+    final moved =
+        previousBudgetId != null && previousBudgetId != expense.budgetId;
 
     await localDataSource.transaction(() async {
-      await localDataSource.updateExpense(expense);
+      await localDataSource.updateExpense(expense, clearBillId: moved);
       await budgetRepository.updateBudgetRemainingAmount(expense.budgetId);
-      if (previousBudgetId != null && previousBudgetId != expense.budgetId) {
+      if (moved) {
         await budgetRepository.updateBudgetRemainingAmount(previousBudgetId);
       }
     });
@@ -69,6 +73,11 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
       from: from,
       to: to,
     );
+  }
+
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBill(String billId) {
+    return localDataSource.getExpensesForBill(billId);
   }
 
   @override

@@ -6,9 +6,11 @@ import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../features/budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../../../../features/budget/domain/repository/budget_repository.dart';
 import '../../../../features/budget/domain/services/budget_calculation_service.dart';
 import '../entities/app_settings.dart';
+import '../../../dashboard/domain/entities/budget_daily_limit_entity.dart';
 import '../../../dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import '../usecases/get_today_safe_spending_usecase.dart';
 
@@ -43,6 +45,13 @@ class NotificationService {
   final BudgetRepository budgetRepository;
   final BudgetCalculationService calculationService;
   final GetSpendingTargetsUseCase spendingTargetsUseCase;
+
+  /// Puts back the bill reminders [scheduleAll] clears. The plugin can only
+  /// clear every pending notification at once (per-id cancel also removes
+  /// one already shown), and bill reminders share it, so without this every
+  /// re-schedule (after any expense, budget or bill change) silently drops
+  /// them.
+  final Future<void> Function()? rescheduleBillReminders;
   bool _initialized = false;
   bool _timeZonesConfigured = false;
 
@@ -51,6 +60,7 @@ class NotificationService {
     required this.budgetRepository,
     required this.calculationService,
     required this.spendingTargetsUseCase,
+    this.rescheduleBillReminders,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   /// Initializes the plugin, timezone database, and Android notification channel.
@@ -148,9 +158,14 @@ class NotificationService {
   ///
   /// The morning notification body is dynamically calculated from per-budget
   /// data using [GetTodaySafeSpendingUseCase].
+  ///
+  /// Clearing the pending schedule also clears bill reminders, which are
+  /// opted into per bill (not by these settings), so they are put back
+  /// through [rescheduleBillReminders] straight away.
   Future<void> scheduleAll(AppSettings settings) async {
     await initialize();
     await cancelAllPending();
+    await _restoreBillReminders();
 
     final notifSettings = settings.notifications;
     if (!notifSettings.notificationsEnabled) return;
@@ -160,30 +175,7 @@ class NotificationService {
         fallbackCurrency: settings.currencyCode,
       );
 
-      String body;
-      if (perBudget != null && perBudget.budgetLimits.isNotEmpty) {
-        if (perBudget.budgetLimits.length == 1) {
-          // Single budget — show simple message.
-          final bl = perBudget.budgetLimits.first;
-          body =
-              '${bl.budgetName}: you can safely spend '
-              '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)} '
-              'today.';
-        } else {
-          // Multiple budgets — one line per budget, never combined.
-          final lines = perBudget.budgetLimits
-              .map(
-                (bl) =>
-                    '${bl.budgetName}: '
-                    '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}',
-              )
-              .join('\n');
-          body = "Today's Safe Spending per budget\n\n$lines";
-        }
-      } else {
-        body =
-            'No budget is running today. Open the app to check your budgets.';
-      }
+      final body = morningBody(perBudget?.budgetLimits ?? const []);
 
       debugPrint('[Notification] Morning notification body: $body');
 
@@ -207,6 +199,78 @@ class NotificationService {
     }
   }
 
+  /// The morning notification text for the budgets running today, one line
+  /// per budget (never combined).
+  ///
+  /// The amount is Today's Safe Spending floored to the shown digits, so it
+  /// never reads higher than what is safe. When nothing is free to spend,
+  /// the text says why (over budget, or bills and money set aside exceed
+  /// what's left) instead of "you can safely spend ₹0".
+  static String morningBody(List<BudgetDailyLimitEntity> limits) {
+    if (limits.isEmpty) {
+      return 'No budget is running today. Open the app to check your budgets.';
+    }
+    if (limits.length == 1) {
+      // Single budget — show simple message.
+      final bl = limits.first;
+      if (_nothingFree(bl)) return _nothingFreeSentence(bl);
+      return '${bl.budgetName}: you can safely spend '
+          '${CurrencyFormatter.formatFloored(bl.dailyLimit, code: bl.currency)} '
+          'today.';
+    }
+    // Multiple budgets — one line per budget, never combined.
+    final lines = limits
+        .map(
+          (bl) =>
+              '${bl.budgetName}: '
+              '${_nothingFree(bl) ? _nothingFreeShort(bl) : CurrencyFormatter.formatFloored(bl.dailyLimit, code: bl.currency)}',
+        )
+        .join('\n');
+    return "Today's Safe Spending per budget\n\n$lines";
+  }
+
+  /// Whether the daily amount shows as zero.
+  static bool _nothingFree(BudgetDailyLimitEntity bl) =>
+      CurrencyFormatter.floorForDisplay(
+        bl.dailyLimit,
+        code: bl.currency,
+      ).amount <=
+      0;
+
+  static String _nothingFreeSentence(BudgetDailyLimitEntity bl) {
+    final entity = bl.safeToSpend;
+    String amount(double value) =>
+        CurrencyFormatter.format(value, code: bl.currency);
+    switch (entity?.status) {
+      case SafeToSpendStatus.overBudget:
+        return "${bl.budgetName}: you've spent "
+            '${amount(-entity!.availableBalance)} more than this budget\'s '
+            'amount. Nothing is free to spend today.';
+      case SafeToSpendStatus.overcommitted:
+        return '${bl.budgetName}: bills and money set aside are '
+            "${amount(entity!.shortfall)} more than what's left. Nothing is "
+            'free to spend today.';
+      default:
+        if (entity != null && entity.totalDeductions > 0) {
+          return '${bl.budgetName}: nothing is free to spend today after '
+              'bills and money set aside.';
+        }
+        return '${bl.budgetName}: nothing is free to spend today.';
+    }
+  }
+
+  static String _nothingFreeShort(BudgetDailyLimitEntity bl) {
+    final entity = bl.safeToSpend;
+    String amount(double value) =>
+        CurrencyFormatter.format(value, code: bl.currency);
+    return switch (entity?.status) {
+      SafeToSpendStatus.overBudget =>
+        '${amount(-entity!.availableBalance)} over budget',
+      SafeToSpendStatus.overcommitted => '${amount(entity!.shortfall)} short',
+      _ => 'nothing free to spend',
+    };
+  }
+
   /// Schedules a one-off test notification one minute from now.
   ///
   /// Intended for development verification of permission, channel, and delivery.
@@ -220,27 +284,7 @@ class NotificationService {
       fallbackCurrency: currencyCode,
     );
 
-    String body;
-    if (perBudget != null && perBudget.budgetLimits.isNotEmpty) {
-      if (perBudget.budgetLimits.length == 1) {
-        final bl = perBudget.budgetLimits.first;
-        body =
-            '${bl.budgetName}: you can safely spend '
-            '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)} '
-            'today.';
-      } else {
-        final lines = perBudget.budgetLimits
-            .map(
-              (bl) =>
-                  '${bl.budgetName}: '
-                  '${CurrencyFormatter.format(bl.dailyLimit, code: bl.currency, decimalDigits: 0)}',
-            )
-            .join('\n');
-        body = "Today's Safe Spending per budget\n\n$lines";
-      }
-    } else {
-      body = 'No budget is running today. Open the app to check your budgets.';
-    }
+    final body = morningBody(perBudget?.budgetLimits ?? const []);
 
     debugPrint('[Notification] Test notification body: $body');
 
@@ -275,6 +319,17 @@ class NotificationService {
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
+  }
+
+  Future<void> _restoreBillReminders() async {
+    final reschedule = rescheduleBillReminders;
+    if (reschedule == null) return;
+    try {
+      await reschedule();
+    } catch (e) {
+      // The daily notifications still get scheduled.
+      debugPrint('[Notification] Could not restore bill reminders: $e');
+    }
   }
 
   /// Cancels all scheduled notifications.

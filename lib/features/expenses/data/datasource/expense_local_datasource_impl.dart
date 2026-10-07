@@ -20,7 +20,10 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
   }
 
   @override
-  Future<void> updateExpense(ExpenseEntity expense) async {
+  Future<void> updateExpense(
+    ExpenseEntity expense, {
+    bool clearBillId = false,
+  }) async {
     await (database.update(
       database.expenses,
     )..where((e) => e.id.equals(expense.id))).write(
@@ -34,6 +37,7 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
         receiptImagePath: Value(expense.receiptImagePath),
         tags: Value(ExpenseModel.encodeTags(expense.tags)),
         updatedAt: Value(expense.updatedAt),
+        billId: clearBillId ? const Value(null) : const Value.absent(),
       ),
     );
   }
@@ -100,6 +104,15 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
 
     final query = database.select(database.expenses)
       ..where((e) => e.budgetId.isIn(budgetIds))
+      ..orderBy([(e) => OrderingTerm.desc(e.date)]);
+    final rows = await query.get();
+    return rows.map(ExpenseModel.toEntity).toList();
+  }
+
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBill(String billId) async {
+    final query = database.select(database.expenses)
+      ..where((e) => e.billId.equals(billId))
       ..orderBy([(e) => OrderingTerm.desc(e.date)]);
     final rows = await query.get();
     return rows.map(ExpenseModel.toEntity).toList();

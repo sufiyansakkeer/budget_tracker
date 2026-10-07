@@ -65,6 +65,17 @@ class BillMarkPaid extends BillEvent {
   List<Object?> get props => [billId];
 }
 
+/// Pays a bill and records the payment as an expense in one step (the
+/// bill advances or is marked paid, and the expense is written atomically).
+class BillPayWithExpense extends BillEvent {
+  final String billId;
+
+  const BillPayWithExpense(this.billId);
+
+  @override
+  List<Object?> get props => [billId];
+}
+
 /// Marks a paid bill as unpaid.
 class BillMarkUnpaid extends BillEvent {
   final String billId;

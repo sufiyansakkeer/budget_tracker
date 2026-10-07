@@ -188,16 +188,26 @@ class HomeScreenWidgetProvider : AppWidgetProvider() {
                 val overAmount = status.removePrefix("over:").toDoubleOrNull() ?: 0.0
                 "${formatCurrency(overAmount, symbol)} over"
             }
+            // Over budget, or bills and money set aside exceed what's left.
+            status.startsWith("short:") -> {
+                val shortAmount = status.removePrefix("short:").toDoubleOrNull() ?: 0.0
+                "${formatCurrency(shortAmount, symbol)} short"
+            }
+            status == "careful" -> "Spend carefully"
             status == "on_track" -> "On Track"
             status == "no_budget" -> "No Budget"
             status == "error" -> "Open app to refresh"
-            else -> "On Track"
+            // Unknown (e.g. written by a newer app version): never claim
+            // "On Track" for a status we can't read.
+            else -> "Open app to refresh"
         }
         views.setTextViewText(R.id.widget_status, statusLabel)
 
         // ── Status color ────────────────────────────────────────────────
         val statusColor = when {
             status.startsWith("over:") -> 0xFFD32F2F.toInt()  // Red
+            status.startsWith("short:") -> 0xFFD32F2F.toInt() // Red
+            status == "careful" -> 0xFFE65100.toInt()         // Amber
             status == "on_track" -> 0xFF388E3C.toInt()        // Green
             else -> 0xFF757575.toInt()                         // Grey
         }

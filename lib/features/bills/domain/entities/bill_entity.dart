@@ -22,6 +22,10 @@ class BillEntity extends Equatable {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// The budget this bill is set aside from until it is paid. Null = not
+  /// linked.
+  final String? budgetId;
+
   const BillEntity({
     required this.id,
     required this.title,
@@ -40,6 +44,7 @@ class BillEntity extends Equatable {
     this.paidDate,
     required this.createdAt,
     required this.updatedAt,
+    this.budgetId,
   });
 
   BillEntity copyWith({
@@ -63,6 +68,8 @@ class BillEntity extends Equatable {
     bool clearPaidDate = false,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? budgetId,
+    bool clearBudgetId = false,
   }) {
     return BillEntity(
       id: id ?? this.id,
@@ -82,6 +89,7 @@ class BillEntity extends Equatable {
       paidDate: clearPaidDate ? null : (paidDate ?? this.paidDate),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      budgetId: clearBudgetId ? null : (budgetId ?? this.budgetId),
     );
   }
 
@@ -138,7 +146,13 @@ class BillEntity extends Equatable {
   DateTime get nextDueDate {
     switch (recurrenceType) {
       case RecurrenceType.weekly:
-        return dueDate.add(Duration(days: 7 * recurrenceInterval));
+        // Calendar arithmetic: a Duration of 7 days is 167 or 169 hours
+        // across a DST change and would land on the wrong date.
+        return DateTime(
+          dueDate.year,
+          dueDate.month,
+          dueDate.day + 7 * recurrenceInterval,
+        );
       case RecurrenceType.monthly:
         return _addMonths(dueDate, recurrenceInterval);
       case RecurrenceType.yearly:
@@ -184,6 +198,7 @@ class BillEntity extends Equatable {
     paidDate,
     createdAt,
     updatedAt,
+    budgetId,
   ];
 }
 

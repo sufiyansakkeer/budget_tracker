@@ -7,14 +7,19 @@ import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/currency_provider.dart';
+import '../../../../core/currency/money_math.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
+import '../../../bills/domain/entities/bill_entity.dart';
+import '../../../bills/domain/entities/bill_failure.dart';
+import '../../../bills/domain/usecases/get_bills_usecase.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
@@ -24,8 +29,14 @@ import '../../../../core/events/refresh_bus.dart';
 /// Create or edit a budget.
 ///
 /// Order of fields follows what the user needs to decide: name → amount and
-/// currency → period → optional look and notes. The save action is pinned to
-/// the bottom so it is never hidden behind the keyboard.
+/// currency → period → optional money set aside → optional look and notes.
+/// The save action is pinned to the bottom so it is never hidden behind the
+/// keyboard.
+///
+/// "Set aside (optional)" holds the budget's kept-aside amount and savings
+/// goal. Each is 0 to the budget amount; together they may reach it (a
+/// warning, not an error, since nothing is then free to spend). An empty
+/// field means "not set".
 class BudgetFormScreen extends StatefulWidget {
   /// When [budgetId] is provided, this screen edits that budget; otherwise it
   /// creates a new one.
@@ -45,6 +56,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
+  final _reserveController = TextEditingController();
+  final _savingsController = TextEditingController();
 
   BudgetEntity? _budget;
   late DateTime _startDate;
@@ -57,6 +70,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   bool _notFound = false;
   String? _dateError;
   String? _saveError;
+
+  /// Unpaid bills linked to the budget being edited, for the currency
+  /// warning.
+  List<BillEntity> _linkedBills = const [];
 
   final FocusNode _nameFocus = FocusNode();
 
@@ -93,6 +110,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         _nameController.text = budget.name;
         _amountController.text = _formatAmount(budget.monthlyAmount);
         _notesController.text = budget.notes ?? '';
+        _reserveController.text = budget.reservedAmount == null
+            ? ''
+            : _formatAmount(budget.reservedAmount!);
+        _savingsController.text = budget.savingsTarget == null
+            ? ''
+            : _formatAmount(budget.savingsTarget!);
         _budget = budget;
         _startDate = budget.startDate;
         _endDate = budget.endDate;
@@ -101,6 +124,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         _icon = budget.icon;
         _loading = false;
       });
+      _loadLinkedBills(budget.id);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -108,6 +132,71 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         _notFound = true;
       });
     }
+  }
+
+  /// Best effort: without bills the currency warning is simply not shown.
+  Future<void> _loadLinkedBills(String budgetId) async {
+    try {
+      final result = await getIt<GetBillsUseCase>()();
+      if (!mounted) return;
+      if (result case BillSuccess(:final data)) {
+        setState(() {
+          _linkedBills = data
+              .where((b) => b.budgetId == budgetId && !b.isPaid)
+              .toList();
+        });
+      }
+    } catch (_) {
+      // No warning.
+    }
+  }
+
+  /// Parsed set-aside field: null when empty (not set).
+  static double? _parseOptional(String text) =>
+      text.trim().isEmpty ? null : double.tryParse(text.trim());
+
+  String? _validateSetAside(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final amount = double.tryParse(text);
+    if (amount == null) return 'Enter a valid number.';
+    if (amount < 0) return "This can't be negative.";
+    final budgetAmount = double.tryParse(_amountController.text);
+    if (budgetAmount != null && budgetAmount > 0 && amount > budgetAmount) {
+      return "This can't be more than the budget amount.";
+    }
+    return null;
+  }
+
+  /// Inline warning when the kept-aside amount and savings goal together
+  /// take the whole budget. Not a blocker.
+  String? get _setAsideWarning {
+    final budgetAmount = double.tryParse(_amountController.text) ?? 0;
+    if (budgetAmount <= 0) return null;
+    final reserve = _parseOptional(_reserveController.text) ?? 0;
+    final savings = _parseOptional(_savingsController.text) ?? 0;
+    // Each field reports its own range error.
+    if (reserve < 0 || savings < 0) return null;
+    if (reserve > budgetAmount || savings > budgetAmount) return null;
+    final sum = reserve + savings;
+    if (sum <= 0 || sum < budgetAmount) return null;
+    final total = CurrencyFormatter.format(sum, code: _currency);
+    final of = CurrencyFormatter.format(budgetAmount, code: _currency);
+    return 'Together these set aside $total of $of, so nothing will be free '
+        'to spend.';
+  }
+
+  /// Warning when the currency changes while bills in the old currency are
+  /// linked: they are left out until updated.
+  String? get _currencyWarning {
+    final budget = _budget;
+    if (budget == null || _currency == budget.currency) return null;
+    final affected = _linkedBills.where((b) => b.currency != _currency);
+    if (affected.isEmpty) return null;
+    final count = affected.length;
+    final codes = affected.map((b) => b.currency).toSet().join(' and ');
+    return '$count linked ${count == 1 ? 'bill is' : 'bills are'} in $codes '
+        "and won't be counted until you update ${count == 1 ? 'it' : 'them'}.";
   }
 
   String _formatAmount(double amount) => amount == amount.roundToDouble()
@@ -120,6 +209,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     _nameController.dispose();
     _amountController.dispose();
     _notesController.dispose();
+    _reserveController.dispose();
+    _savingsController.dispose();
     super.dispose();
   }
 
@@ -196,6 +287,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final notes = _notesController.text.trim().isEmpty
         ? null
         : _notesController.text.trim();
+    final reserve = _parseOptional(_reserveController.text);
+    final savings = _parseOptional(_savingsController.text);
 
     try {
       if (_isEditing) {
@@ -208,6 +301,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           color: _color,
           icon: _icon,
           notes: notes,
+          reservedAmount: reserve,
+          clearReservedAmount: reserve == null,
+          savingsTarget: savings,
+          clearSavingsTarget: savings == null,
           updatedAt: DateTime.now(),
         );
         await _manageBudget.update(updated);
@@ -225,6 +322,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             color: _color,
             icon: _icon,
             notes: notes,
+            reservedAmount: reserve,
+            savingsTarget: savings,
             createdAt: now,
             updatedAt: now,
           ),
@@ -340,10 +439,16 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                               helperText:
                                   'The total for the whole budget period',
                             ),
+                            // The set-aside checks depend on the amount.
+                            onChanged: (_) => setState(() {}),
                             validator: (value) {
                               final amount = double.tryParse(value ?? '');
                               if (amount == null || amount <= 0) {
                                 return 'Enter an amount greater than zero.';
+                              }
+                              if (!MoneyMath.isWithinLimit(amount)) {
+                                return 'Enter an amount less than '
+                                    '${MoneyMath.maxAmountLabel}.';
                               }
                               return null;
                             },
@@ -394,6 +499,15 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                       ],
                     ),
+                    if (_currencyWarning != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      StatusCard(
+                        key: const ValueKey('budgetCurrencyBillsWarning'),
+                        color: context.appColors.warning,
+                        icon: Icons.receipt_long_rounded,
+                        message: _currencyWarning!,
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.lg),
 
                     // Period
@@ -407,6 +521,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         onPickStart: () => _pickDate(isStart: true),
                         onPickEnd: () => _pickDate(isStart: false),
                       ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // Set aside
+                    _SetAsideSection(
+                      currency: _currency,
+                      reserveController: _reserveController,
+                      savingsController: _savingsController,
+                      validator: _validateSetAside,
+                      warning: _setAsideWarning,
+                      onChanged: () => setState(() {}),
                     ),
                     const SizedBox(height: AppSpacing.lg),
 
@@ -474,6 +599,94 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 label: _isEditing ? 'Save changes' : 'Create budget',
               ),
             ),
+    );
+  }
+}
+
+class _SetAsideSection extends StatelessWidget {
+  final String currency;
+  final TextEditingController reserveController;
+  final TextEditingController savingsController;
+  final FormFieldValidator<String> validator;
+  final String? warning;
+  final VoidCallback onChanged;
+
+  const _SetAsideSection({
+    required this.currency,
+    required this.reserveController,
+    required this.savingsController,
+    required this.validator,
+    required this.warning,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget field({
+      required Key key,
+      required TextEditingController controller,
+      required String label,
+      required String helper,
+      required IconData icon,
+    }) => TextFormField(
+      key: key,
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textInputAction: TextInputAction.next,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+      ],
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: 'Not set',
+        prefixIcon: Icon(icon),
+        prefixText: '${CurrencyFormatter.symbolFor(currency)} ',
+        helperText: helper,
+        helperMaxLines: 2,
+      ),
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      validator: validator,
+      onChanged: (_) => onChanged(),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Set aside (optional)', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        field(
+          key: const ValueKey('budgetReserveField'),
+          controller: reserveController,
+          label: 'Keep aside',
+          helper: "Money in this budget you don't want counted as spendable",
+          icon: Icons.savings_outlined,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        field(
+          key: const ValueKey('budgetSavingsField'),
+          controller: savingsController,
+          label: 'Savings goal',
+          helper: 'Money you want left unspent at the end of the period',
+          icon: Icons.flag_outlined,
+        ),
+        AnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+          curve: AppMotion.standardCurve,
+          alignment: Alignment.topCenter,
+          child: warning == null
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: StatusCard(
+                    key: const ValueKey('budgetSetAsideWarning'),
+                    color: context.appColors.warning,
+                    icon: Icons.warning_amber_rounded,
+                    message: warning!,
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }

@@ -11,30 +11,80 @@ class DashboardInfo {
     return InfoContent(
       title: "Today's Safe Spending",
       whatIsThis:
-          'How much you can still spend today while staying within your '
-          'active budget for the rest of its period. Every budget that is '
-          'running today gets its own amount; amounts are never combined.',
+          'How much you can spend today in your active budget and still '
+          'cover the bills linked to it, the money you keep aside and your '
+          'savings goal until the end date. Every budget that is running '
+          'today gets its own amount; amounts are never combined.',
       howIsItCalculated:
-          "Today's Safe Spending = Remaining budget at the start of today ÷ "
+          'Free to spend = Remaining in budget − Bills due by the end date − '
+          'Kept aside − Savings goal\n\n'
+          "Today's Safe Spending = Free to spend at the start of today ÷ "
           'Remaining days\n\n'
-          'Remaining budget at the start of today = Budget amount − all '
-          'expenses before today.\n'
-          'Remaining days = days from today to the end date, counting today.\n\n'
-          "Spent today is the total of this budget's expenses dated today. "
+          'Remaining in budget = Budget amount − all expenses in this '
+          'budget.\n'
+          'Remaining days = days from today to the end date, counting today.'
+          '\n\n'
+          "Spent today is this budget's expenses dated today, except "
+          'payments of bills that were already set aside. '
           "Left today = Today's Safe Spending − Spent today.",
       example:
-          'Budget amount: ${s}10,000\n'
-          'Spent before today: ${s}2,000\n'
-          'Days left (incl. today): 20\n'
-          "Today's Safe Spending: ${s}8,000 ÷ 20 = ${s}400",
+          'Budget amount: ${s}30,000\n'
+          'Spent before today: ${s}8,000\n'
+          'Rent due before the end date: ${s}12,000\n'
+          'Kept aside: ${s}2,000\n'
+          'Free to spend: ${s}8,000\n'
+          'Days left (incl. today): 16\n'
+          "Today's Safe Spending: ${s}8,000 ÷ 16 = ${s}500",
       additionalNotes:
           '• The amount stays fixed for the day; expenses you add today '
           'reduce what is left today, and tomorrow is recalculated\n'
-          '• Spending less leaves more for the remaining days; spending more '
-          'leaves less\n'
-          '• Status: On track below 80% of the safe amount, Near limit at '
-          '80–100%, Over limit above 100%',
+          '• Only unpaid bills linked to this budget are set aside. Paying '
+          'one with "Mark paid & record expense" doesn\'t use today\'s '
+          'amount\n'
+          '• Amounts are rounded down, so the figure shown is never more '
+          'than is safe\n'
+          '• Status: On track; Spend carefully when most of today\'s amount '
+          'is used, the forecast is tight or some bills aren\'t included; '
+          "Over today's amount; At risk when your average pace would use up "
+          'the free money before the end date; Overcommitted when bills and '
+          "money set aside are more than what's left; Over budget when more "
+          'than the budget amount is spent',
       privacyNote: 'Your financial data is stored locally on your device.',
+    );
+  }
+
+  static InfoContent freeToSpend(String currency) {
+    final s = CurrencyFormatter.symbolFor(currency);
+    return InfoContent(
+      title: 'Free to spend',
+      whatIsThis:
+          'What is left in the active budget once the money it must keep '
+          'is set aside: unpaid bills linked to it, the amount you keep '
+          'aside and your savings goal. Today\'s Safe Spending spreads this '
+          'over the days left.',
+      howIsItCalculated:
+          'Free to spend = Remaining in budget − Bills due − Kept aside − '
+          'Savings goal\n\n'
+          'Bills due lists every unpaid occurrence of the linked bills up to '
+          'the end date, including overdue ones still owed.\n'
+          'The forecast takes your average daily spending over the completed '
+          'days (bill payments that were set aside are left out) and '
+          'projects it to the end date.',
+      example:
+          'Remaining in budget: ${s}22,000\n'
+          '− Bills due: ${s}12,000\n'
+          '− Kept aside: ${s}2,000\n'
+          '− Savings goal: Not set\n'
+          '= Free to spend: ${s}8,000',
+      additionalNotes:
+          '• "Not set" means you haven\'t set that amount; it is different '
+          'from ${s}0\n'
+          '• If bills can\'t be loaded, they show as Unavailable and are not '
+          'deducted\n'
+          '• Bills in another currency are not deducted; change the bill or '
+          'the budget to match\n'
+          '• The forecast needs a few days of spending first and never '
+          "changes today's amount",
     );
   }
 
@@ -76,32 +126,28 @@ class DashboardInfo {
         'active budget use its own amount, dates and expenses.',
     additionalNotes:
         'Insights you may see:\n'
-        "• A budget is over or near Today's Safe Spending\n"
+        "• Another budget is over or near its Today's Safe Spending, or "
+        'above its weekly share\n'
         '• The active budget is over its total amount\n'
-        '• At the current pace, the active budget may end the period over '
-        'its amount\n'
-        "• A budget's spending this week (Monday to Sunday) is above its "
-        'weekly share\n'
-        '• How much of a budget is used and how many days remain\n'
-        "• Your average daily spending compared with Today's Safe Spending\n"
-        '• The amount the active budget is expected to have left at the end '
-        'of its period',
+        "• At your average pace, whether the active budget's free money "
+        'lasts until its end date (bills, money kept aside and the savings '
+        'goal included)\n'
+        '• How much of a budget is used and how many days remain',
     privacyNote: 'All analysis runs on your device. No data leaves your phone.',
   );
 
   static const InfoContent upcomingBills = InfoContent(
     title: 'Upcoming Bills',
     whatIsThis:
-        'Your next unpaid bills that are due today or later. Bills are '
-        'tracked separately from your budgets and expenses.',
+        'Your next unpaid bills that are due today or later, from every '
+        'budget.',
     howIsItCalculated:
         'The app lists unpaid bills whose due date is today or in the '
         'future, sorted by due date, and shows the next three.',
     additionalNotes:
-        '• Overdue bills are not shown here. Open Bills to see them\n'
-        '• Mark a bill as paid to remove it from this list\n'
-        '• A bill only affects a budget if you record it as an expense '
-        '(Mark Paid & Add Expense)\n'
-        '• Bills are shared across all budgets',
+        '• Bills linked to a budget are set aside from it until paid\n'
+        "• Bills that aren't linked don't affect any budget\n"
+        '• Overdue bills are listed in Bills\n'
+        '• Mark a bill as paid to remove it from this list',
   );
 }

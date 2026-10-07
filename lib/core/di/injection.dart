@@ -35,6 +35,7 @@ import '../../features/budget/data/datasource/budget_local_datasource_impl.dart'
 import '../../features/budget/data/repository/budget_repository_impl.dart';
 import '../../features/budget/domain/repository/budget_repository.dart';
 import '../../features/budget/domain/services/budget_calculation_service.dart';
+import '../../features/budget/domain/services/safe_to_spend_calculator.dart';
 import '../../features/budget/domain/usecases/calculate_daily_allowance_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_analytics_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
@@ -48,6 +49,7 @@ import '../../features/dashboard/data/datasource/dashboard_local_datasource.dart
 import '../../features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
 import '../../features/dashboard/data/repository/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repository/dashboard_repository.dart';
+import '../../features/dashboard/domain/services/bill_occurrence_enumerator.dart';
 import '../../features/categories/data/datasource/category_local_datasource.dart';
 import '../../features/categories/data/datasource/category_local_datasource_impl.dart';
 import '../../features/categories/data/repository/category_repository_impl.dart';
@@ -58,6 +60,8 @@ import '../../features/categories/domain/usecases/load_categories_usecase.dart';
 import '../../features/categories/domain/usecases/save_category_usecase.dart';
 import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_linkable_bills_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -100,8 +104,10 @@ import '../../features/bills/domain/usecases/create_bill_usecase.dart';
 import '../../features/bills/domain/usecases/delete_bill_usecase.dart';
 import '../../features/bills/domain/usecases/get_bill_by_id_usecase.dart';
 import '../../features/bills/domain/usecases/get_bills_usecase.dart';
+import '../../features/bills/domain/usecases/link_bills_to_budget_usecase.dart';
 import '../../features/bills/domain/usecases/mark_bill_paid_usecase.dart';
 import '../../features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
+import '../../features/bills/domain/usecases/pay_bill_usecase.dart';
 import '../../features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../features/bills/domain/usecases/update_bill_usecase.dart';
 import '../../features/bills/presentation/bloc/bill_bloc.dart';
@@ -141,6 +147,9 @@ Future<void> initDependencyInjection() async {
   // 3. Budget Engine - Core Service
   getIt.registerLazySingleton<BudgetCalculationService>(
     () => BudgetCalculationService(),
+  );
+  getIt.registerLazySingleton<SafeToSpendCalculator>(
+    () => SafeToSpendCalculator(getIt<BudgetCalculationService>()),
   );
 
   // 3.5 Theme Repository + BLoC
@@ -294,10 +303,33 @@ Future<void> initDependencyInjection() async {
     () => const GetSmartInsightsUseCase(),
   );
 
+  getIt.registerLazySingleton<BillOccurrenceEnumerator>(
+    () => const BillOccurrenceEnumerator(),
+  );
+
+  getIt.registerLazySingleton<GetSafeToSpendUseCase>(
+    () => GetSafeToSpendUseCase(
+      budgetRepository: getIt<BudgetRepository>(),
+      billRepository: getIt<BillRepository>(),
+      dashboardRepository: getIt<DashboardRepository>(),
+      calculator: getIt<SafeToSpendCalculator>(),
+      enumerator: getIt<BillOccurrenceEnumerator>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetLinkableBillsUseCase>(
+    () => GetLinkableBillsUseCase(
+      billRepository: getIt<BillRepository>(),
+      budgetRepository: getIt<BudgetRepository>(),
+      enumerator: getIt<BillOccurrenceEnumerator>(),
+    ),
+  );
+
   getIt.registerLazySingleton<GetSpendingTargetsUseCase>(
     () => GetSpendingTargetsUseCase(
       repository: getIt<BudgetRepository>(),
       calculationService: getIt<BudgetCalculationService>(),
+      safeToSpend: getIt<GetSafeToSpendUseCase>(),
     ),
   );
 
@@ -308,6 +340,7 @@ Future<void> initDependencyInjection() async {
       getRecentExpensesUseCase: getIt<GetRecentExpensesUseCase>(),
       getSmartInsightsUseCase: getIt<GetSmartInsightsUseCase>(),
       getSpendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
+      getSafeToSpendUseCase: getIt<GetSafeToSpendUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
       billRepository: getIt<BillRepository>(),
     ),
@@ -486,6 +519,9 @@ Future<void> initDependencyInjection() async {
       budgetRepository: getIt<BudgetRepository>(),
       calculationService: getIt<BudgetCalculationService>(),
       spendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
+      // Resolved on use: BillReminderService is registered further down.
+      rescheduleBillReminders: () =>
+          getIt<BillReminderService>().rescheduleAll(),
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
@@ -527,7 +563,10 @@ Future<void> initDependencyInjection() async {
     () => RestoreDataUseCase(backupService: getIt<BackupService>()),
   );
   getIt.registerLazySingleton<ResetBudgetUseCase>(
-    () => ResetBudgetUseCase(repository: getIt<BudgetRepository>()),
+    () => ResetBudgetUseCase(
+      repository: getIt<BudgetRepository>(),
+      billRepository: getIt<BillRepository>(),
+    ),
   );
   getIt.registerLazySingleton<ScheduleNotificationsUseCase>(
     () => ScheduleNotificationsUseCase(
@@ -607,7 +646,23 @@ Future<void> initDependencyInjection() async {
     () => MarkBillPaidUseCase(repository: getIt<BillRepository>()),
   );
   getIt.registerLazySingleton<MarkBillUnpaidUseCase>(
-    () => MarkBillUnpaidUseCase(repository: getIt<BillRepository>()),
+    () => MarkBillUnpaidUseCase(
+      repository: getIt<BillRepository>(),
+      expenseRepository: getIt<ExpenseRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<PayBillUseCase>(
+    () => PayBillUseCase(
+      billRepository: getIt<BillRepository>(),
+      budgetRepository: getIt<BudgetRepository>(),
+      expenseRepository: getIt<ExpenseRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<LinkBillsToBudgetUseCase>(
+    () => LinkBillsToBudgetUseCase(
+      billRepository: getIt<BillRepository>(),
+      budgetRepository: getIt<BudgetRepository>(),
+    ),
   );
 
   // 35. Bills Feature – BLoC
@@ -620,6 +675,7 @@ Future<void> initDependencyInjection() async {
       getBillByIdUseCase: getIt<GetBillByIdUseCase>(),
       markBillPaidUseCase: getIt<MarkBillPaidUseCase>(),
       markBillUnpaidUseCase: getIt<MarkBillUnpaidUseCase>(),
+      payBillUseCase: getIt<PayBillUseCase>(),
       reminderService: getIt<BillReminderService>(),
     ),
   );

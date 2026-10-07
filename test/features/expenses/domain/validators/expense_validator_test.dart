@@ -3,6 +3,22 @@ import 'package:monivo/features/expenses/domain/validators/expense_validator.dar
 
 void main() {
   group('ExpenseValidator.validateAmount', () {
+    test('rejects amounts at or above the 1e12 limit (review: overflow)', () {
+      expect(
+        ExpenseValidator.validateAmount('100000000000000000'),
+        'Amount must be less than 1,000,000,000,000',
+      );
+      expect(
+        ExpenseValidator.validateAmount('1000000000000'),
+        'Amount must be less than 1,000,000,000,000',
+      );
+      expect(ExpenseValidator.validateAmount('999999999999.99'), isNull);
+      expect(
+        ExpenseValidator.validateAmountValue(1e17),
+        'Amount must be less than 1,000,000,000,000',
+      );
+    });
+
     test('returns error for null input', () {
       expect(ExpenseValidator.validateAmount(null), 'Amount cannot be empty');
     });

@@ -239,7 +239,10 @@ void main() {
       addTearDown(expenses.close);
       await spend(expenses, budgetId: original.id, amount: 3000);
 
-      final reset = ResetBudgetUseCase(repository: app.budgetRepository);
+      final reset = ResetBudgetUseCase(
+        repository: app.budgetRepository,
+        billRepository: app.billRepository,
+      );
       final result = await reset.resetCurrentMonth();
       final newId = (result as SettingsSuccess<String>).data;
 
@@ -273,7 +276,10 @@ void main() {
       await spend(expenses, budgetId: budget.id, amount: 2500);
       expect(await app.storedRemaining(budget.id), 7500);
 
-      final reset = ResetBudgetUseCase(repository: app.budgetRepository);
+      final reset = ResetBudgetUseCase(
+        repository: app.budgetRepository,
+        billRepository: app.billRepository,
+      );
       await reset.resetBudgetAmount(20000);
 
       expect(await app.storedRemaining(budget.id), 17500);

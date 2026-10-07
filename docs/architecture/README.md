@@ -7,7 +7,7 @@ actually ask.
 | Document | Question it answers |
 | --- | --- |
 | [decisions.md](decisions.md) | Why Drift, BLoC, Clean Architecture and GetIt? |
-| [safe_spending.md](safe_spending.md) | How is Today's Safe Spending calculated, and why that formula? |
+| [safe_spending.md](safe_spending.md) | How is Today's Safe Spending calculated, how do linked bills, kept-aside money and a savings goal reduce it, and why? |
 | [multiple_budgets.md](multiple_budgets.md) | How do independent budgets work, and what is never shared between them? |
 | [rive_navigation.md](rive_navigation.md) | How does the animated bottom navigation work, and how do I change its icons? |
 | [offline_first.md](offline_first.md) | What does "offline-first" mean here, and what is the data contract? |

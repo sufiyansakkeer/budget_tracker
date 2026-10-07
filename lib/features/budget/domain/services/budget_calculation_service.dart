@@ -9,21 +9,46 @@ import '../entities/budget_thresholds.dart';
 /// Contains no database, UI, or Flutter dependencies.
 /// All methods are deterministic and unit-testable.
 class BudgetCalculationService {
-  BudgetCalculationInput? _cachedInput;
+  // Summary and analytics are memoized independently: sharing one input key
+  // let `buildAnalytics(A) → buildSummary(B) → buildAnalytics(B)` return the
+  // analytics of A. The summary key also includes the currency it was
+  // labelled with.
+  BudgetCalculationInput? _summaryInput;
+  String? _summaryCurrency;
   BudgetSummaryEntity? _cachedSummary;
+  BudgetCalculationInput? _analyticsInput;
   BudgetAnalyticsEntity? _cachedAnalytics;
 
   /// Clears memoized calculation results.
   void clearCache() {
-    _cachedInput = null;
+    _summaryInput = null;
+    _summaryCurrency = null;
     _cachedSummary = null;
+    _analyticsInput = null;
     _cachedAnalytics = null;
   }
 
+  /// Whole calendar days from the date of [from] to the date of [to]
+  /// (negative when [to] is earlier). Time of day is ignored.
+  ///
+  /// Counted on UTC calendar dates so a daylight-saving change between the
+  /// two dates (a 23- or 25-hour local day) cannot shift the result: local
+  /// `difference().inDays` truncates a 23-hour span to 0.
+  ///
+  /// Example: 8 Mar 2026 → 9 Mar 2026 = 1 in every time zone.
+  static int calendarDaysBetween(DateTime from, DateTime to) {
+    final a = DateTime.utc(from.year, from.month, from.day);
+    final b = DateTime.utc(to.year, to.month, to.day);
+    return b.difference(a).inDays;
+  }
+
   /// Returns the total number of days in the budget period (inclusive).
+  ///
+  /// Only the dates count: a period stored as 1 Aug 12:00 → 31 Aug 00:00 is
+  /// still 31 days.
   int daysInPeriod({required DateTime startDate, required DateTime endDate}) {
     _validateDateRange(startDate, endDate);
-    return endDate.difference(startDate).inDays + 1;
+    return calendarDaysBetween(startDate, endDate) + 1;
   }
 
   /// Days elapsed in the budget period including [referenceDate].
@@ -35,13 +60,7 @@ class BudgetCalculationService {
     required DateTime endDate,
   }) {
     _validateReferenceDate(referenceDate, startDate, endDate);
-    final start = DateTime(startDate.year, startDate.month, startDate.day);
-    final ref = DateTime(
-      referenceDate.year,
-      referenceDate.month,
-      referenceDate.day,
-    );
-    final diff = ref.difference(start).inDays;
+    final diff = calendarDaysBetween(startDate, referenceDate);
     return diff < 0 ? 0 : diff + 1;
   }
 
@@ -55,13 +74,7 @@ class BudgetCalculationService {
     required DateTime endDate,
   }) {
     _validateReferenceDate(referenceDate, startDate, endDate);
-    final end = DateTime(endDate.year, endDate.month, endDate.day);
-    final ref = DateTime(
-      referenceDate.year,
-      referenceDate.month,
-      referenceDate.day,
-    );
-    final remaining = end.difference(ref).inDays + 1;
+    final remaining = calendarDaysBetween(referenceDate, endDate) + 1;
     return remaining < 1 ? 1 : remaining;
   }
 
@@ -202,7 +215,9 @@ class BudgetCalculationService {
     BudgetCalculationInput input, {
     required String currency,
   }) {
-    if (_cachedInput == input && _cachedSummary != null) {
+    if (_summaryInput == input &&
+        _summaryCurrency == currency &&
+        _cachedSummary != null) {
       return _cachedSummary!;
     }
 
@@ -288,14 +303,15 @@ class BudgetCalculationService {
       endDate: input.endDate,
     );
 
-    _cachedInput = input;
+    _summaryInput = input;
+    _summaryCurrency = currency;
     _cachedSummary = summary;
     return summary;
   }
 
   /// Builds extended [BudgetAnalyticsEntity] from raw input data.
   BudgetAnalyticsEntity buildAnalytics(BudgetCalculationInput input) {
-    if (_cachedInput == input && _cachedAnalytics != null) {
+    if (_analyticsInput == input && _cachedAnalytics != null) {
       return _cachedAnalytics!;
     }
 
@@ -374,13 +390,13 @@ class BudgetCalculationService {
       status: status,
     );
 
-    _cachedInput = input;
+    _analyticsInput = input;
     _cachedAnalytics = analytics;
     return analytics;
   }
 
   void _validateDateRange(DateTime startDate, DateTime endDate) {
-    if (endDate.isBefore(startDate)) {
+    if (calendarDaysBetween(startDate, endDate) < 0) {
       throw ArgumentError(
         'End date ${endDate.toIso8601String()} '
         'must be on or after start date ${startDate.toIso8601String()}',
@@ -394,14 +410,8 @@ class BudgetCalculationService {
     DateTime endDate,
   ) {
     _validateDateRange(startDate, endDate);
-    final ref = DateTime(
-      referenceDate.year,
-      referenceDate.month,
-      referenceDate.day,
-    );
-    final start = DateTime(startDate.year, startDate.month, startDate.day);
-    final end = DateTime(endDate.year, endDate.month, endDate.day);
-    if (ref.isBefore(start) || ref.isAfter(end)) {
+    if (calendarDaysBetween(startDate, referenceDate) < 0 ||
+        calendarDaysBetween(referenceDate, endDate) < 0) {
       throw ArgumentError(
         'Reference date ${referenceDate.toIso8601String()} '
         'does not fall within budget period '

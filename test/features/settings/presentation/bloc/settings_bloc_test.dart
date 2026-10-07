@@ -1,3 +1,4 @@
+import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:monivo/features/settings/domain/entities/app_settings.dart';
 import 'package:monivo/features/settings/domain/entities/settings_failure.dart';
 import 'package:monivo/features/settings/domain/services/biometric_service.dart';
@@ -277,6 +278,197 @@ void main() {
       expect(bloc.state.errorMessage, 'save failed');
       expect(bloc.state.isBiometricBusy, false);
 
+      await bloc.close();
+    });
+  });
+
+  group('SettingsBloc - Restore', () {
+    late MockRestoreDataUseCase restoreDataUseCase;
+
+    setUp(() {
+      provideDummy<SettingsResult<String>>(const SettingsSuccess(''));
+      restoreDataUseCase = MockRestoreDataUseCase();
+    });
+
+    SettingsBloc buildBloc() {
+      return SettingsBloc(
+        loadSettingsUseCase: MockLoadSettingsUseCase(),
+        updateCurrencyUseCase: MockUpdateCurrencyUseCase(),
+        updateNotificationSettingsUseCase:
+            MockUpdateNotificationSettingsUseCase(),
+        updateBiometricUseCase: MockUpdateBiometricUseCase(),
+        biometricService: MockBiometricService(),
+        exportDataUseCase: MockExportDataUseCase(),
+        importDataUseCase: MockImportDataUseCase(),
+        backupDataUseCase: MockBackupDataUseCase(),
+        restoreDataUseCase: restoreDataUseCase,
+        resetBudgetUseCase: MockResetBudgetUseCase(),
+        scheduleNotificationsUseCase: MockScheduleNotificationsUseCase(),
+      );
+    }
+
+    /// Counts notifications on every bus a mounted tab listens to.
+    Map<String, int> listenToBuses() {
+      final counts = <String, int>{};
+      for (final bus in [
+        RefreshBuses.budgets,
+        RefreshBuses.expenses,
+        RefreshBuses.bills,
+      ]) {
+        counts[bus.name] = 0;
+        final sub = bus.changes.listen(
+          (_) => counts[bus.name] = counts[bus.name]! + 1,
+        );
+        addTearDown(sub.cancel);
+      }
+      return counts;
+    }
+
+    test('a successful restore tells every tab to re-read', () async {
+      when(
+        restoreDataUseCase.call('/backup.json'),
+      ).thenAnswer((_) async => const SettingsSuccess('Restored.'));
+      final counts = listenToBuses();
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsRestoreEvent('/backup.json'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.infoMessage, 'Restored.');
+      expect(counts, {'budgets': 1, 'expenses': 1, 'bills': 1});
+      await bloc.close();
+    });
+
+    test('a failed restore notifies nothing', () async {
+      when(restoreDataUseCase.call('/backup.json')).thenAnswer(
+        (_) async => const SettingsError(
+          SettingsFailure(
+            type: SettingsErrorType.restoreFailure,
+            message: 'Bad',
+          ),
+        ),
+      );
+      final counts = listenToBuses();
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsRestoreEvent('/backup.json'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.errorMessage, 'Bad');
+      expect(counts, {'budgets': 0, 'expenses': 0, 'bills': 0});
+      await bloc.close();
+    });
+  });
+  group('SettingsBloc - Import and change amount (review: no buses fired)', () {
+    late MockImportDataUseCase importDataUseCase;
+    late MockResetBudgetUseCase resetBudgetUseCase;
+
+    setUp(() {
+      provideDummy<SettingsResult<String>>(const SettingsSuccess(''));
+      provideDummy<SettingsResult<int>>(const SettingsSuccess(0));
+      importDataUseCase = MockImportDataUseCase();
+      resetBudgetUseCase = MockResetBudgetUseCase();
+    });
+
+    SettingsBloc buildBloc() {
+      return SettingsBloc(
+        loadSettingsUseCase: MockLoadSettingsUseCase(),
+        updateCurrencyUseCase: MockUpdateCurrencyUseCase(),
+        updateNotificationSettingsUseCase:
+            MockUpdateNotificationSettingsUseCase(),
+        updateBiometricUseCase: MockUpdateBiometricUseCase(),
+        biometricService: MockBiometricService(),
+        exportDataUseCase: MockExportDataUseCase(),
+        importDataUseCase: importDataUseCase,
+        backupDataUseCase: MockBackupDataUseCase(),
+        restoreDataUseCase: MockRestoreDataUseCase(),
+        resetBudgetUseCase: resetBudgetUseCase,
+        scheduleNotificationsUseCase: MockScheduleNotificationsUseCase(),
+      );
+    }
+
+    Map<String, int> listenToBuses() {
+      final counts = <String, int>{};
+      for (final bus in [
+        RefreshBuses.budgets,
+        RefreshBuses.expenses,
+        RefreshBuses.bills,
+      ]) {
+        counts[bus.name] = 0;
+        final sub = bus.changes.listen(
+          (_) => counts[bus.name] = counts[bus.name]! + 1,
+        );
+        addTearDown(sub.cancel);
+      }
+      return counts;
+    }
+
+    test('changing the budget amount tells budget listeners', () async {
+      when(
+        resetBudgetUseCase.resetBudgetAmount(20000),
+      ).thenAnswer((_) async => const SettingsSuccess('b1'));
+      final counts = listenToBuses();
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsResetBudgetEvent(20000));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.infoMessage, 'Budget amount updated.');
+      expect(counts, {'budgets': 1, 'expenses': 0, 'bills': 0});
+      await bloc.close();
+    });
+
+    test('a rejected amount notifies nothing', () async {
+      when(resetBudgetUseCase.resetBudgetAmount(0)).thenAnswer(
+        (_) async => const SettingsError(
+          SettingsFailure(
+            type: SettingsErrorType.invalidData,
+            message: 'Budget amount must be greater than zero.',
+          ),
+        ),
+      );
+      final counts = listenToBuses();
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsResetBudgetEvent(0));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(counts, {'budgets': 0, 'expenses': 0, 'bills': 0});
+      await bloc.close();
+    });
+
+    test('a successful import tells every tab to re-read', () async {
+      when(
+        importDataUseCase.call('/data.json', json: true),
+      ).thenAnswer((_) async => const SettingsSuccess(12));
+      final counts = listenToBuses();
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsImportEvent(path: '/data.json', json: true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.infoMessage, 'Imported 12 items.');
+      expect(counts, {'budgets': 1, 'expenses': 1, 'bills': 1});
+      await bloc.close();
+    });
+
+    test('a failed import notifies nothing', () async {
+      when(importDataUseCase.call('/data.json', json: true)).thenAnswer(
+        (_) async => const SettingsError(
+          SettingsFailure(
+            type: SettingsErrorType.importFailure,
+            message: 'Bad',
+          ),
+        ),
+      );
+      final counts = listenToBuses();
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsImportEvent(path: '/data.json', json: true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.errorMessage, 'Bad');
+      expect(counts, {'budgets': 0, 'expenses': 0, 'bills': 0});
       await bloc.close();
     });
   });
