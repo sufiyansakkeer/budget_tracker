@@ -19,9 +19,12 @@ class BudgetListSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (summary.activeBudgetCount == 0) return const SizedBox.shrink();
+    final totals = summary.remainingByCurrency;
+    if (summary.activeBudgetCount == 0 || totals.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    final s = CurrencyFormatter.symbolFor(summary.currency);
+    final s = CurrencyFormatter.symbolFor(totals.keys.first);
     final count = summary.activeBudgetCount;
 
     return AppCard(
@@ -76,7 +79,8 @@ class BudgetListSummaryCard extends StatelessWidget {
                             "• Each budget keeps its own amount, period, "
                             "expenses and Today's Safe Spending; safe "
                             'spending is never added together\n'
-                            "• Shown in the first active budget's currency\n"
+                            '• Budgets in different currencies get separate '
+                            'totals; amounts are never converted\n'
                             '• Can be negative if a budget is overspent',
                       ),
                     ),
@@ -95,13 +99,26 @@ class BudgetListSummaryCard extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           Flexible(
-            child: AnimatedAmount(
-              amount: summary.totalRemaining,
-              currency: summary.currency,
-              textAlign: TextAlign.end,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+            // One line per currency: different currencies are never added.
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final MapEntry(key: code, value: amount) in totals.entries)
+                  AnimatedAmount(
+                    amount: amount,
+                    currency: code,
+                    textAlign: TextAlign.end,
+                    style:
+                        (totals.length == 1
+                                ? theme.textTheme.titleLarge
+                                : theme.textTheme.titleMedium)
+                            ?.copyWith(
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                  ),
+              ],
             ),
           ),
         ],

@@ -2,21 +2,25 @@ import 'package:equatable/equatable.dart';
 
 /// Summary of combined metrics across all active budgets.
 class BudgetListSummaryEntity extends Equatable {
-  /// Total remaining amount across all active budgets (same currency).
-  final double totalRemaining;
+  /// Remaining amount of the active budgets added up per currency, in the
+  /// order the currencies first appear. Amounts in different currencies are
+  /// never added together or converted: OMR 100 and ₹10,000 are two totals,
+  /// not "OMR 10,100".
+  final Map<String, double> remainingByCurrency;
 
   /// Number of active budgets included in the summary.
   final int activeBudgetCount;
 
-  /// Currency code (all budgets must use same currency).
-  final String currency;
-
   const BudgetListSummaryEntity({
-    required this.totalRemaining,
+    required this.remainingByCurrency,
     required this.activeBudgetCount,
-    required this.currency,
   });
 
+  static const empty = BudgetListSummaryEntity(
+    remainingByCurrency: {},
+    activeBudgetCount: 0,
+  );
+
   @override
-  List<Object?> get props => [totalRemaining, activeBudgetCount, currency];
+  List<Object?> get props => [remainingByCurrency, activeBudgetCount];
 }

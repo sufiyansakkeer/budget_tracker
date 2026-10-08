@@ -37,9 +37,8 @@ void main() {
 
       expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
       final summary = (result as BudgetSuccess).data;
-      expect(summary.totalRemaining, 0);
+      expect(summary.remainingByCurrency, isEmpty);
       expect(summary.activeBudgetCount, 0);
-      expect(summary.currency, '');
     });
 
     test('returns empty summary when no active budgets exist', () async {
@@ -64,7 +63,7 @@ void main() {
 
       expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
       final summary = (result as BudgetSuccess).data;
-      expect(summary.totalRemaining, 0);
+      expect(summary.remainingByCurrency, isEmpty);
       expect(summary.activeBudgetCount, 0);
     });
 
@@ -90,9 +89,8 @@ void main() {
 
       expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
       final summary = (result as BudgetSuccess).data;
-      expect(summary.totalRemaining, 3500);
+      expect(summary.remainingByCurrency, {'INR': 3500});
       expect(summary.activeBudgetCount, 1);
-      expect(summary.currency, 'INR');
     });
 
     test('calculates combined remaining for multiple active budgets', () async {
@@ -143,9 +141,9 @@ void main() {
 
       expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
       final summary = (result as BudgetSuccess).data;
-      expect(summary.totalRemaining, 18500); // 4000 + 12000 + 2500
+      // 4000 + 12000 + 2500
+      expect(summary.remainingByCurrency, {'INR': 18500});
       expect(summary.activeBudgetCount, 3);
-      expect(summary.currency, 'INR');
     });
 
     test('excludes budgets outside date range', () async {
@@ -183,52 +181,51 @@ void main() {
 
       expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
       final summary = (result as BudgetSuccess).data;
-      expect(summary.totalRemaining, 5000); // Only active budget
+      // Only active budget
+      expect(summary.remainingByCurrency, {'INR': 5000});
       expect(summary.activeBudgetCount, 1);
     });
 
-    test(
-      'combines budgets with different currencies using first active currency fallback',
-      () async {
-        final budget1 = BudgetEntity(
-          id: '1',
-          name: 'INR Budget',
-          monthlyAmount: 10000,
-          remainingAmount: 5000,
-          currency: 'INR',
-          startDate: startDate,
-          endDate: endDate,
-          isArchived: false,
-          createdAt: now,
-          updatedAt: now,
-        );
+    test('keeps one total per currency: INR and USD are never added together '
+        '(review: they showed as "₹5,500")', () async {
+      final budget1 = BudgetEntity(
+        id: '1',
+        name: 'INR Budget',
+        monthlyAmount: 10000,
+        remainingAmount: 5000,
+        currency: 'INR',
+        startDate: startDate,
+        endDate: endDate,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+      );
 
-        final budget2 = BudgetEntity(
-          id: '2',
-          name: 'USD Budget',
-          monthlyAmount: 1000,
-          remainingAmount: 500,
-          currency: 'USD',
-          startDate: startDate,
-          endDate: endDate,
-          isArchived: false,
-          createdAt: now,
-          updatedAt: now,
-        );
+      final budget2 = BudgetEntity(
+        id: '2',
+        name: 'USD Budget',
+        monthlyAmount: 1000,
+        remainingAmount: 500,
+        currency: 'USD',
+        startDate: startDate,
+        endDate: endDate,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+      );
 
-        when(
-          mockRepository.getAllBudgets(options: anyNamed('options')),
-        ).thenAnswer((_) async => [budget1, budget2]);
+      when(
+        mockRepository.getAllBudgets(options: anyNamed('options')),
+      ).thenAnswer((_) async => [budget1, budget2]);
 
-        final result = await useCase();
+      final result = await useCase();
 
-        expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
-        final data = (result as BudgetSuccess).data;
-        expect(data.totalRemaining, 5500);
-        expect(data.activeBudgetCount, 2);
-        expect(data.currency, 'INR');
-      },
-    );
+      expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
+      final data = (result as BudgetSuccess).data;
+      expect(data.remainingByCurrency, {'INR': 5000, 'USD': 500});
+      expect(data.remainingByCurrency.keys, ['INR', 'USD']);
+      expect(data.activeBudgetCount, 2);
+    });
 
     test('handles negative remaining amounts (overspent budgets)', () async {
       final budget1 = BudgetEntity(
@@ -265,7 +262,8 @@ void main() {
 
       expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
       final summary = (result as BudgetSuccess).data;
-      expect(summary.totalRemaining, 2000); // 3000 + (-1000)
+      // 3000 + (-1000)
+      expect(summary.remainingByCurrency, {'INR': 2000});
       expect(summary.activeBudgetCount, 2);
     });
 
@@ -291,7 +289,7 @@ void main() {
 
       expect(result, isA<BudgetSuccess<BudgetListSummaryEntity>>());
       final summary = (result as BudgetSuccess).data;
-      expect(summary.totalRemaining, 0);
+      expect(summary.remainingByCurrency, {'INR': 0});
       expect(summary.activeBudgetCount, 1);
     });
   });

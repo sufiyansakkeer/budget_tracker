@@ -62,11 +62,16 @@ class GetTodaySafeSpendingUseCase {
     };
   }
 
-  /// Returns per-budget safe spending amounts.
+  /// Returns per-budget safe spending amounts for [referenceDate] (today when
+  /// omitted): the budgets running that day, each with the amount the
+  /// dashboard will show that day if nothing more is spent before it.
   Future<PerBudgetSafeSpendingResult?> callPerBudget({
     String fallbackCurrency = 'INR',
+    DateTime? referenceDate,
   }) async {
-    final result = await _spendingTargetsUseCase.callPerBudget();
+    final result = await _spendingTargetsUseCase.callPerBudget(
+      referenceDate: referenceDate,
+    );
 
     return switch (result) {
       PerBudgetSpendingTargetNoBudget() => () {

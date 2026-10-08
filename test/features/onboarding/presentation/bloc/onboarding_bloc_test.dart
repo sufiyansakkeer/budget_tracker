@@ -313,4 +313,58 @@ void main() {
       },
     );
   });
+
+  group('dates are calendar dates (review: the first budget stored the '
+      'moment onboarding ran)', () {
+    bool isDateOnly(DateTime d) => d == DateTime(d.year, d.month, d.day);
+
+    test(
+      'the default period is today plus 30 calendar days, no time of day',
+      () async {
+        final bloc = buildBloc();
+        addTearDown(bloc.close);
+        bloc.add(const OnboardingInitEvent());
+        final state = await bloc.stream.first;
+
+        expect(isDateOnly(state.startDate), isTrue);
+        expect(isDateOnly(state.endDate), isTrue);
+        final s = state.startDate;
+        expect(state.endDate, DateTime(s.year, s.month, s.day + 30));
+        expect(isDateOnly(bloc.state.startDate), isTrue);
+      },
+    );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'picked dates are stored without their time of day',
+      build: buildBloc,
+      act: (bloc) {
+        bloc.add(
+          OnboardingStartDateChangedEvent(DateTime(2026, 10, 8, 11, 20)),
+        );
+        bloc.add(OnboardingEndDateChangedEvent(DateTime(2026, 10, 31, 18, 5)));
+      },
+      skip: 1,
+      expect: () => [
+        isA<OnboardingState>()
+            .having((s) => s.startDate, 'startDate', DateTime(2026, 10, 8))
+            .having((s) => s.endDate, 'endDate', DateTime(2026, 10, 31)),
+      ],
+    );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'a start after the end moves the end to the next calendar day',
+      build: buildBloc,
+      seed: () => OnboardingState(
+        startDate: DateTime(2026, 3, 1),
+        endDate: DateTime(2026, 3, 5),
+      ),
+      act: (bloc) =>
+          bloc.add(OnboardingStartDateChangedEvent(DateTime(2026, 3, 7, 23))),
+      expect: () => [
+        isA<OnboardingState>()
+            .having((s) => s.startDate, 'startDate', DateTime(2026, 3, 7))
+            .having((s) => s.endDate, 'endDate', DateTime(2026, 3, 8)),
+      ],
+    );
+  });
 }

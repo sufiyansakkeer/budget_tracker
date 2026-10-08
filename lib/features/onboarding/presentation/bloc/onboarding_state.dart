@@ -1,5 +1,9 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../../../budget/domain/services/safe_to_spend_calculator.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 
 enum OnboardingStatus { initial, loading, success, failure }
@@ -49,6 +53,32 @@ class OnboardingState extends Equatable {
       endDate.isAfter(startDate) && dateValidationError == null;
 
   bool get isAllValid => isBudgetValid && isNameValid && isDateRangeValid;
+
+  static final SafeToSpendCalculator _safeToSpend = SafeToSpendCalculator(
+    BudgetCalculationService(),
+  );
+
+  /// The draft budget on its first day, before anything is spent, from the
+  /// same engine the dashboard uses: the preview's daily amount and day
+  /// count are the dashboard's own. Null while the dates are invalid.
+  SafeToSpendEntity? get firstDaySafeToSpend {
+    if (!isDateRangeValid) return null;
+    return _safeToSpend.calculate(
+      SafeToSpendInput(
+        budgetId: '',
+        budgetName: budgetNameInput.trim(),
+        currency: selectedCurrency.code,
+        startDate: startDate,
+        endDate: endDate,
+        today: startDate,
+        budgetAmount: isBudgetValid ? parsedBudget! : 0,
+        periodSpent: 0,
+        todaySpent: 0,
+        // A new budget has no bills linked to it yet.
+        commitments: const [],
+      ),
+    );
+  }
 
   OnboardingState copyWith({
     int? currentPageIndex,

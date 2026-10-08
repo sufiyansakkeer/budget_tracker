@@ -24,9 +24,11 @@ class ConfirmationStepWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isSubmitting = state.status == OnboardingStatus.loading;
-    final days = state.endDate.difference(state.startDate).inDays + 1;
     final amount = state.parsedBudget ?? 0;
-    final perDay = days > 0 ? amount / days : 0.0;
+    // The dashboard's own figure for the first day; null while the dates
+    // are invalid.
+    final firstDay = state.firstDaySafeToSpend;
+    final days = firstDay?.totalDays;
     final dateFmt = DateFormat('EEE, d MMM yyyy');
     final code = state.selectedCurrency.code;
 
@@ -92,25 +94,30 @@ class ConfirmationStepWidget extends StatelessWidget {
                 _Row(label: 'Ends', value: dateFmt.format(state.endDate)),
                 _Row(
                   label: 'Length',
-                  value:
-                      '$days ${days == 1 ? 'day' : 'days'} · '
-                      '${formatShortDateRange(state.startDate, state.endDate)}',
+                  value: days == null
+                      ? formatShortDateRange(state.startDate, state.endDate)
+                      : '$days ${days == 1 ? 'day' : 'days'} · '
+                            '${formatShortDateRange(state.startDate, state.endDate)}',
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          StatusCard(
-            color: theme.colorScheme.primary,
-            icon: Icons.today_rounded,
-            title:
-                "Today's Safe Spending starts at about "
-                '${CurrencyFormatter.format(perDay, code: code, decimalDigits: 0)}',
-            message:
-                'That is your amount spread evenly over $days '
-                '${days == 1 ? 'day' : 'days'}. It updates every day based '
-                'on what you have spent.',
-          ),
+          if (firstDay != null && days != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            StatusCard(
+              color: theme.colorScheme.primary,
+              icon: Icons.today_rounded,
+              // Floored like every "safe" amount, so the preview never
+              // promises more than the dashboard will show.
+              title:
+                  "Today's Safe Spending starts at "
+                  '${CurrencyFormatter.formatFloored(firstDay.dailySafeToSpend, code: code)}',
+              message:
+                  'That is your amount spread evenly over $days '
+                  '${days == 1 ? 'day' : 'days'}. It updates every day based '
+                  'on what you have spent.',
+            ),
+          ],
         ],
       ),
     );

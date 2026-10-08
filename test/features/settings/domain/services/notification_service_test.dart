@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
+import 'package:timezone/timezone.dart' as tz;
 
+import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
@@ -16,6 +18,7 @@ import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_ent
 import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/settings/domain/entities/app_settings.dart';
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
 
@@ -23,11 +26,19 @@ import 'package:monivo/features/settings/domain/services/notification_service.da
 
 @GenerateMocks([FlutterLocalNotificationsPlugin, BudgetRepository])
 import '../../../../helpers/safe_to_spend_fakes.dart';
+import '../../../../integration/app_harness.dart';
 import 'notification_service_test.mocks.dart';
 
 class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   SpendingTargetEntity? targetsToReturn;
   PerBudgetSpendingTargetResult? perBudgetResultToReturn;
+
+  /// When set, answers [callPerBudget] per reference date.
+  PerBudgetSpendingTargetResult Function(DateTime? referenceDate)?
+  perBudgetResultFor;
+
+  /// Every reference date [callPerBudget] was asked for, in order.
+  final List<DateTime?> perBudgetReferenceDates = [];
 
   FakeGetSpendingTargetsUseCase({
     this.targetsToReturn,
@@ -52,6 +63,9 @@ class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   Future<PerBudgetSpendingTargetResult> callPerBudget({
     DateTime? referenceDate,
   }) async {
+    perBudgetReferenceDates.add(referenceDate);
+    final resultFor = perBudgetResultFor;
+    if (resultFor != null) return resultFor(referenceDate);
     if (perBudgetResultToReturn != null) {
       return perBudgetResultToReturn!;
     }
@@ -566,6 +580,270 @@ void main() {
         },
       );
     });
+
+    group(
+      "morning reminders carry each day's own figure (review: one "
+      'repeating text showed the scheduling day\'s amount every morning)',
+      () {
+        late List<
+          ({
+            int id,
+            String title,
+            String body,
+            tz.TZDateTime at,
+            Object? repeat,
+          })
+        >
+        scheduled;
+
+        const settings = AppSettings(
+          notifications: NotificationSettings(
+            notificationsEnabled: true,
+            morningReminderEnabled: true,
+            eveningSummaryEnabled: true,
+            morningReminderTime: NotificationTime(hour: 8, minute: 0),
+          ),
+        );
+
+        setUp(() {
+          stubPluginInitialization();
+          scheduled = [];
+          when(
+            mockPlugin.zonedSchedule(
+              any,
+              any,
+              any,
+              any,
+              any,
+              androidScheduleMode: anyNamed('androidScheduleMode'),
+              matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+            ),
+          ).thenAnswer((invocation) async {
+            final args = invocation.positionalArguments;
+            scheduled.add((
+              id: args[0] as int,
+              title: args[1] as String,
+              body: args[2] as String,
+              at: args[3] as tz.TZDateTime,
+              repeat: invocation.namedArguments[#matchDateTimeComponents],
+            ));
+          });
+        });
+
+        /// The service on a fixed clock. Tests have no platform time zone, so
+        /// the service falls back to UTC; the clock is in UTC to match.
+        NotificationService serviceAt(
+          DateTime clock, {
+          GetSpendingTargetsUseCase? targets,
+        }) => NotificationService(
+          plugin: mockPlugin,
+          budgetRepository: mockBudgetRepository,
+          calculationService: BudgetCalculationService(),
+          spendingTargetsUseCase: targets ?? fakeSpendingTargetsUseCase,
+          clock: () => clock,
+        );
+
+        List<
+          ({
+            int id,
+            String title,
+            String body,
+            tz.TZDateTime at,
+            Object? repeat,
+          })
+        >
+        mornings() =>
+            scheduled.where((s) => s.title == "Today's Safe Spending").toList();
+
+        /// A running "Food" budget whose amount that day is day-of-month × 100.
+        PerBudgetSpendingTargetResult foodOn(DateTime? day) {
+          final base =
+              (fakeSpendingTargetsUseCase.perBudgetResultToReturn!
+                      as PerBudgetSpendingTargetSuccess)
+                  .budgetLimits
+                  .single;
+          final limit = BudgetDailyLimitEntity(
+            budgetId: base.budgetId,
+            budgetName: base.budgetName,
+            dailyLimit: day!.day * 100.0,
+            spentToday: 0,
+            remainingToday: day.day * 100.0,
+            exceededToday: 0,
+            progress: 0,
+            isOverLimit: false,
+            status: base.status,
+            budgetStatus: base.budgetStatus,
+            budgetUtilization: base.budgetUtilization,
+            monthlyAmount: base.monthlyAmount,
+            totalSpent: base.totalSpent,
+            remainingBudget: base.remainingBudget,
+            remainingDays: base.remainingDays,
+            weeklyTarget: base.weeklyTarget,
+            weeklySpent: base.weeklySpent,
+            weeklyRemaining: base.weeklyRemaining,
+            weeklyExceeded: base.weeklyExceeded,
+            weeklyProgress: base.weeklyProgress,
+            weeklyStatus: base.weeklyStatus,
+            currency: 'INR',
+            startDate: base.startDate,
+            endDate: base.endDate,
+          );
+          return PerBudgetSpendingTargetSuccess(
+            budgetLimits: [limit],
+            combinedDailyTarget: limit.dailyLimit,
+            currency: 'INR',
+          );
+        }
+
+        test('scheduled in the evening: the first reminder is tomorrow with '
+            "tomorrow's figure, then one per morning for a week", () async {
+          fakeSpendingTargetsUseCase.perBudgetResultFor = foodOn;
+
+          await serviceAt(DateTime.utc(2026, 8, 10, 21)).scheduleAll(settings);
+
+          const days = NotificationService.morningReminderDays;
+          expect(fakeSpendingTargetsUseCase.perBudgetReferenceDates, [
+            for (var i = 0; i < days; i++) DateTime(2026, 8, 11 + i),
+          ]);
+          final reminders = mornings();
+          expect(reminders.map((r) => r.id), [
+            for (var i = 0; i < days; i++)
+              NotificationService.morningReminderIdFor(i),
+          ]);
+          expect(reminders.map((r) => r.id).toSet(), hasLength(days));
+          for (var i = 0; i < days; i++) {
+            final day = 11 + i;
+            expect(reminders[i].at, tz.TZDateTime(tz.local, 2026, 8, day, 8));
+            expect(
+              reminders[i].repeat,
+              isNull,
+              reason: 'one-off, never repeats',
+            );
+            expect(
+              reminders[i].body,
+              'Food: you can safely spend '
+              '${CurrencyFormatter.formatFloored(day * 100.0, code: 'INR')} '
+              'today.',
+            );
+          }
+        });
+
+        test('scheduled before the morning time: the first reminder is today, '
+            "with today's figure", () async {
+          fakeSpendingTargetsUseCase.perBudgetResultFor = foodOn;
+
+          await serviceAt(DateTime.utc(2026, 8, 10, 7)).scheduleAll(settings);
+
+          expect(
+            fakeSpendingTargetsUseCase.perBudgetReferenceDates.first,
+            DateTime(2026, 8, 10),
+          );
+          expect(mornings().first.at, tz.TZDateTime(tz.local, 2026, 8, 10, 8));
+          expect(mornings().last.at, tz.TZDateTime(tz.local, 2026, 8, 16, 8));
+        });
+
+        test('the reminders cross a month end on calendar dates', () async {
+          fakeSpendingTargetsUseCase.perBudgetResultFor = foodOn;
+
+          await serviceAt(DateTime.utc(2026, 8, 29, 21)).scheduleAll(settings);
+
+          expect(fakeSpendingTargetsUseCase.perBudgetReferenceDates, [
+            DateTime(2026, 8, 30),
+            DateTime(2026, 8, 31),
+            DateTime(2026, 9, 1),
+            DateTime(2026, 9, 2),
+            DateTime(2026, 9, 3),
+            DateTime(2026, 9, 4),
+            DateTime(2026, 9, 5),
+          ]);
+        });
+
+        test('a morning after the budget ends says no budget is running, '
+            "instead of repeating the last day's amount", () async {
+          // The budget's last day is 12 Aug.
+          fakeSpendingTargetsUseCase.perBudgetResultFor = (day) =>
+              day!.isAfter(DateTime(2026, 8, 12))
+              ? const PerBudgetSpendingTargetNoBudget()
+              : foodOn(day);
+
+          await serviceAt(DateTime.utc(2026, 8, 10, 21)).scheduleAll(settings);
+
+          final bodies = mornings().map((r) => r.body).toList();
+          expect(bodies[0], contains('₹1,100'));
+          expect(bodies[1], contains('₹1,200'));
+          expect(
+            bodies.skip(2),
+            everyElement(
+              'No budget is running today. Open the app to check your budgets.',
+            ),
+          );
+        });
+
+        test(
+          'the evening summary, which has no amount, still repeats daily',
+          () async {
+            fakeSpendingTargetsUseCase.perBudgetResultFor = foodOn;
+
+            await serviceAt(
+              DateTime.utc(2026, 8, 10, 21),
+            ).scheduleAll(settings);
+
+            final evening = scheduled.singleWhere(
+              (s) => s.id == NotificationService.eveningSummaryId,
+            );
+            expect(evening.repeat, DateTimeComponents.time);
+            expect(mornings().map((r) => r.repeat), everyElement(isNull));
+          },
+        );
+
+        test('real engine: ₹3,000 over 30 days, ₹500 spent at 9 pm on day 1 → '
+            "day 2's reminder says ₹86.20, not day 1's ₹100", () async {
+          final app = await AppHarness.create();
+          addTearDown(app.dispose);
+          await app.addBudget(
+            id: 'food',
+            name: 'Food',
+            amount: 3000,
+            startDate: DateTime(2026, 8, 1),
+            endDate: DateTime(2026, 8, 30),
+          );
+          await app.expenseRepository.createExpense(
+            ExpenseEntity(
+              id: 'dinner',
+              budgetId: 'food',
+              amount: 500,
+              categoryId: 'food',
+              date: DateTime(2026, 8, 1),
+              time: DateTime(2026, 8, 1, 21),
+              createdAt: DateTime(2026, 8, 1, 21),
+              updatedAt: DateTime(2026, 8, 1, 21),
+            ),
+          );
+
+          await serviceAt(
+            DateTime.utc(2026, 8, 1, 21),
+            targets: app.getSpendingTargets,
+          ).scheduleAll(settings);
+
+          String amount(double value) =>
+              CurrencyFormatter.formatFloored(value, code: 'INR');
+          final bodies = mornings().map((r) => r.body).toList();
+          expect(bodies, hasLength(NotificationService.morningReminderDays));
+          // 2 Aug: 2,500 left over 2–30 Aug (29 days).
+          expect(amount(2500 / 29), '₹86.20');
+          expect(bodies[0], 'Food: you can safely spend ₹86.20 today.');
+          expect(bodies[0], isNot(contains(amount(100))));
+          // Nothing more recorded: each later morning spreads it over fewer
+          // days (3 Aug: 28 days … 8 Aug: 23 days).
+          for (var i = 1; i < bodies.length; i++) {
+            expect(
+              bodies[i],
+              'Food: you can safely spend ${amount(2500 / (29 - i))} today.',
+            );
+          }
+        });
+      },
+    );
 
     group('cancelAll', () {
       setUp(() {

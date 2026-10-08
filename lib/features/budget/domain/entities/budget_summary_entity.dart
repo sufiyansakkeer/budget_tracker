@@ -46,6 +46,12 @@ class BudgetSummaryEntity extends Equatable {
     required this.endDate,
   });
 
+  /// Calendar days in the period. A summary only exists for a running
+  /// budget, where [daysPassed] and [remainingDays] both count today, so
+  /// this equals `BudgetCalculationService.daysInPeriod` without
+  /// re-counting from the stored dates (which may carry a time of day).
+  int get totalDays => daysPassed + remainingDays - 1;
+
   @override
   List<Object?> get props => [
     monthlyAmount,

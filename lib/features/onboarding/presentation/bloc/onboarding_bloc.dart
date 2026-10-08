@@ -17,8 +17,8 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     required this.budgetRepository,
   }) : super(
          OnboardingState(
-           startDate: DateTime.now(),
-           endDate: DateTime.now().add(const Duration(days: 30)),
+           startDate: _today(),
+           endDate: _daysAfter(_today(), 30),
          ),
        ) {
     on<OnboardingInitEvent>(_onInit);
@@ -32,11 +32,11 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   }
 
   void _onInit(OnboardingInitEvent event, Emitter<OnboardingState> emit) {
-    final now = DateTime.now();
+    final today = _today();
     emit(
       state.copyWith(
-        startDate: now,
-        endDate: now.add(const Duration(days: 30)),
+        startDate: today,
+        endDate: _daysAfter(today, 30),
         selectedCurrency: _detectCurrency(event.localeCountryCode),
       ),
     );
@@ -175,10 +175,10 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     OnboardingStartDateChangedEvent event,
     Emitter<OnboardingState> emit,
   ) {
-    final newStart = event.date;
+    final newStart = _dateOnly(event.date);
     final newEnd = state.endDate.isAfter(newStart)
         ? state.endDate
-        : newStart.add(const Duration(days: 1));
+        : _daysAfter(newStart, 1);
     emit(
       state.copyWith(
         startDate: newStart,
@@ -192,7 +192,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     OnboardingEndDateChangedEvent event,
     Emitter<OnboardingState> emit,
   ) {
-    final newEnd = event.date;
+    final newEnd = _dateOnly(event.date);
     if (!newEnd.isAfter(state.startDate)) {
       emit(
         state.copyWith(
@@ -253,4 +253,15 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       );
     }
   }
+
+  // Budget periods are calendar dates. Storing the moment onboarding ran
+  // gave the first budget a time of day, which day counts done on raw
+  // timestamps (week share, "Day X of N", this preview) got wrong by one.
+  static DateTime _today() => _dateOnly(DateTime.now());
+
+  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// Calendar arithmetic: a daylight-saving change cannot shift the date.
+  static DateTime _daysAfter(DateTime d, int days) =>
+      DateTime(d.year, d.month, d.day + days);
 }

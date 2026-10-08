@@ -9,9 +9,11 @@ import 'package:monivo/features/budget/domain/services/budget_calculation_servic
 import 'package:monivo/features/dashboard/domain/entities/committed_spending.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../../helpers/safe_to_spend_fakes.dart';
+import '../../../../integration/app_harness.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
   @override
@@ -125,12 +127,18 @@ class FakeBudgetRepository implements BudgetRepository {
   @override
   Future<void> updateBudgetRemainingAmount(String budgetId) async {}
 
+  /// The range the last [getExpensesTotalInRange] call asked for.
+  ({DateTime start, DateTime end})? lastRange;
+
   @override
   Future<double> getExpensesTotalInRange(
     String budgetId, {
     required DateTime startDate,
     required DateTime endDate,
-  }) async => weekSpending;
+  }) async {
+    lastRange = (start: startDate, end: endDate);
+    return weekSpending;
+  }
 }
 
 /// SQL-consistent statistics: [totalSpent] in the period, [today] of it
@@ -443,6 +451,70 @@ void main() {
       // Verify the weekly target is proportional to the budget period
       expect(result.budgetLimits.first.weeklyTarget, greaterThan(0));
       expect(result.budgetLimits.first.weeklyTarget, lessThanOrEqualTo(10000));
+    });
+
+    test(
+      'a start with a time of day still counts its first day (review: '
+      'budgets made in onboarding lost a day of their weekly share)',
+      () async {
+        repository.budgets = [
+          BudgetEntity(
+            id: 'b1',
+            name: 'Onboarding',
+            monthlyAmount: 10000,
+            remainingAmount: 10000,
+            currency: 'INR',
+            // Stored as the moment onboarding ran.
+            startDate: DateTime(2026, 8, 13, 14, 30),
+            endDate: DateTime(2026, 8, 31, 14, 30),
+            createdAt: DateTime(2026, 8, 13, 14, 30),
+            updatedAt: DateTime(2026, 8, 13, 14, 30),
+          ),
+        ];
+
+        // Thu 13 Aug → week Mon 10 – Sun 16; the budget has Thu–Sun (4 days)
+        // of it, out of 19 (13–31 Aug). The old count was 3.
+        final result =
+            await useCase.callPerBudget(
+                  referenceDate: DateTime(2026, 8, 13, 18),
+                )
+                as PerBudgetSpendingTargetSuccess;
+        expect(
+          result.budgetLimits.single.weeklyTarget,
+          closeTo(10000 * 4 / 19, 1e-9),
+        );
+        // The weekly spending covers the same four days.
+        expect(repository.lastRange, (
+          start: DateTime(2026, 8, 13),
+          end: DateTime(2026, 8, 16),
+        ));
+      },
+    );
+
+    test('a full week reads the whole Monday–Sunday range', () async {
+      repository.budgets = [
+        BudgetEntity(
+          id: 'b1',
+          name: 'Monthly',
+          monthlyAmount: 31000,
+          remainingAmount: 31000,
+          currency: 'INR',
+          startDate: DateTime(2026, 8, 1),
+          endDate: DateTime(2026, 8, 31),
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+      ];
+
+      // Sun 16 Aug belongs to the week of Mon 10 Aug.
+      final result =
+          await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 16))
+              as PerBudgetSpendingTargetSuccess;
+      expect(result.budgetLimits.single.weeklyTarget, closeTo(7000, 1e-9));
+      expect(repository.lastRange, (
+        start: DateTime(2026, 8, 10),
+        end: DateTime(2026, 8, 16),
+      ));
     });
   });
 
@@ -817,6 +889,53 @@ void main() {
 
         expect(billRepository.getBillsCalls, 1);
         expect(dashboardRepository.committedCalls, 1);
+      },
+    );
+  });
+
+  group('weekly share on the real database', () {
+    test(
+      "spending dated before the budget starts is not this week's "
+      'spending (review: the week was read Monday–Sunday unclipped)',
+      () async {
+        final app = await AppHarness.create();
+        addTearDown(app.dispose);
+        // Onboarding-style: Thu 8 Oct 2026 14:30 → 7 Nov 14:30 (31 days).
+        await app.addBudget(
+          id: 'b',
+          amount: 31000,
+          startDate: DateTime(2026, 10, 8, 14, 30),
+          endDate: DateTime(2026, 11, 7, 14, 30),
+        );
+        Future<void> spend(String id, double amount, DateTime date) =>
+            app.expenseRepository.createExpense(
+              ExpenseEntity(
+                id: id,
+                budgetId: 'b',
+                amount: amount,
+                categoryId: 'food',
+                date: date,
+                time: date.add(const Duration(hours: 9)),
+                createdAt: date,
+                updatedAt: date,
+              ),
+            );
+        // Tue 6 Oct: assigned to the budget but before it starts.
+        await spend('early', 500, DateTime(2026, 10, 6));
+        await spend('lunch', 200, DateTime(2026, 10, 8));
+
+        final result =
+            await app.getSpendingTargets.callPerBudget(
+                  referenceDate: DateTime(2026, 10, 8, 18),
+                )
+                as PerBudgetSpendingTargetSuccess;
+        final limit = result.budgetLimits.single;
+
+        // Thu–Sun of the week: 31,000 × 4 ÷ 31.
+        expect(limit.weeklyTarget, closeTo(4000, 1e-9));
+        // Only what the period counts too.
+        expect(limit.totalSpent, 200);
+        expect(limit.weeklySpent, 200);
       },
     );
   });
