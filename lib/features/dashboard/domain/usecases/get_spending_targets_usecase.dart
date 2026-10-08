@@ -285,10 +285,17 @@ class GetSpendingTargetsUseCase {
       allBudgets: allBudgets,
     );
 
-    // Week boundaries (Monday → Sunday).
-    final weekday = today.weekday;
-    final weekStart = today.subtract(Duration(days: weekday - 1));
-    final weekEnd = weekStart.add(const Duration(days: 6));
+    // Week boundaries (Monday → Sunday), as calendar dates.
+    final weekStart = DateTime(
+      today.year,
+      today.month,
+      today.day - (today.weekday - 1),
+    );
+    final weekEnd = DateTime(
+      weekStart.year,
+      weekStart.month,
+      weekStart.day + 6,
+    );
 
     final budgetLimits = <BudgetDailyLimitEntity>[];
     var combinedDailyTarget = 0.0;
@@ -340,25 +347,42 @@ class GetSpendingTargetsUseCase {
         endDate: budget.endDate,
       );
 
-      final effectiveWeekStart = weekStart.isBefore(budget.startDate)
-          ? budget.startDate
+      // The part of this week inside the budget's period, by calendar date:
+      // stored dates can carry a time of day (onboarding used to store the
+      // moment it ran), which a raw comparison would count a day short.
+      final periodStart = DateTime(
+        budget.startDate.year,
+        budget.startDate.month,
+        budget.startDate.day,
+      );
+      final periodEnd = DateTime(
+        budget.endDate.year,
+        budget.endDate.month,
+        budget.endDate.day,
+      );
+      final effectiveWeekStart = weekStart.isBefore(periodStart)
+          ? periodStart
           : weekStart;
-      final effectiveWeekEnd = weekEnd.isAfter(budget.endDate)
-          ? budget.endDate
-          : weekEnd;
+      final effectiveWeekEnd = weekEnd.isAfter(periodEnd) ? periodEnd : weekEnd;
 
       double weeklyTarget = 0;
       double weeklySpent = 0;
 
       if (!effectiveWeekStart.isAfter(effectiveWeekEnd)) {
         final daysThisWeek =
-            effectiveWeekEnd.difference(effectiveWeekStart).inDays + 1;
+            BudgetCalculationService.calendarDaysBetween(
+              effectiveWeekStart,
+              effectiveWeekEnd,
+            ) +
+            1;
         weeklyTarget = budget.monthlyAmount * daysThisWeek / totalBudgetDays;
 
+        // The same days as the target: an expense dated before the budget
+        // starts is not this budget's spending (nor its period spending).
         weeklySpent = await repository.getExpensesTotalInRange(
           budget.id,
-          startDate: weekStart,
-          endDate: weekEnd,
+          startDate: effectiveWeekStart,
+          endDate: effectiveWeekEnd,
         );
       }
 

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 
 /// Metadata captured alongside a backup.
 class BackupMetadata {
@@ -50,11 +51,17 @@ class BackupService {
   final AppDatabase _database;
   final Future<String> Function() _appVersionResolver;
 
+  /// Refreshes every budget's stored remaining amount after a restore,
+  /// which writes expenses straight to the database.
+  final RecalculateRemainingAmountsUseCase? _recalculateRemaining;
+
   BackupService({
     required AppDatabase database,
     Future<String> Function()? appVersionResolver,
+    RecalculateRemainingAmountsUseCase? recalculateRemaining,
   }) : _database = database,
-       _appVersionResolver = appVersionResolver ?? _platformAppVersion;
+       _appVersionResolver = appVersionResolver ?? _platformAppVersion,
+       _recalculateRemaining = recalculateRemaining;
 
   static Future<String> _platformAppVersion() async {
     try {
@@ -212,6 +219,20 @@ class BackupService {
     );
 
     await _replaceAll(data);
+
+    // The backup's stored remaining amounts may not match its expenses (an
+    // older import, or a file edited by hand). The data is committed, so a
+    // failure here is logged, not thrown.
+    try {
+      await _recalculateRemaining?.call();
+    } catch (error, stackTrace) {
+      developer.log(
+        '[Database] Could not refresh budgets\' remaining amounts',
+        name: 'Database',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
 
     developer.log(
       '[Database] Restore completed successfully',

@@ -24,6 +24,20 @@ class NotificationService {
   );
   static const int morningReminderId = 1001;
   static const int eveningSummaryId = 1002;
+
+  /// How many mornings ahead the Today's Safe Spending reminder is
+  /// scheduled. Each one is a separate notification carrying the figure for
+  /// its own day; a repeating notification would repeat one day's figure
+  /// every morning. Every expense, budget or bill change (and every app
+  /// start) reschedules them, so they always reflect what has been recorded.
+  /// If the app is not used for this long, the reminders stop instead of
+  /// showing a stale amount.
+  static const int morningReminderDays = 7;
+
+  /// Notification id of the morning reminder [dayOffset] mornings after the
+  /// next one (0 = the next one, which keeps [morningReminderId]).
+  static int morningReminderIdFor(int dayOffset) =>
+      dayOffset == 0 ? morningReminderId : 1100 + dayOffset;
   static const int overspendingAlertId = 1003;
   static const int noExpenseReminderId = 1004;
   static const int testNotificationId = 1999;
@@ -52,6 +66,9 @@ class NotificationService {
   /// re-schedule (after any expense, budget or bill change) silently drops
   /// them.
   final Future<void> Function()? rescheduleBillReminders;
+
+  /// Source of "now" for scheduling. Tests inject a fixed clock.
+  final DateTime Function() _clock;
   bool _initialized = false;
   bool _timeZonesConfigured = false;
 
@@ -61,7 +78,9 @@ class NotificationService {
     required this.calculationService,
     required this.spendingTargetsUseCase,
     this.rescheduleBillReminders,
-  }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+    DateTime Function()? clock,
+  }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+       _clock = clock ?? DateTime.now;
 
   /// Initializes the plugin, timezone database, and Android notification channel.
   Future<bool> initialize() async {
@@ -156,8 +175,9 @@ class NotificationService {
 
   /// Schedules all daily notifications based on [settings].
   ///
-  /// The morning notification body is dynamically calculated from per-budget
-  /// data using [GetTodaySafeSpendingUseCase].
+  /// The morning notification is scheduled once per day for the next
+  /// [morningReminderDays] mornings, each body calculated for the day it
+  /// fires using [GetTodaySafeSpendingUseCase].
   ///
   /// Clearing the pending schedule also clears bill reminders, which are
   /// opted into per bill (not by these settings), so they are put back
@@ -171,20 +191,10 @@ class NotificationService {
     if (!notifSettings.notificationsEnabled) return;
 
     if (notifSettings.morningReminderEnabled) {
-      final perBudget = await _getPerBudgetSafeSpending(
-        fallbackCurrency: settings.currencyCode,
-      );
-
-      final body = morningBody(perBudget?.budgetLimits ?? const []);
-
-      debugPrint('[Notification] Morning notification body: $body');
-
-      await _scheduleDailyNotification(
-        id: morningReminderId,
-        title: "Today's Safe Spending",
-        body: body,
+      await _scheduleMorningReminders(
         hour: notifSettings.morningReminderTime.hour,
         minute: notifSettings.morningReminderTime.minute,
+        fallbackCurrency: settings.currencyCode,
       );
     }
 
@@ -350,12 +360,61 @@ class NotificationService {
   /// Whether the plugin is ready for scheduling.
   bool get isInitialized => _initialized;
 
+  /// Schedules the Today's Safe Spending reminder for each of the next
+  /// [morningReminderDays] mornings at [hour]:[minute], each body calculated
+  /// for the day it fires. A reminder scheduled in the evening is for
+  /// tomorrow, so it carries tomorrow's amount (today's spending already
+  /// counted, one day fewer to spread it over), not today's.
+  Future<void> _scheduleMorningReminders({
+    required int hour,
+    required int minute,
+    required String fallbackCurrency,
+  }) async {
+    final first = _nextInstanceOf(hour, minute);
+    for (var i = 0; i < morningReminderDays; i++) {
+      // Calendar arithmetic, so a daylight-saving change keeps the time.
+      final day = DateTime(first.year, first.month, first.day + i);
+      final perBudget = await _getPerBudgetSafeSpending(
+        fallbackCurrency: fallbackCurrency,
+        referenceDate: day,
+      );
+      final body = morningBody(perBudget?.budgetLimits ?? const []);
+
+      debugPrint('[Notification] Morning notification for $day: $body');
+
+      await _schedule(
+        id: morningReminderIdFor(i),
+        title: "Today's Safe Spending",
+        body: body,
+        at: tz.TZDateTime(tz.local, day.year, day.month, day.day, hour, minute),
+      );
+    }
+  }
+
+  /// Schedules a notification repeating every day at [hour]:[minute]. Only
+  /// for text that does not depend on the day.
   Future<void> _scheduleDailyNotification({
     required int id,
     required String title,
     required String body,
     required int hour,
     required int minute,
+  }) {
+    return _schedule(
+      id: id,
+      title: title,
+      body: body,
+      at: _nextInstanceOf(hour, minute),
+      repeatDaily: true,
+    );
+  }
+
+  Future<void> _schedule({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime at,
+    bool repeatDaily = false,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       channelId,
@@ -372,8 +431,22 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      at,
+      platformDetails,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: repeatDaily ? DateTimeComponents.time : null,
+    );
+  }
+
+  /// The next [hour]:[minute] from now: today if it is still ahead,
+  /// otherwise tomorrow.
+  tz.TZDateTime _nextInstanceOf(int hour, int minute) {
+    final now = tz.TZDateTime.from(_clock(), tz.local);
+    final today = tz.TZDateTime(
       tz.local,
       now.year,
       now.month,
@@ -381,31 +454,32 @@ class NotificationService {
       hour,
       minute,
     );
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      scheduled,
-      platformDetails,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
+    if (!today.isBefore(now)) return today;
+    return tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day + 1,
+      hour,
+      minute,
     );
   }
 
   /// Fetches per-budget safe spending using the same business logic as the
-  /// Dashboard's "Today's Spending Limits" section.
+  /// Dashboard's "Today's Spending Limits" section, for [referenceDate]
+  /// (today when omitted).
   Future<PerBudgetSafeSpendingResult?> _getPerBudgetSafeSpending({
     String fallbackCurrency = 'INR',
+    DateTime? referenceDate,
   }) async {
     try {
       final useCase = GetTodaySafeSpendingUseCase(
         spendingTargetsUseCase: spendingTargetsUseCase,
       );
-      return await useCase.callPerBudget(fallbackCurrency: fallbackCurrency);
+      return await useCase.callPerBudget(
+        fallbackCurrency: fallbackCurrency,
+        referenceDate: referenceDate,
+      );
     } catch (e, st) {
       debugPrint('[Notification] Error calculating safe spending: $e\n$st');
       return null;

@@ -1,3 +1,4 @@
+import '../../../../core/currency/money_math.dart';
 import '../entities/budget_error.dart';
 import '../entities/budget_list_summary_entity.dart';
 import '../entities/budget_filter.dart';
@@ -17,13 +18,7 @@ class GetBudgetListSummaryUseCase {
       );
 
       if (budgets.isEmpty) {
-        return const BudgetSuccess(
-          BudgetListSummaryEntity(
-            totalRemaining: 0,
-            activeBudgetCount: 0,
-            currency: '',
-          ),
-        );
+        return const BudgetSuccess(BudgetListSummaryEntity.empty);
       }
 
       // Filter to active budgets (not archived and currently within date range)
@@ -32,29 +27,23 @@ class GetBudgetListSummaryUseCase {
       }).toList();
 
       if (activeBudgets.isEmpty) {
-        return const BudgetSuccess(
-          BudgetListSummaryEntity(
-            totalRemaining: 0,
-            activeBudgetCount: 0,
-            currency: '',
-          ),
-        );
+        return const BudgetSuccess(BudgetListSummaryEntity.empty);
       }
 
-      // Fallback to the first active budget's currency for combined display
-      final firstCurrency = activeBudgets.first.currency;
-
-      // Sum remaining amounts
-      final totalRemaining = activeBudgets.fold<double>(
-        0.0,
-        (sum, budget) => sum + budget.remainingAmount,
-      );
+      // One total per currency, never added across currencies, each summed
+      // in integer units so the total is exact.
+      final amountsByCurrency = <String, List<double>>{};
+      for (final budget in activeBudgets) {
+        (amountsByCurrency[budget.currency] ??= []).add(budget.remainingAmount);
+      }
 
       return BudgetSuccess(
         BudgetListSummaryEntity(
-          totalRemaining: totalRemaining,
+          remainingByCurrency: amountsByCurrency.map((code, amounts) {
+            final money = MoneyMath.forCurrency(code);
+            return MapEntry(code, money.toAmount(money.sumUnits(amounts)));
+          }),
           activeBudgetCount: activeBudgets.length,
-          currency: firstCurrency,
         ),
       );
     } catch (e) {

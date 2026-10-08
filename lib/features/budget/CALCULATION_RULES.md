@@ -16,7 +16,15 @@ their logic:
 `GetSafeToSpendUseCase` (`lib/features/dashboard/domain/usecases/`) gathers
 the calculator's inputs from the database. Every surface that shows a daily
 amount reads the entity it produces: the dashboard hero, "Other budgets
-today", the morning notification and the home-screen widget.
+today", the morning notification, the home-screen widget and the onboarding
+preview ("Today's Safe Spending starts at …", the draft budget on its first
+day).
+
+The morning notification is scheduled once per morning for the next 7
+mornings, each computed for the day it fires (`referenceDate` = that day), so
+a reminder scheduled in the evening carries tomorrow's amount. Every expense,
+budget or bill change and every app start reschedules them; if the app is not
+used for 7 days the reminders stop rather than repeat a stale amount.
 
 > **Note:** The codebase uses the field name `monthlyAmount` for historical
 > reasons, but it represents the **total budget amount for the configured
@@ -78,9 +86,15 @@ A = Budget Amount − Period Spending
   (`BudgetRepository.getBudgetStatistics`).
 - A is signed: it is negative when the budget is over.
 
-The engine and the dashboard read Period Spending from SQL. The budget list
-still shows the stored `budgets.remaining_amount` column. Expense writes keep
-that column up to date, but a restore or import does not recompute it.
+The engine and the dashboard read Period Spending from SQL. The budget list,
+its "Total remaining" and the budget picker show the stored
+`budgets.remaining_amount` column, which holds the same A. Expense writes keep
+it up to date; imports and restores, which write expenses straight to the
+database, recompute it afterwards (`RecalculateRemainingAmountsUseCase`), and
+app start runs the same repair once in the background.
+
+"Total remaining" adds the running budgets' A **per currency**. Amounts in
+different currencies are never added together or converted.
 
 ---
 

@@ -56,11 +56,7 @@ class CurrencyConverterRepositoryImpl implements CurrencyConverterRepository {
     final key = '${ExchangeRate.pairId(from, to)}|$forceRefresh';
     return _inFlight.putIfAbsent(
       key,
-      () => _lookup(
-        from,
-        to,
-        forceRefresh: forceRefresh,
-      ).whenComplete(() {
+      () => _lookup(from, to, forceRefresh: forceRefresh).whenComplete(() {
         // Block body on purpose: `remove` returns this very future, and
         // whenComplete would wait on a returned future — i.e. on itself.
         _inFlight.remove(key);

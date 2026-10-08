@@ -34,12 +34,9 @@ class BudgetOverviewCard extends StatelessWidget {
         : AppProgress.colorFor(context, utilization);
     final usedPercent = (utilization * 100).clamp(0.0, 999.0);
 
-    final span = summary.endDate.difference(summary.startDate).inDays + 1;
-    final totalDays = span < 1 ? 1 : span;
-    final dayNumber = (totalDays - summary.remainingDays + 1).clamp(
-      1,
-      totalDays,
-    );
+    // The calculation service's calendar-day counts (today included).
+    final totalDays = summary.totalDays;
+    final dayNumber = summary.daysPassed;
     final dateFmt = DateFormat('d MMM');
 
     return AppCard(

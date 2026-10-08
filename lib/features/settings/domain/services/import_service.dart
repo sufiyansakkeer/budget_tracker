@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:csv/csv.dart';
@@ -7,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/default_categories.dart';
+import '../../../budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 
 /// Handles importing data into the application from CSV or JSON files.
 ///
@@ -15,7 +17,15 @@ import '../../../../core/database/default_categories.dart';
 class ImportService {
   final AppDatabase _database;
 
-  ImportService({required AppDatabase database}) : _database = database;
+  /// Refreshes every budget's stored remaining amount after an import,
+  /// which writes expenses straight to the database.
+  final RecalculateRemainingAmountsUseCase? _recalculateRemaining;
+
+  ImportService({
+    required AppDatabase database,
+    RecalculateRemainingAmountsUseCase? recalculateRemaining,
+  }) : _database = database,
+       _recalculateRemaining = recalculateRemaining;
 
   /// Imports expenses from a CSV file at [path].
   ///
@@ -128,6 +138,7 @@ class ImportService {
       }
     });
 
+    await _refreshRemainingAmounts();
     return importedCount;
   }
 
@@ -141,6 +152,21 @@ class ImportService {
   static DateTime? _parseDate(String? value) {
     if (value == null || value.isEmpty) return null;
     return DateTime.tryParse(value);
+  }
+
+  /// The imported data is already committed; a failure here only leaves the
+  /// stored remaining amounts as they were, so it is logged, not thrown.
+  Future<void> _refreshRemainingAmounts() async {
+    try {
+      await _recalculateRemaining?.call();
+    } catch (error, stackTrace) {
+      developer.log(
+        '[Import] Could not refresh budgets\' remaining amounts',
+        name: 'Import',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   /// Imports a JSON backup file at [path].
@@ -187,6 +213,7 @@ class ImportService {
     _validateImportData(data);
 
     await _upsertAll(data);
+    await _refreshRemainingAmounts();
     return (meta is Map<String, Object?>
             ? (meta['schemaVersion'] as num?)?.toInt()
             : null) ??

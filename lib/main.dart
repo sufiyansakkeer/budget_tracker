@@ -9,6 +9,7 @@ import 'core/currency/currency_provider.dart';
 import 'core/notifications/notification_bloc.dart';
 import 'core/constants/app_motion.dart';
 import 'core/di/injection.dart' as di;
+import 'core/events/refresh_bus.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/biometric/biometric_gate_screen.dart';
@@ -19,6 +20,7 @@ import 'features/app_update/presentation/bloc/app_update_bloc.dart';
 import 'features/app_update/presentation/bloc/app_update_event.dart';
 import 'features/app_update/presentation/bloc/app_update_state.dart';
 import 'features/app_update/presentation/widgets/update_dialog_service.dart';
+import 'features/budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 import 'features/settings/presentation/bloc/theme/theme_bloc.dart';
 import 'features/settings/presentation/bloc/theme/theme_state.dart';
 import 'features/widgets/home_widget_service.dart';
@@ -53,6 +55,10 @@ Future<void> main() async {
   // splash screen up for an unbounded, user-gated amount of time. The BLoC
   // guards against running twice, and a failure never blocks the app.
   unawaited(di.getIt<NotificationBloc>().initializeOnStartup());
+
+  // Stored remaining amounts that an import or restore left stale (before
+  // those recalculated them) are repaired once, in the background.
+  _repairStoredRemainingAmountsOnStartup();
 
   // ── Home Widget: configure iOS App Group for data sharing ────────────
   await _configureHomeWidget();
@@ -113,6 +119,20 @@ void _updateWidgetDataOnStartup() {
       await service.updateWidgetData();
     } catch (e) {
       // Widget update on startup is best-effort.
+    }
+  });
+}
+
+/// Recalculates every budget's stored remaining amount, which the budget
+/// list shows, and refreshes the screens if any was stale.
+void _repairStoredRemainingAmountsOnStartup() {
+  // Run asynchronously — don't block app launch.
+  Future.microtask(() async {
+    try {
+      final updated = await di.getIt<RecalculateRemainingAmountsUseCase>()();
+      if (updated > 0) RefreshBuses.budgets.notifyChanged();
+    } catch (e) {
+      // Best-effort: the next expense change recalculates that budget.
     }
   });
 }

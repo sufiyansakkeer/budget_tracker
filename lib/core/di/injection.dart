@@ -39,6 +39,7 @@ import '../../features/budget/domain/services/safe_to_spend_calculator.dart';
 import '../../features/budget/domain/usecases/calculate_daily_allowance_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_analytics_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
+import '../../features/budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_status_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import '../../features/budget/domain/usecases/get_projected_overspending_usecase.dart';
@@ -262,6 +263,13 @@ Future<void> initDependencyInjection() async {
 
   getIt.registerLazySingleton<GetBudgetListSummaryUseCase>(
     () => GetBudgetListSummaryUseCase(repository: getIt<BudgetRepository>()),
+  );
+
+  getIt.registerLazySingleton<RecalculateRemainingAmountsUseCase>(
+    () => RecalculateRemainingAmountsUseCase(
+      repository: getIt<BudgetRepository>(),
+      calculationService: getIt<BudgetCalculationService>(),
+    ),
   );
 
   // 10. Onboarding Feature - BLoC
@@ -529,10 +537,16 @@ Future<void> initDependencyInjection() async {
     () => ExportService(database: getIt<AppDatabase>()),
   );
   getIt.registerLazySingleton<BackupService>(
-    () => BackupService(database: getIt<AppDatabase>()),
+    () => BackupService(
+      database: getIt<AppDatabase>(),
+      recalculateRemaining: getIt<RecalculateRemainingAmountsUseCase>(),
+    ),
   );
   getIt.registerLazySingleton<ImportService>(
-    () => ImportService(database: getIt<AppDatabase>()),
+    () => ImportService(
+      database: getIt<AppDatabase>(),
+      recalculateRemaining: getIt<RecalculateRemainingAmountsUseCase>(),
+    ),
   );
 
   // 29. Settings Feature – Use Cases

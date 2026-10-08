@@ -299,7 +299,7 @@ void main() {
 
       final result = await getListSummary() as BudgetSuccess;
       expect(result.data.activeBudgetCount, 2);
-      expect(result.data.totalRemaining, 12000 + 15000);
+      expect(result.data.remainingByCurrency, {'INR': 12000 + 15000});
     });
   });
 

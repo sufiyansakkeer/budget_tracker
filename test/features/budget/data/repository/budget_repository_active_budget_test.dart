@@ -43,16 +43,22 @@ void main() {
     );
   }
 
-  Future<void> open({Map<String, Object> prefValues = const {}}) async {
+  /// [today] fixes the date the fallback judges "running today" by.
+  Future<void> open({
+    Map<String, Object> prefValues = const {},
+    DateTime? today,
+  }) async {
     SharedPreferences.setMockInitialValues(prefValues);
     prefs = await SharedPreferences.getInstance();
     database = await createInMemoryDatabase();
+    final clock = today ?? DateTime(2026, 9, 12, 10);
     repository = BudgetRepositoryImpl(
       localDataSource: BudgetLocalDataSourceImpl(
         database: database,
         sharedPreferences: prefs,
       ),
       calculationService: BudgetCalculationService(),
+      clock: () => clock,
     );
   }
 
@@ -87,7 +93,8 @@ void main() {
     test(
       'falls back to the newest budget when every budget is archived',
       () async {
-        await open();
+        // Both running, so only the start date decides.
+        await open(today: DateTime(2026, 9, 20));
         await repository.createBudget(budget('old', archived: true));
         await repository.createBudget(
           budget('recent', start: DateTime(2026, 9, 15), archived: true),
@@ -115,6 +122,87 @@ void main() {
       await repository.deleteBudget('second');
 
       expect(await repository.getActiveBudgetId(), 'first');
+    });
+
+    group('prefers a budget running today (review: restoring on a new '
+        "device made next month's budget active)", () {
+      Future<void> octoberAndNovember({required DateTime today}) async {
+        await open(today: today);
+        await repository.createBudget(
+          budget(
+            'oct',
+            start: DateTime(2026, 10, 1),
+            end: DateTime(2026, 10, 31),
+          ),
+        );
+        await repository.createBudget(
+          budget(
+            'nov',
+            start: DateTime(2026, 11, 1),
+            end: DateTime(2026, 11, 30),
+          ),
+        );
+      }
+
+      test(
+        'a running budget wins over a newer one that has not started',
+        () async {
+          await octoberAndNovember(today: DateTime(2026, 10, 15, 9));
+
+          expect(await repository.getActiveBudgetId(), 'oct');
+          expect(prefs.getString(PreferenceKeys.activeBudgetId), 'oct');
+        },
+      );
+
+      test('the last day counts as running, whatever the time', () async {
+        await octoberAndNovember(today: DateTime(2026, 10, 31, 23, 30));
+
+        expect(await repository.getActiveBudgetId(), 'oct');
+      });
+
+      test('with none running, the newest start is still chosen', () async {
+        await octoberAndNovember(today: DateTime(2026, 12, 15));
+        expect(await repository.getActiveBudgetId(), 'nov');
+      });
+
+      test('before either starts, the newest start is still chosen', () async {
+        await octoberAndNovember(today: DateTime(2026, 9, 15));
+        expect(await repository.getActiveBudgetId(), 'nov');
+      });
+
+      test(
+        'an archived running budget does not beat a non-archived one',
+        () async {
+          await open(today: DateTime(2026, 10, 15));
+          await repository.createBudget(
+            budget(
+              'oct',
+              start: DateTime(2026, 10, 1),
+              end: DateTime(2026, 10, 31),
+              archived: true,
+            ),
+          );
+          await repository.createBudget(
+            budget(
+              'nov',
+              start: DateTime(2026, 11, 1),
+              end: DateTime(2026, 11, 30),
+            ),
+          );
+
+          expect(await repository.getActiveBudgetId(), 'nov');
+        },
+      );
+
+      test(
+        'a stored id that still resolves is kept, even if not running',
+        () async {
+          await octoberAndNovember(today: DateTime(2026, 10, 15));
+          await repository.setActiveBudgetId('nov');
+
+          expect(await repository.getActiveBudgetId(), 'nov');
+        },
+      );
     });
   });
 

@@ -10,10 +10,15 @@ class BudgetRepositoryImpl implements BudgetRepository {
   final BudgetLocalDataSource localDataSource;
   final BudgetCalculationService calculationService;
 
+  /// Source of "today" for choosing a fallback active budget. Tests inject
+  /// a fixed clock.
+  final DateTime Function() _clock;
+
   BudgetRepositoryImpl({
     required this.localDataSource,
     required this.calculationService,
-  });
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now;
 
   @override
   Future<T> transaction<T>(Future<T> Function() action) {
@@ -34,10 +39,12 @@ class BudgetRepositoryImpl implements BudgetRepository {
   /// with different ids, or the app is opened on data written before the
   /// preference existed. A dangling id used to make every scoped screen
   /// (dashboard, history, reports, widget) report "no budget" while the
-  /// budgets list showed the rows. When the stored id no longer resolves,
-  /// the most recently started non-archived budget (or, failing that, the
-  /// most recently started budget) is made active and returned. `null` means
-  /// there is genuinely no budget.
+  /// budgets list showed the rows. When the stored id no longer resolves, a
+  /// non-archived budget running today is made active (the most recently
+  /// started, if several); otherwise the most recently started non-archived
+  /// budget, or failing that the most recently started budget. A budget
+  /// that has not started yet is never chosen over one running today.
+  /// `null` means there is genuinely no budget.
   @override
   Future<String?> getActiveBudgetId() async {
     final storedId = await localDataSource.getActiveBudgetId();
@@ -55,7 +62,11 @@ class BudgetRepositoryImpl implements BudgetRepository {
     }
     if (candidates.isEmpty) return null;
 
-    final fallback = candidates.first;
+    final today = _clock();
+    final fallback = candidates.firstWhere(
+      (budget) => budget.isActiveOn(today),
+      orElse: () => candidates.first,
+    );
     await localDataSource.setActiveBudgetId(fallback.id);
     return fallback.id;
   }
