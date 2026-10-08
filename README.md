@@ -5,7 +5,7 @@ Flutter. It is designed around a single idea: a budget is a fixed amount of mone
 for a specific stretch of time, and the most useful number is how much you can
 safely spend **today** without running that amount out early.
 
-**Current version:** `1.3.0+8` (source of truth: [`pubspec.yaml`](pubspec.yaml))
+**Current version:** `1.0.0+1` (source of truth: [`pubspec.yaml`](pubspec.yaml))
 **Repository:** <https://github.com/sufiyansakkeer/budget_tracker>
 
 ---
