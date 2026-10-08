@@ -389,9 +389,9 @@ Days Needed = minForecastDays − Completed Days     when Completed Days < minFo
 Has Any Expense = Discretionary To Date > 0
 ```
 
-The dashboard shows "Forecast after *n* more days" when Days Needed > 0.
-Otherwise it shows "Forecast appears after your first expense in this
-budget."
+Under the "Forecast" heading the dashboard shows "Ready after *n* more days
+of spending" when Days Needed > 0. Otherwise it shows "Ready after your first
+expense in this budget."
 
 ### Example
 
@@ -405,6 +405,52 @@ completed days and ₹300 today, so A = ₹16,700 and Raw Spendable = ₹11,500:
   of 9 Aug + 1 + floor(10,175 ÷ 1,625) = **16 Aug**.
 
 ---
+
+## Tomorrow (informational)
+
+Two figures help the user see how today's choice moves tomorrow. Neither
+changes today's amount. Both use the same single division as today's amount
+(`calculateTodaySafeSpending`), over the days left *after* today:
+
+```
+Tomorrow if nothing more is spent today = max(0, Raw Spendable ÷ (Remaining Days − 1))
+Overspend per later day                 = Over Today ÷ (Remaining Days − 1)
+```
+
+- **Why Raw Spendable.** Tomorrow starts with today's discretionary spending
+  already in Period Spending, and a set-aside bill payment never moves Raw
+  Spendable. So if nothing more is spent today, and no bill, kept-aside amount
+  or savings goal changes, tomorrow's amount is exactly this. The UI says
+  "about" because those inputs can change.
+- **Why the overspend spreads.** Spending exactly today's amount would leave
+  S0 − Today's Safe Spending for the later days; spending more leaves
+  Over Today less, shared over Remaining Days − 1 days. Shown only while
+  tomorrow's amount is still above 0, where the statement is exact.
+- **Null** on the last day of the period (there is no tomorrow in it) and
+  outside the running period.
+
+Fields: `SafeToSpendEntity.tomorrowIfNoMoreSpending` and
+`overTodayPerRemainingDay`.
+
+## Spending pace (informational)
+
+The dashboard compares discretionary spending so far with an even pace
+through the period (`SpendingPaceBuilder`, `GetSpendingPaceUseCase`):
+
+```
+Planned discretionary money = Raw Spendable + Discretionary Spent So Far
+                            = Budget − Bill payments made − B − C − D
+Planned to date             = Planned × Days Passed ÷ Total Days   (floored)
+Actual to date              = Σ discretionary spending, start → today
+Ahead of plan               = Actual to date − Planned to date
+```
+
+- Discretionary means expenses without a `bill_id`, the same split the
+  engine uses. Days are calendar days.
+- It is a view as of today: linking a bill or setting money aside lowers the
+  planned line for the whole period.
+- Shown once three days have passed, something has been spent and the
+  planned amount is above 0 (`SpendingPace.isMeaningful`).
 
 ## Money arithmetic and rounding
 
@@ -456,7 +502,7 @@ These are different states, and both the entity and the UI keep them apart:
 | No bills due | `commitments` empty, `commitmentsAvailable == true`, B = 0 | "No bills due this period" with ₹0 |
 | Kept aside / savings goal not set | `reservedAmount == null` / `savingsTarget == null` | "Not set" |
 | Kept aside / savings goal set to 0 | `0.0` | ₹0 |
-| Forecast not ready | `forecast.isReliable == false` with `daysNeeded` | "Forecast after *n* more days" |
+| Forecast not ready | `forecast.isReliable == false` with `daysNeeded` | "Ready after *n* more days of spending" |
 | Budget not running | `forecast == null`, daily figures 0 | The not-started or ended card, not "₹0 today" |
 
 The app has no savings ledger. `savingsContributionsTracked` is always

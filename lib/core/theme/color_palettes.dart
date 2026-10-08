@@ -117,6 +117,11 @@ const Color _onErrorContainerDark = Color(0xFFECDFDF);
 // spread — indigo (primary), teal (secondary), violet (tertiary) — so chips,
 // tags, and secondary CTAs have a genuinely distinct third color to draw
 // from instead of whatever the seed algorithm happened to derive.
+//
+// Surfaces and ink are near-neutral with a slight cool bias (2026-10
+// redesign). The dark theme used to be navy (#11172A), which tinted every
+// card, sheet and chart the same blue; the indigo now lives only in the
+// brand roles, where it means "action" or "selected".
 
 final PaletteColors _defaultPalette = PaletteColors(
   lightScheme: const ColorScheme(
@@ -138,7 +143,7 @@ final PaletteColors _defaultPalette = PaletteColors(
     errorContainer: _errorContainerLight,
     onErrorContainer: _onErrorContainerLight,
     surface: Color(0xFFFFFFFF),
-    onSurface: Color(0xFF182033),
+    onSurface: Color(0xFF17191F),
   ),
   darkScheme: const ColorScheme(
     brightness: Brightness.dark,
@@ -158,8 +163,8 @@ final PaletteColors _defaultPalette = PaletteColors(
     onError: _onErrorDark,
     errorContainer: _errorContainerDark,
     onErrorContainer: _onErrorContainerDark,
-    surface: Color(0xFF11172A),
-    onSurface: Color(0xFFF4F7FF),
+    surface: Color(0xFF141418),
+    onSurface: Color(0xFFF2F2F6),
   ),
   incomeLight: const Color(0xFF298E5C),
   expenseLight: const Color(0xFFBC442F),

@@ -33,6 +33,7 @@ import '../widgets/time_analytics_card.dart';
 import '../widgets/weekly_comparison_card.dart';
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Reports tab. Reading order: how much did I spend → how is the budget
 /// doing → where did it go → how did it move over time → patterns →
@@ -203,7 +204,7 @@ class _ReportContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currency = data.currentBudget?.currency ?? '';
+    final currency = data.currency ?? data.currentBudget?.currency ?? '';
     final insights = state.insights ?? const [];
     final isWeekPeriod =
         state.period == ReportPeriod.thisWeek ||
@@ -512,7 +513,7 @@ class _InsightsListState extends State<_InsightsList> {
 
     // Expanding reveals the extra insights with a short stagger while the
     // section grows smoothly.
-    return AnimatedSize(
+    return AppAnimatedSize(
       duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
       curve: AppMotion.standardCurve,
       alignment: Alignment.topCenter,

@@ -276,14 +276,13 @@ transitions use shared-axis and fade-through patterns; bottom-navigation branche
 cross-fade. Every animation goes through a reduced-motion helper, so the app
 degrades gracefully when the platform requests reduced motion.
 
-**Animated bottom navigation.** The four tabs use Rive-animated icons on a Material 3
-bar. Selecting a tab plays a short one-shot icon animation while the bar itself draws
-the steady selected state — indicator, tint, label weight — from the current index, so
-it is always correct after navigating, after returning from a pushed screen and after a
-cold start. Nothing loops. If the asset cannot load the icon falls back to its Material
-glyph, and under reduced motion the animation is skipped entirely. Details and the
-procedure for swapping in your own `.riv` file:
-[docs/architecture/rive_navigation.md](docs/architecture/rive_navigation.md).
+**Animated bottom navigation.** The four tabs sit on a Material 3 bar. Selecting a
+tab cross-fades its outlined icon into the filled one and plays a short pulse, while
+the bar draws the steady selected state — indicator, tint, label weight — from the
+current index, so it is always correct after navigating, after returning from a pushed
+screen and after a cold start. Nothing loops, and under reduced motion every change is
+instant. Details and how to change the tabs:
+[docs/architecture/navigation.md](docs/architecture/navigation.md).
 
 ### Currency
 
@@ -386,7 +385,6 @@ Every entry below was verified against [`pubspec.yaml`](pubspec.yaml) and the so
 | Key-value storage | `shared_preferences` |
 | File system paths | `path_provider`, `path` |
 | Charts | `fl_chart` |
-| Animated navigation icons | `rive` (0.13 line, pure-Dart runtime) |
 | Formatting / i18n | `intl` |
 | Notifications | `flutter_local_notifications`, `timezone`, `flutter_timezone` |
 | Biometrics | `local_auth` (+ `local_auth_android`, `local_auth_darwin`, `local_auth_windows`) |
@@ -540,7 +538,7 @@ lib/
 │   ├── di/                        get_it registrations
 │   ├── domain/                    Shared entities + database integrity service
 │   ├── events/                    Refresh buses (expenses, budgets, bills)
-│   ├── navigation/                Animated bottom navigation (Rive icons)
+│   ├── navigation/                Animated bottom navigation
 │   ├── notifications/             Startup + rescheduling notification BLoC
 │   ├── router/                    GoRouter config, shell, page transitions
 │   ├── theme/                     Material 3 themes, palettes, colour tokens
@@ -671,17 +669,16 @@ used.
 
 The app has no native code of its own. The native libraries in the build come
 from Flutter (`libflutter.so`, `libapp.so`), `sqlite3_flutter_libs`
-(`libsqlite3.so`), `shared_preferences_android` via AndroidX DataStore
-(`libdatastore_shared_counter.so`) and `rive_common` (`librive_text.so`). All
-of them are prebuilt with 16 KB alignment except `librive_text.so`, which
-`rive_common` compiles from source with CMake and, by default, with NDK 25 —
-that produced 4 KB-aligned ELF `LOAD` segments. Two `gradle.properties`
-settings fix this at the source rather than patching binaries:
+(`libsqlite3.so`) and `shared_preferences_android` via AndroidX DataStore
+(`libdatastore_shared_counter.so`). All of them are prebuilt with 16 KB
+alignment, so no Gradle settings are needed. The app still builds with NDK r29,
+which links with 16 KB-aligned `LOAD` segments by default.
 
-| Setting | Why |
-| --- | --- |
-| `rive.ndk.version=29.0.14206865` | `rive_common`'s documented hook for choosing its NDK. NDK r28+ links with 16 KB-aligned `LOAD` segments by default. Kept equal to `ndkVersion` in `android/app/build.gradle.kts`. |
-| `android.ndk.suppressMinSdkVersionError=21` | NDK r28+ dropped API < 21, and the `rive_common` library module still declares `minSdkVersion 19` for its own native build. This AGP setting builds that code against API 21 instead of failing configuration (error CXX1110). The app's `minSdk` is 23, so nothing below 21 can install it. |
+Until October 2026 the build also carried `rive_common`'s `librive_text.so`,
+which was compiled from source with NDK 25 and needed two `gradle.properties`
+overrides (`rive.ndk.version` and `android.ndk.suppressMinSdkVersionError`).
+Both went with the Rive dependency when the navigation icons moved to Material
+icons.
 
 AGP 8.7.3 already stores native libraries uncompressed and 16 KB zip-aligned,
 and writes `PAGE_ALIGNMENT_16K` into the bundle configuration.
@@ -708,8 +705,8 @@ java -jar bundletool.jar dump config --bundle=build/app/outputs/bundle/release/a
 adb shell getconf PAGE_SIZE   # 16384
 ```
 
-The 32-bit `armeabi-v7a` and `x86` copies of `librive_text.so` and
-`libsqlite3.so` remain 4 KB aligned. The 16 KB page-size requirement applies to
+The 32-bit `armeabi-v7a` and `x86` copies of `libsqlite3.so` remain 4 KB
+aligned. The 16 KB page-size requirement applies to
 64-bit ABIs only: 16 KB devices are 64-bit and load the `arm64-v8a` libraries.
 
 No additional Android Studio configuration is needed for the home screen widget —
@@ -791,10 +788,12 @@ integration flows. Coverage is concentrated where correctness matters most:
   build a report, filter it, and watch it refresh after a delete.
 
 `test/helpers/in_memory_database.dart` provides an in-memory Drift database. Mocks
-are generated with `mockito`; BLoC assertions use `bloc_test`. The Rive runtime
-cannot load inside `flutter test`, so navigation icons fall back to Material glyphs
-there automatically — see
-[docs/architecture/rive_navigation.md](docs/architecture/rive_navigation.md).
+are generated with `mockito`; BLoC assertions use `bloc_test`.
+
+Golden (screenshot) tests live in `test/goldens/`. They load the real Manrope and
+Material Icons fonts, render light and dark at 1.0 and 2.0 text scale, and run on
+macOS only, because font rasterisation differs on the Linux CI runners. Regenerate
+them on a Mac with `flutter test --tags golden --update-goldens`.
 
 ```bash
 flutter test                      # everything, including integration flows
@@ -838,9 +837,6 @@ code rather than the intent.
   formatted in it; amounts are never converted between currencies.
 - **No income tracking.** A budget's amount is the money available; there is no
   income ledger. Topping up means editing the budget amount.
-- **The Rive navigation asset is a Rive Community file** carried over from the
-  reference project. Confirm its licence or swap in a bespoke export before a store
-  release — see [`assets/rive/README.md`](assets/rive/README.md).
 - **Android application ID is still `com.example.monivo`**, the Flutter template
   default.
 - **iOS widget distribution requires manual portal setup.** The App Group
@@ -873,7 +869,7 @@ code rather than the intent.
 | App update checker | GitHub Releases |
 | Backup, restore, export and import | |
 | Motion system with reduced-motion support | |
-| Animated bottom navigation | Rive icons, Material 3 bar, reduced-motion aware |
+| Animated bottom navigation | Material 3 bar, outlined-to-filled icons, reduced-motion aware |
 | User-created categories | Create, rename, restyle, archive, delete |
 | Undo after deleting an expense | Restores the same row |
 | Contextual row actions | Edit, Duplicate, Move, Delete on press-and-hold |
@@ -922,9 +918,9 @@ No dated commitments. Candidate areas, none of them started:
 | --- | --- |
 | [`CHANGELOG.md`](CHANGELOG.md) | Full version history |
 | [`RELEASE_NOTES.md`](RELEASE_NOTES.md) | User-facing notes for the current release |
-| [`docs/architecture/`](docs/architecture/README.md) | Why this stack, safe spending, multiple budgets, Rive navigation, offline-first, notifications, backup/restore |
+| [`docs/architecture/`](docs/architecture/README.md) | Why this stack, safe spending, multiple budgets, navigation, offline-first, notifications, backup/restore |
+| [`docs/design/monivo-design-direction.html`](docs/design/monivo-design-direction.html) | The premium redesign: audit, research, design principles, design system and phase plan |
 | [`lib/features/budget/CALCULATION_RULES.md`](lib/features/budget/CALCULATION_RULES.md) | Every budget formula and its edge cases |
 | [`docs/money_tracker_gap_analysis.md`](docs/money_tracker_gap_analysis.md) | Feature/architecture comparison against the Money-Tracker reference app and the decisions taken from it |
-| [`assets/rive/README.md`](assets/rive/README.md) | Navigation artboards, licence note and how to swap the file |
 | [`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) | Home screen widget architecture, data keys and platform setup |
 | [`docs/CI_CD.md`](docs/CI_CD.md) | Pipeline, required secrets, versioning and release process |

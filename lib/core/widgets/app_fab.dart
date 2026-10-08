@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import 'pressable.dart';
+import 'app_animated_size.dart';
 
 /// The app's extended floating action button.
 ///
@@ -20,6 +21,10 @@ class AppFab extends StatelessWidget {
   /// then animates the button in itself and a second entrance would stack.
   final bool animateEntrance;
 
+  /// Shows the label. Screens collapse it to the icon while the user scrolls
+  /// down a list, so the button covers less of the right-aligned amounts.
+  final bool extended;
+
   const AppFab({
     super.key,
     required this.heroTag,
@@ -28,19 +33,27 @@ class AppFab extends StatelessWidget {
     required this.label,
     this.tooltip,
     this.animateEntrance = true,
+    this.extended = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final fab = Pressable(
       enabled: onPressed != null,
-      pressedScale: 0.95,
+      pressedScale: AppMotion.pressedScale,
       child: FloatingActionButton.extended(
         heroTag: heroTag,
         onPressed: onPressed,
         icon: Icon(icon),
-        label: Text(label),
-        tooltip: tooltip,
+        // The label folds away instead of snapping, so the button shrinks to
+        // its icon in one movement.
+        label: AppAnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+          curve: AppMotion.standardCurve,
+          child: extended ? Text(label) : const SizedBox.shrink(),
+        ),
+        extendedIconLabelSpacing: extended ? null : 0,
+        tooltip: tooltip ?? label,
       ),
     );
 

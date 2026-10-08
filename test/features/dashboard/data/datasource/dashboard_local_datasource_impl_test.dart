@@ -224,5 +224,75 @@ void main() {
 
       expect(recent.map((e) => e.amount), [10]);
     });
+
+    test(
+      'carries the time of day and orders a day by time, newest first',
+      (() async {
+        await insertBudget(
+          'b1',
+          start: DateTime(2026, 8, 1),
+          end: DateTime(2026, 8, 31),
+        );
+        Future<void> insertAt(String id, double amount, DateTime time) =>
+            database
+                .into(database.expenses)
+                .insert(
+                  ExpensesCompanion.insert(
+                    id: id,
+                    budgetId: 'b1',
+                    amount: amount,
+                    categoryId: 'bills',
+                    // The calendar day, stored at midnight as the form does.
+                    date: DateTime(time.year, time.month, time.day),
+                    time: Value(time),
+                  ),
+                );
+        await insertAt('breakfast', 180, DateTime(2026, 8, 20, 8, 30));
+        await insertAt('lunch', 390, DateTime(2026, 8, 20, 12, 40));
+        await insertAt('yesterday', 50, DateTime(2026, 8, 19, 21, 15));
+
+        final recent = await repository.getRecentExpenses(
+          budgetId: 'b1',
+          referenceDate: today,
+        );
+
+        expect(recent.map((e) => e.id), ['lunch', 'breakfast', 'yesterday']);
+        expect(recent.first.date, DateTime(2026, 8, 20, 12, 40));
+        expect(recent[1].date, DateTime(2026, 8, 20, 8, 30));
+        expect(recent.last.date, DateTime(2026, 8, 19, 21, 15));
+      }),
+    );
+  });
+
+  group('getDailyDiscretionarySpending', () {
+    test(
+      'sums each day without bill payments, inside whole-day bounds',
+      () async {
+        await insertBudget(
+          'b1',
+          start: DateTime(2026, 8, 1),
+          end: DateTime(2026, 8, 31),
+        );
+        await insertBudget(
+          'b2',
+          start: DateTime(2026, 8, 1),
+          end: DateTime(2026, 8, 31),
+        );
+        await insertExpense('b1', 100, DateTime(2026, 8, 3));
+        await insertExpense('b1', 50, DateTime(2026, 8, 3, 21, 15));
+        await insertExpense('b1', 900, DateTime(2026, 8, 3), billId: 'rent');
+        await insertExpense('b1', 70, DateTime(2026, 8, 20, 23, 59));
+        await insertExpense('b1', 5, DateTime(2026, 8, 21)); // after "end"
+        await insertExpense('b2', 999, DateTime(2026, 8, 3)); // other budget
+
+        final daily = await repository.getDailyDiscretionarySpending(
+          budgetId: 'b1',
+          start: DateTime(2026, 8, 1),
+          end: today,
+        );
+
+        expect(daily, {DateTime(2026, 8, 3): 150, DateTime(2026, 8, 20): 70});
+      },
+    );
   });
 }

@@ -40,6 +40,7 @@ import '../../../../../core/domain/entities/budget_entity.dart';
 import '../../../../../core/widgets/app_fab.dart';
 import '../../../../../core/widgets/fade_slide_in.dart';
 import '../../../../../core/navigation/push_unique.dart';
+import '../../../../../core/widgets/app_animated_size.dart';
 
 /// Expense history: search, filters, sorting, day grouping, pagination,
 /// swipe-to-delete, pull-to-refresh, and the combined multi-budget view.
@@ -521,7 +522,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
             ExpenseHistoryFilterChanged(filter),
           ),
         ),
-        AnimatedSize(
+        AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,
@@ -533,7 +534,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
             ),
           ),
         ),
-        AnimatedSize(
+        AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,

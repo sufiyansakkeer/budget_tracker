@@ -1,16 +1,22 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/widgets/app_fab.dart';
+import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/app_list.dart';
+import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/delayed_reveal.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
-import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
@@ -19,65 +25,90 @@ import '../../domain/entities/recent_expense_entity.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
-import '../widgets/budget_overview_card.dart';
 import '../widgets/dashboard_header.dart';
-import '../widgets/dashboard_info.dart';
-import '../widgets/insight_card.dart';
-import '../widgets/quick_actions.dart';
-import '../widgets/recent_expense_tile.dart';
+import '../widgets/free_to_spend_summary.dart';
+import '../widgets/home_insights.dart';
 import '../widgets/link_bills_sheet.dart';
+import '../widgets/recent_expense_tile.dart';
 import '../widgets/safe_spending_hero.dart';
 import '../widgets/safe_to_spend_breakdown_card.dart';
 import '../widgets/safe_to_spend_notices.dart';
+import '../widgets/spending_pace_section.dart';
 import '../widgets/upcoming_bills_section.dart';
-import '../../../../core/constants/app_motion.dart';
-import '../../../../core/widgets/app_fab.dart';
-import '../../../../core/navigation/push_unique.dart';
 
-/// Home tab: the financial overview for the active budget.
+/// Home: what can I spend today, how is the budget doing, and what should I
+/// know or do next.
 ///
-/// Reading order answers, top to bottom: what can I safely spend today, how
-/// is that figure made up (bills, money kept aside, savings goal) and where
-/// is it heading, what isn't included, how much remains, what should I
-/// know, what happened recently, what's due soon.
-class DashboardScreen extends StatelessWidget {
+/// Reading order, top to bottom: the budget and greeting; Today's Safe
+/// Spending (the one raised surface); what is free to spend, with the full
+/// working one tap away; anything today's amount leaves out; bills coming
+/// up; the spending pace; insights the rest of the screen does not already
+/// say; other budgets running today; recent expenses. Sections sit on the
+/// page, separated by space and type rather than borders.
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  /// The button keeps its label at rest and folds to its icon while the
+  /// user scrolls down, so it covers less of the amounts on the right.
+  bool _fabExtended = true;
 
   /// Whether [state] shows a dashboard the FAB belongs on.
   static bool _hasContent(DashboardState state) =>
       state is DashboardLoaded || state is DashboardNotRunning;
+
+  bool _onScroll(UserScrollNotification notification) {
+    final extended = switch (notification.direction) {
+      ScrollDirection.reverse => false,
+      ScrollDirection.forward => true,
+      ScrollDirection.idle => _fabExtended,
+    };
+    if (extended != _fabExtended) setState(() => _fabExtended = extended);
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: BlocBuilder<DashboardBloc, DashboardState>(
-          // DashboardBloc re-emits on every expense, budget and bill change
-          // from any tab. Equatable states mean an unchanged refresh is a
-          // no-op here rather than a full-page rebuild.
-          buildWhen: (prev, curr) => prev != curr,
-          builder: (context, state) {
-            final child = switch (state) {
-              DashboardInitial() || DashboardLoading() =>
-                const DashboardSkeleton(key: ValueKey('loading')),
-              DashboardLoaded() => _DashboardContent(
-                key: const ValueKey('loaded'),
-                state: state,
-              ),
-              DashboardNotRunning() => _NotRunningContent(
-                key: const ValueKey('not_running'),
-                state: state,
-              ),
-              DashboardEmpty() => _NoBudgetState(key: const ValueKey('empty')),
-              DashboardError(:final message) => _DashboardError(
-                key: const ValueKey('error'),
-                message: message,
-              ),
-              _ => const SizedBox.shrink(key: ValueKey('unknown')),
-            };
-            return AppStateSwitcher(child: child);
-          },
+        child: NotificationListener<UserScrollNotification>(
+          onNotification: _onScroll,
+          child: BlocBuilder<DashboardBloc, DashboardState>(
+            // DashboardBloc re-emits on every expense, budget and bill change
+            // from any tab. Equatable states mean an unchanged refresh is a
+            // no-op here rather than a full-page rebuild.
+            buildWhen: (prev, curr) => prev != curr,
+            builder: (context, state) {
+              final child = switch (state) {
+                DashboardInitial() || DashboardLoading() => const DelayedReveal(
+                  key: ValueKey('loading'),
+                  child: DashboardSkeleton(),
+                ),
+                DashboardLoaded() => _DashboardContent(
+                  key: const ValueKey('loaded'),
+                  state: state,
+                ),
+                DashboardNotRunning() => _NotRunningContent(
+                  key: const ValueKey('not_running'),
+                  state: state,
+                ),
+                DashboardEmpty() => const _NoBudgetState(
+                  key: ValueKey('empty'),
+                ),
+                DashboardError(:final message) => _DashboardError(
+                  key: const ValueKey('error'),
+                  details: message,
+                ),
+                _ => const SizedBox.shrink(key: ValueKey('unknown')),
+              };
+              return AppStateSwitcher(child: child);
+            },
+          ),
         ),
       ),
       floatingActionButton: BlocBuilder<DashboardBloc, DashboardState>(
@@ -90,6 +121,7 @@ class DashboardScreen extends StatelessWidget {
             icon: Icons.add_rounded,
             label: 'Add expense',
             tooltip: 'Add expense',
+            extended: _fabExtended,
             // Appears once the dashboard has loaded; the Scaffold animates
             // it in.
             animateEntrance: false,
@@ -103,6 +135,10 @@ class DashboardScreen extends StatelessWidget {
 void _refresh(BuildContext context) =>
     context.read<DashboardBloc>().add(const DashboardRefresh());
 
+/// Space between top-level sections. Sections are told apart by this and
+/// by their titles, not by borders.
+const double _sectionGap = AppSpacing.xl;
+
 // ── Loaded content ─────────────────────────────────────────────────────────
 
 class _DashboardContent extends StatelessWidget {
@@ -112,21 +148,19 @@ class _DashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final summary = state.budgetSummary;
     final activeLimit = state.activeBudgetLimit;
     final safeToSpend = state.activeSafeToSpend;
+    final pace = state.spendingPace;
+    final insights = HomeInsightFilter.visible(state.insights);
 
     return _DashboardScroll(
       children: [
-        // 1. Greeting + active budget context
-        const FadeSlideIn(index: 0, child: DashboardHeader()),
-        const SizedBox(height: AppSpacing.smd),
-        const FadeSlideIn(index: 1, child: ActiveBudgetSelector()),
+        FadeSlideIn(index: 0, child: _header(context, safeToSpend)),
         const SizedBox(height: AppSpacing.md),
 
-        // 2. Today's Safe Spending (hero)
+        // Today's Safe Spending: the one raised surface.
         FadeSlideIn(
-          index: 2,
+          index: 1,
           child: SafeSpendingHeroSwitcher(
             // Keyed by budget: switching budgets cross-fades, refreshing the
             // same budget animates values in place.
@@ -134,6 +168,12 @@ class _DashboardContent extends StatelessWidget {
                 ? SafeSpendingHero(
                     key: ValueKey('hero_${activeLimit.budgetId}'),
                     limit: activeLimit,
+                    onShowWorking: safeToSpend == null
+                        ? null
+                        : () => SafeToSpendWorkingSheet.show(
+                            context,
+                            safeToSpend,
+                          ),
                   )
                 // Archived budgets get no daily figure: a retry can't help.
                 : state.activeBudgetArchived
@@ -156,57 +196,73 @@ class _DashboardContent extends StatelessWidget {
           ),
         ),
 
-        // 3. How the amount is made up, and the forecast; then what it
-        //    leaves out.
-        if (safeToSpend != null)
-          ..._safeToSpendDetails(context, safeToSpend, index: 3),
-        const SizedBox(height: AppSpacing.smd),
+        // What is free to spend (the working one tap away), then anything
+        // today's amount leaves out.
+        if (safeToSpend != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          FadeSlideIn(
+            index: 2,
+            child: FreeToSpendSummary(
+              key: ValueKey('free_to_spend_${safeToSpend.budgetId}'),
+              safeToSpend: safeToSpend,
+              onTap: () => SafeToSpendWorkingSheet.show(context, safeToSpend),
+            ),
+          ),
+          ..._notices(context, safeToSpend, index: 2),
+        ],
 
-        // 4. Budget progress / remaining / timeline
+        const SizedBox(height: _sectionGap),
         FadeSlideIn(
-          index: 4,
-          child: BudgetOverviewCard(
-            summary: summary,
-            onTap: state.activeBudgetId == null
-                ? null
-                : () => context.pushUnique(
-                    '/app/budgets/${state.activeBudgetId}',
-                  ),
+          index: 3,
+          child: UpcomingBillsSection(
+            bills: state.upcomingBills,
+            activeBudgetId: state.activeBudgetId,
+            budgetNames: {
+              for (final limit in state.budgetDailyLimits)
+                limit.budgetId: limit.budgetName,
+            },
           ),
         ),
 
-        // 4b. Other budgets running today (independent amounts)
-        ..._otherBudgets(state.otherBudgetLimits),
-
-        // 5. Smart insights
-        if (state.insights.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.lg),
-          const SectionHeader(
-            title: 'Smart insights',
-            infoContent: DashboardInfo.smartInsights,
-          ),
-          // Keyed by insight so a changed set never hands one insight's
-          // element (and finished entrance) to another.
-          for (var i = 0; i < state.insights.length; i++)
-            FadeSlideIn(
-              key: ValueKey('insight_${state.insights[i].id}'),
-              index: 5 + i,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: InsightCard(
-                  message: state.insights[i].message,
-                  type: state.insights[i].type,
-                ),
-              ),
-            ),
+        if (pace != null && pace.isMeaningful) ...[
+          const SizedBox(height: _sectionGap),
+          FadeSlideIn(index: 4, child: SpendingPaceSection(pace: pace)),
         ],
 
-        // 6. Recent transactions
-        ..._recentExpenses(context, state.recentExpenses, summary.currency),
+        if (insights.isNotEmpty) ...[
+          const SizedBox(height: _sectionGap),
+          FadeSlideIn(index: 4, child: HomeInsightsSection(insights: insights)),
+        ],
 
-        // 7. Upcoming bills + quick actions
-        ..._footer(state.upcomingBills),
+        ..._otherBudgets(state.otherBudgetLimits),
+
+        ..._recentExpenses(
+          context,
+          state.recentExpenses,
+          state.budgetSummary.currency,
+          today: safeToSpend?.today,
+        ),
       ],
+    );
+  }
+
+  Widget _header(BuildContext context, SafeToSpendEntity? safeToSpend) {
+    if (safeToSpend == null) {
+      // No engine result (archived, or figures unavailable) means no budget
+      // name in this state; the selector reads it on its own.
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DashboardHeader(),
+          SizedBox(height: AppSpacing.sm),
+          ActiveBudgetSelector(),
+        ],
+      );
+    }
+    return DashboardHeader(
+      budgetName: safeToSpend.budgetName,
+      caption: formatDateRange(safeToSpend.startDate, safeToSpend.endDate),
+      onSwitchBudget: () => ActiveBudgetSelector.open(context),
     );
   }
 }
@@ -226,12 +282,20 @@ class _NotRunningContent extends StatelessWidget {
     final safeToSpend = state.safeToSpend;
     return _DashboardScroll(
       children: [
-        const FadeSlideIn(index: 0, child: DashboardHeader()),
-        const SizedBox(height: AppSpacing.smd),
-        const FadeSlideIn(index: 1, child: ActiveBudgetSelector()),
+        FadeSlideIn(
+          index: 0,
+          child: DashboardHeader(
+            budgetName: safeToSpend.budgetName,
+            caption: formatDateRange(
+              safeToSpend.startDate,
+              safeToSpend.endDate,
+            ),
+            onSwitchBudget: () => ActiveBudgetSelector.open(context),
+          ),
+        ),
         const SizedBox(height: AppSpacing.md),
         FadeSlideIn(
-          index: 2,
+          index: 1,
           child: SafeSpendingHeroSwitcher(
             child: SafeSpendingNotRunningCard(
               key: ValueKey('paused_${state.activeBudgetId}'),
@@ -240,11 +304,41 @@ class _NotRunningContent extends StatelessWidget {
             ),
           ),
         ),
-        if (safeToSpend.status == SafeToSpendStatus.notStarted)
-          ..._safeToSpendDetails(context, safeToSpend, index: 3),
+        // Before the period starts: what it will set aside.
+        if (safeToSpend.status == SafeToSpendStatus.notStarted) ...[
+          const SizedBox(height: AppSpacing.sm),
+          FadeSlideIn(
+            index: 2,
+            child: AppSurface(
+              level: SurfaceLevel.sunken,
+              child: SafeToSpendBreakdownCard(
+                key: ValueKey('breakdown_${safeToSpend.budgetId}'),
+                safeToSpend: safeToSpend,
+              ),
+            ),
+          ),
+          ..._notices(context, safeToSpend, index: 2),
+        ],
+        const SizedBox(height: _sectionGap),
+        FadeSlideIn(
+          index: 3,
+          child: UpcomingBillsSection(
+            bills: state.upcomingBills,
+            activeBudgetId: state.activeBudgetId,
+            budgetNames: {
+              for (final limit in state.otherBudgetLimits)
+                limit.budgetId: limit.budgetName,
+              state.activeBudgetId: safeToSpend.budgetName,
+            },
+          ),
+        ),
         ..._otherBudgets(state.otherBudgetLimits),
-        ..._recentExpenses(context, state.recentExpenses, safeToSpend.currency),
-        ..._footer(state.upcomingBills),
+        ..._recentExpenses(
+          context,
+          state.recentExpenses,
+          safeToSpend.currency,
+          today: safeToSpend.today,
+        ),
       ],
     );
   }
@@ -292,25 +386,15 @@ class _DashboardScroll extends StatelessWidget {
   }
 }
 
-/// The "Free to spend" breakdown with its forecast, then a notice for
-/// anything today's amount leaves out (bills unavailable, not linked, or in
-/// another currency).
-List<Widget> _safeToSpendDetails(
+/// Notices for anything today's amount leaves out (bills unavailable, not
+/// linked, or in another currency); nothing when everything is included.
+List<Widget> _notices(
   BuildContext context,
   SafeToSpendEntity safeToSpend, {
   required int index,
 }) => [
-  const SizedBox(height: AppSpacing.smd),
-  FadeSlideIn(
-    index: index,
-    child: SafeToSpendBreakdownCard(
-      // Per budget, so a switch starts with the bills list collapsed.
-      key: ValueKey('breakdown_${safeToSpend.budgetId}'),
-      safeToSpend: safeToSpend,
-    ),
-  ),
   if (SafeToSpendNotices.hasNotices(safeToSpend)) ...[
-    const SizedBox(height: AppSpacing.smd),
+    const SizedBox(height: AppSpacing.sm),
     FadeSlideIn(
       index: index,
       child: SafeToSpendNotices(
@@ -325,109 +409,85 @@ List<Widget> _safeToSpendDetails(
 
 List<Widget> _otherBudgets(List<BudgetDailyLimitEntity> others) => [
   if (others.isNotEmpty) ...[
-    const SizedBox(height: AppSpacing.lg),
-    const SectionHeader(
-      title: 'Other budgets today',
-      subtitle: 'Each budget has its own safe amount',
-    ),
-    for (var i = 0; i < others.length; i++)
-      FadeSlideIn(
-        key: ValueKey('other_${others[i].budgetId}'),
-        index: 5 + i,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: OtherBudgetLimitTile(limit: others[i]),
+    const SizedBox(height: _sectionGap),
+    FadeSlideIn(
+      index: 5,
+      child: AppSection(
+        title: 'Other budgets today',
+        subtitle: 'Each budget has its own safe amount',
+        child: AppGroupedList(
+          dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+          children: [
+            for (final limit in others)
+              OtherBudgetLimitTile(
+                key: ValueKey('other_${limit.budgetId}'),
+                limit: limit,
+              ),
+          ],
         ),
       ),
+    ),
   ],
 ];
 
 List<Widget> _recentExpenses(
   BuildContext context,
   List<RecentExpenseEntity> expenses,
-  String currency,
-) {
+  String currency, {
+  DateTime? today,
+}) {
   final theme = Theme.of(context);
   return [
-    const SizedBox(height: AppSpacing.lg),
-    SectionHeader(
-      title: 'Recent expenses',
-      trailing: expenses.isEmpty
-          ? null
-          : TextButton(
-              onPressed: () => context.go('/app/expenses'),
-              child: const Text('View all'),
-            ),
-    ),
-    if (expenses.isEmpty)
-      EmptyState.compact(
-        icon: Icons.receipt_long_rounded,
-        title: 'No expenses yet',
-        message:
-            'Add your first expense and today\'s spending '
-            'will update here.',
-        actionLabel: 'Add expense',
-        actionIcon: Icons.add_rounded,
-        onAction: () => context.pushUnique('/app/expenses/add'),
-      )
-    else
-      // The card grows smoothly when a new expense arrives; rows are keyed
-      // by id so only the new one slides in.
-      AnimatedSize(
-        duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
-        curve: AppMotion.standardCurve,
-        alignment: Alignment.topCenter,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: theme.cardTheme.color,
-            borderRadius: AppSpacing.borderRadiusLg,
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xs,
-            ),
-            child: Column(
-              children: [
-                for (var i = 0; i < expenses.length; i++) ...[
-                  if (i > 0)
-                    Divider(
-                      key: ValueKey('recent_div_${expenses[i].id}'),
-                      indent: AppSizes.avatarMd + AppSpacing.mlg,
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                  FadeSlideIn(
-                    key: ValueKey('recent_${expenses[i].id}'),
-                    // Relative to the card, so a newly added expense appears
-                    // as its slot opens rather than leaving a gap first.
-                    index: i,
-                    child: RecentExpenseTile(
-                      expense: expenses[i],
-                      currency: currency,
-                      onTap: () =>
-                          context.pushUnique('/app/expenses/${expenses[i].id}'),
+    const SizedBox(height: _sectionGap),
+    FadeSlideIn(
+      index: 6,
+      child: AppSection(
+        title: 'Recent',
+        action: expenses.isEmpty
+            ? null
+            : TextButton(
+                onPressed: () => context.go('/app/expenses'),
+                child: const Text('See all'),
+              ),
+        child: expenses.isEmpty
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('No expenses yet', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    "Add your first expense and today's spending will "
+                    'update here.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+                  FilledButton.tonalIcon(
+                    onPressed: () => context.pushUnique('/app/expenses/add'),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add expense'),
+                  ),
                 ],
-              ],
-            ),
-          ),
-        ),
+              )
+            : AppGroupedList(
+                dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                children: [
+                  for (final expense in expenses)
+                    RecentExpenseTile(
+                      key: ValueKey('recent_${expense.id}'),
+                      expense: expense,
+                      currency: currency,
+                      today: today,
+                      onTap: () =>
+                          context.pushUnique('/app/expenses/${expense.id}'),
+                    ),
+                ],
+              ),
       ),
+    ),
   ];
 }
-
-List<Widget> _footer(List<BillEntity> upcomingBills) => [
-  // Upcoming bills
-  const SizedBox(height: AppSpacing.lg),
-  FadeSlideIn(index: 6, child: UpcomingBillsSection(bills: upcomingBills)),
-
-  // Quick actions
-  const SizedBox(height: AppSpacing.lg),
-  const FadeSlideIn(index: 7, child: SectionHeader(title: 'Quick actions')),
-  const FadeSlideIn(index: 7, child: QuickActions()),
-];
 
 // ── Empty / error ──────────────────────────────────────────────────────────
 
@@ -456,17 +516,49 @@ class _NoBudgetState extends StatelessWidget {
   }
 }
 
-class _DashboardError extends StatelessWidget {
-  final String message;
+/// A calm failure: what happened and what to do, with the technical detail
+/// behind a disclosure for anyone reporting a problem.
+class _DashboardError extends StatefulWidget {
+  final String details;
 
-  const _DashboardError({super.key, required this.message});
+  const _DashboardError({super.key, required this.details});
+
+  @override
+  State<_DashboardError> createState() => _DashboardErrorState();
+}
+
+class _DashboardErrorState extends State<_DashboardError> {
+  bool _showDetails = false;
 
   @override
   Widget build(BuildContext context) {
-    return ErrorState(
-      title: "Couldn't load your dashboard",
-      message: message,
-      onRetry: () => _refresh(context),
+    final theme = Theme.of(context);
+    return SingleChildScrollView(
+      padding: AppSpacing.pagePadding,
+      child: Column(
+        children: [
+          const SizedBox(height: AppSpacing.xxl),
+          ErrorState(
+            title: "Couldn't load your dashboard",
+            message:
+                'Your budgets and expenses are still on this device. '
+                'Try again in a moment.',
+            onRetry: () => _refresh(context),
+          ),
+          TextButton(
+            onPressed: () => setState(() => _showDetails = !_showDetails),
+            child: Text(_showDetails ? 'Hide details' : 'Show details'),
+          ),
+          if (_showDetails)
+            SelectableText(
+              widget.details,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

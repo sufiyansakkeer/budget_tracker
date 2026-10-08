@@ -92,6 +92,8 @@ class SafeToSpendCalculator {
     var remainingDays = totalDays;
     var dailyU = 0.0;
     var baselineU = 0.0;
+    double? tomorrowU;
+    double? overSpreadU;
     SafeToSpendForecast? forecast;
     // Forecast margin and its divisor, kept exact for the status rules.
     BigInt? marginC;
@@ -130,6 +132,29 @@ class SafeToSpendCalculator {
           remainingDays: remainingDays,
         ),
       );
+
+      // ── Tomorrow (informational) ──────────────────────────────────────
+      // If nothing more is spent today, tomorrow starts from the same raw
+      // spendable (today's spending becomes history and committed payments
+      // never move it) over one day fewer. Same single division as today.
+      if (remainingDays > 1) {
+        final tomorrow = _calculationService.calculateTodaySafeSpending(
+          remainingBudget: rawU.toDouble(),
+          todaySpending: 0,
+          remainingDays: remainingDays - 1,
+        );
+        tomorrowU = math.max(0.0, tomorrow);
+        // Spending exactly today's amount would have left S0 − daily for
+        // the days after today; the overspend takes over ÷ (days − 1) from
+        // each of them. Only stated while tomorrow is still above 0.
+        if (discTodayU > dailyU && tomorrow > 0) {
+          overSpreadU = _calculationService.calculateTodaySafeSpending(
+            remainingBudget: discTodayU - dailyU,
+            todaySpending: 0,
+            remainingDays: remainingDays - 1,
+          );
+        }
+      }
 
       // ── Forecast (completed days only; today is still in progress) ────
       completedDays = daysPassed - 1;
@@ -321,6 +346,8 @@ class SafeToSpendCalculator {
       overToday: amt(math.max(0.0, discTodayU - dailyU)),
       baselineDaily: amt(baselineU),
       allowanceReduction: amt(math.max(0.0, baselineU - dailyU)),
+      tomorrowIfNoMoreSpending: tomorrowU == null ? null : amt(tomorrowU),
+      overTodayPerRemainingDay: overSpreadU == null ? null : amt(overSpreadU),
       forecast: forecast,
       status: status,
       reasons: List.unmodifiable(reasons),

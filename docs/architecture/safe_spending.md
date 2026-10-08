@@ -62,7 +62,12 @@ committed-spending read. It then attaches each budget's entity to its
 read that entity:
 
 - **Dashboard hero and "Free to spend" breakdown.** The active budget,
-  through `DashboardLoaded.activeSafeToSpend`.
+  through `DashboardLoaded.activeSafeToSpend`. Two informational figures on
+  the same entity come from the same division: `tomorrowIfNoMoreSpending`
+  (the working sheet's "tomorrow" note) and `overTodayPerRemainingDay` (the
+  hero's "about ₹X less on each of the next N days" line). Neither changes
+  today's amount. The spending pace chart reads
+  `DashboardLoaded.spendingPace`, built from discretionary spending only.
 - **Other budgets today.** One tile per running budget. Amounts are never
   summed across budgets.
 - **Morning notification.** `NotificationService.morningBody`. When the daily

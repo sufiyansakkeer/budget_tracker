@@ -45,22 +45,32 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
     final palette = ColorPalette.fromString(get(_paletteKey));
     final currencyCode = get(_currencyCodeKey) ?? 'INR';
     final currency = currencyByCode(currencyCode);
+    // A time that was never stored takes that setting's own default.
+    const defaults = NotificationSettings();
     final notifications = NotificationSettings(
       notificationsEnabled: get('notificationsEnabled') != 'false',
       morningReminderEnabled: get('morningReminderEnabled') != 'false',
       morningReminderTime: NotificationTime.fromString(
         get('morningReminderTime'),
+        fallback: defaults.morningReminderTime,
       ),
       eveningSummaryEnabled: get('eveningSummaryEnabled') != 'false',
       eveningSummaryTime: NotificationTime.fromString(
         get('eveningSummaryTime'),
+        fallback: defaults.eveningSummaryTime,
       ),
       overspendingAlertsEnabled: get('overspendingAlertsEnabled') != 'false',
       dailyRemindersEnabled: get('dailyRemindersEnabled') != 'false',
       noExpenseReminderEnabled: get('noExpenseReminderEnabled') != 'false',
       quietHoursEnabled: get('quietHoursEnabled') == 'true',
-      quietHoursStart: NotificationTime.fromString(get('quietHoursStart')),
-      quietHoursEnd: NotificationTime.fromString(get('quietHoursEnd')),
+      quietHoursStart: NotificationTime.fromString(
+        get('quietHoursStart'),
+        fallback: defaults.quietHoursStart,
+      ),
+      quietHoursEnd: NotificationTime.fromString(
+        get('quietHoursEnd'),
+        fallback: defaults.quietHoursEnd,
+      ),
     );
     final biometric = get(_biometricKey) == 'true';
     final firstLaunch =

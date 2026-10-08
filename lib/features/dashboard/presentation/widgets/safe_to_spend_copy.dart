@@ -158,12 +158,16 @@ abstract final class SafeToSpendCopy {
   /// The hero's one explanation line: the most important reason (engine
   /// order) that is explained in words. Bills not linked, in another
   /// currency, or unavailable get their own notice card right below the
-  /// breakdown, with an action, so the hero does not repeat them.
+  /// breakdown, with an action, so the hero does not repeat them. Going
+  /// over today's amount is skipped when [overSpread] already says what it
+  /// costs each later day.
   static String? heroExplanation(SafeToSpendEntity e) {
+    final spreadShown = overSpread(e) != null;
     for (final r in e.reasons) {
       if (r is BillsUnavailableReason ||
           r is BillsNotLinkedReason ||
-          r is BillsCurrencyExcludedReason) {
+          r is BillsCurrencyExcludedReason ||
+          (r is OverTodayReason && spreadShown)) {
         continue;
       }
       final text = reason(r, e);
@@ -239,6 +243,71 @@ abstract final class SafeToSpendCopy {
     return buffer.toString();
   }
 
+  /// "Day 8 of 31".
+  static String dayOfPeriod(SafeToSpendEntity e) =>
+      'Day ${e.daysPassed} of ${e.totalDays}';
+
+  /// "24 days left" / "Last day".
+  static String daysLeft(SafeToSpendEntity e) =>
+      e.remainingDays <= 1 ? 'Last day' : '${e.remainingDays} days left';
+
+  /// "₹25,103 left of ₹60,000" / "₹1,200 over ₹60,000".
+  static String budgetLeftLine(SafeToSpendEntity e) {
+    final total = amount(e.budgetAmount, e.currency);
+    return e.availableBalance < 0
+        ? '${amount(-e.availableBalance, e.currency)} over $total'
+        : '${amount(e.availableBalance, e.currency)} left of $total';
+  }
+
+  /// "That's about ₹12 less on each of the next 23 days." when today's
+  /// amount was exceeded, from the engine's spread; otherwise null.
+  static String? overSpread(SafeToSpendEntity e) {
+    final perDay = e.overTodayPerRemainingDay;
+    if (perDay == null || perDay <= 0) return null;
+    final days = e.remainingDays - 1;
+    return "That's about ${amount(perDay, e.currency)} less on each of the "
+        'next ${_count(days, 'day')}.';
+  }
+
+  /// "Spend nothing more today and tomorrow's amount is about ₹880." from
+  /// the engine's preview; null on the last day.
+  static String? tomorrowPreview(SafeToSpendEntity e) {
+    final tomorrow = e.tomorrowIfNoMoreSpending;
+    if (tomorrow == null) return null;
+    return "Spend nothing more today and tomorrow's amount is about "
+        '${safeAmount(tomorrow, e.currency)}.';
+  }
+
+  /// What today's amount leaves out of the budget, for the line under
+  /// "Free to spend": "After ₹1,850 in bills and a ₹3,000 savings goal".
+  static String deductionsSummary(SafeToSpendEntity e) {
+    if (!e.commitmentsAvailable) return "Bills couldn't be loaded";
+    final cur = e.currency;
+    final parts = <String>[
+      if (e.upcomingCommitments > 0)
+        '${amount(e.upcomingCommitments, cur)} in bills',
+      if ((e.reservedAmount ?? 0) > 0)
+        '${amount(e.reservedAmount!, cur)} kept aside',
+      if ((e.remainingSavingsTarget ?? 0) > 0)
+        'a ${amount(e.remainingSavingsTarget!, cur)} savings goal',
+    ];
+    if (parts.isEmpty) return 'Nothing is set aside from this budget';
+    final joined = parts.length == 1
+        ? parts.single
+        : '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
+    return 'After $joined';
+  }
+
+  /// The line under "Free to spend": "Until 31 Oct, after ₹1,850 in bills
+  /// and a ₹3,000 savings goal".
+  static String freeToSpendContext(SafeToSpendEntity e) {
+    final deductions = deductionsSummary(e);
+    final lowered = deductions.isEmpty
+        ? deductions
+        : deductions[0].toLowerCase() + deductions.substring(1);
+    return 'Until ${date(e.endDate)}, $lowered';
+  }
+
   // ── Not running ──────────────────────────────────────────────────────────
 
   static String notRunningTitle(SafeToSpendEntity e) =>
@@ -290,11 +359,11 @@ abstract final class SafeToSpendCopy {
 
   // ── Forecast ─────────────────────────────────────────────────────────────
 
-  /// "Forecast after 2 more days" / "Forecast appears after your first
-  /// expense in this budget."
+  /// Shown under the "Forecast" heading: "Ready after 2 more days of
+  /// spending" / "Ready after your first expense in this budget."
   static String forecastInsufficient(SafeToSpendForecast f) => f.daysNeeded > 0
-      ? 'Forecast after ${_count(f.daysNeeded, 'more day')}'
-      : 'Forecast appears after your first expense in this budget.';
+      ? 'Ready after ${_count(f.daysNeeded, 'more day')} of spending'
+      : 'Ready after your first expense in this budget.';
 
   /// "Free money runs out around 24 Oct".
   static String exhaustion(DateTime d) =>

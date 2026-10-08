@@ -14,6 +14,7 @@ import '../../domain/entities/category_slice.dart';
 import 'chart_card.dart';
 import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/chart_reveal.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Where the money went: a donut of category shares with a matching ranked
 /// list (amount, share, number of expenses). Small categories beyond the
@@ -186,7 +187,7 @@ class _CategoryBreakdownCardState extends State<CategoryBreakdownCard> {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 // Expanding to "all categories" grows the list smoothly.
-                AnimatedSize(
+                AppAnimatedSize(
                   duration: AppMotion.respectReducedMotion(
                     context,
                     AppMotion.medium,

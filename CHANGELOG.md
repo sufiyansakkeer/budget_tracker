@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Premium redesign, Phases 2 (the design system) and 3 (Home). Direction and
+plan: `docs/design/monivo-design-direction.html`.
+
+### Changed
+- **Home is rebuilt around Today's Safe Spending.** One raised surface holds
+  the figure (whole units large, the symbol and paise small), its status, a
+  bar for how much of today's amount is used, and Spent today with Left today
+  (or Over by). Under it is the budget behind the figure: what is left of it,
+  the days left and the day of the period, with a marker for where in the
+  period today falls.
+- **Going over today's amount says what it costs** ("That's about ₹21.76 less
+  on each of the next 30 days.") instead of a general warning.
+- **"Free to spend"** is one row under the hero: what the budget has left
+  after bills, money kept aside and the savings goal. Tapping it, or "How it's
+  worked out", opens the full working as a receipt, ending with today's
+  amount and what tomorrow's would be if nothing more is spent today.
+- **Coming up** lists the next bills as compact rows that say when each is
+  due and who pays it: "Set aside" for the budget on screen, "Paid from
+  {budget}" for another budget, "Not linked" otherwise.
+- **Spending pace** chart on Home: spending so far against an even pace for
+  the period, shown from the third day once there is spending.
+- **Insights on Home** show at most two, and never repeat what the hero,
+  Coming up or Other budgets already say.
+- **Header** shows a greeting and the date, the budget name (tap to switch
+  budgets) and its dates. **Recent** shows each expense's time, or its day
+  when it was not today. **Add expense** shrinks to an icon while you scroll
+  down.
+- **Loading and errors.** The loading placeholder mirrors the Home layout and
+  appears only if loading takes longer than 300 ms. A failed load shows a
+  short message with the details one tap away.
+- **Forecast not ready** reads "Ready after 3 more days of spending" under the
+  Forecast heading.
+- **New typeface.** Manrope is bundled with the app (no download, works
+  offline) and used for all text. Every amount is set in tabular figures, so
+  digits line up in lists and a figure no longer shifts width when it changes.
+- **Calmer status colours.** Each status now maps to one tone. Red is kept for
+  money that is already gone (over budget, or bills exceeding what is left).
+  Going over today's amount is shown in amber, because tomorrow's amount
+  absorbs it.
+- **Dark mode for the Default palette** uses near-neutral surfaces instead of
+  navy, so cards, sheets and charts no longer share one blue cast. Brand
+  colours are unchanged.
+- **Navigation icons** are Material icons that cross-fade from outlined to
+  filled and pulse once when a tab is selected.
+- **Shapes.** Cards, sheets and dialogs use a 20 dp radius, object cards
+  14 dp, and buttons, fields and menus 10 dp.
+- **Reduced motion** now also follows iOS Settings → Accessibility → Motion →
+  Reduce Motion.
+
+### Fixed
+- **Recent expenses on Home all showed "12:00 AM".** They now show the time
+  each expense was recorded for, and expenses on the same day are listed by
+  time.
+- **The evening summary defaulted to 9:00 AM** on an install that had never
+  saved notification settings. It now defaults to 8:00 PM, as intended.
+- **Reports outside the current month showed amounts in ₹** whatever the
+  budget's currency. Every period now uses the active budget's currency.
+
+### Removed
+- The `rive` dependency, `assets/rive/` and the two NDK overrides in
+  `android/gradle.properties` that only its native library needed.
+- The budget overview card and the quick actions on Home. Their content is in
+  the hero, Coming up and the Add expense button.
+
+### Added (for developers)
+- `AppTypography` (money roles with tabular figures), `AppTone` and tone
+  container tokens, and the components `AppMoney`, `AppMetric`, `AppSection`,
+  `AppListRow`/`AppGroupedList`, `AppTrack`, `StatusChip.tone` and
+  `AppHaptics`.
+- Golden tests in `test/goldens/` (light and dark, 1.0 and 2.0 text scale),
+  run on macOS only.
+- `SafeToSpendEntity.tomorrowIfNoMoreSpending` and
+  `overTodayPerRemainingDay`, computed by `SafeToSpendCalculator` with the
+  same single division as today's amount. Both are informational and change
+  no figure.
+- `GetSpendingPaceUseCase` with `SpendingPaceBuilder` and
+  `DashboardRepository.getDailyDiscretionarySpending` (bill payments
+  excluded), feeding `DashboardLoaded.spendingPace`.
+- `AppSurface` (raised and sunken), `AppNotice`, `DelayedReveal` and
+  `AppAnimatedSize` (skips animating under reduced motion).
+
 ## [1.0.0] - 2026-10-08
 
 ### Added

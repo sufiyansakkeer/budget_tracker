@@ -69,10 +69,16 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color divider;
   final Color outline;
 
-  // Status containers
+  // Status containers: the fill behind a status chip or notice, and the
+  // text/icon colour that is legible on that fill (≥ 4.5:1).
   final Color successContainer;
   final Color warningContainer;
   final Color errorContainer;
+  final Color infoContainer;
+  final Color onSuccessContainer;
+  final Color onWarningContainer;
+  final Color onErrorContainer;
+  final Color onInfoContainer;
 
   const AppColorTokens({
     required this.primary,
@@ -104,6 +110,11 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.successContainer,
     required this.warningContainer,
     required this.errorContainer,
+    required this.infoContainer,
+    required this.onSuccessContainer,
+    required this.onWarningContainer,
+    required this.onErrorContainer,
+    required this.onInfoContainer,
   });
 
   /// Minimum ratio of a status/brand tint container against the surface, so
@@ -213,6 +224,14 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     final tintAlpha = isDark ? _tintAlphaDark : _tintAlphaLight;
     Color tint(Color c) =>
         Color.alphaBlend(c.withValues(alpha: tintAlpha), surface);
+    final successFill = tint(success);
+    final warningFill = tint(warning);
+    final errorFill = tint(error);
+    final infoFill = tint(info);
+    // The accent itself, made legible on its own fill, so a chip keeps its
+    // hue instead of collapsing to black or white.
+    Color onFill(Color accent, Color fill) =>
+        Contrast.ensureContrast(accent, fill);
 
     return AppColorTokens(
       primary: primary,
@@ -241,9 +260,14 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       textTertiary: textTertiary,
       divider: divider,
       outline: outline,
-      successContainer: tint(success),
-      warningContainer: tint(warning),
-      errorContainer: tint(error),
+      successContainer: successFill,
+      warningContainer: warningFill,
+      errorContainer: errorFill,
+      infoContainer: infoFill,
+      onSuccessContainer: onFill(success, successFill),
+      onWarningContainer: onFill(warning, warningFill),
+      onErrorContainer: onFill(error, errorFill),
+      onInfoContainer: onFill(info, infoFill),
     );
   }
 
@@ -278,6 +302,11 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? successContainer,
     Color? warningContainer,
     Color? errorContainer,
+    Color? infoContainer,
+    Color? onSuccessContainer,
+    Color? onWarningContainer,
+    Color? onErrorContainer,
+    Color? onInfoContainer,
   }) {
     return AppColorTokens(
       primary: primary ?? this.primary,
@@ -310,6 +339,11 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       successContainer: successContainer ?? this.successContainer,
       warningContainer: warningContainer ?? this.warningContainer,
       errorContainer: errorContainer ?? this.errorContainer,
+      infoContainer: infoContainer ?? this.infoContainer,
+      onSuccessContainer: onSuccessContainer ?? this.onSuccessContainer,
+      onWarningContainer: onWarningContainer ?? this.onWarningContainer,
+      onErrorContainer: onErrorContainer ?? this.onErrorContainer,
+      onInfoContainer: onInfoContainer ?? this.onInfoContainer,
     );
   }
 
@@ -366,6 +400,23 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
         t,
       )!,
       errorContainer: Color.lerp(errorContainer, other.errorContainer, t)!,
+      infoContainer: Color.lerp(infoContainer, other.infoContainer, t)!,
+      onSuccessContainer: Color.lerp(
+        onSuccessContainer,
+        other.onSuccessContainer,
+        t,
+      )!,
+      onWarningContainer: Color.lerp(
+        onWarningContainer,
+        other.onWarningContainer,
+        t,
+      )!,
+      onErrorContainer: Color.lerp(
+        onErrorContainer,
+        other.onErrorContainer,
+        t,
+      )!,
+      onInfoContainer: Color.lerp(onInfoContainer, other.onInfoContainer, t)!,
     );
   }
 

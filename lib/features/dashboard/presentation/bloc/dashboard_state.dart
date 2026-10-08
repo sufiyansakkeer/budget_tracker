@@ -6,6 +6,7 @@ import '../../../bills/domain/entities/bill_entity.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
+import '../../domain/entities/spending_pace.dart';
 import '../../domain/entities/spending_target_entity.dart';
 
 abstract class DashboardState extends Equatable {
@@ -48,6 +49,10 @@ class DashboardLoaded extends DashboardState {
   /// hero says so instead of reporting figures that failed to compute.
   final bool activeBudgetArchived;
 
+  /// Day-by-day discretionary spending of the active budget against an even
+  /// pace. Null when it could not be read or the budget is not running.
+  final SpendingPace? spendingPace;
+
   const DashboardLoaded({
     required this.budgetSummary,
     required this.recentExpenses,
@@ -57,6 +62,7 @@ class DashboardLoaded extends DashboardState {
     this.budgetDailyLimits = const [],
     this.activeBudgetId,
     this.activeBudgetArchived = false,
+    this.spendingPace,
   });
 
   /// The daily limit entry belonging to the active budget, if it is running
@@ -90,6 +96,7 @@ class DashboardLoaded extends DashboardState {
     budgetDailyLimits,
     activeBudgetId,
     activeBudgetArchived,
+    spendingPace,
   ];
 }
 

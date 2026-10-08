@@ -18,6 +18,7 @@ import 'package:monivo/features/expenses/data/repository/expense_repository_impl
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/settings/data/datasource/settings_local_datasource_impl.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
+import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
 import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
 import 'package:monivo/features/settings/domain/services/backup_service.dart';
 import 'package:path/path.dart' as p;
@@ -356,6 +357,17 @@ void main() {
       expect(loaded.currencyCode, 'OMR');
       expect(loaded.biometricEnabled, isTrue);
       expect(loaded.firstLaunchCompleted, isTrue);
+    });
+  });
+
+  test('notification times never stored use their own defaults', () async {
+    await run((app) async {
+      final n = (await app.settings.loadSettings()).notifications;
+      // The evening summary used to come back as 9:00 AM.
+      expect(n.morningReminderTime, const NotificationTime(hour: 9, minute: 0));
+      expect(n.eveningSummaryTime, const NotificationTime(hour: 20, minute: 0));
+      expect(n.quietHoursStart, const NotificationTime(hour: 22, minute: 0));
+      expect(n.quietHoursEnd, const NotificationTime(hour: 7, minute: 0));
     });
   });
 

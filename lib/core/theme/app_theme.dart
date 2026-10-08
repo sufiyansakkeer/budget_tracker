@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../features/settings/domain/entities/color_palette_entity.dart';
 import '../constants/app_spacing.dart';
 import 'app_colors_extension.dart';
+import 'app_typography.dart';
 import 'color_palettes.dart';
 import 'contrast.dart';
 
@@ -14,9 +15,10 @@ import 'contrast.dart';
 /// intentional surface hierarchy (not a simple inversion of light).
 ///
 /// Component themes follow one shape language:
-/// * Cards & sheets → [AppSpacing.radiusLg]
-/// * Buttons, inputs, tiles, menus → [AppSpacing.radiusMd]
-/// * Chips & small tags → pill / [AppSpacing.radiusSm]
+/// * Cards, sheets & dialogs → [AppSpacing.radiusLg]
+/// * FAB, status cards, object cards → [AppSpacing.radiusMd]
+/// * Buttons, inputs, menus, snackbars, list-row ink → [AppSpacing.radiusSm]
+/// * Chips & indicators → pill
 class AppTheme {
   AppTheme._();
 
@@ -24,84 +26,108 @@ class AppTheme {
   // Typography scale
   // ---------------------------------------------------------------------------
   //
+  // One bundled family, Manrope, for every role. Each style names the family
+  // itself because component themes (buttons, chips, navigation labels) copy
+  // these styles directly into a DefaultTextStyle, which would otherwise fall
+  // back to the platform font.
+  //
+  // Money has its own roles with tabular figures in [AppTypography]; never
+  // set an amount in these text styles.
+  //
   // Hierarchy used across the app:
-  //   displaySmall   → hero money value (Today's Safe Spending)
-  //   headlineMedium → primary money value on detail screens
-  //   headlineSmall  → secondary hero values
+  //   displaySmall   → legacy hero value (moving to AppTypography.moneyHero)
+  //   headlineMedium → primary value on detail screens
+  //   headlineSmall  → large screen titles
   //   titleLarge     → screen titles
-  //   titleMedium    → section titles, card titles
+  //   titleMedium    → section titles
   //   titleSmall     → list item titles, emphasised labels
   //   bodyLarge/Medium → body copy
-  //   bodySmall      → supporting descriptions
+  //   bodySmall      → supporting descriptions, metadata
   //   labelLarge     → buttons
-  //   labelMedium    → chips, metadata
-  //   labelSmall     → tiny status text
+  //   labelMedium    → chips, eyebrows
+  //   labelSmall     → tiny status text, navigation labels
+  static const String _family = AppTypography.fontFamily;
+
   static const TextTheme _textTheme = TextTheme(
     displaySmall: TextStyle(
+      fontFamily: _family,
       fontSize: 36,
-      fontWeight: FontWeight.w700,
-      height: 1.15,
-      letterSpacing: -0.75,
+      fontWeight: FontWeight.w800,
+      height: 1.12,
+      letterSpacing: -1.0,
     ),
     headlineMedium: TextStyle(
+      fontFamily: _family,
       fontSize: 28,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w800,
       height: 1.2,
-      letterSpacing: -0.5,
+      letterSpacing: -0.6,
     ),
     headlineSmall: TextStyle(
+      fontFamily: _family,
       fontSize: 24,
       fontWeight: FontWeight.w700,
       height: 1.25,
-      letterSpacing: -0.25,
+      letterSpacing: -0.4,
     ),
     titleLarge: TextStyle(
+      fontFamily: _family,
       fontSize: 20,
       fontWeight: FontWeight.w700,
       height: 1.3,
-      letterSpacing: -0.15,
+      letterSpacing: -0.3,
     ),
     titleMedium: TextStyle(
+      fontFamily: _family,
       fontSize: 16,
-      fontWeight: FontWeight.w600,
-      height: 1.4,
+      fontWeight: FontWeight.w700,
+      height: 1.375,
+      letterSpacing: -0.1,
     ),
     titleSmall: TextStyle(
+      fontFamily: _family,
       fontSize: 14,
       fontWeight: FontWeight.w600,
-      height: 1.4,
+      height: 1.43,
     ),
     bodyLarge: TextStyle(
+      fontFamily: _family,
       fontSize: 16,
-      fontWeight: FontWeight.w400,
+      fontWeight: FontWeight.w500,
       height: 1.5,
     ),
     bodyMedium: TextStyle(
+      fontFamily: _family,
       fontSize: 14,
-      fontWeight: FontWeight.w400,
+      fontWeight: FontWeight.w500,
       height: 1.5,
     ),
     bodySmall: TextStyle(
+      fontFamily: _family,
       fontSize: 12,
-      fontWeight: FontWeight.w400,
-      height: 1.4,
+      fontWeight: FontWeight.w500,
+      height: 1.45,
+      letterSpacing: 0.1,
     ),
     labelLarge: TextStyle(
+      fontFamily: _family,
       fontSize: 14,
-      fontWeight: FontWeight.w600,
-      height: 1.4,
+      fontWeight: FontWeight.w700,
+      height: 1.3,
       letterSpacing: 0.1,
     ),
     labelMedium: TextStyle(
+      fontFamily: _family,
       fontSize: 12,
       fontWeight: FontWeight.w600,
-      height: 1.4,
+      height: 1.33,
       letterSpacing: 0.2,
     ),
     labelSmall: TextStyle(
+      fontFamily: _family,
       fontSize: 11,
       fontWeight: FontWeight.w600,
-      height: 1.4,
+      height: 1.36,
       letterSpacing: 0.3,
     ),
   );
@@ -223,13 +249,16 @@ class AppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: bg,
+      fontFamily: _family,
       textTheme: _textTheme,
-      extensions: [tokens],
+      extensions: [tokens, AppTypography.standard],
       visualDensity: VisualDensity.standard,
     );
 
-    final mdShape = RoundedRectangleBorder(
-      borderRadius: AppSpacing.borderRadiusMd,
+    // Controls (fields, buttons, menus, snackbars, list-row ink) share the
+    // small radius; cards, sheets and dialogs use the large one.
+    final controlShape = RoundedRectangleBorder(
+      borderRadius: AppSpacing.borderRadiusSm,
     );
     final lgShape = RoundedRectangleBorder(
       borderRadius: AppSpacing.borderRadiusLg,
@@ -274,27 +303,27 @@ class AppTheme {
       // The fill alone is only ~1.1:1 against a card, so a hairline keeps the
       // field a visible shape on every surface in both themes.
       border: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusMd,
+        borderRadius: AppSpacing.borderRadiusSm,
         borderSide: BorderSide(color: dividerColor),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusMd,
+        borderRadius: AppSpacing.borderRadiusSm,
         borderSide: BorderSide(color: dividerColor),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusMd,
+        borderRadius: AppSpacing.borderRadiusSm,
         borderSide: BorderSide(color: dividerColor.withValues(alpha: 0.5)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusMd,
+        borderRadius: AppSpacing.borderRadiusSm,
         borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusMd,
+        borderRadius: AppSpacing.borderRadiusSm,
         borderSide: BorderSide(color: colorScheme.error, width: 1.5),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusMd,
+        borderRadius: AppSpacing.borderRadiusSm,
         borderSide: BorderSide(color: colorScheme.error, width: 1.5),
       ),
       labelStyle: TextStyle(color: textSecondary),
@@ -333,7 +362,7 @@ class AppTheme {
           vertical: AppSpacing.smd,
         ),
       ),
-      shape: WidgetStatePropertyAll(mdShape),
+      shape: WidgetStatePropertyAll(controlShape),
       textStyle: WidgetStatePropertyAll(_textTheme.labelLarge),
     );
 
@@ -367,7 +396,7 @@ class AppTheme {
           vertical: AppSpacing.smd,
         ),
         side: BorderSide(color: outline),
-        shape: mdShape,
+        shape: controlShape,
         textStyle: _textTheme.labelLarge,
       ),
     );
@@ -515,7 +544,7 @@ class AppTheme {
       surfaceTintColor: Colors.transparent,
       elevation: 3,
       shadowColor: Colors.black.withValues(alpha: isDark ? 0.4 : 0.12),
-      shape: mdShape,
+      shape: controlShape,
       textStyle: _textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
     );
 
@@ -530,7 +559,7 @@ class AppTheme {
       actionTextColor: isDark
           ? colorScheme.primary
           : colorScheme.inversePrimary,
-      shape: mdShape,
+      shape: controlShape,
       insetPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
@@ -546,7 +575,7 @@ class AppTheme {
     );
 
     final listTileTheme = ListTileThemeData(
-      shape: mdShape,
+      shape: controlShape,
       iconColor: textSecondary,
       textColor: colorScheme.onSurface,
       titleTextStyle: _textTheme.bodyLarge,
@@ -661,7 +690,7 @@ class AppTheme {
           isDark ? surfaceContainerHigh : surface,
         ),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shape: WidgetStatePropertyAll(mdShape),
+        shape: WidgetStatePropertyAll(controlShape),
       ),
     );
 

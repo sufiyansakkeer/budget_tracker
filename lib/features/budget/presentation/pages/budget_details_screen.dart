@@ -31,6 +31,7 @@ import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Entry point for a selected budget: amount, progress, period, status and
 /// actions (edit, set active, archive, duplicate, delete, add expense).
@@ -528,7 +529,7 @@ class _Content extends StatelessWidget {
 
         // Not-active / archived banner. Collapses smoothly when the budget
         // is made active or restored instead of vanishing.
-        AnimatedSize(
+        AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,

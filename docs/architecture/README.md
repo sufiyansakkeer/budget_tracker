@@ -9,7 +9,7 @@ actually ask.
 | [decisions.md](decisions.md) | Why Drift, BLoC, Clean Architecture and GetIt? |
 | [safe_spending.md](safe_spending.md) | How is Today's Safe Spending calculated, how do linked bills, kept-aside money and a savings goal reduce it, and why? |
 | [multiple_budgets.md](multiple_budgets.md) | How do independent budgets work, and what is never shared between them? |
-| [rive_navigation.md](rive_navigation.md) | How does the animated bottom navigation work, and how do I change its icons? |
+| [navigation.md](navigation.md) | How does the bottom navigation work, and how do I change its tabs? |
 | [offline_first.md](offline_first.md) | What does "offline-first" mean here, and what is the data contract? |
 | [notifications.md](notifications.md) | What is scheduled, when, and what keeps it accurate? |
 | [backup_restore.md](backup_restore.md) | What exactly is exported, backed up and restored? |

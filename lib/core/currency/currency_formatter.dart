@@ -77,6 +77,19 @@ class CurrencyFormatter {
       currencyFractionDigits[code.toUpperCase()] ??
       currencyFractionDigits['DEFAULT']!;
 
+  /// Decimals to show an exact [amount] with: [code]'s minor units when the
+  /// amount has a fraction at that precision, otherwise 0.
+  ///
+  /// ₹250 → 0 ("₹250"), ₹249.5 → 2 ("₹249.50"), OMR 10.6 → 3 ("10.600"),
+  /// JPY 120 → 0. Unlike the default of [format], fractions are never
+  /// rounded away and whole amounts never gain ".00".
+  static int exactDisplayDigits(double amount, {required String code}) {
+    final digits = decimalDigitsFor(code);
+    final factor = math.pow(10, digits).toDouble();
+    final units = (amount.abs() * factor).round();
+    return units % factor.toInt() == 0 ? 0 : digits;
+  }
+
   // ── "Safe" amounts (safe-to-spend) ───────────────────────────────────────
   //
   // `NumberFormat` rounds to nearest, so ₹714.60 shown with 0 decimals reads

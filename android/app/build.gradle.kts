@@ -17,7 +17,7 @@ android {
     namespace = "com.example.monivo"
     compileSdk = flutter.compileSdkVersion
     // NDK r28+ emits 16 KB-aligned ELF LOAD segments by default (Android 15+ 16 KB
-    // page-size devices). Must match rive.ndk.version in gradle.properties.
+    // page-size devices).
     ndkVersion = "29.0.14206865"
 
     compileOptions {

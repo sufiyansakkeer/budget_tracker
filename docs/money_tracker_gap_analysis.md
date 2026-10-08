@@ -20,7 +20,7 @@ shipped, so the plan and the code do not drift apart.
 | --- | --- |
 | P-A Foundations: one safe-spending formula, one refresh bus, one preference-key owner, dead code removed, pubspec cleaned | `lib/core/events/`, `lib/core/constants/preference_keys.dart`, `BudgetCalculationService` |
 | P-B Database: foreign keys enforced, composite index, SQL aggregation, CSV round trip, migration test | `lib/core/database/app_database.dart` (v5), `test/core/database/app_database_migration_test.dart` |
-| P-C Rive navigation | `lib/core/navigation/`, [`architecture/rive_navigation.md`](architecture/rive_navigation.md) |
+| P-C Rive navigation (later replaced) | `lib/core/navigation/`, [`architecture/navigation.md`](architecture/navigation.md) |
 | P-D Category management | `lib/features/categories/` |
 | P-E Transaction experience: undo delete, long-press actions, duplicate, move, date presets, press feedback | `lib/features/expenses/presentation/` |
 | P-F Dashboard polish: weekly line, sorted bills, press feedback | `lib/features/dashboard/presentation/` |
@@ -203,6 +203,11 @@ a missing composite index, and stale docs/version strings.
 | Docs | README overstates features | README honest; `docs/CI_CD.md`, widget doc, `CALCULATION_RULES.md` stale | **IMPROVE** | Medium | Phase 15. |
 
 ## 8. Rive bottom navigation — reference analysis and Smart Monivo design
+
+> **Superseded on 2026-10-08.** The Rive icons were replaced with Material
+> outlined/filled icons during the premium redesign; see
+> [`architecture/navigation.md`](architecture/navigation.md). This section is kept as a
+> record of the original decision.
 
 ### 8.1 What Money Tracker does (facts)
 

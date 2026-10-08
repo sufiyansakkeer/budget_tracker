@@ -122,6 +122,12 @@ void main() {
     expect(state.activeBudgetLimit!.dailyLimit, closeTo(900, 1e-9));
     expect(state.activeBudgetLimit!.spentToday, 0);
     expect(state.activeSafeToSpend, paid);
+    // The pace leaves the set-aside bill payment out: nothing discretionary
+    // yet, and the whole free-to-spend amount is planned for the period.
+    expect(state.spendingPace!.actualToDate, 0);
+    expect(state.spendingPace!.plannedTotal, 19800);
+    // Today's preview of tomorrow, checked against tomorrow's real figure.
+    expect(paid.tomorrowIfNoMoreSpending, closeTo(19800 / 21, 1e-9));
 
     // Tomorrow the payment is simply spent money: 19800 over 21 days.
     now = DateTime(2026, 8, 11, 8);

@@ -28,6 +28,7 @@ import 'bill_payment_dialogs.dart';
 import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Detailed view of a single bill.
 class BillDetailsScreen extends StatefulWidget {
@@ -477,7 +478,7 @@ class _Details extends StatelessWidget {
 
         // Actions: the paid and unpaid sets cross-fade and the block
         // resizes smoothly, so marking a bill paid feels like one change.
-        AnimatedSize(
+        AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,

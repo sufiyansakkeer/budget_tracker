@@ -27,9 +27,8 @@ hand on a phone:
       expense", and the widget and morning notification match the dashboard.
 - [ ] **Biometric lock** — locking on background, unlocking, and a pending
       widget deep link surviving the unlock.
-- [ ] **Animated bottom navigation on device** — the Rive icons load in a
-      release build, play once on selection, and settle correctly after
-      backgrounding the app.
+- [ ] **Bottom navigation on device** — icons cross-fade to filled and pulse
+      once on selection, and settle correctly after backgrounding the app.
 - [ ] **Reduced motion** — with the system setting on, no animation plays and no
       screen gets stuck.
 - [ ] **Large text** — at the largest system font size, the dashboard, expense
@@ -59,10 +58,6 @@ several still declare an iOS 9–12 minimum.
 
 ## Known gaps
 
-- **Rive asset licence.** `assets/rive/nav_icons.riv` is a Rive Community file
-  carried over from the reference project. Confirm its licence and attribution,
-  or replace it with a bespoke export, before a store release. Procedure:
-  [`assets/rive/README.md`](assets/rive/README.md).
 - **Android application ID is still `com.example.monivo`.** Changing it breaks
   the widget provider name, the deep-link scheme and existing installs, so it is
   a deliberate release decision rather than a code cleanup.

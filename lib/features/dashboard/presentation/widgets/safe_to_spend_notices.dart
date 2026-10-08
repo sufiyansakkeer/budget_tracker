@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/theme/app_colors_extension.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/widgets/app_notice.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import 'safe_to_spend_copy.dart';
 
-/// What today's amount does not include, each with its own card and action:
+/// What today's amount does not include, each as a quiet notice with its
+/// own action:
 /// bills that could not be loaded, upcoming bills no budget sets aside
 /// ("Link bills"), and linked bills in another currency.
 ///
 /// Renders nothing when everything is included ([hasNotices] is false). The
-/// cards themselves are not tappable; the action is a separate button, so
+/// notices themselves are not tappable; the action is a separate button, so
 /// no tap target is nested in another.
 class SafeToSpendNotices extends StatelessWidget {
   final SafeToSpendEntity safeToSpend;
@@ -37,29 +38,28 @@ class SafeToSpendNotices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = safeToSpend;
-    final colors = context.appColors;
-    final cards = <Widget>[
+    final notices = <Widget>[
       if (!e.commitmentsAvailable)
-        StatusCard(
+        AppNotice(
           key: const ValueKey('notice_bills_unavailable'),
-          color: colors.warning,
+          tone: AppTone.caution,
           icon: Icons.cloud_off_rounded,
           title: 'Bills not included',
           message:
               "Bills couldn't be loaded, so they aren't included. Today's "
               'amount may be too high.',
-          trailing: onRetry == null
+          action: onRetry == null
               ? null
               : TextButton(onPressed: onRetry, child: const Text('Try again')),
         ),
       if (!e.unlinked.isEmpty)
-        StatusCard(
+        AppNotice(
           key: const ValueKey('notice_bills_not_linked'),
-          color: colors.info,
+          tone: AppTone.info,
           icon: Icons.link_off_rounded,
           title: 'Bills not linked',
           message: SafeToSpendCopy.notLinked(e.unlinked, e.currency),
-          trailing: onLinkBills == null
+          action: onLinkBills == null
               ? null
               : TextButton(
                   onPressed: onLinkBills,
@@ -67,9 +67,9 @@ class SafeToSpendNotices extends StatelessWidget {
                 ),
         ),
       if (!e.currencyExcluded.isEmpty)
-        StatusCard(
+        AppNotice(
           key: const ValueKey('notice_bills_other_currency'),
-          color: colors.info,
+          tone: AppTone.info,
           icon: Icons.currency_exchange_rounded,
           title: 'Bills in another currency',
           message: SafeToSpendCopy.currencyExcluded(
@@ -78,13 +78,13 @@ class SafeToSpendNotices extends StatelessWidget {
           ),
         ),
     ];
-    if (cards.isEmpty) return const SizedBox.shrink();
+    if (notices.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var i = 0; i < cards.length; i++) ...[
+        for (var i = 0; i < notices.length; i++) ...[
           if (i > 0) const SizedBox(height: AppSpacing.sm),
-          cards[i],
+          notices[i],
         ],
       ],
     );

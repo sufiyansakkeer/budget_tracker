@@ -10,6 +10,7 @@ import '../bloc/app_update_bloc.dart';
 import '../bloc/app_update_event.dart';
 import '../bloc/app_update_state.dart';
 import 'update_dialog_service.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Settings section for App Updates.
 ///
@@ -37,7 +38,7 @@ class AppUpdateSection extends StatelessWidget {
                 children: [
                   _VersionRow(state: state),
                   const SizedBox(height: AppSpacing.smd),
-                  AnimatedSize(
+                  AppAnimatedSize(
                     duration: AppMotion.respectReducedMotion(
                       context,
                       AppMotion.standard,

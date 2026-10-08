@@ -1,53 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/theme/app_colors_extension.dart';
 import 'package:monivo/core/theme/app_theme.dart';
-import 'package:monivo/features/budget/domain/entities/budget_status.dart';
-import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_entity.dart';
-import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
-import 'package:monivo/core/currency/currency_formatter.dart';
+import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
+import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_entity.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_spending_hero.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_copy.dart';
 
 import 'safe_to_spend_fixtures.dart';
-
-BudgetDailyLimitEntity limit({
-  double dailyLimit = 1000,
-  double spentToday = 250,
-  double weeklyTarget = 7000,
-  double weeklySpent = 3000,
-  SpendingTargetStatus status = SpendingTargetStatus.onTrack,
-}) {
-  final over = spentToday > dailyLimit;
-  return BudgetDailyLimitEntity(
-    budgetId: 'b1',
-    budgetName: 'Personal',
-    dailyLimit: dailyLimit,
-    spentToday: spentToday,
-    remainingToday: over ? 0 : dailyLimit - spentToday,
-    exceededToday: over ? spentToday - dailyLimit : 0,
-    progress: dailyLimit == 0 ? 0 : (spentToday / dailyLimit).clamp(0.0, 1.0),
-    isOverLimit: over,
-    status: status,
-    budgetStatus: BudgetStatus.underBudget,
-    budgetUtilization: 0.3,
-    monthlyAmount: 30000,
-    totalSpent: 9000,
-    remainingBudget: 21000,
-    remainingDays: 21,
-    weeklyTarget: weeklyTarget,
-    weeklySpent: weeklySpent,
-    weeklyRemaining: (weeklyTarget - weeklySpent).clamp(0, double.infinity),
-    weeklyExceeded: weeklySpent > weeklyTarget ? weeklySpent - weeklyTarget : 0,
-    weeklyProgress: weeklyTarget == 0
-        ? 0
-        : (weeklySpent / weeklyTarget).clamp(0.0, 1.0),
-    weeklyStatus: SpendingTargetStatus.onTrack,
-    currency: 'INR',
-    startDate: DateTime(2026, 9, 1),
-    endDate: DateTime(2026, 9, 30),
-  );
-}
 
 void main() {
   Widget harness(BudgetDailyLimitEntity value) => MaterialApp(
@@ -56,49 +17,6 @@ void main() {
       body: SingleChildScrollView(child: SafeSpendingHero(limit: value)),
     ),
   );
-
-  testWidgets('shows the daily limit, spent and left figures', (tester) async {
-    await tester.pumpWidget(harness(limit()));
-    await tester.pumpAndSettle();
-
-    expect(find.text("Today's Safe Spending"), findsOneWidget);
-    expect(find.text('Spent today'), findsOneWidget);
-    expect(find.text('Left today'), findsOneWidget);
-    expect(find.text('₹1,000'), findsOneWidget);
-    expect(find.text('₹250'), findsOneWidget);
-    expect(find.text('₹750'), findsOneWidget);
-  });
-
-  testWidgets('switches to "Over by" when the limit is exceeded', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      harness(limit(spentToday: 1400, status: SpendingTargetStatus.exceeded)),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Over by'), findsOneWidget);
-    expect(find.text('Left today'), findsNothing);
-  });
-
-  testWidgets('adds a weekly line when there is a weekly share', (
-    tester,
-  ) async {
-    await tester.pumpWidget(harness(limit()));
-    await tester.pumpAndSettle();
-
-    expect(find.text('This week'), findsOneWidget);
-    expect(find.text('₹3,000 of ₹7,000'), findsOneWidget);
-  });
-
-  testWidgets('omits the weekly line when there is no weekly share', (
-    tester,
-  ) async {
-    await tester.pumpWidget(harness(limit(weeklyTarget: 0, weeklySpent: 0)));
-    await tester.pumpAndSettle();
-
-    expect(find.text('This week'), findsNothing);
-  });
 
   group('with safe-to-spend', () {
     for (final entry in runningStatusFixtures.entries) {
@@ -138,13 +56,19 @@ void main() {
       expect(find.text('₹1,000'), findsOneWidget);
       expect(find.text('₹250'), findsOneWidget);
       expect(find.text('₹750'), findsOneWidget);
-      expect(find.text('Groceries · until 31 Aug'), findsOneWidget);
+      // The budget behind the figure: what is left, the days to go and
+      // today's place in the period (calendar days, today included).
+      expect(find.text('₹21,750 left of ₹22,000'), findsOneWidget);
+      expect(find.text('22 days left'), findsOneWidget);
+      expect(find.text('Day 10 of 31'), findsOneWidget);
+      // The budget's name is the screen title now, not repeated here.
+      expect(find.text('Groceries · until 31 Aug'), findsNothing);
       // weeklyTarget is set on the entry, but the week line is gone.
       expect(find.text('This week'), findsNothing);
       expect(find.text('₹3,000 of ₹7,000'), findsNothing);
     });
 
-    testWidgets('"Over by" uses the error colour whatever the chip says', (
+    testWidgets('"Over by" uses the caution colour, never the critical red', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -155,8 +79,59 @@ void main() {
       expect(find.text('Over by'), findsOneWidget);
       expect(find.text('Left today'), findsNothing);
       expect(find.text('₹400'), findsWidgets);
+      // Going over today's amount is recoverable, so it is caution (amber);
+      // red is reserved for money already gone.
       final icon = tester.widget<Icon>(find.byIcon(Icons.error_rounded).last);
-      expect(icon.color, AppTheme.lightTheme.colorScheme.error);
+      final tokens = AppTheme.lightTheme.extension<AppColorTokens>()!;
+      expect(icon.color, tokens.warning);
+      expect(icon.color, isNot(AppTheme.lightTheme.colorScheme.error));
+    });
+
+    testWidgets('an overspend says how much less each later day gets', (
+      tester,
+    ) async {
+      // 1,400 spent of 1,000 today, 22 days left: 400 over, spread over 21.
+      await tester.pumpWidget(
+        harness(limitFor(safeToSpend(periodSpent: 1400, todaySpent: 1400))),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text("That's about ₹19.05 less on each of the next 21 days."),
+        findsOneWidget,
+      );
+      // The spread replaces the generic over-today explanation, so the hero
+      // does not say the same thing twice.
+      expect(
+        find.textContaining("more than today's safe amount"),
+        findsNothing,
+      );
+    });
+
+    testWidgets('offers the working only when it can be opened', (
+      tester,
+    ) async {
+      var opened = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SafeSpendingHero(
+                limit: limitFor(safeToSpend()),
+                onShowWorking: () => opened++,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("How it's worked out"));
+      expect(opened, 1);
+
+      await tester.pumpWidget(harness(limitFor(safeToSpend())));
+      await tester.pumpAndSettle();
+      expect(find.text("How it's worked out"), findsNothing);
     });
 
     testWidgets('OMR 7.600 renders with its fils, never rounded up to 8', (
@@ -168,14 +143,13 @@ void main() {
       await tester.pumpWidget(harness(limitFor(entity)));
       await tester.pumpAndSettle();
 
-      final expected = CurrencyFormatter.format(
-        7.6,
-        code: 'OMR',
-        decimalDigits: 3,
-      );
+      // The figure keeps its fils (with a left-to-right mark after the
+      // Arabic-script symbol, so the digits stay after it).
+      final expected = AppMoney.format(7.6, currency: 'OMR', floored: true);
+      expect(expected, endsWith('7.600'));
       expect(find.text(expected), findsWidgets);
       expect(
-        find.text(CurrencyFormatter.format(8, code: 'OMR', decimalDigits: 0)),
+        find.text(AppMoney.format(8, currency: 'OMR', floored: true)),
         findsNothing,
       );
     });

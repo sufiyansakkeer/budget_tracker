@@ -28,6 +28,7 @@ import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
 import 'bill_budget_link.dart';
 import 'bill_widgets.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Add/Edit bill form screen.
 ///
@@ -555,7 +556,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
                   value: _isRecurring,
                   onChanged: (value) => setState(() => _isRecurring = value),
                 ),
-                AnimatedSize(
+                AppAnimatedSize(
                   duration: AppMotion.respectReducedMotion(
                     context,
                     AppMotion.standard,
@@ -653,7 +654,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
                   onChanged: (value) =>
                       setState(() => _reminderEnabled = value),
                 ),
-                AnimatedSize(
+                AppAnimatedSize(
                   duration: AppMotion.respectReducedMotion(
                     context,
                     AppMotion.standard,

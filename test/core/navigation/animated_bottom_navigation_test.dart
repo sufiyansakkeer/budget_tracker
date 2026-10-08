@@ -3,7 +3,6 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/navigation/animated_bottom_navigation.dart';
 import 'package:monivo/core/navigation/app_nav_destinations.dart';
-import 'package:monivo/core/navigation/nav_icon_mode.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 
 void main() {
@@ -13,19 +12,16 @@ void main() {
     bool reduceMotion = false,
     ThemeData? theme,
   }) {
-    return NavIconMode(
-      renderer: NavIconRenderer.material,
-      child: MaterialApp(
-        theme: theme ?? AppTheme.lightTheme,
-        home: MediaQuery(
-          data: MediaQueryData(disableAnimations: reduceMotion),
-          child: Scaffold(
-            body: const SizedBox.expand(),
-            bottomNavigationBar: AnimatedBottomNavigation(
-              destinations: appNavDestinations,
-              selectedIndex: selectedIndex,
-              onDestinationSelected: onSelected,
-            ),
+    return MaterialApp(
+      theme: theme ?? AppTheme.lightTheme,
+      home: MediaQuery(
+        data: MediaQueryData(disableAnimations: reduceMotion),
+        child: Scaffold(
+          body: const SizedBox.expand(),
+          bottomNavigationBar: AnimatedBottomNavigation(
+            destinations: appNavDestinations,
+            selectedIndex: selectedIndex,
+            onDestinationSelected: onSelected,
           ),
         ),
       ),
@@ -76,22 +72,19 @@ void main() {
     var selected = 0;
     late StateSetter setSelected;
     await tester.pumpWidget(
-      NavIconMode(
-        renderer: NavIconRenderer.material,
-        child: MaterialApp(
-          theme: AppTheme.lightTheme,
-          home: StatefulBuilder(
-            builder: (context, setState) {
-              setSelected = setState;
-              return Scaffold(
-                bottomNavigationBar: AnimatedBottomNavigation(
-                  destinations: appNavDestinations,
-                  selectedIndex: selected,
-                  onDestinationSelected: (i) => setState(() => selected = i),
-                ),
-              );
-            },
-          ),
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            setSelected = setState;
+            return Scaffold(
+              bottomNavigationBar: AnimatedBottomNavigation(
+                destinations: appNavDestinations,
+                selectedIndex: selected,
+                onDestinationSelected: (i) => setState(() => selected = i),
+              ),
+            );
+          },
         ),
       ),
     );

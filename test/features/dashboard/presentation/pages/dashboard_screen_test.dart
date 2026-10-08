@@ -12,6 +12,7 @@ import 'package:monivo/features/dashboard/presentation/bloc/dashboard_bloc.dart'
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_state.dart';
 import 'package:monivo/features/dashboard/presentation/pages/dashboard_screen.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/free_to_spend_summary.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_breakdown_card.dart';
 
 import '../widgets/safe_to_spend_fixtures.dart';
@@ -135,8 +136,8 @@ void main() {
     expect(find.byType(SafeToSpendBreakdownCard), findsNothing);
   });
 
-  testWidgets('a running budget shows hero, breakdown and the not-linked '
-      'notice in order', (tester) async {
+  testWidgets('a running budget shows the hero, what is free to spend and '
+      'the not-linked notice, in that order', (tester) async {
     final entity = safeToSpend(
       unlinked: const UnlinkedCommitmentSummary(count: 1, total: 800),
     );
@@ -152,17 +153,55 @@ void main() {
     );
 
     final hero = find.byKey(const ValueKey('hero_b1'));
-    final breakdown = find.byType(SafeToSpendBreakdownCard);
+    final free = find.byType(FreeToSpendSummary);
     final notice = find.text('Bills not linked');
-    final overview = find.text('Remaining in budget').last;
     expect(hero, findsOneWidget);
-    expect(breakdown, findsOneWidget);
+    expect(free, findsOneWidget);
     expect(notice, findsOneWidget);
     expect(find.text('Link bills'), findsOneWidget);
     double top(Finder f) => tester.getTopLeft(f).dy;
-    expect(top(hero), lessThan(top(breakdown)));
-    expect(top(breakdown), lessThan(top(notice)));
-    expect(top(notice), lessThan(top(overview)));
+    expect(top(hero), lessThan(top(free)));
+    expect(top(free), lessThan(top(notice)));
+    // The budget is the screen title, said once.
+    expect(find.text('Groceries'), findsOneWidget);
+    // The full working is one tap away, not always open on the page.
+    expect(find.byType(SafeToSpendBreakdownCard), findsNothing);
+  });
+
+  testWidgets('"Free to spend" opens the working down to today\'s amount', (
+    tester,
+  ) async {
+    final entity = safeToSpend(periodSpent: 250, todaySpent: 250);
+    await pump(
+      tester,
+      DashboardLoaded(
+        budgetSummary: summaryFor('INR'),
+        recentExpenses: const [],
+        insights: const [],
+        budgetDailyLimits: [limitFor(entity)],
+        activeBudgetId: 'b1',
+      ),
+    );
+
+    await tester.tap(find.byType(FreeToSpendSummary));
+    await tester.pumpAndSettle();
+
+    expect(find.text("How today's amount is worked out"), findsOneWidget);
+    expect(find.byType(SafeToSpendBreakdownCard), findsOneWidget);
+    expect(find.text('Spent today, not counting bills'), findsOneWidget);
+    expect(find.text('Days left, including today'), findsOneWidget);
+    // (21,750 + 250) ÷ 22 days = ₹1,000, the hero's figure.
+    expect(
+      find.bySemanticsLabel("Today's Safe Spending, ₹1,000"),
+      findsOneWidget,
+    );
+    // Tomorrow if nothing more is spent: 21,750 ÷ 21.
+    expect(
+      find.text(
+        "Spend nothing more today and tomorrow's amount is about ₹1,035.71.",
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a running budget without figures never claims it ended', (

@@ -6,12 +6,17 @@ import 'package:monivo/core/biometric/app_lock_bloc.dart';
 import 'package:monivo/core/biometric/app_lock_event.dart';
 import 'package:monivo/main.dart';
 
+import 'helpers/in_memory_database.dart';
+
 void main() {
   setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({'isFirstLaunch': false});
     if (!getIt.isRegistered<SharedPreferences>()) {
-      await initDependencyInjection();
+      // In memory: the on-device database asks path_provider for a folder,
+      // which tests don't have. That failure landed after the test ended
+      // under load and failed it intermittently.
+      await initDependencyInjection(database: await createInMemoryDatabase());
     }
   });
 

@@ -25,6 +25,7 @@ import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Create or edit a budget.
 ///
@@ -670,7 +671,7 @@ class _SetAsideSection extends StatelessWidget {
           helper: 'Money you want left unspent at the end of the period',
           icon: Icons.flag_outlined,
         ),
-        AnimatedSize(
+        AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,

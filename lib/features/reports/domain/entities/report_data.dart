@@ -52,6 +52,10 @@ class ReportData extends Equatable {
   final SpendingTrend trend;
   final WeeklyComparison? weeklyComparison;
 
+  /// ISO code of the active budget's currency. Every amount in this report
+  /// is in it, whatever the period. Null only when there is no active budget.
+  final String? currency;
+
   /// Current month Budget snapshot used for budget cards. Null when the
   /// selected range does not cover the current month.
   final BudgetEntity? currentBudget;
@@ -72,6 +76,7 @@ class ReportData extends Equatable {
     required this.timeAnalytics,
     required this.trend,
     this.weeklyComparison,
+    this.currency,
     this.currentBudget,
     this.currentMonthSpent = 0,
     this.currentMonthBudget = 0,
@@ -94,6 +99,7 @@ class ReportData extends Equatable {
     timeAnalytics,
     trend,
     weeklyComparison,
+    currency,
     currentBudget,
     currentMonthSpent,
     currentMonthBudget,

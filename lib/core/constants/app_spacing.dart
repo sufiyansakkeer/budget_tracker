@@ -19,13 +19,27 @@ class AppSpacing {
   static const double xxl = 48.0;
 
   // Border Radii
-  /// Tiny radius for chips, tags and drag handles.
+  //
+  // Three working radii, plus pills: 20 for the hero, cards and sheets,
+  // 14 for object cards, summary rows and status cards, 10 for controls
+  // (fields, buttons, menus, list-row ink). Chips and indicators are pills.
+  // See docs/design/monivo-design-direction.html.
+
+  /// Tags, checkboxes and drag handles.
   static const double radiusXs = 4.0;
-  static const double radiusSm = 8.0;
+
+  /// Controls: text fields, buttons, menus, snackbars, list-row ink.
+  static const double radiusSm = 10.0;
+
+  /// Icon tiles (a 36–44 dp square reads better slightly rounder).
   static const double radiusSmd = 12.0;
-  static const double radiusMd = 16.0;
-  static const double radiusLg = 24.0;
-  static const double radiusXl = 32.0;
+
+  /// Object cards, summary rows, status cards, tonal tiles.
+  static const double radiusMd = 14.0;
+
+  /// The hero surface, cards, sheets and dialogs.
+  static const double radiusLg = 20.0;
+  static const double radiusXl = 28.0;
   static const double radiusFull = 999.0;
 
   // Edge Insets Shortcuts
@@ -79,6 +93,9 @@ class AppSizes {
 
   /// Minimum accessible touch target.
   static const double touchTarget = 48.0;
+
+  /// Minimum height of a list row (`AppListRow`).
+  static const double listRowHeight = 56.0;
 
   // Icon sizes
   static const double iconXs = 14.0;

@@ -90,6 +90,6 @@ Provider is still used for the one genuinely tree-scoped value,
 The design system is Material 3 plus a small set of local widgets in
 `lib/core/widgets/`, with tokens in `lib/core/constants/` and palettes in
 `lib/core/theme/`. A component library would duplicate the theming work,
-fight the palette system and add an upgrade treadmill. The one deliberate
-exception is `rive`, used for the bottom navigation icons only
-(see [rive_navigation.md](rive_navigation.md)).
+fight the palette system and add an upgrade treadmill. The typeface,
+Manrope, is bundled as font assets rather than fetched by a package, so the
+app stays offline (see `lib/core/theme/app_typography.dart`).
