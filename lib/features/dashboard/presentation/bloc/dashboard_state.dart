@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../budget/domain/entities/budget_summary_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/recent_expense_entity.dart';
@@ -42,6 +43,11 @@ class DashboardLoaded extends DashboardState {
   /// its entry in [budgetDailyLimits].
   final String? activeBudgetId;
 
+  /// The active budget is archived (it can still be the active one, and its
+  /// period can include today). Archived budgets get no daily figure, so the
+  /// hero says so instead of reporting figures that failed to compute.
+  final bool activeBudgetArchived;
+
   const DashboardLoaded({
     required this.budgetSummary,
     required this.recentExpenses,
@@ -50,6 +56,7 @@ class DashboardLoaded extends DashboardState {
     this.spendingTarget,
     this.budgetDailyLimits = const [],
     this.activeBudgetId,
+    this.activeBudgetArchived = false,
   });
 
   /// The daily limit entry belonging to the active budget, if it is running
@@ -61,6 +68,12 @@ class DashboardLoaded extends DashboardState {
     }
     return null;
   }
+
+  /// Today's Safe Spending for the active budget (bills, money kept aside
+  /// and the savings goal deducted) — the same entity its daily limit was
+  /// derived from. Null when the active budget is not running today or the
+  /// figures could not be computed.
+  SafeToSpendEntity? get activeSafeToSpend => activeBudgetLimit?.safeToSpend;
 
   /// Daily limits for every other budget that is running today.
   List<BudgetDailyLimitEntity> get otherBudgetLimits => budgetDailyLimits
@@ -76,6 +89,38 @@ class DashboardLoaded extends DashboardState {
     spendingTarget,
     budgetDailyLimits,
     activeBudgetId,
+    activeBudgetArchived,
+  ];
+}
+
+/// The active budget exists but today is outside its period: it has not
+/// started yet or has already ended. There is no daily figure; [safeToSpend]
+/// carries the engine's not-started / ended result (bills set aside from it,
+/// final balance) for the hero area.
+class DashboardNotRunning extends DashboardState {
+  final String activeBudgetId;
+  final SafeToSpendEntity safeToSpend;
+  final List<RecentExpenseEntity> recentExpenses;
+  final List<BillEntity> upcomingBills;
+
+  /// Daily limits of the other budgets that are running today.
+  final List<BudgetDailyLimitEntity> otherBudgetLimits;
+
+  const DashboardNotRunning({
+    required this.activeBudgetId,
+    required this.safeToSpend,
+    this.recentExpenses = const [],
+    this.upcomingBills = const [],
+    this.otherBudgetLimits = const [],
+  });
+
+  @override
+  List<Object?> get props => [
+    activeBudgetId,
+    safeToSpend,
+    recentExpenses,
+    upcomingBills,
+    otherBudgetLimits,
   ];
 }
 

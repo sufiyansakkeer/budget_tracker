@@ -85,8 +85,13 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
 
   @override
   Future<void> deleteBudget(String id) async {
-    // Delete associated expenses first, then the budget — atomically.
+    // Unlink bills and delete associated expenses first, then the budget —
+    // atomically. Bills outlive the budget they were set aside from; with
+    // foreign keys on, a linked bill would otherwise block the delete.
     await database.transaction(() async {
+      await (database.update(database.bills)
+            ..where((bill) => bill.budgetId.equals(id)))
+          .write(const BillsCompanion(budgetId: Value(null)));
       await (database.delete(
         database.expenses,
       )..where((expense) => expense.budgetId.equals(id))).go();
@@ -143,6 +148,9 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
       notes: source.notes,
       createdAt: now,
       updatedAt: now,
+      // The plan carries over; linked bills stay with the source budget.
+      reservedAmount: source.reservedAmount,
+      savingsTarget: source.savingsTarget,
     );
 
     await database

@@ -131,6 +131,42 @@ void main() {
       expect(bill.nextDueDate, DateTime(2026, 9, 1));
     });
 
+    test('weekly interval 2 crosses a month end on calendar dates', () {
+      final bill = makeBill(
+        dueDate: DateTime(2026, 8, 25),
+        isRecurring: true,
+        recurrenceType: RecurrenceType.weekly,
+        recurrenceInterval: 2,
+      );
+      expect(bill.nextDueDate, DateTime(2026, 9, 8));
+    });
+
+    test('weekly recurrence crosses a year end', () {
+      final bill = makeBill(
+        dueDate: DateTime(2026, 12, 29),
+        isRecurring: true,
+        recurrenceType: RecurrenceType.weekly,
+      );
+      expect(bill.nextDueDate, DateTime(2027, 1, 5));
+    });
+
+    test('weekly recurrence lands on local midnight across a DST change', () {
+      // 2026-03-08 is the US spring-forward night and 2026-10-25 the EU
+      // fall-back night; a 7-day Duration would land at 01:00 / 23:00 there.
+      // Calendar arithmetic gives the same date in every zone.
+      for (final (from, to) in [
+        (DateTime(2026, 3, 5), DateTime(2026, 3, 12)),
+        (DateTime(2026, 10, 22), DateTime(2026, 10, 29)),
+      ]) {
+        final bill = makeBill(
+          dueDate: from,
+          isRecurring: true,
+          recurrenceType: RecurrenceType.weekly,
+        );
+        expect(bill.nextDueDate, to);
+      }
+    });
+
     test('monthly recurrence advances to next month', () {
       final bill = makeBill(
         dueDate: DateTime(2026, 8, 25),
@@ -276,6 +312,24 @@ void main() {
       expect(withNote.note, 'test note');
       final cleared = withNote.copyWith(clearNote: true);
       expect(cleared.note, isNull);
+    });
+  });
+
+  group('BillEntity.budgetId', () {
+    test('defaults to not linked', () {
+      expect(makeBill().budgetId, isNull);
+    });
+
+    test('copyWith sets, keeps and clears the link', () {
+      final linked = makeBill().copyWith(budgetId: 'b1');
+      expect(linked.budgetId, 'b1');
+      expect(linked.copyWith(title: 'Renamed').budgetId, 'b1');
+      expect(linked.copyWith(clearBudgetId: true).budgetId, isNull);
+    });
+
+    test('is part of equality', () {
+      final bill = makeBill();
+      expect(bill.copyWith(budgetId: 'b1'), isNot(bill));
     });
   });
 

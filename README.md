@@ -464,7 +464,7 @@ lazy singletons for shared state and factories for per-screen BLoCs.
 
 ### Database
 
-Drift over SQLite, database name `smart_monivo_db`, **schema version 7**.
+Drift over SQLite, database name `smart_monivo_db`, **schema version 8**.
 
 Foreign keys are **enforced** (`PRAGMA foreign_keys = ON` on every connection), and
 the default categories are seeded by the database itself, so an expense can always
@@ -472,13 +472,13 @@ be written and can never point at a budget or category that does not exist.
 
 | # | Table | Purpose |
 | --- | --- | --- |
-| 1 | `budgets` | Budget definitions (amount, currency, start/end dates, archive flag) |
+| 1 | `budgets` | Budget definitions (amount, currency, start/end dates, archive flag, optional `reserved_amount` (kept aside) and `savings_target`; null = not set) |
 | 2 | `categories` | Expense categories, built-in and user-created, with an archive flag |
-| 3 | `expenses` | Expenses, indexed on date, category, budget and `(budget, date)` |
+| 3 | `expenses` | Expenses, indexed on date, category, budget and `(budget, date)`; `bill_id` (nullable, no foreign key) marks a payment of a bill that this budget had set aside |
 | 4 | `settings` | Key/value application settings |
 | 5 | `recurring_expenses` | Defined in the schema; not used by any feature |
 | 6 | `savings_goals` | Defined in the schema; not used by any feature |
-| 7 | `bills` | Bills, indexed on due date |
+| 7 | `bills` | Bills, indexed on due date and on `budget_id` (nullable, references `budgets`: the budget the bill is paid from) |
 | 8 | `bill_payments` | Payment history for recurring bills |
 | 9 | `exchange_rates` | Currency converter: cached provider rate per pair (`OMR_INR`) |
 | 10 | `converter_currencies` | Currency converter: cached supported-currency list |
@@ -506,6 +506,16 @@ Migrations:
 - **v6 → v7** — creates the currency converter's `exchange_rates` and
   `converter_currencies` cache tables. Nothing existing is touched; covered by a
   v6 fixture and the schema-parity test.
+- **v7 → v8** — Safe-to-spend links. It adds four nullable columns: `bills.budget_id`
+  (`REFERENCES budgets(id)`, plus the `index_bills_budget` index),
+  `expenses.bill_id`, `budgets.reserved_amount` and `budgets.savings_target`.
+  Each column is added only if it is missing. This matters because a database
+  coming from v3 or earlier gets `bills` created from the current definition, which already
+  has `budget_id`. No existing row is changed, and every new value starts as
+  null. Covered by v7 and v3 fixtures (`test/fixtures/schema_v7.sql`,
+  `schema_v3.sql`), the schema-parity test, and a check that the `bills → budgets`
+  foreign key exists on both fresh and upgraded databases. See
+  [docs/architecture/safe_spending.md](docs/architecture/safe_spending.md).
 
 Aggregates (a budget's total and today's spend, bill totals) are computed with SQL
 `SUM`/`COUNT` over the indexed columns rather than by loading rows into Dart.

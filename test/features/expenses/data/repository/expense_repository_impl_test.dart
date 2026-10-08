@@ -116,7 +116,10 @@ class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {
   }
 
   @override
-  Future<void> updateExpense(ExpenseEntity expense) async {
+  Future<void> updateExpense(
+    ExpenseEntity expense, {
+    bool clearBillId = false,
+  }) async {
     store[expense.id] = expense;
   }
 
@@ -147,6 +150,10 @@ class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {
     required List<String> budgetIds,
   }) async =>
       store.values.where((e) => budgetIds.contains(e.budgetId)).toList();
+
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBill(String billId) async =>
+      store.values.where((e) => e.billId == billId).toList();
 
   @override
   Future<void> seedDefaultCategories(List<ExpenseCategory> categories) async {}

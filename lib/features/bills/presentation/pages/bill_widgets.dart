@@ -114,11 +114,21 @@ class BillVisuals {
 /// Paid/unpaid and due/overdue changes animate in place: the icon tint,
 /// strike-through title, status icon and amount all ease to the new state,
 /// while the due text itself stays fully readable throughout.
+///
+/// With [showBudgetLink], a third line says which budget the bill is paid
+/// from ("Paid from October 2026") or "Not linked"; [budgetName] is that
+/// budget's label, and the line is left out for a linked bill whose budget
+/// name isn't known.
 class BillCard extends StatelessWidget {
   final BillEntity bill;
   final String currency;
   final VoidCallback? onTap;
   final VoidCallback? onMarkPaid;
+
+  /// Tooltip and accessibility action for [onMarkPaid].
+  final String markPaidLabel;
+  final bool showBudgetLink;
+  final String? budgetName;
 
   const BillCard({
     super.key,
@@ -126,7 +136,17 @@ class BillCard extends StatelessWidget {
     this.currency = '',
     this.onTap,
     this.onMarkPaid,
+    this.markPaidLabel = 'Mark as paid',
+    this.showBudgetLink = false,
+    this.budgetName,
   });
+
+  /// "Paid from {budget}", "Not linked", or null when not shown.
+  String? get linkText {
+    if (!showBudgetLink) return null;
+    if (bill.budgetId == null) return 'Not linked';
+    return budgetName == null ? null : 'Paid from $budgetName';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +159,12 @@ class BillCard extends StatelessWidget {
       decimalDigits: 0,
     );
     final dueText = BillVisuals.dueText(bill);
+    final link = linkText;
+    final linkSemantics = link == null
+        ? ''
+        : bill.budgetId == null
+        ? ', not linked to a budget'
+        : ', paid from $budgetName';
     final muted = bill.isPaid;
     final duration = AppMotion.respectReducedMotion(
       context,
@@ -170,12 +196,13 @@ class BillCard extends StatelessWidget {
       label:
           '${bill.title}, $amount, $dueText, '
           '${BillVisuals.statusLabel(status)}'
-          '${bill.isRecurring ? ', repeats ${bill.recurrenceType.label.toLowerCase()}' : ''}',
+          '${bill.isRecurring ? ', repeats ${bill.recurrenceType.label.toLowerCase()}' : ''}'
+          '$linkSemantics',
       onTap: onTap,
       // The card merges into one node, so the nested "Mark as paid"
       // button would be unreachable; expose it as a custom action.
       customSemanticsActions: onMarkPaid != null && !bill.isPaid
-          ? {const CustomSemanticsAction(label: 'Mark as paid'): onMarkPaid!}
+          ? {CustomSemanticsAction(label: markPaidLabel): onMarkPaid!}
           : null,
       excludeSemantics: true,
       child: AppCard(
@@ -251,6 +278,31 @@ class BillCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (link != null) ...[
+                    const SizedBox(height: AppSpacing.xxs),
+                    Row(
+                      children: [
+                        Icon(
+                          bill.budgetId == null
+                              ? Icons.link_off_rounded
+                              : Icons.account_balance_wallet_outlined,
+                          size: AppSizes.iconXs,
+                          color: mutedColor,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Flexible(
+                          child: Text(
+                            link,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: mutedColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -271,7 +323,7 @@ class BillCard extends StatelessWidget {
                       key: const ValueKey('markPaid'),
                       padding: const EdgeInsets.only(left: AppSpacing.xs),
                       child: IconButton(
-                        tooltip: 'Mark as paid',
+                        tooltip: markPaidLabel,
                         onPressed: onMarkPaid,
                         icon: Icon(
                           Icons.check_circle_outline_rounded,

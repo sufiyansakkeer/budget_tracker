@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
 
+import '../../../../core/data/models/budget_model.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../domain/entities/committed_spending.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import 'dashboard_local_datasource.dart';
 
@@ -97,25 +99,63 @@ class DashboardLocalDataSourceImpl implements DashboardLocalDataSource {
     }).toList();
   }
 
+  @override
+  Future<Map<String, CommittedSpending>> getCommittedSpending({
+    required List<BudgetEntity> budgets,
+    required DateTime today,
+  }) async {
+    final todayStart = _startOfDay(today);
+    final todayEnd = _endOfDay(today);
+    final result = <String, CommittedSpending>{};
+    for (final budget in budgets) {
+      final start = _startOfDay(budget.startDate);
+      final end = _endOfDay(budget.endDate);
+      final periodTotal = await _committedSum(budget.id, start, end);
+      // Today's bounds are whole days, so inside the period they are already
+      // inside the period's bounds; outside it there is nothing to count.
+      final todayInPeriod =
+          !todayStart.isBefore(start) && !todayStart.isAfter(end);
+      final todayTotal = todayInPeriod && periodTotal != 0
+          ? await _committedSum(budget.id, todayStart, todayEnd)
+          : 0.0;
+      result[budget.id] = CommittedSpending(
+        periodTotal: periodTotal,
+        todayTotal: todayTotal,
+      );
+    }
+    return result;
+  }
+
+  /// SUM of a budget's committed expenses (`bill_id` set) in [start, end],
+  /// in SQL over `index_expenses_budget_date`.
+  Future<double> _committedSum(
+    String budgetId,
+    DateTime start,
+    DateTime end,
+  ) async {
+    final sum = database.expenses.amount.sum();
+    final query = database.selectOnly(database.expenses)
+      ..addColumns([sum])
+      ..where(
+        database.expenses.budgetId.equals(budgetId) &
+            database.expenses.billId.isNotNull() &
+            database.expenses.date.isBiggerOrEqualValue(start) &
+            database.expenses.date.isSmallerOrEqualValue(end),
+      );
+    final row = await query.getSingle();
+    return row.read(sum) ?? 0;
+  }
+
+  DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  DateTime _endOfDay(DateTime d) =>
+      DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
+
   Future<BudgetEntity?> _getBudget(String id) async {
     final query = database.select(database.budgets)
       ..where((budget) => budget.id.equals(id));
     final row = await query.getSingleOrNull();
     if (row == null) return null;
-    return BudgetEntity(
-      id: row.id,
-      name: row.name,
-      monthlyAmount: row.monthlyAmount,
-      remainingAmount: row.remainingAmount,
-      currency: row.currency,
-      startDate: row.startDate,
-      endDate: row.endDate,
-      isArchived: row.isArchived,
-      color: row.color,
-      icon: row.icon,
-      notes: row.notes,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    );
+    return BudgetModel.toEntity(row);
   }
 }

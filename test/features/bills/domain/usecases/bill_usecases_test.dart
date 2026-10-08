@@ -11,6 +11,8 @@ import 'package:monivo/features/bills/domain/usecases/mark_bill_paid_usecase.dar
 import 'package:monivo/features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/update_bill_usecase.dart';
 
+import '../../../../helpers/bill_payment_fakes.dart';
+
 class FakeBillRepository implements BillRepository {
   final Map<String, BillEntity> store = {};
   final List<BillPaymentRecord> payments = [];
@@ -52,6 +54,10 @@ class FakeBillRepository implements BillRepository {
   @override
   Future<List<BillPaymentRecord>> getBillPayments(String billId) async =>
       payments.where((p) => p.billId == billId).toList();
+
+  @override
+  Future<void> deleteBillPayment(String paymentId) async =>
+      payments.removeWhere((p) => p.id == paymentId);
 
   @override
   Future<List<BillEntity>> getUpcomingBills({
@@ -300,7 +306,10 @@ void main() {
   group('MarkBillUnpaidUseCase', () {
     test('marks a paid bill as unpaid', () async {
       repository.store['bill-1'] = validBill(isPaid: true);
-      final useCase = MarkBillUnpaidUseCase(repository: repository);
+      final useCase = MarkBillUnpaidUseCase(
+        repository: repository,
+        expenseRepository: InMemoryExpenseRepository(),
+      );
 
       final result = await useCase('bill-1');
 
@@ -312,7 +321,10 @@ void main() {
 
     test('returns bill unchanged if already unpaid', () async {
       repository.store['bill-1'] = validBill(isPaid: false);
-      final useCase = MarkBillUnpaidUseCase(repository: repository);
+      final useCase = MarkBillUnpaidUseCase(
+        repository: repository,
+        expenseRepository: InMemoryExpenseRepository(),
+      );
 
       final result = await useCase('bill-1');
 

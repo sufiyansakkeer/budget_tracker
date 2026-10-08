@@ -173,6 +173,28 @@ class $BudgetsTable extends Budgets with TableInfo<$BudgetsTable, Budget> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _reservedAmountMeta = const VerificationMeta(
+    'reservedAmount',
+  );
+  @override
+  late final GeneratedColumn<double> reservedAmount = GeneratedColumn<double>(
+    'reserved_amount',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _savingsTargetMeta = const VerificationMeta(
+    'savingsTarget',
+  );
+  @override
+  late final GeneratedColumn<double> savingsTarget = GeneratedColumn<double>(
+    'savings_target',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -190,6 +212,8 @@ class $BudgetsTable extends Budgets with TableInfo<$BudgetsTable, Budget> {
     notes,
     createdAt,
     updatedAt,
+    reservedAmount,
+    savingsTarget,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -310,6 +334,24 @@ class $BudgetsTable extends Budgets with TableInfo<$BudgetsTable, Budget> {
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('reserved_amount')) {
+      context.handle(
+        _reservedAmountMeta,
+        reservedAmount.isAcceptableOrUnknown(
+          data['reserved_amount']!,
+          _reservedAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('savings_target')) {
+      context.handle(
+        _savingsTargetMeta,
+        savingsTarget.isAcceptableOrUnknown(
+          data['savings_target']!,
+          _savingsTargetMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -379,6 +421,14 @@ class $BudgetsTable extends Budgets with TableInfo<$BudgetsTable, Budget> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      reservedAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}reserved_amount'],
+      ),
+      savingsTarget: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}savings_target'],
+      ),
     );
   }
 
@@ -404,6 +454,14 @@ class Budget extends DataClass implements Insertable<Budget> {
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Money in this budget the user keeps out of safe-to-spend. Null = not set
+  /// (distinct from 0).
+  final double? reservedAmount;
+
+  /// Money the user wants left unspent at the end of the period. Null = not
+  /// set (distinct from 0).
+  final double? savingsTarget;
   const Budget({
     required this.id,
     required this.name,
@@ -420,6 +478,8 @@ class Budget extends DataClass implements Insertable<Budget> {
     this.notes,
     required this.createdAt,
     required this.updatedAt,
+    this.reservedAmount,
+    this.savingsTarget,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -449,6 +509,12 @@ class Budget extends DataClass implements Insertable<Budget> {
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || reservedAmount != null) {
+      map['reserved_amount'] = Variable<double>(reservedAmount);
+    }
+    if (!nullToAbsent || savingsTarget != null) {
+      map['savings_target'] = Variable<double>(savingsTarget);
+    }
     return map;
   }
 
@@ -475,6 +541,12 @@ class Budget extends DataClass implements Insertable<Budget> {
           : Value(notes),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      reservedAmount: reservedAmount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reservedAmount),
+      savingsTarget: savingsTarget == null && nullToAbsent
+          ? const Value.absent()
+          : Value(savingsTarget),
     );
   }
 
@@ -499,6 +571,8 @@ class Budget extends DataClass implements Insertable<Budget> {
       notes: serializer.fromJson<String?>(json['notes']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      reservedAmount: serializer.fromJson<double?>(json['reservedAmount']),
+      savingsTarget: serializer.fromJson<double?>(json['savingsTarget']),
     );
   }
   @override
@@ -520,6 +594,8 @@ class Budget extends DataClass implements Insertable<Budget> {
       'notes': serializer.toJson<String?>(notes),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'reservedAmount': serializer.toJson<double?>(reservedAmount),
+      'savingsTarget': serializer.toJson<double?>(savingsTarget),
     };
   }
 
@@ -539,6 +615,8 @@ class Budget extends DataClass implements Insertable<Budget> {
     Value<String?> notes = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
+    Value<double?> reservedAmount = const Value.absent(),
+    Value<double?> savingsTarget = const Value.absent(),
   }) => Budget(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -555,6 +633,12 @@ class Budget extends DataClass implements Insertable<Budget> {
     notes: notes.present ? notes.value : this.notes,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    reservedAmount: reservedAmount.present
+        ? reservedAmount.value
+        : this.reservedAmount,
+    savingsTarget: savingsTarget.present
+        ? savingsTarget.value
+        : this.savingsTarget,
   );
   Budget copyWithCompanion(BudgetsCompanion data) {
     return Budget(
@@ -579,6 +663,12 @@ class Budget extends DataClass implements Insertable<Budget> {
       notes: data.notes.present ? data.notes.value : this.notes,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      reservedAmount: data.reservedAmount.present
+          ? data.reservedAmount.value
+          : this.reservedAmount,
+      savingsTarget: data.savingsTarget.present
+          ? data.savingsTarget.value
+          : this.savingsTarget,
     );
   }
 
@@ -599,7 +689,9 @@ class Budget extends DataClass implements Insertable<Budget> {
           ..write('icon: $icon, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('reservedAmount: $reservedAmount, ')
+          ..write('savingsTarget: $savingsTarget')
           ..write(')'))
         .toString();
   }
@@ -621,6 +713,8 @@ class Budget extends DataClass implements Insertable<Budget> {
     notes,
     createdAt,
     updatedAt,
+    reservedAmount,
+    savingsTarget,
   );
   @override
   bool operator ==(Object other) =>
@@ -640,7 +734,9 @@ class Budget extends DataClass implements Insertable<Budget> {
           other.icon == this.icon &&
           other.notes == this.notes &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.reservedAmount == this.reservedAmount &&
+          other.savingsTarget == this.savingsTarget);
 }
 
 class BudgetsCompanion extends UpdateCompanion<Budget> {
@@ -659,6 +755,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
   final Value<String?> notes;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<double?> reservedAmount;
+  final Value<double?> savingsTarget;
   final Value<int> rowid;
   const BudgetsCompanion({
     this.id = const Value.absent(),
@@ -676,6 +774,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.reservedAmount = const Value.absent(),
+    this.savingsTarget = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BudgetsCompanion.insert({
@@ -694,6 +794,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.reservedAmount = const Value.absent(),
+    this.savingsTarget = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -718,6 +820,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     Expression<String>? notes,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<double>? reservedAmount,
+    Expression<double>? savingsTarget,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -736,6 +840,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (reservedAmount != null) 'reserved_amount': reservedAmount,
+      if (savingsTarget != null) 'savings_target': savingsTarget,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -756,6 +862,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     Value<String?>? notes,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<double?>? reservedAmount,
+    Value<double?>? savingsTarget,
     Value<int>? rowid,
   }) {
     return BudgetsCompanion(
@@ -774,6 +882,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      reservedAmount: reservedAmount ?? this.reservedAmount,
+      savingsTarget: savingsTarget ?? this.savingsTarget,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -826,6 +936,12 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (reservedAmount.present) {
+      map['reserved_amount'] = Variable<double>(reservedAmount.value);
+    }
+    if (savingsTarget.present) {
+      map['savings_target'] = Variable<double>(savingsTarget.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -850,6 +966,8 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('reservedAmount: $reservedAmount, ')
+          ..write('savingsTarget: $savingsTarget, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1391,6 +1509,15 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _billIdMeta = const VerificationMeta('billId');
+  @override
+  late final GeneratedColumn<String> billId = GeneratedColumn<String>(
+    'bill_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1404,6 +1531,7 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
     tags,
     createdAt,
     updatedAt,
+    billId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1493,6 +1621,12 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('bill_id')) {
+      context.handle(
+        _billIdMeta,
+        billId.isAcceptableOrUnknown(data['bill_id']!, _billIdMeta),
+      );
+    }
     return context;
   }
 
@@ -1546,6 +1680,10 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      billId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bill_id'],
+      ),
     );
   }
 
@@ -1567,6 +1705,12 @@ class Expense extends DataClass implements Insertable<Expense> {
   final String? tags;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// The bill whose occurrence this expense settled, when that occurrence was
+  /// set aside in this expense's budget (committed spending). Deliberately no
+  /// foreign key: deleting a bill must not touch expense history, and JSON
+  /// import brings in expenses without their bills.
+  final String? billId;
   const Expense({
     required this.id,
     required this.budgetId,
@@ -1579,6 +1723,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     this.tags,
     required this.createdAt,
     required this.updatedAt,
+    this.billId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1600,6 +1745,9 @@ class Expense extends DataClass implements Insertable<Expense> {
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || billId != null) {
+      map['bill_id'] = Variable<String>(billId);
+    }
     return map;
   }
 
@@ -1618,6 +1766,9 @@ class Expense extends DataClass implements Insertable<Expense> {
       tags: tags == null && nullToAbsent ? const Value.absent() : Value(tags),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      billId: billId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(billId),
     );
   }
 
@@ -1638,6 +1789,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       tags: serializer.fromJson<String?>(json['tags']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      billId: serializer.fromJson<String?>(json['billId']),
     );
   }
   @override
@@ -1655,6 +1807,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       'tags': serializer.toJson<String?>(tags),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'billId': serializer.toJson<String?>(billId),
     };
   }
 
@@ -1670,6 +1823,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     Value<String?> tags = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
+    Value<String?> billId = const Value.absent(),
   }) => Expense(
     id: id ?? this.id,
     budgetId: budgetId ?? this.budgetId,
@@ -1684,6 +1838,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     tags: tags.present ? tags.value : this.tags,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    billId: billId.present ? billId.value : this.billId,
   );
   Expense copyWithCompanion(ExpensesCompanion data) {
     return Expense(
@@ -1702,6 +1857,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       tags: data.tags.present ? data.tags.value : this.tags,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      billId: data.billId.present ? data.billId.value : this.billId,
     );
   }
 
@@ -1718,7 +1874,8 @@ class Expense extends DataClass implements Insertable<Expense> {
           ..write('receiptImagePath: $receiptImagePath, ')
           ..write('tags: $tags, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('billId: $billId')
           ..write(')'))
         .toString();
   }
@@ -1736,6 +1893,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     tags,
     createdAt,
     updatedAt,
+    billId,
   );
   @override
   bool operator ==(Object other) =>
@@ -1751,7 +1909,8 @@ class Expense extends DataClass implements Insertable<Expense> {
           other.receiptImagePath == this.receiptImagePath &&
           other.tags == this.tags &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.billId == this.billId);
 }
 
 class ExpensesCompanion extends UpdateCompanion<Expense> {
@@ -1766,6 +1925,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
   final Value<String?> tags;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<String?> billId;
   final Value<int> rowid;
   const ExpensesCompanion({
     this.id = const Value.absent(),
@@ -1779,6 +1939,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.tags = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.billId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ExpensesCompanion.insert({
@@ -1793,6 +1954,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.tags = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.billId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        budgetId = Value(budgetId),
@@ -1811,6 +1973,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Expression<String>? tags,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? billId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1825,6 +1988,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       if (tags != null) 'tags': tags,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (billId != null) 'bill_id': billId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1841,6 +2005,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Value<String?>? tags,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<String?>? billId,
     Value<int>? rowid,
   }) {
     return ExpensesCompanion(
@@ -1855,6 +2020,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      billId: billId ?? this.billId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1895,6 +2061,9 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (billId.present) {
+      map['bill_id'] = Variable<String>(billId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1915,6 +2084,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
           ..write('tags: $tags, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('billId: $billId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3166,6 +3336,20 @@ class $BillsTable extends Bills with TableInfo<$BillsTable, Bill> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _budgetIdMeta = const VerificationMeta(
+    'budgetId',
+  );
+  @override
+  late final GeneratedColumn<String> budgetId = GeneratedColumn<String>(
+    'budget_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES budgets (id)',
+    ),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3185,6 +3369,7 @@ class $BillsTable extends Bills with TableInfo<$BillsTable, Bill> {
     paidDate,
     createdAt,
     updatedAt,
+    budgetId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3324,6 +3509,12 @@ class $BillsTable extends Bills with TableInfo<$BillsTable, Bill> {
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('budget_id')) {
+      context.handle(
+        _budgetIdMeta,
+        budgetId.isAcceptableOrUnknown(data['budget_id']!, _budgetIdMeta),
+      );
+    }
     return context;
   }
 
@@ -3401,6 +3592,10 @@ class $BillsTable extends Bills with TableInfo<$BillsTable, Bill> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      budgetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}budget_id'],
+      ),
     );
   }
 
@@ -3428,6 +3623,10 @@ class Bill extends DataClass implements Insertable<Bill> {
   final DateTime? paidDate;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// The budget this bill is set aside from until it is paid. Null = not
+  /// linked.
+  final String? budgetId;
   const Bill({
     required this.id,
     required this.title,
@@ -3446,6 +3645,7 @@ class Bill extends DataClass implements Insertable<Bill> {
     this.paidDate,
     required this.createdAt,
     required this.updatedAt,
+    this.budgetId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3473,6 +3673,9 @@ class Bill extends DataClass implements Insertable<Bill> {
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || budgetId != null) {
+      map['budget_id'] = Variable<String>(budgetId);
+    }
     return map;
   }
 
@@ -3499,6 +3702,9 @@ class Bill extends DataClass implements Insertable<Bill> {
           : Value(paidDate),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      budgetId: budgetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(budgetId),
     );
   }
 
@@ -3525,6 +3731,7 @@ class Bill extends DataClass implements Insertable<Bill> {
       paidDate: serializer.fromJson<DateTime?>(json['paidDate']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      budgetId: serializer.fromJson<String?>(json['budgetId']),
     );
   }
   @override
@@ -3548,6 +3755,7 @@ class Bill extends DataClass implements Insertable<Bill> {
       'paidDate': serializer.toJson<DateTime?>(paidDate),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'budgetId': serializer.toJson<String?>(budgetId),
     };
   }
 
@@ -3569,6 +3777,7 @@ class Bill extends DataClass implements Insertable<Bill> {
     Value<DateTime?> paidDate = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
+    Value<String?> budgetId = const Value.absent(),
   }) => Bill(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -3587,6 +3796,7 @@ class Bill extends DataClass implements Insertable<Bill> {
     paidDate: paidDate.present ? paidDate.value : this.paidDate,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    budgetId: budgetId.present ? budgetId.value : this.budgetId,
   );
   Bill copyWithCompanion(BillsCompanion data) {
     return Bill(
@@ -3617,6 +3827,7 @@ class Bill extends DataClass implements Insertable<Bill> {
       paidDate: data.paidDate.present ? data.paidDate.value : this.paidDate,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      budgetId: data.budgetId.present ? data.budgetId.value : this.budgetId,
     );
   }
 
@@ -3639,7 +3850,8 @@ class Bill extends DataClass implements Insertable<Bill> {
           ..write('isPaid: $isPaid, ')
           ..write('paidDate: $paidDate, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('budgetId: $budgetId')
           ..write(')'))
         .toString();
   }
@@ -3663,6 +3875,7 @@ class Bill extends DataClass implements Insertable<Bill> {
     paidDate,
     createdAt,
     updatedAt,
+    budgetId,
   );
   @override
   bool operator ==(Object other) =>
@@ -3684,7 +3897,8 @@ class Bill extends DataClass implements Insertable<Bill> {
           other.isPaid == this.isPaid &&
           other.paidDate == this.paidDate &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.budgetId == this.budgetId);
 }
 
 class BillsCompanion extends UpdateCompanion<Bill> {
@@ -3705,6 +3919,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
   final Value<DateTime?> paidDate;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<String?> budgetId;
   final Value<int> rowid;
   const BillsCompanion({
     this.id = const Value.absent(),
@@ -3724,6 +3939,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
     this.paidDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.budgetId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BillsCompanion.insert({
@@ -3744,6 +3960,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
     this.paidDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.budgetId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -3769,6 +3986,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
     Expression<DateTime>? paidDate,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? budgetId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3790,6 +4008,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
       if (paidDate != null) 'paid_date': paidDate,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (budgetId != null) 'budget_id': budgetId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3812,6 +4031,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
     Value<DateTime?>? paidDate,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<String?>? budgetId,
     Value<int>? rowid,
   }) {
     return BillsCompanion(
@@ -3832,6 +4052,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
       paidDate: paidDate ?? this.paidDate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      budgetId: budgetId ?? this.budgetId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3890,6 +4111,9 @@ class BillsCompanion extends UpdateCompanion<Bill> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (budgetId.present) {
+      map['budget_id'] = Variable<String>(budgetId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3916,6 +4140,7 @@ class BillsCompanion extends UpdateCompanion<Bill> {
           ..write('paidDate: $paidDate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('budgetId: $budgetId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5148,6 +5373,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'index_bills_due_date',
     'CREATE INDEX index_bills_due_date ON bills (due_date)',
   );
+  late final Index indexBillsBudget = Index(
+    'index_bills_budget',
+    'CREATE INDEX index_bills_budget ON bills (budget_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5168,6 +5397,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     indexExpensesBudget,
     indexExpensesBudgetDate,
     indexBillsDueDate,
+    indexBillsBudget,
   ];
 }
 
@@ -5188,6 +5418,8 @@ typedef $$BudgetsTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<double?> reservedAmount,
+      Value<double?> savingsTarget,
       Value<int> rowid,
     });
 typedef $$BudgetsTableUpdateCompanionBuilder =
@@ -5207,6 +5439,8 @@ typedef $$BudgetsTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<double?> reservedAmount,
+      Value<double?> savingsTarget,
       Value<int> rowid,
     });
 
@@ -5228,6 +5462,25 @@ final class $$BudgetsTableReferences
     ).filter((f) => f.budgetId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_expensesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BillsTable, List<Bill>> _billsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.bills,
+    aliasName: $_aliasNameGenerator(db.budgets.id, db.bills.budgetId),
+  );
+
+  $$BillsTableProcessedTableManager get billsRefs {
+    final manager = $$BillsTableTableManager(
+      $_db,
+      $_db.bills,
+    ).filter((f) => f.budgetId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_billsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -5318,6 +5571,16 @@ class $$BudgetsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get reservedAmount => $composableBuilder(
+    column: $table.reservedAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get savingsTarget => $composableBuilder(
+    column: $table.savingsTarget,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> expensesRefs(
     Expression<bool> Function($$ExpensesTableFilterComposer f) f,
   ) {
@@ -5334,6 +5597,31 @@ class $$BudgetsTableFilterComposer
           }) => $$ExpensesTableFilterComposer(
             $db: $db,
             $table: $db.expenses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> billsRefs(
+    Expression<bool> Function($$BillsTableFilterComposer f) f,
+  ) {
+    final $$BillsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bills,
+      getReferencedColumn: (t) => t.budgetId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BillsTableFilterComposer(
+            $db: $db,
+            $table: $db.bills,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -5427,6 +5715,16 @@ class $$BudgetsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get reservedAmount => $composableBuilder(
+    column: $table.reservedAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get savingsTarget => $composableBuilder(
+    column: $table.savingsTarget,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BudgetsTableAnnotationComposer
@@ -5489,6 +5787,16 @@ class $$BudgetsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
+  GeneratedColumn<double> get reservedAmount => $composableBuilder(
+    column: $table.reservedAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get savingsTarget => $composableBuilder(
+    column: $table.savingsTarget,
+    builder: (column) => column,
+  );
+
   Expression<T> expensesRefs<T extends Object>(
     Expression<T> Function($$ExpensesTableAnnotationComposer a) f,
   ) {
@@ -5513,6 +5821,31 @@ class $$BudgetsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> billsRefs<T extends Object>(
+    Expression<T> Function($$BillsTableAnnotationComposer a) f,
+  ) {
+    final $$BillsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bills,
+      getReferencedColumn: (t) => t.budgetId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BillsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bills,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$BudgetsTableTableManager
@@ -5528,7 +5861,7 @@ class $$BudgetsTableTableManager
           $$BudgetsTableUpdateCompanionBuilder,
           (Budget, $$BudgetsTableReferences),
           Budget,
-          PrefetchHooks Function({bool expensesRefs})
+          PrefetchHooks Function({bool expensesRefs, bool billsRefs})
         > {
   $$BudgetsTableTableManager(_$AppDatabase db, $BudgetsTable table)
     : super(
@@ -5558,6 +5891,8 @@ class $$BudgetsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<double?> reservedAmount = const Value.absent(),
+                Value<double?> savingsTarget = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BudgetsCompanion(
                 id: id,
@@ -5575,6 +5910,8 @@ class $$BudgetsTableTableManager
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                reservedAmount: reservedAmount,
+                savingsTarget: savingsTarget,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5594,6 +5931,8 @@ class $$BudgetsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<double?> reservedAmount = const Value.absent(),
+                Value<double?> savingsTarget = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BudgetsCompanion.insert(
                 id: id,
@@ -5611,6 +5950,8 @@ class $$BudgetsTableTableManager
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                reservedAmount: reservedAmount,
+                savingsTarget: savingsTarget,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5621,10 +5962,13 @@ class $$BudgetsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({expensesRefs = false}) {
+          prefetchHooksCallback: ({expensesRefs = false, billsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (expensesRefs) db.expenses],
+              explicitlyWatchedTables: [
+                if (expensesRefs) db.expenses,
+                if (billsRefs) db.bills,
+              ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
@@ -5635,6 +5979,18 @@ class $$BudgetsTableTableManager
                           ._expensesRefsTable(db),
                       managerFromTypedResult: (p0) =>
                           $$BudgetsTableReferences(db, table, p0).expensesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.budgetId == item.id),
+                      typedResults: items,
+                    ),
+                  if (billsRefs)
+                    await $_getPrefetchedData<Budget, $BudgetsTable, Bill>(
+                      currentTable: table,
+                      referencedTable: $$BudgetsTableReferences._billsRefsTable(
+                        db,
+                      ),
+                      managerFromTypedResult: (p0) =>
+                          $$BudgetsTableReferences(db, table, p0).billsRefs,
                       referencedItemsForCurrentItem: (item, referencedItems) =>
                           referencedItems.where((e) => e.budgetId == item.id),
                       typedResults: items,
@@ -5659,7 +6015,7 @@ typedef $$BudgetsTableProcessedTableManager =
       $$BudgetsTableUpdateCompanionBuilder,
       (Budget, $$BudgetsTableReferences),
       Budget,
-      PrefetchHooks Function({bool expensesRefs})
+      PrefetchHooks Function({bool expensesRefs, bool billsRefs})
     >;
 typedef $$CategoriesTableCreateCompanionBuilder =
     CategoriesCompanion Function({
@@ -6102,6 +6458,7 @@ typedef $$ExpensesTableCreateCompanionBuilder =
       Value<String?> tags,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String?> billId,
       Value<int> rowid,
     });
 typedef $$ExpensesTableUpdateCompanionBuilder =
@@ -6117,6 +6474,7 @@ typedef $$ExpensesTableUpdateCompanionBuilder =
       Value<String?> tags,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String?> billId,
       Value<int> rowid,
     });
 
@@ -6212,6 +6570,11 @@ class $$ExpensesTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get billId => $composableBuilder(
+    column: $table.billId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6316,6 +6679,11 @@ class $$ExpensesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get billId => $composableBuilder(
+    column: $table.billId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$BudgetsTableOrderingComposer get budgetId {
     final $$BudgetsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -6400,6 +6768,9 @@ class $$ExpensesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get billId =>
+      $composableBuilder(column: $table.billId, builder: (column) => column);
 
   $$BudgetsTableAnnotationComposer get budgetId {
     final $$BudgetsTableAnnotationComposer composer = $composerBuilder(
@@ -6487,6 +6858,7 @@ class $$ExpensesTableTableManager
                 Value<String?> tags = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String?> billId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ExpensesCompanion(
                 id: id,
@@ -6500,6 +6872,7 @@ class $$ExpensesTableTableManager
                 tags: tags,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                billId: billId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6515,6 +6888,7 @@ class $$ExpensesTableTableManager
                 Value<String?> tags = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String?> billId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ExpensesCompanion.insert(
                 id: id,
@@ -6528,6 +6902,7 @@ class $$ExpensesTableTableManager
                 tags: tags,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                billId: billId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -7343,6 +7718,7 @@ typedef $$BillsTableCreateCompanionBuilder =
       Value<DateTime?> paidDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String?> budgetId,
       Value<int> rowid,
     });
 typedef $$BillsTableUpdateCompanionBuilder =
@@ -7364,12 +7740,30 @@ typedef $$BillsTableUpdateCompanionBuilder =
       Value<DateTime?> paidDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String?> budgetId,
       Value<int> rowid,
     });
 
 final class $$BillsTableReferences
     extends BaseReferences<_$AppDatabase, $BillsTable, Bill> {
   $$BillsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $BudgetsTable _budgetIdTable(_$AppDatabase db) => db.budgets
+      .createAlias($_aliasNameGenerator(db.bills.budgetId, db.budgets.id));
+
+  $$BudgetsTableProcessedTableManager? get budgetId {
+    final $_column = $_itemColumn<String>('budget_id');
+    if ($_column == null) return null;
+    final manager = $$BudgetsTableTableManager(
+      $_db,
+      $_db.budgets,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_budgetIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static MultiTypedResultKey<$BillPaymentsTable, List<BillPayment>>
   _billPaymentsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
@@ -7482,6 +7876,29 @@ class $$BillsTableFilterComposer extends Composer<_$AppDatabase, $BillsTable> {
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  $$BudgetsTableFilterComposer get budgetId {
+    final $$BudgetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.budgetId,
+      referencedTable: $db.budgets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetsTableFilterComposer(
+            $db: $db,
+            $table: $db.budgets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<bool> billPaymentsRefs(
     Expression<bool> Function($$BillPaymentsTableFilterComposer f) f,
@@ -7602,6 +8019,29 @@ class $$BillsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  $$BudgetsTableOrderingComposer get budgetId {
+    final $$BudgetsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.budgetId,
+      referencedTable: $db.budgets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetsTableOrderingComposer(
+            $db: $db,
+            $table: $db.budgets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$BillsTableAnnotationComposer
@@ -7674,6 +8114,29 @@ class $$BillsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
+  $$BudgetsTableAnnotationComposer get budgetId {
+    final $$BudgetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.budgetId,
+      referencedTable: $db.budgets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.budgets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> billPaymentsRefs<T extends Object>(
     Expression<T> Function($$BillPaymentsTableAnnotationComposer a) f,
   ) {
@@ -7713,7 +8176,7 @@ class $$BillsTableTableManager
           $$BillsTableUpdateCompanionBuilder,
           (Bill, $$BillsTableReferences),
           Bill,
-          PrefetchHooks Function({bool billPaymentsRefs})
+          PrefetchHooks Function({bool budgetId, bool billPaymentsRefs})
         > {
   $$BillsTableTableManager(_$AppDatabase db, $BillsTable table)
     : super(
@@ -7745,6 +8208,7 @@ class $$BillsTableTableManager
                 Value<DateTime?> paidDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String?> budgetId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BillsCompanion(
                 id: id,
@@ -7764,6 +8228,7 @@ class $$BillsTableTableManager
                 paidDate: paidDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                budgetId: budgetId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7785,6 +8250,7 @@ class $$BillsTableTableManager
                 Value<DateTime?> paidDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String?> budgetId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BillsCompanion.insert(
                 id: id,
@@ -7804,6 +8270,7 @@ class $$BillsTableTableManager
                 paidDate: paidDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                budgetId: budgetId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -7812,31 +8279,72 @@ class $$BillsTableTableManager
                     (e.readTable(table), $$BillsTableReferences(db, table, e)),
               )
               .toList(),
-          prefetchHooksCallback: ({billPaymentsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (billPaymentsRefs) db.billPayments],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (billPaymentsRefs)
-                    await $_getPrefetchedData<Bill, $BillsTable, BillPayment>(
-                      currentTable: table,
-                      referencedTable: $$BillsTableReferences
-                          ._billPaymentsRefsTable(db),
-                      managerFromTypedResult: (p0) => $$BillsTableReferences(
-                        db,
-                        table,
-                        p0,
-                      ).billPaymentsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.billId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({budgetId = false, billPaymentsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (billPaymentsRefs) db.billPayments,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (budgetId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.budgetId,
+                                    referencedTable: $$BillsTableReferences
+                                        ._budgetIdTable(db),
+                                    referencedColumn: $$BillsTableReferences
+                                        ._budgetIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (billPaymentsRefs)
+                        await $_getPrefetchedData<
+                          Bill,
+                          $BillsTable,
+                          BillPayment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BillsTableReferences
+                              ._billPaymentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BillsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).billPaymentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.billId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -7853,7 +8361,7 @@ typedef $$BillsTableProcessedTableManager =
       $$BillsTableUpdateCompanionBuilder,
       (Bill, $$BillsTableReferences),
       Bill,
-      PrefetchHooks Function({bool billPaymentsRefs})
+      PrefetchHooks Function({bool budgetId, bool billPaymentsRefs})
     >;
 typedef $$BillPaymentsTableCreateCompanionBuilder =
     BillPaymentsCompanion Function({

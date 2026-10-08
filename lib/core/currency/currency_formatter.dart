@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:intl/intl.dart';
 import 'package:intl/number_symbols_data.dart' show currencyFractionDigits;
 
@@ -74,6 +76,55 @@ class CurrencyFormatter {
   static int decimalDigitsFor(String code) =>
       currencyFractionDigits[code.toUpperCase()] ??
       currencyFractionDigits['DEFAULT']!;
+
+  // ── "Safe" amounts (safe-to-spend) ───────────────────────────────────────
+  //
+  // `NumberFormat` rounds to nearest, so ₹714.60 shown with 0 decimals reads
+  // ₹715 — more than is actually safe. Amounts the user is told they can
+  // spend are floored to the digits actually shown instead.
+
+  /// Largest value ≤ [amount] with at most [decimalDigits] fraction digits.
+  ///
+  /// Values within 1e-6 of a minor unit are snapped to it first, so binary
+  /// noise (0.29 × 100 = 28.999999999999996) never loses a whole minor unit.
+  /// Intended for non-negative amounts; negatives floor away from zero.
+  static double floorToDigits(double amount, int decimalDigits) {
+    if (!amount.isFinite) return amount;
+    final factor = math.pow(10, decimalDigits).toDouble();
+    final scaled = amount * factor;
+    final nearest = scaled.roundToDouble();
+    final units = (scaled - nearest).abs() <= 1e-6
+        ? nearest
+        : scaled.floorToDouble();
+    return units / factor;
+  }
+
+  /// [amount] floored to [code]'s minor units, with the number of decimals to
+  /// display it with: the currency's digits when the floored value has a
+  /// fraction at that precision, otherwise 0.
+  ///
+  /// OMR 7.6 → (7.6, 3) renders "7.600", never "8"; ₹1000/3 → (333.33, 2);
+  /// ₹1000.004 → (1000, 0); JPY 99.9 → (99, 0).
+  static ({double amount, int decimalDigits}) floorForDisplay(
+    double amount, {
+    required String code,
+  }) {
+    final digits = decimalDigitsFor(code);
+    final floored = floorToDigits(amount, digits);
+    final whole = floored == floored.truncateToDouble();
+    return (amount: floored, decimalDigits: whole ? 0 : digits);
+  }
+
+  /// Formats a "safe" amount (today's safe spending, left today, free to
+  /// spend) floored to the digits shown; see [floorForDisplay].
+  static String formatFloored(double amount, {required String code}) {
+    final display = floorForDisplay(amount, code: code);
+    return format(
+      display.amount,
+      code: code,
+      decimalDigits: display.decimalDigits,
+    );
+  }
 
   /// Formats an exact [amount] with [symbol] and exactly [decimalDigits]
   /// fraction digits, without ever converting it to a `double`.

@@ -379,8 +379,22 @@ Each phase ends with `flutter analyze` + `flutter test` green and a commit on `f
 1. **Income tracking: not implemented.** Reason in §4. If wanted, the recommended shape is an
    `income` transaction type that *optionally* tops up the linked budget's amount, with the
    safe-spending formula unchanged — a separate, scoped piece of work.
+   *Note (Smart Safe-to-Spend, after 1.3.0):* the safe-spending formula has since changed. It
+   now deducts the budget's commitments before dividing: unpaid bills linked to the budget,
+   an optional kept-aside amount and an optional savings goal. Bill payments that settle
+   money set aside are not counted against today's amount. See
+   [`lib/features/budget/CALCULATION_RULES.md`](../lib/features/budget/CALCULATION_RULES.md).
+   Income is still rejected for the same reason. A budget's amount is still the money
+   available, and nothing adds to it except editing the amount. The savings goal is a
+   deduction only: there is no savings ledger or transfer, so contributions are not tracked.
 2. **Speed-dial FAB: not adopted.** One primary action per screen.
-3. **Currency converter: not adopted.** No static-rate "conversion".
+3. **Currency converter: not adopted from Money Tracker.** Its static-rate "conversion" was
+   not taken. *Update:* a separate converter has since been built in Settings → Tools →
+   Currency converter. It uses Frankfurter's daily reference rates, cached locally with the
+   rate date shown, and works offline from the saved rates; it never uses hard-coded rates.
+   It is a standalone tool. Budget amounts, expenses and bills are still never converted: a
+   bill in a currency other than its linked budget's is excluded from that budget's
+   safe-to-spend and disclosed instead.
 4. **Rive asset:** community `little_icons.riv` from the reference repo, artboards HOME / RULES /
    SCORE / SETTINGS. Swap path documented.
 5. **Rive version:** 0.13.20 (§8.4).

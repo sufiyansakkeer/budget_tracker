@@ -1,12 +1,17 @@
 import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
+import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/dashboard/domain/entities/committed_spending.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../../helpers/safe_to_spend_fakes.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
   @override
@@ -18,6 +23,10 @@ class FakeBudgetRepository implements BudgetRepository {
   double weekSpending = 0.0;
   MonthlyStatisticsEntity statistics = MonthlyStatisticsEntity.empty;
 
+  /// SQL statistics per budget id (period total + today's total), as
+  /// `getBudgetStatistics` returns them; falls back to [statistics].
+  Map<String, MonthlyStatisticsEntity> statisticsByBudget = {};
+
   @override
   Future<BudgetEntity?> getActiveBudget() async => budget;
 
@@ -28,7 +37,12 @@ class FakeBudgetRepository implements BudgetRepository {
   Future<void> setActiveBudgetId(String budgetId) async {}
 
   @override
-  Future<BudgetEntity?> getBudgetById(String id) async => budget;
+  Future<BudgetEntity?> getBudgetById(String id) async {
+    for (final b in budgets) {
+      if (b.id == id) return b;
+    }
+    return budget;
+  }
 
   @override
   Future<List<BudgetEntity>> getAllBudgets({
@@ -75,7 +89,7 @@ class FakeBudgetRepository implements BudgetRepository {
   Future<MonthlyStatisticsEntity> getBudgetStatistics(
     String budgetId, {
     DateTime? referenceDate,
-  }) async => statistics;
+  }) async => statisticsByBudget[budgetId] ?? statistics;
 
   @override
   Future<double> getTodaySpending(
@@ -119,17 +133,35 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async => weekSpending;
 }
 
+/// SQL-consistent statistics: [totalSpent] in the period, [today] of it
+/// dated today.
+MonthlyStatisticsEntity stats(double totalSpent, {double today = 0}) =>
+    MonthlyStatisticsEntity(
+      totalSpent: totalSpent,
+      expenseCount: totalSpent > 0 ? 1 : 0,
+      todaySpending: today,
+    );
+
 void main() {
   late FakeBudgetRepository repository;
+  late SafeSpendFakeBillRepository billRepository;
+  late SafeSpendFakeDashboardRepository dashboardRepository;
   late BudgetCalculationService calculationService;
   late GetSpendingTargetsUseCase useCase;
 
   setUp(() {
     repository = FakeBudgetRepository();
+    billRepository = SafeSpendFakeBillRepository();
+    dashboardRepository = SafeSpendFakeDashboardRepository();
     calculationService = BudgetCalculationService();
     useCase = GetSpendingTargetsUseCase(
       repository: repository,
       calculationService: calculationService,
+      safeToSpend: fakeSafeToSpendUseCase(
+        repository,
+        billRepository: billRepository,
+        dashboardRepository: dashboardRepository,
+      ),
     );
   });
 
@@ -171,6 +203,29 @@ void main() {
   });
 
   group('Daily limit', () {
+    test('an oversized budget loses only its own limit (review: one 1e17 '
+        'budget cleared every budget\'s hero)', () async {
+      BudgetEntity running(String id, double amount) => BudgetEntity(
+        id: id,
+        name: id,
+        monthlyAmount: amount,
+        remainingAmount: amount,
+        currency: 'INR',
+        startDate: DateTime(2026, 8, 1),
+        endDate: DateTime(2026, 8, 31),
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+      repository.budgets = [running('huge', 1e17), running('food', 22000)];
+
+      final result =
+          await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 10))
+              as PerBudgetSpendingTargetSuccess;
+
+      expect(result.budgetLimits.map((l) => l.budgetId), ['food']);
+      expect(result.budgetLimits.single.dailyLimit, 1000);
+    });
+
     test(
       'single 30k budget on day 10 of 31-day period with no spending',
       () async {
@@ -225,6 +280,7 @@ void main() {
         ),
       ];
       repository.todaySpending = 800;
+      repository.statisticsByBudget = {'b1': stats(800, today: 800)};
       repository.weekSpending = 3000;
 
       final result =
@@ -247,7 +303,7 @@ void main() {
           id: 'b1',
           name: 'Personal',
           monthlyAmount: 30000,
-          remainingAmount: 28500,
+          remainingAmount: 28300,
           currency: 'INR',
           startDate: DateTime(2026, 8, 1),
           endDate: DateTime(2026, 8, 31),
@@ -256,6 +312,7 @@ void main() {
         ),
       ];
       repository.todaySpending = 1700;
+      repository.statisticsByBudget = {'b1': stats(1700, today: 1700)};
       repository.weekSpending = 5000;
 
       final result =
@@ -264,12 +321,13 @@ void main() {
 
       final bl = result.budgetLimits.first;
 
-      // remainingBudget = 28500 (+1700 spent today), remainingDays = 22
-      // dailyLimit = 30200/22 ≈ 1372.73
-      expect(bl.dailyLimit, closeTo(1372.73, 0.01));
+      // SQL: 1700 spent, all of it today. remainingBudget = 28300
+      // (+1700 spent today), remainingDays = 22
+      // dailyLimit = 30000/22 ≈ 1363.64
+      expect(bl.dailyLimit, closeTo(1363.64, 0.01));
       expect(bl.spentToday, 1700);
       expect(bl.remainingToday, 0);
-      expect(bl.exceededToday, closeTo(327.27, 0.01));
+      expect(bl.exceededToday, closeTo(336.36, 0.01));
       expect(bl.status, SpendingTargetStatus.exceeded);
     });
 
@@ -289,6 +347,7 @@ void main() {
       ];
       // dailyLimit = (28500 + 1166) / 22 ≈ 1348, so 1166 ≈ 86%
       repository.todaySpending = 1166;
+      repository.statisticsByBudget = {'b1': stats(1500, today: 1166)};
       repository.weekSpending = 3000;
 
       final result =
@@ -414,6 +473,10 @@ void main() {
         ),
       ];
       repository.todaySpending = 0;
+      repository.statisticsByBudget = {
+        'food': stats(2000),
+        'travel': stats(2000),
+      };
       repository.weekSpending = 0;
 
       final result =
@@ -516,6 +579,7 @@ void main() {
         ),
       ];
       repository.todaySpending = 0;
+      repository.statisticsByBudget = {'b1': stats(25000)};
       repository.weekSpending = 0;
 
       final result =
@@ -566,6 +630,7 @@ void main() {
         ),
       ];
       repository.todaySpending = 1700; // Exceeds limit
+      repository.statisticsByBudget = {'b1': stats(1700, today: 1700)};
       repository.weekSpending = 10000;
 
       final result =
@@ -629,5 +694,130 @@ void main() {
       expect(result.currency, 'USD');
       expect(result.budgetLimits.first.currency, 'USD');
     });
+  });
+
+  group('Safe-to-spend engine', () {
+    BudgetEntity august({double remaining = 30000}) => BudgetEntity(
+      id: 'b1',
+      name: 'Personal',
+      monthlyAmount: 30000,
+      remainingAmount: remaining,
+      currency: 'INR',
+      startDate: DateTime(2026, 8, 1),
+      endDate: DateTime(2026, 8, 31),
+      createdAt: DateTime(2026, 8, 1),
+      updatedAt: DateTime(2026, 8, 1),
+    );
+
+    BillEntity rent({bool isPaid = false}) => BillEntity(
+      id: 'rent',
+      title: 'Rent',
+      amount: 2200,
+      currency: 'INR',
+      category: BillCategory.rent,
+      dueDate: DateTime(2026, 8, 20),
+      isPaid: isPaid,
+      createdAt: DateTime(2026, 8, 1),
+      updatedAt: DateTime(2026, 8, 1),
+      budgetId: 'b1',
+    );
+
+    test(
+      'a linked bill lowers the daily limit and the entity is attached',
+      () async {
+        repository.budgets = [august()];
+        billRepository.store['rent'] = rent();
+
+        final result =
+            await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 10))
+                as PerBudgetSpendingTargetSuccess;
+        final bl = result.budgetLimits.single;
+
+        // (30000 − 2200) ÷ 22
+        expect(bl.dailyLimit, closeTo(27800 / 22, 1e-9));
+        expect(bl.remainingToday, bl.dailyLimit);
+        expect(bl.remainingBudget, 30000);
+        expect(bl.safeToSpend, isNotNull);
+        expect(bl.safeToSpend!.dailySafeToSpend, bl.dailyLimit);
+        expect(bl.safeToSpend!.upcomingCommitments, 2200);
+      },
+    );
+
+    test(
+      'paying the bill today keeps the limit and is not spent today',
+      () async {
+        repository.budgets = [august(remaining: 27800)];
+        billRepository.store['rent'] = rent(isPaid: true);
+        repository.statisticsByBudget = {'b1': stats(2200, today: 2200)};
+        dashboardRepository.committed['b1'] = const CommittedSpending(
+          periodTotal: 2200,
+          todayTotal: 2200,
+        );
+
+        final result =
+            await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 10))
+                as PerBudgetSpendingTargetSuccess;
+        final bl = result.budgetLimits.single;
+
+        expect(bl.dailyLimit, closeTo(27800 / 22, 1e-9));
+        expect(bl.spentToday, 0);
+        expect(bl.exceededToday, 0);
+        expect(bl.isOverLimit, isFalse);
+        expect(bl.totalSpent, 2200);
+      },
+    );
+
+    test(
+      'totals come from SQL statistics, not the stored remaining column',
+      () async {
+        // Stale column says 20000 spent; the expenses say 800.
+        repository.budgets = [august(remaining: 10000)];
+        repository.statisticsByBudget = {'b1': stats(800)};
+
+        final result =
+            await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 10))
+                as PerBudgetSpendingTargetSuccess;
+        final bl = result.budgetLimits.single;
+
+        expect(bl.totalSpent, 800);
+        expect(bl.remainingBudget, 29200);
+        expect(bl.dailyLimit, closeTo(29200 / 22, 1e-9));
+      },
+    );
+
+    test(
+      'the daily limit is never negative once the budget is overspent',
+      () async {
+        repository.budgets = [august(remaining: -1000)];
+        repository.statisticsByBudget = {'b1': stats(31000, today: 100)};
+
+        final result =
+            await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 10))
+                as PerBudgetSpendingTargetSuccess;
+        final bl = result.budgetLimits.single;
+
+        expect(bl.dailyLimit, 0);
+        expect(bl.remainingToday, 0);
+        expect(bl.exceededToday, 100);
+        expect(bl.isOverLimit, isTrue);
+        expect(bl.remainingBudget, -1000);
+        expect(result.combinedDailyTarget, 0);
+      },
+    );
+
+    test(
+      'bills and committed payments are read once for all budgets',
+      () async {
+        repository.budgets = [
+          august(),
+          august().copyWith(id: 'b2', name: 'Second'),
+        ];
+
+        await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 10));
+
+        expect(billRepository.getBillsCalls, 1);
+        expect(dashboardRepository.committedCalls, 1);
+      },
+    );
   });
 }

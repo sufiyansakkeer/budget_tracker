@@ -7,6 +7,7 @@ import '../../../budget/domain/services/budget_calculation_service.dart';
 import '../entities/budget_daily_limit_entity.dart';
 import '../entities/spending_target_entity.dart';
 import '../entities/spending_target_status.dart';
+import 'get_safe_to_spend_usecase.dart';
 
 // ---------------------------------------------------------------------------
 // Legacy result types (kept for backward compatibility with SpendingTargetBloc)
@@ -85,20 +86,30 @@ class PerBudgetSpendingTargetError extends PerBudgetSpendingTargetResult {
 /// Calculates daily and weekly spending targets — both per-budget and
 /// combined — across all active budgets.
 ///
-/// Reuses [BudgetCalculationService] as the single source of truth for
-/// all calculations.
+/// Today's Safe Spending for each running budget comes from
+/// [GetSafeToSpendUseCase] (bills, money kept aside and the savings goal
+/// protected); [BudgetCalculationService] remains the single source of the
+/// arithmetic.
 class GetSpendingTargetsUseCase {
   final BudgetRepository repository;
   final BudgetCalculationService calculationService;
 
+  // Private so test doubles that implement this class need not provide it.
+  final GetSafeToSpendUseCase _safeToSpend;
+
   const GetSpendingTargetsUseCase({
     required this.repository,
     required this.calculationService,
-  });
+    required GetSafeToSpendUseCase safeToSpend,
+  }) : _safeToSpend = safeToSpend;
 
   // ── Legacy combined target (kept for backward compatibility) ──────────────
 
   /// Returns combined daily and weekly targets across all active budgets.
+  ///
+  /// Legacy formula over the stored remaining amount: it ignores bills,
+  /// money kept aside and savings goals, and pools budgets. No production
+  /// code calls it; kept only because existing test doubles override it.
   @Deprecated('Use callPerBudget() for per-budget daily limits')
   Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
     final now = referenceDate ?? DateTime.now();
@@ -235,10 +246,17 @@ class GetSpendingTargetsUseCase {
   /// - Expenses assigned to that budget
   /// - Date range
   ///
-  /// Today's Safe Spending comes from
-  /// [BudgetCalculationService.calculateTodaySafeSpending]:
-  /// (remaining + spent today) ÷ remaining days, so the amount is fixed for
-  /// the day and today's expenses count against it instead of shrinking it.
+  /// Today's Safe Spending comes from [GetSafeToSpendUseCase]: what is free
+  /// to spend after upcoming bills, money kept aside and the savings goal,
+  /// plus today's own spending, ÷ remaining days (never negative). The
+  /// amount is fixed for the day and today's expenses count against it
+  /// instead of shrinking it. With nothing set aside it equals
+  /// [BudgetCalculationService.calculateTodaySafeSpending] over the SQL
+  /// remaining. Each limit carries the full engine result in
+  /// [BudgetDailyLimitEntity.safeToSpend].
+  ///
+  /// The weekly fields and [PerBudgetSpendingTargetSuccess.combinedDailyTarget]
+  /// are legacy figures that ignore commitments.
   Future<PerBudgetSpendingTargetResult> callPerBudget({
     DateTime? referenceDate,
   }) async {
@@ -259,6 +277,14 @@ class GetSpendingTargetsUseCase {
       return const PerBudgetSpendingTargetNoBudget();
     }
 
+    // One evaluation for every running budget: one bills read, one
+    // committed-spending read, the same day for all.
+    final safeToSpend = await _safeToSpend.callForBudgets(
+      activeBudgets,
+      referenceDate: today,
+      allBudgets: allBudgets,
+    );
+
     // Week boundaries (Monday → Sunday).
     final weekday = today.weekday;
     final weekStart = today.subtract(Duration(days: weekday - 1));
@@ -269,46 +295,34 @@ class GetSpendingTargetsUseCase {
     var currency = 'INR';
 
     for (final budget in activeBudgets) {
+      // A budget the engine could not evaluate gets no limit; the others
+      // keep theirs.
+      final safe = safeToSpend[budget.id];
+      if (safe == null) continue;
       currency = budget.currency;
 
-      // ── Daily target for THIS budget ──────────────────────────────────
-      final remainingDays = calculationService.calculateRemainingDays(
-        referenceDate: today,
-        startDate: budget.startDate,
-        endDate: budget.endDate,
-      );
+      // ── Daily target for THIS budget (from the safe-to-spend engine) ──
+      final remainingDays = safe.remainingDays;
 
-      final totalSpent = budget.monthlyAmount - budget.remainingAmount;
-      final budgetRemaining = calculationService.calculateRemainingBudget(
-        monthlyAmount: budget.monthlyAmount,
-        totalSpent: totalSpent,
-      );
+      // SQL period total, not the stored remaining column.
+      final totalSpent = safe.periodSpent;
+      final budgetRemaining = safe.availableBalance;
 
-      // Today's spending for THIS budget only.
-      final spentToday = await repository.getTodaySpending(
-        budget.id,
-        referenceDate: today,
-      );
+      // Today's spending for THIS budget only, excluding payments of bills
+      // it had set aside (already deducted before they were paid).
+      final spentToday = safe.todayDiscretionary;
 
-      final dailyLimit = calculationService.calculateTodaySafeSpending(
-        remainingBudget: budgetRemaining,
-        todaySpending: spentToday,
-        remainingDays: remainingDays,
-      );
+      // Never negative.
+      final dailyLimit = safe.dailySafeToSpend;
 
       combinedDailyTarget += dailyLimit;
 
-      final remainingToday = (dailyLimit - spentToday).clamp(
-        0.0,
-        double.infinity,
-      );
-      final exceededToday = spentToday > dailyLimit
-          ? spentToday - dailyLimit
-          : 0.0;
+      final remainingToday = safe.remainingToday;
+      final exceededToday = safe.overToday;
       final progress = dailyLimit > 0
           ? (spentToday / dailyLimit).clamp(0.0, 1.0)
           : 0.0;
-      final isOverLimit = spentToday > dailyLimit;
+      final isOverLimit = exceededToday > 0;
       final status = _targetStatus(spentToday, dailyLimit);
 
       // ── Budget health status ──────────────────────────────────────────
@@ -386,6 +400,7 @@ class GetSpendingTargetsUseCase {
           currency: currency,
           startDate: budget.startDate,
           endDate: budget.endDate,
+          safeToSpend: safe,
         ),
       );
     }

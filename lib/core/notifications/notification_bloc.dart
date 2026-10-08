@@ -16,9 +16,9 @@ import 'notification_state.dart';
 /// permission is denied or scheduling fails.
 ///
 /// The morning notification's text is computed when it is scheduled, so the
-/// bloc also listens to expense and budget changes and re-schedules (after a
-/// short debounce) to keep "Today's Safe Spending" in the notification
-/// current.
+/// bloc also listens to expense, budget and bill changes (bills set aside
+/// from a budget change its safe amount) and re-schedules (after a short
+/// debounce) to keep "Today's Safe Spending" in the notification current.
 class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
   final NotificationService _notificationService;
   final LoadSettingsUseCase _loadSettingsUseCase;
@@ -27,6 +27,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
 
   StreamSubscription<void>? _expenseSubscription;
   StreamSubscription<void>? _budgetSubscription;
+  StreamSubscription<void>? _billSubscription;
   Timer? _rescheduleTimer;
 
   NotificationBloc({
@@ -49,6 +50,9 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     _budgetSubscription = RefreshBuses.budgets.changes.listen(
       (_) => _queueReschedule(),
     );
+    _billSubscription = RefreshBuses.bills.changes.listen(
+      (_) => _queueReschedule(),
+    );
   }
 
   /// Collapses bursts of changes (e.g. a restore) into one re-schedule.
@@ -65,6 +69,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     _rescheduleTimer?.cancel();
     _expenseSubscription?.cancel();
     _budgetSubscription?.cancel();
+    _billSubscription?.cancel();
     return super.close();
   }
 

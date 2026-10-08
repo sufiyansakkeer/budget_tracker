@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show InsertMode;
+import 'package:drift/drift.dart' show InsertMode, Value;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:monivo/core/database/app_database.dart';
@@ -389,6 +389,192 @@ void main() {
         result.checkedAt.isBefore(after.add(const Duration(seconds: 1))),
         isTrue,
       );
+    });
+
+    group('safe-to-spend links (schema v8)', () {
+      Future<void> insertBudget(
+        String id, {
+        String currency = 'OMR',
+        double? reserved,
+        double? savings,
+      }) async {
+        await database
+            .into(database.budgets)
+            .insert(
+              BudgetsCompanion.insert(
+                id: id,
+                name: 'Budget $id',
+                monthlyAmount: 500,
+                remainingAmount: 500,
+                currency: currency,
+                startDate: DateTime(2026, 8, 1),
+                endDate: DateTime(2026, 8, 31),
+                reservedAmount: Value(reserved),
+                savingsTarget: Value(savings),
+              ),
+            );
+      }
+
+      Future<void> insertBill(
+        String id, {
+        String? budgetId,
+        String currency = 'OMR',
+        bool isPaid = false,
+        bool isRecurring = false,
+        String recurrenceType = 'none',
+      }) async {
+        await database
+            .into(database.bills)
+            .insert(
+              BillsCompanion.insert(
+                id: id,
+                title: 'Bill $id',
+                amount: 50,
+                currency: currency,
+                category: 'utilities',
+                dueDate: DateTime(2026, 8, 20),
+                budgetId: Value(budgetId),
+                isPaid: Value(isPaid),
+                isRecurring: Value(isRecurring),
+                recurrenceType: Value(recurrenceType),
+              ),
+            );
+      }
+
+      Future<void> insertBillExpense(String id, String billId) async {
+        await seedFoodCategory();
+        await database
+            .into(database.expenses)
+            .insert(
+              ExpensesCompanion.insert(
+                id: id,
+                budgetId: 'b1',
+                amount: 50,
+                categoryId: 'food',
+                date: DateTime(2026, 8, 20),
+                billId: Value(billId),
+              ),
+            );
+      }
+
+      List<IntegrityIssue> issuesFor(IntegrityCheckResult r, String id) =>
+          r.issues.where((i) => i.entityId == id).toList();
+
+      test('valid links, unset and zero set-asides pass', () async {
+        await insertBudget('b1');
+        await insertBudget('b2', reserved: 0, savings: 25.5);
+        await insertBill('bill-linked', budgetId: 'b1');
+        await insertBill('bill-free');
+        await insertBill('bill-paid', budgetId: 'b1', isPaid: true);
+        await insertBillExpense('e1', 'bill-paid');
+
+        final result = await service.runFullCheck();
+        expect(result.issues, isEmpty);
+      });
+
+      test('detects a bill linked to a non-existent budget', () async {
+        await insertBill('bill-orphan', budgetId: 'gone');
+
+        final issues = issuesFor(await service.runFullCheck(), 'bill-orphan');
+        expect(issues, hasLength(1));
+        expect(issues.single.table, 'bills');
+        expect(issues.single.description, contains('gone'));
+      });
+
+      test('detects a negative reserve or savings goal', () async {
+        await insertBudget('b-reserve', reserved: -1);
+        await insertBudget('b-savings', savings: -0.5);
+
+        final result = await service.runFullCheck();
+        expect(issuesFor(result, 'b-reserve'), hasLength(1));
+        expect(issuesFor(result, 'b-savings'), hasLength(1));
+        expect(
+          issuesFor(result, 'b-reserve').single.description,
+          contains('set-aside'),
+        );
+      });
+
+      test('detects a linked bill in another currency', () async {
+        await insertBudget('b1');
+        await insertBill('bill-usd', budgetId: 'b1', currency: 'USD');
+
+        final issues = issuesFor(await service.runFullCheck(), 'bill-usd');
+        expect(issues, hasLength(1));
+        expect(issues.single.description, contains('USD'));
+        expect(issues.single.description, contains('OMR'));
+      });
+
+      test('detects an unpaid one-time bill with a payment expense', () async {
+        await insertBudget('b1');
+        await insertBill('bill-once', budgetId: 'b1');
+        await insertBillExpense('e1', 'bill-once');
+
+        final issues = issuesFor(await service.runFullCheck(), 'bill-once');
+        expect(issues, hasLength(1));
+        expect(issues.single.description, contains('payment expense'));
+      });
+
+      test(
+        'an unpaid recurring bill with payment expenses is not flagged',
+        () async {
+          await insertBudget('b1');
+          await insertBill(
+            'bill-rent',
+            budgetId: 'b1',
+            isRecurring: true,
+            recurrenceType: 'monthly',
+          );
+          await insertBillExpense('e1', 'bill-rent');
+
+          expect((await service.runFullCheck()).issues, isEmpty);
+        },
+      );
+
+      test('a paid recurring bill edited into a one-time bill is not flagged '
+          '(review: its earlier payment expense is valid history)', () async {
+        await insertBudget('b1');
+        await seedFoodCategory();
+        // The bill as it is now: edited into a one-time bill (the last
+        // instalment), unpaid.
+        await insertBill('bill-last', budgetId: 'b1');
+        // Paying the monthly occurrence wrote a payment record and an
+        // expense with the same created_at; the bill advanced, unpaid.
+        final paidAt = DateTime(2026, 8, 5, 9, 30);
+        await database
+            .into(database.billPayments)
+            .insert(
+              BillPaymentsCompanion.insert(
+                id: 'p1',
+                billId: 'bill-last',
+                amount: 50,
+                currency: 'OMR',
+                paidDate: paidAt,
+                createdAt: Value(paidAt),
+              ),
+            );
+        await database
+            .into(database.expenses)
+            .insert(
+              ExpensesCompanion.insert(
+                id: 'e1',
+                budgetId: 'b1',
+                amount: 50,
+                categoryId: 'food',
+                date: DateTime(2026, 8, 5),
+                createdAt: Value(paidAt),
+                billId: const Value('bill-last'),
+              ),
+            );
+
+        expect(issuesFor(await service.runFullCheck(), 'bill-last'), isEmpty);
+      });
+
+      test('a dangling expenses.bill_id is allowed by design', () async {
+        await insertBudget('b1');
+        await insertBillExpense('e1', 'deleted-bill');
+
+        expect((await service.runFullCheck()).issues, isEmpty);
+      });
     });
 
     test('IntegrityIssue toString formats correctly', () {

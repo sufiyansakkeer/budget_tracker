@@ -32,6 +32,10 @@ abstract class ExpenseRepository {
     required List<String> budgetIds,
   });
 
+  /// Returns the expenses that settled an occurrence of bill [billId]
+  /// (`bill_id` set), in any budget and on any date, newest first.
+  Future<List<ExpenseEntity>> getExpensesForBill(String billId);
+
   /// Returns all available categories.
   Future<List<ExpenseCategory>> getCategories();
 }

@@ -8,10 +8,12 @@ import '../../../budget/domain/repository/budget_repository.dart';
 import '../../../budget/domain/usecases/get_budget_summary_usecase.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/repository/bill_repository.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/spending_target_entity.dart';
 import '../../domain/entities/spending_target_status.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
+import '../../domain/usecases/get_safe_to_spend_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
 import '../../domain/usecases/get_spending_targets_usecase.dart';
 import '../../../../core/events/refresh_bus.dart';
@@ -23,17 +25,25 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetRecentExpensesUseCase getRecentExpensesUseCase;
   final GetSmartInsightsUseCase getSmartInsightsUseCase;
   final GetSpendingTargetsUseCase getSpendingTargetsUseCase;
+  final GetSafeToSpendUseCase getSafeToSpendUseCase;
   final BudgetRepository budgetRepository;
   final BillRepository billRepository;
+
+  /// Source of "today" (time of day stripped once per load). Tests inject a
+  /// fixed clock.
+  final DateTime Function() _clock;
 
   DashboardBloc({
     required this.getBudgetSummaryUseCase,
     required this.getRecentExpensesUseCase,
     required this.getSmartInsightsUseCase,
     required this.getSpendingTargetsUseCase,
+    required this.getSafeToSpendUseCase,
     required this.budgetRepository,
     required this.billRepository,
-  }) : super(const DashboardInitial()) {
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now,
+       super(const DashboardInitial()) {
     on<DashboardLoadData>(_onLoadData);
     on<DashboardRefresh>(_onRefresh);
 
@@ -69,6 +79,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     return super.close();
   }
 
+  /// Whether a dashboard (running or not) is on screen, so a refresh keeps
+  /// it instead of flashing the skeleton or the error view.
+  bool get _hasContent =>
+      state is DashboardLoaded || state is DashboardNotRunning;
+
   /// Incremented by every load. Three buses can each trigger a refresh
   /// while another is in flight; only the latest load may publish, or an
   /// older result landing last would make the numbers animate backwards.
@@ -90,7 +105,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // Keep the current content on screen while refreshing so the dashboard
       // never flashes back to a skeleton after adding an expense. Only the
       // first load shows the skeleton.
-      if (state is! DashboardLoaded) {
+      if (!_hasContent) {
         emit(const DashboardLoading());
       }
       await _load(emit);
@@ -116,7 +131,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         error: error,
         stackTrace: stackTrace,
       );
-      if (token != _loadToken || state is DashboardLoaded) return;
+      if (token != _loadToken || _hasContent) return;
       emit(DashboardError(message: 'Could not load your dashboard: $error'));
     }
   }
@@ -125,6 +140,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit, {
     required bool Function() isCurrent,
   }) async {
+    // One "today" for every figure in this load: the summary, every
+    // budget's safe-to-spend, recent expenses and upcoming bills.
+    final now = _clock();
+    final today = DateTime(now.year, now.month, now.day);
+
     final activeId = await budgetRepository.getActiveBudgetId();
     if (!isCurrent()) return;
     if (activeId == null) {
@@ -132,47 +152,61 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       return;
     }
 
-    final budgetResult = await getBudgetSummaryUseCase(budgetId: activeId);
+    final budgetResult = await getBudgetSummaryUseCase(
+      budgetId: activeId,
+      referenceDate: today,
+    );
     if (!isCurrent()) return;
 
     switch (budgetResult) {
       case BudgetError(:final failure):
+        if (failure.type == BudgetErrorType.invalidDate) {
+          // Today is outside the active budget's period.
+          await _loadNotRunning(
+            emit,
+            activeId: activeId,
+            today: today,
+            isCurrent: isCurrent,
+          );
+          return;
+        }
         emit(_resolveErrorState(failure));
         return;
 
       case BudgetSuccess(:final data):
         final recentExpenses = await getRecentExpensesUseCase(
           budgetId: activeId,
+          referenceDate: today,
         );
-
-        // Load upcoming bills for dashboard summary.
-        List<BillEntity> upcomingBills = [];
-        try {
-          // Soonest first, straight from the due-date index.
-          upcomingBills = await billRepository.getUpcomingBills();
-        } catch (_) {
-          // Bills unavailable — not critical for dashboard.
-        }
+        final upcomingBills = await _upcomingBills(today);
+        final perBudget = await _perBudgetLimits(today);
 
         // Load per-budget daily spending limits (primary data source).
         List<BudgetDailyLimitEntity> budgetDailyLimits = [];
         SpendingTargetEntity? spendingTarget;
-        try {
-          final perBudgetResult = await getSpendingTargetsUseCase
-              .callPerBudget();
-          if (perBudgetResult is PerBudgetSpendingTargetSuccess) {
-            budgetDailyLimits = perBudgetResult.budgetLimits;
-            // Legacy target for the ACTIVE budget only (never combined).
-            spendingTarget = _deriveSpendingTarget(perBudgetResult, activeId);
+        SafeToSpendEntity? activeSafeToSpend;
+        if (perBudget != null) {
+          budgetDailyLimits = perBudget.budgetLimits;
+          // Legacy target for the ACTIVE budget only (never combined).
+          spendingTarget = _deriveSpendingTarget(perBudget, activeId);
+          for (final limit in budgetDailyLimits) {
+            if (limit.budgetId == activeId) {
+              activeSafeToSpend = limit.safeToSpend;
+              break;
+            }
           }
-        } catch (_) {
-          // Spending targets unavailable — not critical for dashboard.
         }
+
+        // Archived budgets get no daily figure. Tell that apart from figures
+        // that failed to compute, which a retry can fix.
+        final activeArchived =
+            activeSafeToSpend == null && await _isArchived(activeId);
 
         final insights = getSmartInsightsUseCase(
           data,
           spendingTarget: spendingTarget,
           budgetDailyLimits: budgetDailyLimits,
+          safeToSpend: activeSafeToSpend,
         );
 
         // A newer load started while this one was awaiting; let it publish.
@@ -187,8 +221,85 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             spendingTarget: spendingTarget,
             budgetDailyLimits: budgetDailyLimits,
             activeBudgetId: activeId,
+            activeBudgetArchived: activeArchived,
           ),
         );
+    }
+  }
+
+  /// Whether budget [id] is archived; false when it cannot be read.
+  Future<bool> _isArchived(String id) async {
+    try {
+      return (await budgetRepository.getBudgetById(id))?.isArchived ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The active budget has not started or has ended: show the engine's
+  /// result for it (no daily figure) next to the budgets running today.
+  Future<void> _loadNotRunning(
+    Emitter<DashboardState> emit, {
+    required String activeId,
+    required DateTime today,
+    required bool Function() isCurrent,
+  }) async {
+    final result = await getSafeToSpendUseCase(
+      budgetId: activeId,
+      referenceDate: today,
+    );
+    if (!isCurrent()) return;
+
+    switch (result) {
+      case BudgetError(:final failure):
+        emit(_resolveErrorState(failure));
+      case BudgetSuccess(:final data):
+        final recentExpenses = await getRecentExpensesUseCase(
+          budgetId: activeId,
+          referenceDate: today,
+        );
+        final upcomingBills = await _upcomingBills(today);
+        final perBudget = await _perBudgetLimits(today);
+        if (!isCurrent()) return;
+
+        emit(
+          DashboardNotRunning(
+            activeBudgetId: activeId,
+            safeToSpend: data,
+            recentExpenses: recentExpenses,
+            upcomingBills: upcomingBills,
+            otherBudgetLimits: [
+              for (final limit in perBudget?.budgetLimits ?? const [])
+                if (limit.budgetId != activeId) limit,
+            ],
+          ),
+        );
+    }
+  }
+
+  /// The next few unpaid bills, soonest first; empty when bills cannot be
+  /// read (not critical for the dashboard).
+  Future<List<BillEntity>> _upcomingBills(DateTime today) async {
+    try {
+      // Soonest first, straight from the due-date index.
+      return await billRepository.getUpcomingBills(from: today);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Every running budget's daily limit (each carrying its safe-to-spend
+  /// entity), or null when unavailable (not critical for the dashboard).
+  Future<PerBudgetSpendingTargetSuccess?> _perBudgetLimits(
+    DateTime today,
+  ) async {
+    try {
+      final result = await getSpendingTargetsUseCase.callPerBudget(
+        referenceDate: today,
+      );
+      return result is PerBudgetSpendingTargetSuccess ? result : null;
+    } catch (_) {
+      return null;
     }
   }
 

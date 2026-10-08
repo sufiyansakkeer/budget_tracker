@@ -1,27 +1,30 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
-import '../../../expenses/domain/entities/expense_entity.dart';
-import '../../../expenses/presentation/bloc/expense_bloc.dart';
-import '../../../expenses/presentation/bloc/expense_event.dart';
+import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
 import '../../domain/repository/bill_repository.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
+import 'bill_budget_link.dart';
+import 'bill_payment_dialogs.dart';
 import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/navigation/push_unique.dart';
@@ -40,12 +43,51 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
   List<BillPaymentRecord> _payments = const [];
   bool _paymentsFailed = false;
   bool _deleting = false;
+  Map<String, BudgetEntity> _budgetsById = const {};
+  bool _budgetsLoaded = false;
+  StreamSubscription<void>? _budgetSubscription;
 
   @override
   void initState() {
     super.initState();
     context.read<BillBloc>().add(BillLoadById(widget.billId));
     _loadPayments();
+    _loadBudgets();
+    _budgetSubscription = RefreshBuses.budgets.changes.listen((_) {
+      if (mounted) _loadBudgets();
+    });
+  }
+
+  @override
+  void dispose() {
+    _budgetSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Names the budget the bill is paid from.
+  Future<void> _loadBudgets() async {
+    try {
+      final budgets = await getIt<ManageBudgetUseCase>().getAll();
+      if (!mounted) return;
+      setState(() {
+        _budgetsById = {for (final b in budgets) b.id: b};
+        _budgetsLoaded = true;
+      });
+    } catch (_) {
+      // The "Paid from" line falls back to a neutral label.
+    }
+  }
+
+  /// "Paid from" value: the budget label, "Not linked", or a fallback when
+  /// the budget can't be named.
+  String _paidFromLabel(BillEntity bill) {
+    final id = bill.budgetId;
+    if (id == null) return BillBudgetLink.notLinked;
+    final budget = _budgetsById[id];
+    if (budget != null) {
+      return BillBudgetLink.budgetLabel(budget, DateTime.now());
+    }
+    return _budgetsLoaded ? 'A budget that no longer exists' : 'A budget';
   }
 
   Future<void> _loadPayments() async {
@@ -60,93 +102,6 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
       });
     } catch (_) {
       if (mounted) setState(() => _paymentsFailed = true);
-    }
-  }
-
-  Future<void> _markPaid(BillEntity bill) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Mark as paid?',
-      message: bill.isRecurring
-          ? '"${bill.title}" will be marked paid and its due date moves to '
-                'the next ${bill.recurrenceType.label.toLowerCase()} '
-                'occurrence.'
-          : '"${bill.title}" will be marked as paid.',
-      confirmLabel: 'Mark paid',
-      icon: Icons.check_circle_rounded,
-    );
-    if (confirmed && mounted) {
-      context.read<BillBloc>().add(BillMarkPaid(bill.id));
-    }
-  }
-
-  Future<void> _markPaidAndAddExpense(BillEntity bill) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Mark paid & add expense?',
-      message:
-          '"${bill.title}" will be marked paid and an expense of '
-          '${CurrencyFormatter.format(bill.amount, code: bill.currency)} '
-          'will be recorded in your active budget.',
-      confirmLabel: 'Confirm',
-      icon: Icons.receipt_long_rounded,
-    );
-    if (!confirmed || !mounted) return;
-
-    context.read<BillBloc>().add(BillMarkPaid(bill.id));
-
-    // Create the corresponding expense through the existing expense system.
-    final now = DateTime.now();
-    final expense = ExpenseEntity(
-      id: const Uuid().v4(),
-      budgetId: '', // Resolved to the active budget by ExpenseBloc.
-      amount: bill.amount,
-      categoryId: 'bills',
-      note: 'Bill: ${bill.title}',
-      date: now,
-      time: now,
-      createdAt: now,
-      updatedAt: now,
-    );
-    try {
-      getIt<ExpenseBloc>().add(ExpenseCreate(expense));
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Marked paid. Expense added to your active budget.',
-              ),
-            ),
-          );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text(
-                "Marked paid, but the expense couldn't be added. Add it from "
-                'Expenses.',
-              ),
-            ),
-          );
-      }
-    }
-  }
-
-  Future<void> _markUnpaid(BillEntity bill) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Mark as unpaid?',
-      message: '"${bill.title}" will go back to unpaid.',
-      confirmLabel: 'Mark unpaid',
-      icon: Icons.undo_rounded,
-    );
-    if (confirmed && mounted) {
-      context.read<BillBloc>().add(BillMarkUnpaid(bill.id));
     }
   }
 
@@ -236,17 +191,31 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
                   context.canPop() ? context.pop() : context.go('/app/bills'),
             );
           } else {
+            final bill = state.selectedBill!;
+            final linkedBudget = bill.budgetId == null
+                ? null
+                : _budgetsById[bill.budgetId];
             child = _Details(
               key: const ValueKey('details'),
-              bill: state.selectedBill!,
+              bill: bill,
+              paidFrom: _paidFromLabel(bill),
               payments: _payments,
               paymentsFailed: _paymentsFailed,
               busy: state.isBusy,
-              onMarkPaid: () => _markPaid(state.selectedBill!),
+              onMarkPaid: () => bill.budgetId == null
+                  ? BillPaymentDialogs.markPaid(context, bill)
+                  : BillPaymentDialogs.paidOutsideBudget(
+                      context,
+                      bill,
+                      budget: linkedBudget,
+                      today: DateTime.now(),
+                    ),
               onMarkPaidAndExpense: () =>
-                  _markPaidAndAddExpense(state.selectedBill!),
-              onMarkUnpaid: () => _markUnpaid(state.selectedBill!),
-              onDelete: () => _confirmDelete(state.selectedBill!),
+                  BillPaymentDialogs.payWithExpense(context, bill),
+              onMarkUnpaid: () => BillPaymentDialogs.markUnpaid(context, bill),
+              onChangeBudget: () =>
+                  context.pushUnique('/app/bills/edit/${bill.id}'),
+              onDelete: () => _confirmDelete(bill),
             );
           }
           return AppStateSwitcher(child: child);
@@ -258,23 +227,30 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
 
 class _Details extends StatelessWidget {
   final BillEntity bill;
+  final String paidFrom;
   final List<BillPaymentRecord> payments;
   final bool paymentsFailed;
   final bool busy;
+
+  /// Plain mark-paid: "Mark as paid" for an unlinked bill, "Paid outside
+  /// this budget" for a linked one.
   final VoidCallback onMarkPaid;
   final VoidCallback onMarkPaidAndExpense;
   final VoidCallback onMarkUnpaid;
+  final VoidCallback onChangeBudget;
   final VoidCallback onDelete;
 
   const _Details({
     super.key,
     required this.bill,
+    required this.paidFrom,
     required this.payments,
     required this.paymentsFailed,
     required this.busy,
     required this.onMarkPaid,
     required this.onMarkPaidAndExpense,
     required this.onMarkUnpaid,
+    required this.onChangeBudget,
     required this.onDelete,
   });
 
@@ -284,6 +260,7 @@ class _Details extends StatelessWidget {
     final colors = context.appColors;
     final status = bill.status;
     final color = BillVisuals.colorFor(context, status);
+    final linked = bill.budgetId != null;
 
     return ListView(
       padding: AppSpacing.pagePadding,
@@ -376,6 +353,18 @@ class _Details extends StatelessWidget {
           ),
           child: Column(
             children: [
+              _FactRow(
+                key: const ValueKey('paidFrom'),
+                icon: linked
+                    ? Icons.account_balance_wallet_outlined
+                    : Icons.link_off_rounded,
+                label: 'Paid from',
+                value: paidFrom,
+                trailing: TextButton(
+                  onPressed: busy ? null : onChangeBudget,
+                  child: const Text('Change'),
+                ),
+              ),
               _FactRow(
                 icon: Icons.calendar_today_outlined,
                 label: 'Due date',
@@ -504,8 +493,35 @@ class _Details extends StatelessWidget {
               alignment: Alignment.topCenter,
               children: [...previous, if (current != null) current],
             ),
-            child: !bill.isPaid
+            child: bill.isPaid
+                ? OutlinedButton.icon(
+                    key: const ValueKey('paidActions'),
+                    onPressed: busy ? null : onMarkUnpaid,
+                    icon: const Icon(Icons.undo_rounded),
+                    label: const Text('Mark as unpaid'),
+                  )
+                // A linked bill is paid from its budget by default: plain
+                // "paid" would release the money set aside without
+                // spending it, so it becomes the secondary action.
+                : linked
                 ? Column(
+                    key: const ValueKey('linkedUnpaidActions'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: busy ? null : onMarkPaidAndExpense,
+                        icon: const Icon(Icons.receipt_long_rounded),
+                        label: const Text('Mark paid & record expense'),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      OutlinedButton.icon(
+                        onPressed: busy ? null : onMarkPaid,
+                        icon: const Icon(Icons.check_circle_outline_rounded),
+                        label: const Text('Paid outside this budget'),
+                      ),
+                    ],
+                  )
+                : Column(
                     key: const ValueKey('unpaidActions'),
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -521,12 +537,6 @@ class _Details extends StatelessWidget {
                         label: const Text('Mark paid & add expense'),
                       ),
                     ],
-                  )
-                : OutlinedButton.icon(
-                    key: const ValueKey('paidActions'),
-                    onPressed: busy ? null : onMarkUnpaid,
-                    icon: const Icon(Icons.undo_rounded),
-                    label: const Text('Mark as unpaid'),
                   ),
           ),
         ),
@@ -559,12 +569,15 @@ class _FactRow extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
+  final Widget? trailing;
 
   const _FactRow({
+    super.key,
     required this.icon,
     required this.label,
     required this.value,
     this.valueColor,
+    this.trailing,
   });
 
   @override
@@ -599,6 +612,10 @@ class _FactRow extends StatelessWidget {
               ],
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            trailing!,
+          ],
         ],
       ),
     );

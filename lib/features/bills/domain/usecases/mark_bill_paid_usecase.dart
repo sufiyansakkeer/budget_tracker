@@ -17,6 +17,23 @@ class MarkBillPaidUseCase {
 
   MarkBillPaidUseCase({required this.repository});
 
+  /// The bill after its current occurrence is paid at [now]: a recurring
+  /// bill moves to its next due date and stays unpaid; a one-time bill is
+  /// marked paid. Shared with `PayBillUseCase` so both pay the same way.
+  static BillEntity settle(BillEntity bill, DateTime now) {
+    if (bill.isRecurring && bill.recurrenceType != RecurrenceType.none) {
+      // For recurring bills: advance the due date, keep active.
+      return bill.copyWith(
+        dueDate: bill.nextDueDate,
+        isPaid: false,
+        clearPaidDate: true,
+        updatedAt: now,
+      );
+    }
+    // For one-time bills: mark as paid.
+    return bill.copyWith(isPaid: true, paidDate: now, updatedAt: now);
+  }
+
   /// Returns the updated bill (next occurrence for recurring, or marked paid).
   Future<BillResult<BillEntity>> call(String billId) async {
     try {
@@ -39,23 +56,7 @@ class MarkBillPaidUseCase {
         createdAt: now,
       );
 
-      BillEntity updatedBill;
-      if (bill.isRecurring && bill.recurrenceType != RecurrenceType.none) {
-        // For recurring bills: advance the due date, keep active.
-        updatedBill = bill.copyWith(
-          dueDate: bill.nextDueDate,
-          isPaid: false,
-          clearPaidDate: true,
-          updatedAt: now,
-        );
-      } else {
-        // For one-time bills: mark as paid.
-        updatedBill = bill.copyWith(
-          isPaid: true,
-          paidDate: now,
-          updatedAt: now,
-        );
-      }
+      final updatedBill = settle(bill, now);
 
       // Atomic: payment record + bill update
       await repository.transaction(() async {

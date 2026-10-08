@@ -4,6 +4,9 @@ import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 
 import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
+import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
+import 'package:monivo/features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
@@ -19,6 +22,7 @@ import 'package:monivo/features/settings/domain/entities/notification_settings.d
 import 'package:monivo/features/settings/domain/services/notification_service.dart';
 
 @GenerateMocks([FlutterLocalNotificationsPlugin, BudgetRepository])
+import '../../../../helpers/safe_to_spend_fakes.dart';
 import 'notification_service_test.mocks.dart';
 
 class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
@@ -443,6 +447,124 @@ void main() {
           ),
         ).called(1);
       });
+    });
+
+    group('bill reminders (review: re-scheduling wiped them)', () {
+      late Set<int> pending;
+      late SafeSpendFakeBillRepository bills;
+      late BillReminderService billReminders;
+
+      setUp(() {
+        stubPluginInitialization();
+        // The plugin as the platform behaves: one pending set shared by
+        // every caller, cleared as a whole.
+        pending = {};
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+            onDidReceiveBackgroundNotificationResponse: anyNamed(
+              'onDidReceiveBackgroundNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((_) async => true);
+        when(
+          mockPlugin.zonedSchedule(
+            any,
+            any,
+            any,
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).thenAnswer((invocation) async {
+          pending.add(invocation.positionalArguments.first as int);
+        });
+        when(
+          mockPlugin.cancelAllPendingNotifications(),
+        ).thenAnswer((_) async => pending.clear());
+
+        bills = SafeSpendFakeBillRepository();
+        bills.store['rent'] = BillEntity(
+          id: 'rent',
+          title: 'Rent',
+          amount: 100,
+          currency: 'INR',
+          category: BillCategory.rent,
+          dueDate: DateTime(2099, 1, 10),
+          reminderEnabled: true,
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 1),
+        );
+        billReminders = BillReminderService(
+          plugin: mockPlugin,
+          repository: bills,
+        );
+        notificationService = NotificationService(
+          plugin: mockPlugin,
+          budgetRepository: mockBudgetRepository,
+          calculationService: BudgetCalculationService(),
+          spendingTargetsUseCase: fakeSpendingTargetsUseCase,
+          rescheduleBillReminders: billReminders.rescheduleAll,
+        );
+      });
+
+      test('a re-schedule after a bill change keeps the bill reminder '
+          'BillBloc just scheduled', () async {
+        final rent = bills.store['rent']!;
+        await billReminders.scheduleReminder(rent);
+        expect(pending, contains(rent.notificationId));
+
+        await notificationService.scheduleAll(
+          const AppSettings(
+            notifications: NotificationSettings(
+              notificationsEnabled: true,
+              morningReminderEnabled: true,
+              eveningSummaryEnabled: false,
+            ),
+          ),
+        );
+
+        expect(
+          pending,
+          containsAll([
+            rent.notificationId,
+            NotificationService.morningReminderId,
+          ]),
+        );
+      });
+
+      test('bill reminders are opted into per bill, so they survive even '
+          'with the daily notifications off', () async {
+        final rent = bills.store['rent']!;
+        await billReminders.scheduleReminder(rent);
+
+        await notificationService.scheduleAll(
+          const AppSettings(
+            notifications: NotificationSettings(notificationsEnabled: false),
+          ),
+        );
+
+        expect(pending, {rent.notificationId});
+      });
+
+      test(
+        'a paid bill or one without a reminder is not brought back',
+        () async {
+          bills.store['rent'] = bills.store['rent']!.copyWith(isPaid: true);
+
+          await notificationService.scheduleAll(
+            const AppSettings(
+              notifications: NotificationSettings(notificationsEnabled: false),
+            ),
+          );
+
+          expect(pending, isEmpty);
+        },
+      );
     });
 
     group('cancelAll', () {

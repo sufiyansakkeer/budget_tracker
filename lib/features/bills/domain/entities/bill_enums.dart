@@ -146,7 +146,9 @@ extension RecurrenceTypeLabel on RecurrenceType {
 }
 
 /// Filter options for the bills list.
-enum BillFilter { all, upcoming, dueToday, overdue, paid, recurring }
+///
+/// [notLinked]: bills without a budget, so nothing is set aside for them.
+enum BillFilter { all, upcoming, dueToday, overdue, paid, recurring, notLinked }
 
 extension BillFilterLabel on BillFilter {
   String get label {
@@ -163,6 +165,8 @@ extension BillFilterLabel on BillFilter {
         return 'Paid';
       case BillFilter.recurring:
         return 'Recurring';
+      case BillFilter.notLinked:
+        return 'Not linked';
     }
   }
 }

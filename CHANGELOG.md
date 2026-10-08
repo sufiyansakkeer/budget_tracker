@@ -8,6 +8,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Smart Safe-to-Spend.** Today's Safe Spending now protects the money a
+  budget still needs before it says what can be spent today:
+  `max(0, (A − B − C − D + today's discretionary spending) ÷ remaining days)`.
+  - A is what is left in the budget.
+  - B is the unpaid bills linked to it that are due by its end, overdue ones
+    included.
+  - C is an optional "Kept aside" amount.
+  - D is an optional "Savings goal".
+
+  The figure still stays fixed for the whole day. With none of these set it
+  is exactly the old figure. Formulas:
+  `lib/features/budget/CALCULATION_RULES.md`. Design:
+  `docs/architecture/safe_spending.md`.
+  - **Bills link to a budget.** The bill form has a new "Paid from" picker,
+    with "Not linked" as the default. Bill cards and bill details show "Paid
+    from {budget}" or "Not linked", and the bills list has a "Not linked"
+    filter. Picking a budget in another currency switches the bill to that
+    currency; when editing a bill, this asks for confirmation first.
+  - **"Mark paid & record expense".** One transaction writes the payment
+    record, advances the bill (or marks it paid) and records the expense. The
+    expense goes to the bill's budget if it is running today and in the same
+    currency; otherwise to the active budget under the same conditions;
+    otherwise nothing is written and the user is told why. If the money had
+    been set aside in that budget, paying it does not lower today's amount.
+  - **"Paid outside this budget"** is a separate action for linked bills. It
+    explains that the budget's safe-to-spend will go up when that budget is
+    setting the bill aside; otherwise it asks with the plain "Mark as paid"
+    wording. "Mark as unpaid" now names the recorded expense it removes, and
+    removes it, found by the bill it paid rather than its date.
+  - **"Set aside (optional)" on the budget form.** "Keep aside" and "Savings
+    goal" fields, each between 0 and the budget amount. Saving is not
+    blocked, but a warning appears when together they leave nothing free to
+    spend. An empty field means "Not set", which is different from 0.
+  - **Dashboard.**
+    - The hero has a status chip (On track, Spend carefully, Over today's
+      amount, At risk, Overcommitted, Over budget, Not started, Ended) and
+      one explanation line.
+    - A new "Free to spend" breakdown card shows: Remaining in budget −
+      Bills due (an expandable list of exactly the deducted bills) − Kept
+      aside − Savings goal = Free to spend. It also has a forecast: average
+      a day, projected spending, projected balance, and when the free money
+      runs out at the current pace.
+    - Notices cover bills that could not be read (with a retry), bills not
+      linked to any budget (with a **Link bills** sheet), and linked bills
+      in another currency.
+  - **One number everywhere.** The hero, "Other budgets today", the morning
+    notification and the home-screen widget all read the same engine result
+    (`GetSafeToSpendUseCase`). Budgets are never pooled.
+- `MoneyMath` (integer-unit money arithmetic),
+  `CurrencyFormatter.floorToDigits` / `floorForDisplay` / `formatFloored`, and
+  `BudgetCalculationService.calendarDaysBetween`.
+- **Display rounding.** Safe amounts (today's amount, left today, free to
+  spend) are floored to the digits shown, so they are never displayed higher
+  than they are. For example, OMR 7.6 shows as "ر.ع.7.600", not "8".
 - **Currency converter** (Settings → Tools → Currency converter). Converts any
   amount between the ~160 currencies published by
   [Frankfurter](https://frankfurter.dev/) (`https://api.frankfurter.dev/v2/`,
@@ -52,6 +106,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unknown currency shows its code, not a rupee sign.
 
 ### Changed
+- **Database schema v8.** Adds four nullable columns:
+  - `bills.budget_id` (`REFERENCES budgets(id)`, indexed by
+    `index_bills_budget`);
+  - `expenses.bill_id` (no foreign key);
+  - `budgets.reserved_amount`;
+  - `budgets.savings_target`.
+
+  Each column is added only when it is missing. No existing row is changed.
+  A v7 fixture (`test/fixtures/schema_v7.sql`), a v3 fixture
+  (`test/fixtures/schema_v3.sql`) and the schema-parity test in
+  `test/core/database/app_database_migration_test.dart` prove an upgraded
+  database matches a fresh install, including the `bills → budgets` foreign
+  key.
+- **Per-budget daily figures come from the engine.** The dashboard tiles, the
+  notification and the widget now:
+  - read period totals from SQL instead of the stored `remaining_amount`
+    column;
+  - count only discretionary spending as "Spent today";
+  - never show a negative daily amount.
+- **Smart Insights.** When the safe-to-spend result is available, the old
+  pace, projection and daily or weekly target insights are replaced by one
+  that is based on the forecast.
+- **The weekly line on the hero is gone** for budgets with a safe-to-spend
+  result.
+- **Home-screen widget statuses.** `short:<amount>` ("{amount} short") is used
+  when the budget is over or overcommitted, and `careful` ("Spend carefully")
+  covers both careful and at-risk. Status amounts are rounded up. On Android,
+  an unknown status now reads "Open app to refresh" instead of "On Track".
+- **Morning notification when nothing is free.** If the daily amount is 0,
+  the notification says why: over budget, overcommitted, or everything set
+  aside.
+- **Budget lifecycle and bills.**
+  - Deleting a budget unlinks its bills in the same transaction.
+  - Duplicating a budget copies its kept-aside amount and savings goal, but
+    not its bills.
+  - "Start new budget period" moves the archived budget's unpaid linked
+    bills, kept-aside amount and savings goal to the new budget.
+  - The delete, archive and new-period dialogs say what happens to linked
+    bills.
+- **Backups and data checks.**
+  - Backup, restore, and JSON export and import carry the new fields.
+  - On restore, a bill whose budget is not in the backup is unlinked.
+  - JSON import updates existing budgets and expenses in place, so fields
+    missing from the file are kept.
+  - Database health has four new checks: bills linked to a missing budget,
+    negative kept-aside or savings amounts, linked bills in another currency,
+    and unpaid one-time bills that still have a bill-payment expense without
+    its payment record.
+- **Bills copy.** "Bills are kept separately from your budgets" and "shared
+  across all budgets" are removed.
 - **Database schema v7.** Adds the `exchange_rates` and `converter_currencies`
   cache tables. The migration only creates tables; no existing row is read,
   changed or removed. A v6 fixture (`test/fixtures/schema_v6.sql`) and a
@@ -105,6 +209,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   See the README's "16 KB page-size compatibility" section.
 
 ### Fixed
+- **"Mark paid & add expense" was not atomic and could count a bill twice.**
+  - It marked the bill paid and then added the expense in a separate step,
+    through a new `ExpenseBloc` that was never closed.
+  - It showed "Expense added" even when the write failed.
+  - It always used the active budget, even for a bill in another currency.
+
+  It now uses the single-transaction payment described above.
+- **"Mark as unpaid" left the payment behind.** It kept the payment record
+  and the expense, so a later payment was counted twice. It now removes the
+  newest payment record and the expense recorded for it.
+- **Day counts ignore daylight saving and time of day.** Days in the period,
+  days passed, days remaining and the `BudgetEntity` equivalents now compare
+  calendar dates. Before, a period stored as 1 Aug 12:00 → 31 Aug 00:00
+  counted 30 days, and a 23-hour DST day could count as 0.
+- **Weekly bills no longer move a day early** across a daylight-saving
+  change. The next due date is computed with calendar arithmetic.
+- **An active budget that has not started or has ended showed the dashboard
+  error screen.** It now shows when the budget starts, including the bills
+  due in it, or how it ended. A running budget whose daily figures fail to
+  load now shows "isn't available" with Try again, instead of "This budget
+  period has ended".
+- **Starting a new budget period and restoring a backup now refresh the
+  app.** They notify the dashboard, budgets, bills, widget and notifications
+  to reload. Before, neither one notified anything.
+- **The iOS widget failed to compile** in its "over" branch
+  (`.flatMap(Double.init)` on a String).
+- **The budget summary and analytics caches are keyed separately**, and by
+  currency, so one can no longer be returned for the other.
 - **Expense list jumped and flickered.** The search debounce re-armed itself
   every 300 ms for the life of the screen, resetting the list to its first
   page; every refresh also threw away pages the user had scrolled through.

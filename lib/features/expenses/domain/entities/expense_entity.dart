@@ -14,6 +14,13 @@ class ExpenseEntity extends Equatable {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// The bill whose occurrence this expense settled when that occurrence was
+  /// set aside in this expense's budget (committed spending); null for plain
+  /// spending. Written only when the expense is created by paying a bill and
+  /// cleared when the expense moves to another budget — never copied by a
+  /// duplicate and never written by an edit.
+  final String? billId;
+
   const ExpenseEntity({
     required this.id,
     required this.budgetId,
@@ -26,6 +33,7 @@ class ExpenseEntity extends Equatable {
     this.tags = const [],
     required this.createdAt,
     required this.updatedAt,
+    this.billId,
   });
 
   ExpenseEntity copyWith({
@@ -42,6 +50,8 @@ class ExpenseEntity extends Equatable {
     List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? billId,
+    bool clearBillId = false,
   }) {
     return ExpenseEntity(
       id: id ?? this.id,
@@ -57,6 +67,7 @@ class ExpenseEntity extends Equatable {
       tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      billId: clearBillId ? null : (billId ?? this.billId),
     );
   }
 
@@ -73,5 +84,6 @@ class ExpenseEntity extends Equatable {
     tags,
     createdAt,
     updatedAt,
+    billId,
   ];
 }

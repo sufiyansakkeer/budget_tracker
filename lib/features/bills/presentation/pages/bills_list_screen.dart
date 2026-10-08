@@ -1,22 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_section_header.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
-import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
+import 'bill_budget_link.dart';
+import 'bill_payment_dialogs.dart';
 import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/widgets/animated_amount.dart';
@@ -38,8 +45,8 @@ class _BillsListScreenState extends State<BillsListScreen> {
     title: 'Bills & Reminders',
     whatIsThis:
         'Payments you want to remember, such as rent, utilities or '
-        'subscriptions. Bills are kept separately from your budgets and are '
-        'shared across all of them.',
+        'subscriptions. Link a bill to a budget and its amount is set aside '
+        "from that budget until it's paid.",
     howIsItCalculated:
         "A bill's status comes from its due date and whether it is paid:\n"
         'Upcoming: unpaid and due after today.\n'
@@ -52,23 +59,46 @@ class _BillsListScreenState extends State<BillsListScreen> {
         'day\n'
         '• Marking a one-time bill as paid moves it to Paid. Marking a '
         'recurring bill as paid moves its due date to the next occurrence\n'
-        '• A bill only affects a budget if you use "Mark paid & add expense", '
-        'which records it as an expense in your active budget\n'
+        '• Bills linked to a budget are set aside from it until paid, so '
+        "Today's Safe Spending already leaves room for them. "
+        '"Mark paid & record expense" records the payment in that budget\n'
+        "• Bills that aren't linked don't affect any budget. Use the "
+        '"Not linked" filter to find them\n'
         '• Reminders are optional per bill: a notification on the due date or '
         'a set number of days before. Notifications must be allowed on your '
         'device',
   );
 
+  Map<String, BudgetEntity> _budgetsById = const {};
+  StreamSubscription<void>? _budgetSubscription;
+
   @override
   void initState() {
     super.initState();
     context.read<BillBloc>().add(const BillLoadAll());
+    _loadBudgets();
+    _budgetSubscription = RefreshBuses.budgets.changes.listen((_) {
+      if (mounted) _loadBudgets();
+    });
   }
 
   @override
   void dispose() {
+    _budgetSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Budget names for the cards' "Paid from" line. A failure only hides
+  /// that line.
+  Future<void> _loadBudgets() async {
+    try {
+      final budgets = await getIt<ManageBudgetUseCase>().getAll();
+      if (!mounted) return;
+      setState(() => _budgetsById = {for (final b in budgets) b.id: b});
+    } catch (_) {
+      // Keep what we had.
+    }
   }
 
   Future<void> _refresh() async {
@@ -82,23 +112,6 @@ class _BillsListScreenState extends State<BillsListScreen> {
         .timeout(const Duration(seconds: 8), onTimeout: () => bloc.state);
     bloc.add(const BillRefresh());
     await done;
-  }
-
-  Future<void> _confirmMarkPaid(BillEntity bill) async {
-    final confirmed = await ConfirmationDialog.show(
-      context: context,
-      title: 'Mark as paid?',
-      message: bill.isRecurring
-          ? '"${bill.title}" will be marked paid and its due date moves to '
-                'the next ${bill.recurrenceType.label.toLowerCase()} '
-                'occurrence.'
-          : '"${bill.title}" will be marked as paid.',
-      confirmLabel: 'Mark paid',
-      icon: Icons.check_circle_rounded,
-    );
-    if (confirmed && mounted) {
-      context.read<BillBloc>().add(BillMarkPaid(bill.id));
-    }
   }
 
   @override
@@ -309,10 +322,23 @@ class _BillsListScreenState extends State<BillsListScreen> {
   }
 
   Widget _card(BuildContext context, BillEntity bill) {
+    final budget = bill.budgetId == null ? null : _budgetsById[bill.budgetId];
+    // A linked bill's quick action records the payment in its budget; a
+    // plain "paid" would release the money set aside without spending it.
+    final linked = bill.budgetId != null;
     return BillCard(
       bill: bill,
       onTap: () => context.pushUnique('/app/bills/${bill.id}'),
-      onMarkPaid: bill.isPaid ? null : () => _confirmMarkPaid(bill),
+      onMarkPaid: bill.isPaid
+          ? null
+          : linked
+          ? () => BillPaymentDialogs.payWithExpense(context, bill)
+          : () => BillPaymentDialogs.markPaid(context, bill),
+      markPaidLabel: linked ? 'Mark paid & record expense' : 'Mark as paid',
+      showBudgetLink: true,
+      budgetName: budget == null
+          ? null
+          : BillBudgetLink.budgetLabel(budget, DateTime.now()),
     );
   }
 
@@ -355,6 +381,11 @@ class _BillsListScreenState extends State<BillsListScreen> {
         Icons.repeat_rounded,
         'No recurring bills',
         'Turn on "Repeat" when adding a bill to see it here.',
+      ),
+      BillFilter.notLinked => (
+        Icons.link_rounded,
+        'Every bill is linked',
+        'Each bill has a budget it is paid from.',
       ),
       BillFilter.all => (
         Icons.receipt_long_outlined,

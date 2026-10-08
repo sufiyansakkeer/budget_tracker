@@ -198,6 +198,139 @@ void main() {
         );
       });
 
+      group('schema v8 fields', () {
+        late Directory tempDir;
+
+        setUp(() async {
+          tempDir = Directory.systemTemp.createTempSync('import_v8_');
+          final day = DateTime(2026, 8, 20, 9);
+          await database
+              .into(database.budgets)
+              .insert(
+                BudgetsCompanion.insert(
+                  id: 'b1',
+                  name: 'Home',
+                  monthlyAmount: 500,
+                  remainingAmount: 300,
+                  currency: 'OMR',
+                  startDate: DateTime(2026, 8, 1),
+                  endDate: DateTime(2026, 8, 31),
+                  reservedAmount: const Value(50),
+                  savingsTarget: const Value(25.5),
+                ),
+              );
+          await database
+              .into(database.expenses)
+              .insert(
+                ExpensesCompanion.insert(
+                  id: 'e1',
+                  budgetId: 'b1',
+                  amount: 200,
+                  categoryId: 'bills',
+                  date: day,
+                  time: Value(day),
+                  billId: const Value('bill-1'),
+                ),
+              );
+        });
+
+        tearDown(() => tempDir.deleteSync(recursive: true));
+
+        Map<String, Object?> budgetJson(Map<String, Object?> extra) => {
+          'id': 'b1',
+          'name': 'Home renamed',
+          'monthlyAmount': 600,
+          'remainingAmount': 400,
+          'currency': 'OMR',
+          'startDate': DateTime(2026, 8, 1).toIso8601String(),
+          'endDate': DateTime(2026, 8, 31).toIso8601String(),
+          'createdAt': DateTime(2026, 8, 1).toIso8601String(),
+          'updatedAt': DateTime(2026, 8, 2).toIso8601String(),
+          ...extra,
+        };
+
+        Map<String, Object?> expenseJson(Map<String, Object?> extra) => {
+          'id': 'e1',
+          'budgetId': 'b1',
+          'amount': 210,
+          'categoryId': 'bills',
+          'date': DateTime(2026, 8, 20, 9).toIso8601String(),
+          'time': DateTime(2026, 8, 20, 9).toIso8601String(),
+          'createdAt': DateTime(2026, 8, 20).toIso8601String(),
+          'updatedAt': DateTime(2026, 8, 21).toIso8601String(),
+          ...extra,
+        };
+
+        Future<void> importPayload(Map<String, Object?> payload) async {
+          final file = File('${tempDir.path}/data.json');
+          await file.writeAsString(jsonEncode(payload));
+          await importService.importJson(file.path);
+        }
+
+        test(
+          'an older export without the keys keeps the stored values',
+          () async {
+            await importPayload({
+              'budgets': [budgetJson({})],
+              'expenses': [expenseJson({})],
+            });
+
+            final budget = await database.select(database.budgets).getSingle();
+            expect(budget.name, 'Home renamed');
+            expect(budget.monthlyAmount, 600);
+            expect(budget.reservedAmount, 50);
+            expect(budget.savingsTarget, 25.5);
+            final expense = await database
+                .select(database.expenses)
+                .getSingle();
+            expect(expense.amount, 210);
+            expect(expense.billId, 'bill-1');
+          },
+        );
+
+        test('present keys overwrite, including an explicit null', () async {
+          await importPayload({
+            'budgets': [
+              budgetJson({'reservedAmount': 75, 'savingsTarget': null}),
+            ],
+            'expenses': [
+              expenseJson({'billId': null}),
+            ],
+          });
+
+          final budget = await database.select(database.budgets).getSingle();
+          expect(budget.reservedAmount, 75.0);
+          expect(budget.savingsTarget, isNull);
+          expect(
+            (await database.select(database.expenses).getSingle()).billId,
+            isNull,
+          );
+        });
+
+        test(
+          'round-trips through ExportService into an empty database',
+          () async {
+            final exported = await ExportService(
+              database: database,
+            ).collectJsonData();
+            final target = await createInMemoryDatabase();
+            addTearDown(target.close);
+
+            final file = File('${tempDir.path}/export.json');
+            await file.writeAsString(jsonEncode(exported));
+            await ImportService(database: target).importJson(file.path);
+
+            final budget = await target.select(target.budgets).getSingle();
+            expect(budget.reservedAmount, 50);
+            expect(budget.savingsTarget, 25.5);
+            expect(
+              (await target.select(target.expenses).getSingle()).billId,
+              'bill-1',
+            );
+          },
+        );
+      });
+
       test('rejects JSON with a newer schema version', () async {
         final payload = {
           'metadata': {'schemaVersion': 99},

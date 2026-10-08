@@ -16,12 +16,19 @@ class StatusChip extends StatelessWidget {
   final IconData icon;
   final bool filled;
 
+  /// Lets the label wrap onto more lines when the chip is narrower than it
+  /// (large text on a small screen) instead of overflowing. Only for a chip
+  /// given a bounded width (e.g. a [Wrap] child, or inside [Flexible]); a
+  /// plain [Row] child is unbounded and must keep the default.
+  final bool wrapLabel;
+
   const StatusChip({
     super.key,
     required this.label,
     required this.color,
     required this.icon,
     this.filled = false,
+    this.wrapLabel = false,
   });
 
   @override
@@ -48,6 +55,13 @@ class StatusChip extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ) ??
         TextStyle(color: foreground, fontWeight: FontWeight.w700);
+
+    final text = AnimatedDefaultTextStyle(
+      duration: duration,
+      curve: AppMotion.standardCurve,
+      style: textStyle,
+      child: Text(label),
+    );
 
     return AnimatedContainer(
       duration: duration,
@@ -79,12 +93,7 @@ class StatusChip extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          AnimatedDefaultTextStyle(
-            duration: duration,
-            curve: AppMotion.standardCurve,
-            style: textStyle,
-            child: Text(label),
-          ),
+          if (wrapLabel) Flexible(child: text) else text,
         ],
       ),
     );

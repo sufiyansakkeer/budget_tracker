@@ -9,10 +9,17 @@ import 'package:monivo/features/bills/domain/usecases/get_bills_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/mark_bill_paid_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
+import 'package:monivo/features/bills/domain/usecases/pay_bill_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/update_bill_usecase.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_bloc.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_event.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_state.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/core/events/refresh_bus.dart';
+import 'package:monivo/features/bills/domain/entities/bill_failure.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+
+import '../../../../helpers/bill_payment_fakes.dart';
 
 class FakeBillRepository implements BillRepository {
   final Map<String, BillEntity> store = {};
@@ -40,6 +47,10 @@ class FakeBillRepository implements BillRepository {
   @override
   Future<List<BillPaymentRecord>> getBillPayments(String billId) async =>
       payments.where((p) => p.billId == billId).toList();
+
+  @override
+  Future<void> deleteBillPayment(String paymentId) async =>
+      payments.removeWhere((p) => p.id == paymentId);
 
   @override
   Future<List<BillEntity>> getUpcomingBills({
@@ -105,8 +116,12 @@ BillEntity validBill({String id = 'bill-1', bool isPaid = false}) {
   );
 }
 
-BillBloc buildBloc(FakeBillRepository repository) {
-  final reminderService = FakeBillReminderService();
+BillBloc buildBloc(
+  FakeBillRepository repository, {
+  PayBillUseCase? payBill,
+  FakeBillReminderService? reminders,
+}) {
+  final reminderService = reminders ?? FakeBillReminderService();
   return BillBloc(
     createBillUseCase: CreateBillUseCase(repository: repository),
     updateBillUseCase: UpdateBillUseCase(repository: repository),
@@ -114,10 +129,18 @@ BillBloc buildBloc(FakeBillRepository repository) {
     getBillsUseCase: GetBillsUseCase(repository: repository),
     getBillByIdUseCase: GetBillByIdUseCase(repository: repository),
     markBillPaidUseCase: MarkBillPaidUseCase(repository: repository),
-    markBillUnpaidUseCase: MarkBillUnpaidUseCase(repository: repository),
+    markBillUnpaidUseCase: MarkBillUnpaidUseCase(
+      repository: repository,
+      expenseRepository: InMemoryExpenseRepository(),
+    ),
+    payBillUseCase: payBill ?? FakePayBillUseCase(_unusedPayment),
     reminderService: reminderService,
   );
 }
+
+const _unusedPayment = BillError<BillPaymentOutcome>(
+  BillFailure(type: BillErrorType.invalidInput, message: 'not used'),
+);
 
 void main() {
   late FakeBillRepository repository;
@@ -232,6 +255,116 @@ void main() {
     expect(updated!.isPaid, isFalse);
     await sub.cancel();
     await bloc.close();
+  });
+
+  group('BillPayWithExpense', () {
+    final paidAt = DateTime(2026, 8, 10, 9, 30);
+    final budget = BudgetEntity(
+      id: 'budget-1',
+      name: 'August',
+      monthlyAmount: 30000,
+      remainingAmount: 30000,
+      currency: 'INR',
+      startDate: DateTime(2026, 8, 1),
+      endDate: DateTime(2026, 8, 31),
+      createdAt: DateTime(2026, 8, 1),
+      updatedAt: DateTime(2026, 8, 1),
+    );
+
+    BillEntity recurringBill() => BillEntity(
+      id: 'bill-1',
+      title: 'Rent',
+      amount: 1000,
+      currency: 'INR',
+      category: BillCategory.rent,
+      dueDate: DateTime(2026, 8, 12),
+      isRecurring: true,
+      recurrenceType: RecurrenceType.monthly,
+      reminderEnabled: true,
+      budgetId: 'budget-1',
+      createdAt: DateTime(2026, 7, 1),
+      updatedAt: DateTime(2026, 7, 1),
+    );
+
+    BillPaymentOutcome outcome(BillEntity paid) => BillPaymentOutcome(
+      bill: paid,
+      expense: ExpenseEntity(
+        id: 'expense-1',
+        budgetId: budget.id,
+        amount: paid.amount,
+        categoryId: 'bills',
+        note: 'Bill: ${paid.title}',
+        date: DateTime(2026, 8, 10),
+        time: paidAt,
+        createdAt: paidAt,
+        updatedAt: paidAt,
+        billId: paid.id,
+      ),
+      budget: budget,
+    );
+
+    test('pays through the use case, moves the reminder to the next '
+        'occurrence and refreshes bills and expenses', () async {
+      final bill = recurringBill();
+      await repository.createBill(bill);
+      final advanced = bill.copyWith(dueDate: DateTime(2026, 9, 12));
+      final payBill = FakePayBillUseCase(BillSuccess(outcome(advanced)));
+      final reminders = FakeBillReminderService();
+      final bloc = buildBloc(
+        repository,
+        payBill: payBill,
+        reminders: reminders,
+      );
+      var billChanges = 0;
+      var expenseChanges = 0;
+      final billSub = RefreshBuses.bills.changes.listen((_) => billChanges++);
+      final expenseSub = RefreshBuses.expenses.changes.listen(
+        (_) => expenseChanges++,
+      );
+
+      bloc.add(const BillPayWithExpense('bill-1'));
+      final done = await bloc.stream.firstWhere(
+        (s) => s.status == BillBlocStatus.success,
+      );
+
+      expect(payBill.paidBillIds, ['bill-1']);
+      expect(done.message, 'Marked paid. Expense added to August.');
+      expect(reminders.cancelledBillIds, ['bill-1']);
+      expect(reminders.scheduledBillIds, ['bill-1']);
+      expect(billChanges, 1);
+      expect(expenseChanges, 1);
+      await billSub.cancel();
+      await expenseSub.cancel();
+      await bloc.close();
+    });
+
+    test('a refused payment shows why and keeps the reminder', () async {
+      await repository.createBill(recurringBill());
+      final payBill = FakePayBillUseCase(
+        const BillError(
+          BillFailure(
+            type: BillErrorType.invalidInput,
+            message: 'No running budget in INR to record this payment',
+          ),
+        ),
+      );
+      final reminders = FakeBillReminderService();
+      final bloc = buildBloc(
+        repository,
+        payBill: payBill,
+        reminders: reminders,
+      );
+
+      bloc.add(const BillPayWithExpense('bill-1'));
+      final failed = await bloc.stream.firstWhere(
+        (s) => s.status == BillBlocStatus.error,
+      );
+
+      expect(failed.message, 'No running budget in INR to record this payment');
+      expect(reminders.cancelledBillIds, isEmpty);
+      expect(reminders.scheduledBillIds, isEmpty);
+      await bloc.close();
+    });
   });
 
   test('filter changes', () async {

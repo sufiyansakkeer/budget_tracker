@@ -54,6 +54,10 @@ class FakeExpenseRepository implements ExpenseRepository {
     required List<String> budgetIds,
   }) async =>
       store.values.where((e) => budgetIds.contains(e.budgetId)).toList();
+
+  @override
+  Future<List<ExpenseEntity>> getExpensesForBill(String billId) async =>
+      store.values.where((e) => e.billId == billId).toList();
 }
 
 ExpenseEntity validExpense({

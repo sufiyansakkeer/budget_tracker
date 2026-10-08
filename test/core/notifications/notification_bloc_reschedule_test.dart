@@ -15,6 +15,7 @@ import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart'
 
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase_test.dart'
     show FakeBudgetRepository;
+import '../../helpers/safe_to_spend_fakes.dart';
 
 /// Records scheduling calls instead of talking to the platform.
 class RecordingNotificationService extends NotificationService {
@@ -25,6 +26,7 @@ class RecordingNotificationService extends NotificationService {
         spendingTargetsUseCase: GetSpendingTargetsUseCase(
           repository: repository,
           calculationService: BudgetCalculationService(),
+          safeToSpend: fakeSafeToSpendUseCase(repository),
         ),
       );
 
@@ -97,6 +99,16 @@ void main() {
 
     expect(service.scheduleCount, 1);
     expect(service.lastSettings, settingsRepository.settings);
+  });
+
+  test('a bill change re-schedules (bills change the safe amount)', () async {
+    final bloc = build(seedStatus: NotificationStatus.ready);
+    addTearDown(bloc.close);
+
+    RefreshBuses.bills.notifyChanged();
+    await Future<void>.delayed(debounce * 4);
+
+    expect(service.scheduleCount, 1);
   });
 
   test('does nothing before notifications are ready', () async {

@@ -10,6 +10,7 @@ import '../../domain/usecases/get_bill_by_id_usecase.dart';
 import '../../domain/usecases/get_bills_usecase.dart';
 import '../../domain/usecases/mark_bill_paid_usecase.dart';
 import '../../domain/usecases/mark_bill_unpaid_usecase.dart';
+import '../../domain/usecases/pay_bill_usecase.dart';
 import '../../domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../domain/usecases/update_bill_usecase.dart';
 import '../../../../core/events/refresh_bus.dart';
@@ -24,6 +25,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
   final GetBillByIdUseCase getBillByIdUseCase;
   final MarkBillPaidUseCase markBillPaidUseCase;
   final MarkBillUnpaidUseCase markBillUnpaidUseCase;
+  final PayBillUseCase payBillUseCase;
   final BillReminderService reminderService;
 
   BillBloc({
@@ -34,6 +36,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     required this.getBillByIdUseCase,
     required this.markBillPaidUseCase,
     required this.markBillUnpaidUseCase,
+    required this.payBillUseCase,
     required this.reminderService,
   }) : super(const BillState()) {
     on<BillLoadAll>(_onLoadAll);
@@ -42,6 +45,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     on<BillUpdate>(_onUpdate);
     on<BillDelete>(_onDelete);
     on<BillMarkPaid>(_onMarkPaid);
+    on<BillPayWithExpense>(_onPayWithExpense);
     on<BillMarkUnpaid>(_onMarkUnpaid);
     on<BillFilterChanged>(_onFilterChanged);
     on<BillSearchChanged>(_onSearchChanged);
@@ -215,6 +219,46 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     }
   }
 
+  Future<void> _onPayWithExpense(
+    BillPayWithExpense event,
+    Emitter<BillState> emit,
+  ) async {
+    emit(state.copyWith(status: BillBlocStatus.updating));
+
+    final billResult = await getBillByIdUseCase(event.billId);
+    final previous = switch (billResult) {
+      BillSuccess(:final data) => data,
+      BillError() => null,
+    };
+
+    final result = await payBillUseCase(event.billId);
+    switch (result) {
+      case BillSuccess(:final data):
+        // The old occurrence's reminder is done; a recurring bill gets the
+        // next one. Cancelled only once the payment is recorded, so a
+        // refused payment keeps its reminder.
+        if (previous != null) await reminderService.cancelReminder(previous);
+        if (data.bill.isRecurring && data.bill.reminderEnabled) {
+          await reminderService.scheduleReminder(data.bill);
+        }
+        RefreshBuses.bills.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
+        emit(
+          state.copyWith(
+            status: BillBlocStatus.success,
+            message: 'Marked paid. Expense added to ${data.budget.name}.',
+          ),
+        );
+      case BillError(:final failure):
+        emit(
+          state.copyWith(
+            status: BillBlocStatus.error,
+            message: failure.message,
+          ),
+        );
+    }
+  }
+
   Future<void> _onMarkUnpaid(
     BillMarkUnpaid event,
     Emitter<BillState> emit,
@@ -229,6 +273,8 @@ class BillBloc extends Bloc<BillEvent, BillState> {
           await reminderService.scheduleReminder(data);
         }
         RefreshBuses.bills.notifyChanged();
+        // Undoing a payment can delete the expense it recorded.
+        RefreshBuses.expenses.notifyChanged();
         emit(
           state.copyWith(
             status: BillBlocStatus.success,

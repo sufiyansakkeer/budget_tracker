@@ -23,6 +23,9 @@ abstract class BillRepository {
   /// Returns payment history for a bill, ordered by paidDate descending.
   Future<List<BillPaymentRecord>> getBillPayments(String billId);
 
+  /// Deletes one payment record by its id (used to undo a payment).
+  Future<void> deleteBillPayment(String paymentId);
+
   /// Returns the sum of upcoming (unpaid, non-overdue) bill amounts
   /// within the given number of days from now.
   /// Unpaid bills due on or after [from] (default: today), soonest first.

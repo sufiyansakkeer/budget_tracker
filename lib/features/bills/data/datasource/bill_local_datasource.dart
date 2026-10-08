@@ -16,6 +16,8 @@ abstract class BillLocalDataSource {
 
   Future<List<BillPaymentRecord>> getBillPayments(String billId);
 
+  Future<void> deleteBillPayment(String paymentId);
+
   /// Unpaid bills due on or after [from] (default: today), soonest first.
   ///
   /// Used by the dashboard, which shows only the next few — loading every

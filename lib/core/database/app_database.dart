@@ -25,6 +25,14 @@ class Budgets extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
+  /// Money in this budget the user keeps out of safe-to-spend. Null = not set
+  /// (distinct from 0).
+  RealColumn get reservedAmount => real().nullable()();
+
+  /// Money the user wants left unspent at the end of the period. Null = not
+  /// set (distinct from 0).
+  RealColumn get savingsTarget => real().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 
@@ -64,6 +72,12 @@ class Expenses extends Table {
   TextColumn get tags => text().nullable()(); // JSON string or comma-separated
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// The bill whose occurrence this expense settled, when that occurrence was
+  /// set aside in this expense's budget (committed spending). Deliberately no
+  /// foreign key: deleting a bill must not touch expense history, and JSON
+  /// import brings in expenses without their bills.
+  TextColumn get billId => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -106,6 +120,7 @@ class SavingsGoals extends Table {
 
 // 7. Bills Table
 @TableIndex(name: 'index_bills_due_date', columns: {#dueDate})
+@TableIndex(name: 'index_bills_budget', columns: {#budgetId})
 class Bills extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
@@ -127,6 +142,10 @@ class Bills extends Table {
   DateTimeColumn get paidDate => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// The budget this bill is set aside from until it is paid. Null = not
+  /// linked.
+  TextColumn get budgetId => text().nullable().references(Budgets, #id)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -197,7 +216,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration {
@@ -291,6 +310,30 @@ class AppDatabase extends _$AppDatabase {
           // read, changed or removed.
           await m.createTable(exchangeRates);
           await m.createTable(converterCurrencies);
+        }
+        if (from < 8) {
+          // Safe-to-spend v2: bills link to a budget, expenses remember the
+          // bill they settled, budgets gain an optional reserve and savings
+          // goal. Nullable columns only; no existing row is changed. The bills
+          // guard is required because `from < 4` above creates `bills` from
+          // the current definition, which already has `budget_id`; createTable
+          // creates no index, hence IF NOT EXISTS.
+          if (!(await _columnNames('bills')).contains('budget_id')) {
+            await m.addColumn(bills, bills.budgetId);
+          }
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS index_bills_budget ON bills (budget_id)',
+          );
+          if (!(await _columnNames('expenses')).contains('bill_id')) {
+            await m.addColumn(expenses, expenses.billId);
+          }
+          final budgetColumns = await _columnNames('budgets');
+          if (!budgetColumns.contains('reserved_amount')) {
+            await m.addColumn(budgets, budgets.reservedAmount);
+          }
+          if (!budgetColumns.contains('savings_target')) {
+            await m.addColumn(budgets, budgets.savingsTarget);
+          }
         }
       },
       beforeOpen: (details) async {

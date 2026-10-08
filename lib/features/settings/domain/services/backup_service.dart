@@ -261,6 +261,16 @@ class BackupService {
           ),
         );
       }
+      for (final key in const ['reservedAmount', 'savingsTarget']) {
+        if (item[key] != null && item[key] is! num) {
+          errors.add(
+            ValidationError(
+              field: 'budgets[$i].$key',
+              message: 'Budget has invalid $key: ${item[key]}.',
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -308,6 +318,14 @@ class BackupService {
             ),
           );
         }
+      }
+      if (item['billId'] != null && item['billId'] is! String) {
+        errors.add(
+          ValidationError(
+            field: 'expenses[$i].billId',
+            message: 'Expense has invalid billId: ${item['billId']}.',
+          ),
+        );
       }
     }
   }
@@ -374,6 +392,14 @@ class BackupService {
           ),
         );
       }
+      if (item['budgetId'] != null && item['budgetId'] is! String) {
+        errors.add(
+          ValidationError(
+            field: 'bills[$i].budgetId',
+            message: 'Bill has invalid budgetId: ${item['budgetId']}.',
+          ),
+        );
+      }
     }
   }
 
@@ -406,6 +432,8 @@ class BackupService {
               'notes': b.notes,
               'createdAt': b.createdAt.toIso8601String(),
               'updatedAt': b.updatedAt.toIso8601String(),
+              'reservedAmount': b.reservedAmount,
+              'savingsTarget': b.savingsTarget,
             },
           )
           .toList(),
@@ -434,6 +462,7 @@ class BackupService {
               'tags': e.tags,
               'createdAt': e.createdAt.toIso8601String(),
               'updatedAt': e.updatedAt.toIso8601String(),
+              'billId': e.billId,
             },
           )
           .toList(),
@@ -482,6 +511,7 @@ class BackupService {
               'paidDate': b.paidDate?.toIso8601String(),
               'createdAt': b.createdAt.toIso8601String(),
               'updatedAt': b.updatedAt.toIso8601String(),
+              'budgetId': b.budgetId,
             },
           )
           .toList(),
@@ -517,6 +547,11 @@ class BackupService {
 
       // Restore budgets
       final budgets = (data['budgets'] as List?) ?? [];
+      // Bills may only link to a budget this backup restores: with foreign
+      // keys on, one dangling link would roll back the whole restore.
+      final restoredBudgetIds = {
+        for (final item in budgets) (item as Map)['id'] as String,
+      };
       for (final item in budgets) {
         final map = item as Map;
         await _database
@@ -536,6 +571,13 @@ class BackupService {
                 notes: Value(map['notes'] as String?),
                 createdAt: Value(DateTime.parse(map['createdAt'] as String)),
                 updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+                // Older backups lack these keys: not set.
+                reservedAmount: Value(
+                  (map['reservedAmount'] as num?)?.toDouble(),
+                ),
+                savingsTarget: Value(
+                  (map['savingsTarget'] as num?)?.toDouble(),
+                ),
               ),
             );
       }
@@ -577,6 +619,8 @@ class BackupService {
                 tags: Value(jsonEncode(tags)),
                 createdAt: Value(DateTime.parse(map['createdAt'] as String)),
                 updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+                // No foreign key: restored as-is even if the bill is absent.
+                billId: Value(map['billId'] as String?),
               ),
             );
       }
@@ -673,6 +717,11 @@ class BackupService {
                 ),
                 createdAt: Value(DateTime.parse(map['createdAt'] as String)),
                 updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+                budgetId: Value(
+                  restoredBudgetIds.contains(map['budgetId'])
+                      ? map['budgetId'] as String
+                      : null,
+                ),
               ),
             );
       }

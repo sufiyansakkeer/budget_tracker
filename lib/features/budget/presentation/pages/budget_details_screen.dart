@@ -19,6 +19,9 @@ import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/status_chip.dart';
+import '../../../bills/domain/entities/bill_entity.dart';
+import '../../../bills/domain/entities/bill_failure.dart';
+import '../../../bills/domain/usecases/get_bills_usecase.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
@@ -130,13 +133,49 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     _notify('${_budget?.name ?? 'Budget'} is now your active budget');
   });
 
-  Future<void> _archive() => _run(() async {
-    await _manageBudget.archive(widget.budgetId, archived: true);
-    RefreshBuses.budgets.notifyChanged();
+  /// Bills linked to this budget, for the archive and delete confirmations.
+  /// Best effort: on failure the dialogs just don't mention bills.
+  Future<List<BillEntity>> _linkedBills() async {
+    try {
+      final result = await getIt<GetBillsUseCase>()();
+      if (result case BillSuccess(:final data)) {
+        return data.where((b) => b.budgetId == widget.budgetId).toList();
+      }
+    } catch (_) {
+      // Fall through.
+    }
+    return const [];
+  }
+
+  static String _bills(int count) => count == 1 ? 'bill' : 'bills';
+
+  Future<void> _archive() async {
+    // Archiving stops the budget setting its bills aside, so ask first when
+    // it has unpaid ones; otherwise archive straight away as before.
+    final unpaid = (await _linkedBills()).where((b) => !b.isPaid).length;
     if (!mounted) return;
-    setState(() => _budget = _budget?.copyWith(isArchived: true));
-    _notify('Budget archived');
-  });
+    if (unpaid > 0) {
+      final confirmed = await ConfirmationDialog.show(
+        context: context,
+        title: 'Archive this budget?',
+        message:
+            '"${_budget?.name}" will be archived; its expenses are kept. '
+            '$unpaid unpaid ${_bills(unpaid)} paid from it will no longer be '
+            'set aside until you link ${unpaid == 1 ? 'it' : 'them'} to '
+            'another budget.',
+        confirmLabel: 'Archive',
+        icon: Icons.archive_outlined,
+      );
+      if (!confirmed || !mounted) return;
+    }
+    await _run(() async {
+      await _manageBudget.archive(widget.budgetId, archived: true);
+      RefreshBuses.budgets.notifyChanged();
+      if (!mounted) return;
+      setState(() => _budget = _budget?.copyWith(isArchived: true));
+      _notify('Budget archived');
+    });
+  }
 
   Future<void> _restore() => _run(() async {
     await _manageBudget.archive(widget.budgetId, archived: false);
@@ -161,12 +200,17 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   }
 
   Future<void> _delete() async {
+    final linked = (await _linkedBills()).length;
+    if (!mounted) return;
+    final billsLine = linked == 0
+        ? ''
+        : ' $linked ${_bills(linked)} paid from it will become not linked.';
     final confirmed = await ConfirmationDialog.show(
       context: context,
       title: 'Delete this budget?',
       message:
           'This permanently deletes "${_budget?.name}" and every expense '
-          'recorded in it. This cannot be undone.',
+          'recorded in it.$billsLine This cannot be undone.',
       confirmLabel: 'Delete',
       icon: Icons.delete_forever_rounded,
       isDestructive: true,

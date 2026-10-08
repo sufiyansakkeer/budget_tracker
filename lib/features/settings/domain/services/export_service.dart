@@ -98,6 +98,8 @@ class ExportService {
               'notes': b.notes,
               'createdAt': b.createdAt.toIso8601String(),
               'updatedAt': b.updatedAt.toIso8601String(),
+              'reservedAmount': b.reservedAmount,
+              'savingsTarget': b.savingsTarget,
             },
           )
           .toList(),
@@ -126,6 +128,7 @@ class ExportService {
               'tags': e.tags,
               'createdAt': e.createdAt.toIso8601String(),
               'updatedAt': e.updatedAt.toIso8601String(),
+              'billId': e.billId,
             },
           )
           .toList(),

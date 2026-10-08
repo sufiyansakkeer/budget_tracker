@@ -9,11 +9,13 @@ import 'package:monivo/features/budget/data/datasource/budget_local_datasource_i
 import 'package:monivo/features/budget/data/repository/budget_repository_impl.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/services/safe_to_spend_calculator.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
 import 'package:monivo/features/dashboard/data/repository/dashboard_repository_impl.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -64,6 +66,7 @@ class AppHarness {
   final BudgetCalculationService calculationService;
   final ManageBudgetUseCase manageBudget;
   final GetBudgetSummaryUseCase getBudgetSummary;
+  final GetSafeToSpendUseCase getSafeToSpend;
   final GetSpendingTargetsUseCase getSpendingTargets;
 
   AppHarness._({
@@ -75,6 +78,7 @@ class AppHarness {
     required this.calculationService,
     required this.manageBudget,
     required this.getBudgetSummary,
+    required this.getSafeToSpend,
     required this.getSpendingTargets,
   });
 
@@ -98,6 +102,14 @@ class AppHarness {
     final billRepository = BillRepositoryImpl(
       localDataSource: BillLocalDataSourceImpl(database: database),
     );
+    final getSafeToSpend = GetSafeToSpendUseCase(
+      budgetRepository: budgetRepository,
+      billRepository: billRepository,
+      dashboardRepository: DashboardRepositoryImpl(
+        localDataSource: DashboardLocalDataSourceImpl(database: database),
+      ),
+      calculator: SafeToSpendCalculator(calculationService),
+    );
 
     return AppHarness._(
       database: database,
@@ -111,9 +123,11 @@ class AppHarness {
         repository: budgetRepository,
         calculationService: calculationService,
       ),
+      getSafeToSpend: getSafeToSpend,
       getSpendingTargets: GetSpendingTargetsUseCase(
         repository: budgetRepository,
         calculationService: calculationService,
+        safeToSpend: getSafeToSpend,
       ),
     );
   }
@@ -147,7 +161,8 @@ class AppHarness {
     budgetRepository: budgetRepository,
   );
 
-  DashboardBloc dashboardBloc() => DashboardBloc(
+  /// [clock] fixes "today" for every figure the dashboard loads.
+  DashboardBloc dashboardBloc({DateTime Function()? clock}) => DashboardBloc(
     getBudgetSummaryUseCase: getBudgetSummary,
     getRecentExpensesUseCase: GetRecentExpensesUseCase(
       repository: DashboardRepositoryImpl(
@@ -156,8 +171,10 @@ class AppHarness {
     ),
     getSmartInsightsUseCase: const GetSmartInsightsUseCase(),
     getSpendingTargetsUseCase: getSpendingTargets,
+    getSafeToSpendUseCase: getSafeToSpend,
     budgetRepository: budgetRepository,
     billRepository: billRepository,
+    clock: clock,
   );
 
   ReportsBloc reportsBloc() => ReportsBloc(

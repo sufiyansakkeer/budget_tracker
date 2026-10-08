@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/data/models/budget_model.dart';
@@ -27,6 +28,12 @@ Future<AppDatabase> openUpgradedFrom(
   return db;
 }
 
+/// Schema v3: before bills existed (v4 without the bills tables), so the
+/// upgrade creates `bills` from the current definition.
+Future<AppDatabase> openUpgradedFromV3(
+  void Function(sqlite.Database raw) seed,
+) => openUpgradedFrom('schema_v3.sql', 3, seed);
+
 /// Schema v4: what every 1.x release shipped.
 Future<AppDatabase> openUpgradedFromV4(
   void Function(sqlite.Database raw) seed,
@@ -42,6 +49,27 @@ Future<AppDatabase> openUpgradedFromFirstV5(
 Future<AppDatabase> openUpgradedFromV6(
   void Function(sqlite.Database raw) seed,
 ) => openUpgradedFrom('schema_v6.sql', 6, seed);
+
+/// Schema v7: the last schema before bills were linked to budgets.
+Future<AppDatabase> openUpgradedFromV7(
+  void Function(sqlite.Database raw) seed,
+) => openUpgradedFrom('schema_v7.sql', 7, seed);
+
+/// `(table, from, to)` of every foreign key declared on [table].
+Future<Set<(String, String, String)>> foreignKeysOf(
+  AppDatabase db,
+  String table,
+) async {
+  final rows = await db.customSelect('PRAGMA foreign_key_list($table)').get();
+  return {
+    for (final r in rows)
+      (
+        r.data['table'] as String,
+        r.data['from'] as String,
+        r.data['to'] as String,
+      ),
+  };
+}
 
 /// Every table's column set plus the index names, for comparing a migrated
 /// database against a freshly created one.
@@ -356,6 +384,14 @@ void main() {
       fresh = await schemaOf(db);
     });
 
+    test('upgrading from v3 yields the fresh-install schema', () async {
+      // `from < 4` creates bills with the current definition (budget_id
+      // included); the v8 step must skip that column and still add the index.
+      final db = await openUpgradedFromV3((_) {});
+      addTearDown(db.close);
+      expect(await schemaOf(db), fresh);
+    });
+
     test('upgrading from v4 yields the fresh-install schema', () async {
       final db = await openUpgradedFromV4((_) {});
       addTearDown(db.close);
@@ -373,6 +409,12 @@ void main() {
 
     test('upgrading from v6 yields the fresh-install schema', () async {
       final db = await openUpgradedFromV6((_) {});
+      addTearDown(db.close);
+      expect(await schemaOf(db), fresh);
+    });
+
+    test('upgrading from v7 yields the fresh-install schema', () async {
+      final db = await openUpgradedFromV7((_) {});
       addTearDown(db.close);
       expect(await schemaOf(db), fresh);
     });
@@ -412,10 +454,10 @@ void main() {
 
     tearDown(() => db.close());
 
-    test('moves the user version to 7', () async {
+    test('moves the user version to the current schema', () async {
       final row = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(row.data['user_version'], 7);
-      expect(db.schemaVersion, 7);
+      expect(row.data['user_version'], 8);
+      expect(db.schemaVersion, 8);
     });
 
     test('creates the exchange-rate and currency cache tables', () async {
@@ -485,6 +527,175 @@ void main() {
       expect(tables, isNot(contains('exchange_rates')));
       expect(tables, contains('categories'));
       raw.dispose();
+    });
+  });
+
+  group('schema v7 → v8 migration (safe-to-spend links)', () {
+    late AppDatabase db;
+
+    setUp(() async {
+      db = await openUpgradedFromV7((raw) {
+        raw.execute('''
+          INSERT INTO budgets (id, name, monthly_amount, remaining_amount,
+            currency, start_date, end_date, is_archived, created_at, updated_at)
+          VALUES ('b1', 'Home', 500, 320.5, 'OMR', 1789669800, 1792261800, 0,
+            1, 1);
+          INSERT INTO categories (id, name, icon, color_hex, is_system,
+            is_archived)
+          VALUES ('coffee', 'Coffee', 'coffee', '#123456', 0, 0);
+          INSERT INTO expenses (id, budget_id, amount, category_id, note, date,
+            time, created_at, updated_at)
+          VALUES ('e1', 'b1', 179.5, 'coffee', 'beans', 1789756200,
+            1789756200, 1, 1);
+          INSERT INTO bills (id, title, amount, currency, category, due_date,
+            is_recurring, recurrence_type, created_at, updated_at)
+          VALUES ('bill1', 'Rent', 200, 'OMR', 'rent', 1790000000, 1,
+            'monthly', 1, 1);
+        ''');
+      });
+    });
+
+    tearDown(() => db.close());
+
+    test('moves the user version to 8', () async {
+      final row = await db.customSelect('PRAGMA user_version').getSingle();
+      expect(row.data['user_version'], 8);
+      expect(db.schemaVersion, 8);
+    });
+
+    test('adds the new columns, all null on existing rows', () async {
+      final tables = await schemaOf(db);
+      expect(tables['bills'], contains('budget_id'));
+      expect(tables['expenses'], contains('bill_id'));
+      expect(
+        tables['budgets'],
+        containsAll(['reserved_amount', 'savings_target']),
+      );
+      expect(tables['<indexes>'], contains('index_bills_budget'));
+
+      final budget = await db.select(db.budgets).getSingle();
+      expect(budget.reservedAmount, isNull);
+      expect(budget.savingsTarget, isNull);
+      expect((await db.select(db.bills).getSingle()).budgetId, isNull);
+      expect((await db.select(db.expenses).getSingle()).billId, isNull);
+    });
+
+    test('keeps every existing row exactly as it was', () async {
+      final budget = await db.select(db.budgets).getSingle();
+      expect(budget.name, 'Home');
+      expect(budget.monthlyAmount, 500);
+      expect(budget.remainingAmount, 320.5);
+      expect(budget.currency, 'OMR');
+
+      final expense = await db.select(db.expenses).getSingle();
+      expect(expense.amount, 179.5);
+      expect(expense.note, 'beans');
+      expect(expense.budgetId, 'b1');
+
+      final bill = await db.select(db.bills).getSingle();
+      expect(bill.title, 'Rent');
+      expect(bill.amount, 200);
+      expect(bill.isRecurring, isTrue);
+      expect(bill.recurrenceType, 'monthly');
+    });
+
+    test('the new columns accept writes after the upgrade', () async {
+      await (db.update(db.budgets)..where((b) => b.id.equals('b1'))).write(
+        const BudgetsCompanion(
+          reservedAmount: Value(50.25),
+          savingsTarget: Value(100),
+        ),
+      );
+      await (db.update(db.bills)..where((b) => b.id.equals('bill1'))).write(
+        const BillsCompanion(budgetId: Value('b1')),
+      );
+      await (db.update(db.expenses)..where((e) => e.id.equals('e1'))).write(
+        const ExpensesCompanion(billId: Value('bill1')),
+      );
+
+      final budget = await db.select(db.budgets).getSingle();
+      expect(budget.reservedAmount, 50.25);
+      expect(budget.savingsTarget, 100);
+      expect((await db.select(db.bills).getSingle()).budgetId, 'b1');
+      expect((await db.select(db.expenses).getSingle()).billId, 'bill1');
+    });
+
+    test(
+      'bills.budget_id is enforced as a foreign key after upgrade',
+      () async {
+        expect(
+          () => (db.update(db.bills)..where((b) => b.id.equals('bill1'))).write(
+            const BillsCompanion(budgetId: Value('missing')),
+          ),
+          throwsA(isA<SqliteException>()),
+        );
+      },
+    );
+
+    test('the v7 fixture really lacks the new columns', () async {
+      final raw = sqlite.sqlite3.openInMemory();
+      raw.execute(File('test/fixtures/schema_v7.sql').readAsStringSync());
+      List<Object?> columns(String table) => raw
+          .select('PRAGMA table_info($table)')
+          .map((r) => r['name'])
+          .toList();
+      expect(columns('bills'), isNot(contains('budget_id')));
+      expect(columns('expenses'), isNot(contains('bill_id')));
+      expect(columns('budgets'), isNot(contains('reserved_amount')));
+      expect(columns('budgets'), isNot(contains('savings_target')));
+      expect(columns('budgets'), contains('currency'));
+      raw.dispose();
+    });
+
+    test('the v3 fixture really lacks the bills tables', () async {
+      final raw = sqlite.sqlite3.openInMemory();
+      raw.execute(File('test/fixtures/schema_v3.sql').readAsStringSync());
+      final tables = raw
+          .select("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .map((r) => r['name'])
+          .toSet();
+      expect(tables, isNot(contains('bills')));
+      expect(tables, isNot(contains('bill_payments')));
+      expect(tables, contains('budgets'));
+      raw.dispose();
+    });
+  });
+
+  group('bills → budgets foreign key', () {
+    // schemaOf compares column names only: a raw ALTER TABLE without
+    // REFERENCES would pass parity yet let deleteBudget through on upgraded
+    // databases while fresh installs block it.
+    const budgetLink = ('budgets', 'budget_id', 'id');
+
+    test('is declared on a fresh database', () async {
+      final db = AppDatabase(executor: NativeDatabase.memory());
+      addTearDown(db.close);
+      expect(await foreignKeysOf(db, 'bills'), contains(budgetLink));
+    });
+
+    test('is declared after upgrading from v7', () async {
+      final db = await openUpgradedFromV7((_) {});
+      addTearDown(db.close);
+      expect(await foreignKeysOf(db, 'bills'), contains(budgetLink));
+    });
+
+    test('is declared after upgrading from v4', () async {
+      final db = await openUpgradedFromV4((_) {});
+      addTearDown(db.close);
+      expect(await foreignKeysOf(db, 'bills'), contains(budgetLink));
+    });
+
+    test('is declared after upgrading from v3', () async {
+      final db = await openUpgradedFromV3((_) {});
+      addTearDown(db.close);
+      expect(await foreignKeysOf(db, 'bills'), contains(budgetLink));
+    });
+
+    test('expenses.bill_id has no foreign key', () async {
+      final db = AppDatabase(executor: NativeDatabase.memory());
+      addTearDown(db.close);
+      final keys = await foreignKeysOf(db, 'expenses');
+      expect(keys.map((k) => k.$2), isNot(contains('bill_id')));
     });
   });
 

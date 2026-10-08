@@ -41,9 +41,13 @@ class ExpenseModel {
       tags: decodeTags(row.tags),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      billId: row.billId,
     );
   }
 
+  /// Insert companion. The only place `bill_id` is written from an entity;
+  /// updates go through [ExpenseLocalDataSourceImpl.updateExpense], which
+  /// never touches it.
   static ExpensesCompanion toCompanion(ExpenseEntity entity) {
     return ExpensesCompanion.insert(
       id: entity.id,
@@ -57,6 +61,7 @@ class ExpenseModel {
       tags: Value(encodeTags(entity.tags)),
       createdAt: Value(entity.createdAt),
       updatedAt: Value(entity.updatedAt),
+      billId: Value(entity.billId),
     );
   }
 }

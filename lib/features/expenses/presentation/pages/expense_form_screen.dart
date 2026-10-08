@@ -246,6 +246,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       time.minute,
     );
 
+    // Built fresh, so a duplicate never inherits the source's billId (a copy
+    // of a bill payment is plain spending) and an edit never writes it.
     final expense = ExpenseEntity(
       id: _isEditing ? widget.expenseId! : const Uuid().v4(),
       budgetId: _selectedBudgetId!,

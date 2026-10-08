@@ -4,16 +4,22 @@ import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
 import 'package:monivo/features/budget/domain/entities/budget_status.dart';
 import 'package:monivo/features/budget/domain/entities/budget_summary_entity.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/services/safe_to_spend_calculator.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/repository/bill_repository.dart';
+import 'package:monivo/features/dashboard/domain/entities/committed_spending.dart';
 import 'package:monivo/features/dashboard/domain/entities/recent_expense_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
 import 'package:monivo/features/dashboard/domain/repository/dashboard_repository.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -27,6 +33,7 @@ class MockGetSmartInsightsUseCase implements GetSmartInsightsUseCase {
     BudgetSummaryEntity summary, {
     SpendingTargetEntity? spendingTarget,
     List<dynamic>? budgetDailyLimits,
+    SafeToSpendEntity? safeToSpend,
   }) => const [];
 }
 
@@ -163,6 +170,37 @@ class MockGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   }
 }
 
+class MockGetSafeToSpendUseCase implements GetSafeToSpendUseCase {
+  final BudgetResult<SafeToSpendEntity>? resultToReturn;
+  final List<String> requestedBudgetIds = [];
+  final List<DateTime?> requestedDates = [];
+
+  MockGetSafeToSpendUseCase({this.resultToReturn});
+
+  @override
+  Future<BudgetResult<SafeToSpendEntity>> call({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
+    requestedBudgetIds.add(budgetId);
+    requestedDates.add(referenceDate);
+    return resultToReturn ??
+        const BudgetError(
+          BudgetFailure(
+            type: BudgetErrorType.notFound,
+            message: 'Budget not found',
+          ),
+        );
+  }
+
+  @override
+  Future<Map<String, SafeToSpendEntity>> callForBudgets(
+    List<BudgetEntity> budgets, {
+    required DateTime referenceDate,
+    List<BudgetEntity>? allBudgets,
+  }) async => const {};
+}
+
 class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {
   final List<RecentExpenseEntity>? expensesToReturn;
 
@@ -206,6 +244,12 @@ class MockDashboardRepository implements DashboardRepository {
   }) async {
     return [];
   }
+
+  @override
+  Future<Map<String, CommittedSpending>> getCommittedSpending({
+    required List<BudgetEntity> budgets,
+    required DateTime today,
+  }) async => {for (final b in budgets) b.id: CommittedSpending.zero};
 }
 
 class FakeBillRepository implements BillRepository {
@@ -223,6 +267,8 @@ class FakeBillRepository implements BillRepository {
   Future<void> createBillPayment(BillPaymentRecord payment) async {}
   @override
   Future<List<BillPaymentRecord>> getBillPayments(String billId) async => [];
+  @override
+  Future<void> deleteBillPayment(String paymentId) async {}
   @override
   Future<List<BillEntity>> getUpcomingBills({
     DateTime? from,
@@ -299,6 +345,7 @@ void main() {
       getRecentExpensesUseCase: mockGetRecentExpensesUseCase,
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
       getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+      getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
       budgetRepository: MockBudgetRepository(),
       billRepository: FakeBillRepository(),
     );
@@ -324,6 +371,7 @@ void main() {
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
         getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
         budgetRepository: MockBudgetRepository(),
         billRepository: FakeBillRepository(),
       );
@@ -362,6 +410,7 @@ void main() {
         getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
         getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
         budgetRepository: MockBudgetRepository(),
         billRepository: FakeBillRepository(),
       );
@@ -392,6 +441,7 @@ void main() {
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
         getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
         budgetRepository: MockBudgetRepository(),
         billRepository: FakeBillRepository(),
       );
@@ -420,28 +470,125 @@ void main() {
       getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
         resultToReturn: const BudgetError(
           BudgetFailure(
-            type: BudgetErrorType.invalidDate,
-            message: 'Invalid date',
+            type: BudgetErrorType.invalidBudget,
+            message: 'Budget amount must be greater than zero',
           ),
         ),
       ),
       getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
       getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
       getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+      getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
       budgetRepository: MockBudgetRepository(),
       billRepository: FakeBillRepository(),
     );
 
-    final expected = const [
-      DashboardLoading(),
-      DashboardError(message: 'Invalid date'),
-    ];
-
-    expectLater(bloc.stream, emitsInOrder(expected));
+    final future = expectLater(
+      bloc.stream,
+      emitsInOrder(const [
+        DashboardLoading(),
+        DashboardError(message: 'Budget amount must be greater than zero'),
+      ]),
+    );
 
     bloc.add(const DashboardLoadData());
 
+    await future;
     await bloc.close();
+  });
+
+  group('active budget not running today (invalidDate)', () {
+    // The summary has no daily figure outside the period, so the bloc asks
+    // the safe-to-spend engine for the not-started / ended result instead
+    // of showing an error.
+    final today = DateTime(2026, 8, 20);
+    final notStarted = SafeToSpendCalculator(BudgetCalculationService())
+        .calculate(
+          SafeToSpendInput(
+            budgetId: 'active-budget',
+            budgetName: 'September',
+            currency: 'INR',
+            startDate: DateTime(2026, 9, 1),
+            endDate: DateTime(2026, 9, 30),
+            today: today,
+            budgetAmount: 30000,
+            periodSpent: 0,
+            todaySpent: 0,
+            commitments: const [],
+          ),
+        );
+    const invalidDate = BudgetError<BudgetSummaryEntity>(
+      BudgetFailure(
+        type: BudgetErrorType.invalidDate,
+        message: 'Reference date does not match budget period',
+      ),
+    );
+
+    test('emits [DashboardLoading, DashboardNotRunning] with the engine '
+        'result for the same day', () async {
+      final safeToSpend = MockGetSafeToSpendUseCase(
+        resultToReturn: BudgetSuccess(notStarted),
+      );
+      final bloc = DashboardBloc(
+        getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
+          resultToReturn: invalidDate,
+        ),
+        getRecentExpensesUseCase: MockGetRecentExpensesUseCase(
+          expensesToReturn: tRecentExpenses,
+        ),
+        getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        getSafeToSpendUseCase: safeToSpend,
+        budgetRepository: MockBudgetRepository(),
+        billRepository: FakeBillRepository(),
+        clock: () => DateTime(2026, 8, 20, 18, 45),
+      );
+
+      final future = expectLater(
+        bloc.stream,
+        emitsInOrder([
+          const DashboardLoading(),
+          DashboardNotRunning(
+            activeBudgetId: 'active-budget',
+            safeToSpend: notStarted,
+            recentExpenses: tRecentExpenses,
+          ),
+        ]),
+      );
+
+      bloc.add(const DashboardLoadData());
+
+      await future;
+      expect(notStarted.status, SafeToSpendStatus.notStarted);
+      expect(safeToSpend.requestedBudgetIds, ['active-budget']);
+      expect(safeToSpend.requestedDates, [today]);
+      await bloc.close();
+    });
+
+    test('emits DashboardEmpty when the budget is gone', () async {
+      final bloc = DashboardBloc(
+        getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
+          resultToReturn: invalidDate,
+        ),
+        getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
+        getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+        getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
+        budgetRepository: MockBudgetRepository(),
+        billRepository: FakeBillRepository(),
+        clock: () => today,
+      );
+
+      final future = expectLater(
+        bloc.stream,
+        emitsInOrder(const [DashboardLoading(), DashboardEmpty()]),
+      );
+
+      bloc.add(const DashboardLoadData());
+
+      await future;
+      await bloc.close();
+    });
   });
 
   test(
@@ -456,6 +603,7 @@ void main() {
         ),
         getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
         getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+        getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
         budgetRepository: MockBudgetRepository(),
         billRepository: FakeBillRepository(),
       );
