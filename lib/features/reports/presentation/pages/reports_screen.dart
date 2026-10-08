@@ -32,8 +32,8 @@ import '../widgets/reports_error_widget.dart';
 import '../widgets/time_analytics_card.dart';
 import '../widgets/weekly_comparison_card.dart';
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
-import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_animated_size.dart';
+import '../../../expenses/presentation/quick_add/quick_add_sheet.dart';
 
 /// Reports tab. Reading order: how much did I spend → how is the budget
 /// doing → where did it go → how did it move over time → patterns →
@@ -267,7 +267,7 @@ class _ReportContent extends StatelessWidget {
                                   child: EmptyReportsState(
                                     filtered: state.filter.isActive,
                                     onAddExpense: () =>
-                                        context.pushUnique('/app/expenses/add'),
+                                        QuickAddSheet.show(context),
                                     onClearFilters: () =>
                                         context.read<ReportsBloc>().add(
                                           const ReportsFilterChanged(

@@ -65,6 +65,14 @@ class ExpenseHistoryState extends Equatable {
   /// Display name of the active budget the history is scoped to.
   final String? budgetName;
 
+  /// Currency of the active budget the history is scoped to.
+  final String? budgetCurrency;
+
+  /// In a combined view whose budgets use more than one currency: the
+  /// summary of the visible expenses per currency, since one total across
+  /// currencies would mean nothing. Empty otherwise.
+  final Map<String, ExpenseHistorySummary> summaryByCurrency;
+
   final String? errorMessage;
 
   // ── Combined mode fields ─────────────────────────────────────────────
@@ -96,6 +104,8 @@ class ExpenseHistoryState extends Equatable {
     this.hasMore = false,
     this.budgetId,
     this.budgetName,
+    this.budgetCurrency,
+    this.summaryByCurrency = const {},
     this.errorMessage,
     this.viewMode = ExpenseViewMode.singleBudget,
     this.selectedBudgetIds = const [],
@@ -128,6 +138,8 @@ class ExpenseHistoryState extends Equatable {
     bool? hasMore,
     String? budgetId,
     String? budgetName,
+    String? budgetCurrency,
+    Map<String, ExpenseHistorySummary>? summaryByCurrency,
     bool clearBudgetScope = false,
     String? errorMessage,
     bool clearError = false,
@@ -151,6 +163,10 @@ class ExpenseHistoryState extends Equatable {
       hasMore: hasMore ?? this.hasMore,
       budgetId: clearBudgetScope ? null : (budgetId ?? this.budgetId),
       budgetName: clearBudgetScope ? null : (budgetName ?? this.budgetName),
+      budgetCurrency: clearBudgetScope
+          ? null
+          : (budgetCurrency ?? this.budgetCurrency),
+      summaryByCurrency: summaryByCurrency ?? this.summaryByCurrency,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       viewMode: viewMode ?? this.viewMode,
       selectedBudgetIds: selectedBudgetIds ?? this.selectedBudgetIds,
@@ -160,6 +176,21 @@ class ExpenseHistoryState extends Equatable {
   }
 
   bool get isCombinedMode => viewMode == ExpenseViewMode.combined;
+
+  /// The one currency every amount on screen is in: the active budget's, or
+  /// in a combined view the shared currency of the selected budgets. Null
+  /// when a combined view mixes currencies.
+  String? get displayCurrency {
+    if (!isCombinedMode) return budgetCurrency;
+    final codes = {
+      for (final id in selectedBudgetIds)
+        if (budgetMap[id] != null) budgetMap[id]!.currency,
+    };
+    return codes.length == 1 ? codes.single : null;
+  }
+
+  /// A combined view of budgets in different currencies.
+  bool get mixesCurrencies => summaryByCurrency.length > 1;
 
   /// Total amount spent across all visible expenses.
   double get combinedTotalAmount =>
@@ -191,6 +222,8 @@ class ExpenseHistoryState extends Equatable {
     hasMore,
     budgetId,
     budgetName,
+    budgetCurrency,
+    summaryByCurrency,
     errorMessage,
     viewMode,
     selectedBudgetIds,

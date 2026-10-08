@@ -26,6 +26,7 @@ import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
 import '../widgets/dashboard_header.dart';
+import '../../../expenses/presentation/quick_add/quick_add_sheet.dart';
 import '../widgets/free_to_spend_summary.dart';
 import '../widgets/home_insights.dart';
 import '../widgets/link_bills_sheet.dart';
@@ -117,7 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (!_hasContent(state)) return const SizedBox.shrink();
           return AppFab(
             heroTag: 'dashboard_fab',
-            onPressed: () => context.pushUnique('/app/expenses/add'),
+            onPressed: () => QuickAddSheet.show(context),
             icon: Icons.add_rounded,
             label: 'Add expense',
             tooltip: 'Add expense',
@@ -464,7 +465,7 @@ List<Widget> _recentExpenses(
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   FilledButton.tonalIcon(
-                    onPressed: () => context.pushUnique('/app/expenses/add'),
+                    onPressed: () => QuickAddSheet.show(context),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Add expense'),
                   ),

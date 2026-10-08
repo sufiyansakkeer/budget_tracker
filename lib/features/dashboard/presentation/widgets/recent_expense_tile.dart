@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
+import '../../../expenses/presentation/widgets/transaction_row.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 
-/// One recent expense: category tile, what it was, when, and the amount.
+/// One recent expense on Home, as the same [TransactionRow] Expenses uses,
+/// with a relative time ("Yesterday, 7:30 PM").
 ///
 /// Amounts carry no minus sign: everything here is spending, so a sign
 /// would only add noise (refunds would get a "+").
@@ -30,22 +29,18 @@ class RecentExpenseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasNote = expense.note != null && expense.note!.trim().isNotEmpty;
-    final title = hasNote ? expense.note!.trim() : expense.categoryName;
+    final note = expense.note?.trim();
+    final hasNote = note != null && note.isNotEmpty;
+    final title = hasNote ? note : expense.categoryName;
     final when = _when(expense.date, today ?? DateTime.now());
-    return AppListRow(
-      leading: IconTile(
-        icon: CategoryVisuals.iconFor(expense.categoryIcon),
-        color: CategoryVisuals.adaptiveColor(context, expense.categoryColorHex),
-        size: AppSizes.avatarSm,
-      ),
+    return TransactionRow(
+      icon: CategoryVisuals.iconFor(expense.categoryIcon),
+      color: CategoryVisuals.adaptiveColor(context, expense.categoryColorHex),
       title: title,
-      subtitle: '${expense.categoryName} · $when',
-      trailing: AppMoney(
-        amount: expense.amount,
-        currency: currency,
-        textAlign: TextAlign.end,
-      ),
+      detail: expense.categoryName,
+      when: when,
+      amount: expense.amount,
+      currency: currency,
       semanticLabel:
           '$title, ${expense.categoryName}, '
           '${AppMoney.format(expense.amount, currency: currency)}, $when',

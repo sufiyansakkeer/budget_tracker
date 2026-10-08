@@ -7,8 +7,8 @@ import 'category_visuals.dart';
 import 'form_field_error.dart';
 import '../../../../core/constants/app_motion.dart';
 
-/// Visual category selector: icon + name chips, tinted with the category
-/// color when selected.
+/// Visual category selector: icon + name chips. The icon carries the
+/// category's colour; the selected chip uses the theme's neutral selection.
 class CategoryPicker extends StatelessWidget {
   final List<ExpenseCategory> categories;
   final String? selectedCategoryId;
@@ -33,24 +33,23 @@ class CategoryPicker extends StatelessWidget {
         Text('Category', style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.sm),
         if (categories.isEmpty)
-          Shimmer(
-            child: Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final w in [88.0, 104.0, 72.0, 96.0, 80.0])
-                  SkeletonBox(
-                    width: w,
-                    height: 36,
-                    radius: AppSpacing.radiusFull,
-                  ),
-                // Keep a progress indicator for assistive tech + tests.
-                const SizedBox(
-                  width: AppSizes.iconMd,
-                  height: AppSizes.iconMd,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ],
+          // Chip-shaped placeholders, announced once; no spinner.
+          Semantics(
+            label: 'Loading categories',
+            excludeSemantics: true,
+            child: Shimmer(
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final w in [88.0, 104.0, 72.0, 96.0, 80.0])
+                    SkeletonBox(
+                      width: w,
+                      height: 32,
+                      radius: AppSpacing.radiusSm,
+                    ),
+                ],
+              ),
             ),
           )
         else
@@ -74,27 +73,20 @@ class CategoryPicker extends StatelessWidget {
                       AppMotion.fast,
                     ),
                     curve: AppMotion.standardCurve,
+                    // Selection is neutral (the theme's selected chip), so a
+                    // red or amber category never reads as a warning; the
+                    // icon keeps the category's colour.
                     child: ChoiceChip(
                       key: Key('category_${category.id}'),
                       selected: isSelected,
+                      showCheckmark: false,
                       onSelected: (_) => onSelected(category.id),
                       avatar: Icon(
                         CategoryVisuals.iconFor(category.icon),
                         size: AppSizes.iconSm + 2,
-                        color: isSelected
-                            ? color
-                            : theme.colorScheme.onSurfaceVariant,
+                        color: color,
                       ),
                       label: Text(category.name),
-                      selectedColor: color.withValues(alpha: 0.16),
-                      side: BorderSide(
-                        color: isSelected
-                            ? color
-                            : theme.colorScheme.outlineVariant,
-                      ),
-                      labelStyle: theme.textTheme.labelLarge?.copyWith(
-                        color: isSelected ? color : theme.colorScheme.onSurface,
-                      ),
                     ),
                   );
                 })

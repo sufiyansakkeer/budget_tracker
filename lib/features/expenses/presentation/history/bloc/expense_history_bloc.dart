@@ -7,6 +7,7 @@ import '../../../../../core/domain/entities/budget_entity.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_failure.dart';
+import '../../../domain/entities/expense_history_summary.dart';
 import '../../../domain/usecases/calculate_expense_summary_usecase.dart';
 import '../../../domain/usecases/filter_expenses_usecase.dart';
 import '../../../domain/usecases/get_categories_usecase.dart';
@@ -399,6 +400,7 @@ class ExpenseHistoryBloc
     // Determine which data source to use.
     String? budgetId;
     String? budgetName;
+    String? budgetCurrency;
     List<ExpenseEntity> expenses = const [];
 
     final categoriesResult = await getCategoriesUseCase();
@@ -432,6 +434,7 @@ class ExpenseHistoryBloc
           : await budgetRepository.getBudgetById(activeBudgetId);
       budgetId = activeBudget?.id;
       budgetName = activeBudget?.name;
+      budgetCurrency = activeBudget?.currency;
 
       final expensesResult = await getExpensesUseCase(budgetId: budgetId);
       switch (expensesResult) {
@@ -466,6 +469,7 @@ class ExpenseHistoryBloc
       categories: categories,
       budgetId: budgetId,
       budgetName: budgetName,
+      budgetCurrency: budgetCurrency,
       clearBudgetScope: isCombined,
       keepLoaded: showLoading,
     );
@@ -482,6 +486,7 @@ class ExpenseHistoryBloc
     List<ExpenseCategory>? categories,
     String? budgetId,
     String? budgetName,
+    String? budgetCurrency,
     bool clearBudgetScope = false,
     bool keepLoaded = false,
   }) {
@@ -505,6 +510,7 @@ class ExpenseHistoryBloc
     );
 
     final summary = calculateExpenseSummaryUseCase(visible);
+    final summaryByCurrency = _summaryByCurrency(visible);
 
     // Refreshes re-slice as many rows as were already on screen (at least
     // one page); filter, sort and search changes start again from the top.
@@ -531,7 +537,9 @@ class ExpenseHistoryBloc
         categories: nextCategories,
         budgetId: budgetId,
         budgetName: budgetName,
+        budgetCurrency: budgetCurrency,
         clearBudgetScope: clearBudgetScope,
+        summaryByCurrency: summaryByCurrency,
         visibleExpenses: visible,
         pageExpenses: page.items,
         loadedExpenses: page.items,
@@ -541,5 +549,26 @@ class ExpenseHistoryBloc
         clearError: true,
       ),
     );
+  }
+
+  /// Per-currency summaries for a combined view that mixes currencies, from
+  /// the same summary use case run on each currency's expenses; empty when
+  /// every visible amount shares one currency.
+  Map<String, ExpenseHistorySummary> _summaryByCurrency(
+    List<ExpenseEntity> visible,
+  ) {
+    if (state.viewMode != ExpenseViewMode.combined) return const {};
+    final byCurrency = <String, List<ExpenseEntity>>{};
+    for (final e in visible) {
+      final code = state.budgetMap[e.budgetId]?.currency;
+      if (code == null) continue;
+      (byCurrency[code] ??= []).add(e);
+    }
+    if (byCurrency.length < 2) return const {};
+    final codes = byCurrency.keys.toList()..sort();
+    return {
+      for (final code in codes)
+        code: calculateExpenseSummaryUseCase(byCurrency[code]!),
+    };
   }
 }

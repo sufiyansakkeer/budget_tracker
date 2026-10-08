@@ -7,10 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Premium redesign, Phases 2 (the design system) and 3 (Home). Direction and
-plan: `docs/design/monivo-design-direction.html`.
+Premium redesign, Phases 2 (the design system), 3 (Home) and 4 (Expenses).
+Direction and plan: `docs/design/monivo-design-direction.html`.
 
 ### Changed
+- **Quick add.** The Add expense button on Home, Expenses and Reports opens a
+  sheet with a number pad, your five most used categories and Today,
+  Yesterday or another day. "More details" opens the full form with what was
+  entered. The home-screen widget still opens the full form.
+- **Expenses is one scrolling page.** The title, budget menu, search and chips
+  scroll away with the list. "Combined view" moved from a permanent switch
+  into the budget menu under the title, next to "Switch budget". The summary
+  is a line of type, day headers read "Spent ₹570 · 2 items", and rows are
+  the same as Home's. The Add expense button shrinks to an icon while you
+  scroll down.
+- **Forms check on save, not while typing.** Leaving the full form with
+  unsaved input asks first. A save closes the form at once with a short
+  confirmation instead of holding the screen for half a second.
+- **An expense's own screen** is one surface (amount, budget, date, time,
+  tags, receipt) with Duplicate, Move and Delete below. Delete no longer asks
+  for confirmation: the screen closes and Undo is offered, as in the list.
+- **Category chips** use a neutral selection; the selected chip no longer
+  turns the category's colour (red for Food).
 - **Home is rebuilt around Today's Safe Spending.** One raised surface holds
   the figure (whole units large, the symbol and paise small), its status, a
   bar for how much of today's amount is used, and Spent today with Left today
@@ -57,6 +75,10 @@ plan: `docs/design/monivo-design-direction.html`.
   Reduce Motion.
 
 ### Fixed
+- **Expenses showed every amount in ₹.** The list now uses the active
+  budget's currency, so an OMR budget's expenses read in rials.
+- **A combined view of budgets in different currencies added them up** under
+  one symbol. It now gives one total per currency.
 - **Recent expenses on Home all showed "12:00 AM".** They now show the time
   each expense was recorded for, and expenses on the same day are listed by
   time.
@@ -70,6 +92,8 @@ plan: `docs/design/monivo-design-direction.html`.
   `android/gradle.properties` that only its native library needed.
 - The budget overview card and the quick actions on Home. Their content is in
   the hero, Coming up and the Add expense button.
+- The Active budget / Combined switch on Expenses (now in the budget menu)
+  and the delete confirmation on an expense's screen (now Undo).
 
 ### Added (for developers)
 - `AppTypography` (money roles with tabular figures), `AppTone` and tone
@@ -87,6 +111,12 @@ plan: `docs/design/monivo-design-direction.html`.
   excluded), feeding `DashboardLoaded.spendingPace`.
 - `AppSurface` (raised and sunken), `AppNotice`, `DelayedReveal` and
   `AppAnimatedSize` (skips animating under reduced motion).
+- `RankCategoriesByUseUseCase` (read-only ranking for the quick-add
+  shortcuts), `ExpenseLoadQuickAdd`, `AppAmountPad`, `TransactionRow` (shared
+  by Home and Expenses), `ExpenseUndo`, `ExpensePrefill` and
+  `ExpenseHistoryState.budgetCurrency` / `summaryByCurrency`.
+- `initDependencyInjection(database:)` lets a widget test use an in-memory
+  database; the app smoke test now does, which fixes its intermittent failure.
 
 ## [1.0.0] - 2026-10-08
 

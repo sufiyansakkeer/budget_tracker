@@ -21,6 +21,20 @@ class ExpenseInitialize extends ExpenseEvent {
   const ExpenseInitialize();
 }
 
+/// Loads what the quick-add sheet needs: the active budget, the categories
+/// and the most used ones over the last [days] days (all budgets).
+class ExpenseLoadQuickAdd extends ExpenseEvent {
+  final int days;
+
+  /// "Now" for the look-back window; defaults to the device clock.
+  final DateTime? now;
+
+  const ExpenseLoadQuickAdd({this.days = 90, this.now});
+
+  @override
+  List<Object?> get props => [days, now];
+}
+
 /// Loads a single expense by id (for edit/details).
 class ExpenseLoadById extends ExpenseEvent {
   final String id;

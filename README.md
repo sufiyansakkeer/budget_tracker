@@ -86,11 +86,22 @@ safe-spending calculations.
 
 - Add, edit and delete expenses. Each expense records amount, category, optional
   note, date, time, optional tags and an optional receipt image.
+- **Quick add.** The Add expense button opens a sheet: type the amount on a
+  number pad, tap one of your five most used categories (the last 90 days, bill
+  payments left out) and Today, Yesterday or another day. It goes to the active
+  budget. "More details" opens the full form with what you entered, for the
+  note, budget, time, tags and receipt. The home-screen widget's button still
+  opens the full form.
+- **Checked when you save.** Neither form flags anything while you type; Add
+  says what is missing. Leaving the full form with unsaved input asks before
+  discarding it. A save closes the form at once with a short confirmation.
 - **Swipe left to delete, with Undo.** Deleting is immediate and a snackbar offers
   Undo for a few seconds; undo restores the same row, so budgets, reports and the
   widget stay consistent either way. No confirmation dialog stands in the way.
 - **Press and hold a row** for contextual actions: Edit, Duplicate, Move to another
   budget, Delete. Duplicate opens the form pre-filled from that expense, dated now.
+  An expense's own screen offers the same, and deleting there also closes with
+  Undo rather than a confirmation.
 - Moving an expense between budgets credits the budget it left and debits the one
   it joins, inside a single transaction.
 - 13 built-in categories (Food, Grocery, Fuel, Shopping, Rent, EMI, Bills, Travel,
@@ -112,9 +123,12 @@ safe-spending calculations.
 - Date presets — Today, Yesterday, This week, Last week, This month, Last month,
   This year — as quick chips and in the filter sheet. A custom range reads as a
   single chip ("12 Mar – 15 Mar").
-- **Combined Expense View**: select multiple budgets and see their expenses in one
-  list. Each row carries a budget-name chip, and an info sheet shows that budget's
-  details. See [Multiple budgets, explained](#multiple-budgets-explained).
+- **Combined Expense View**: from the budget menu under the Expenses title, select
+  multiple budgets and see their expenses in one list. Each row carries a
+  budget-name tag, and an info sheet shows that budget's details. When the
+  budgets use different currencies, the summary gives one total per currency and
+  days that mix them show no total. See
+  [Multiple budgets, explained](#multiple-budgets-explained).
 - All amounts are formatted through a single currency formatter using the budget's
   currency code and symbol.
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/entities/expense_failure.dart';
@@ -11,6 +12,7 @@ import '../../domain/usecases/delete_expense_usecase.dart';
 import '../../domain/usecases/get_categories_usecase.dart';
 import '../../domain/usecases/get_expense_by_id_usecase.dart';
 import '../../domain/usecases/get_expenses_usecase.dart';
+import '../../domain/usecases/rank_categories_by_use_usecase.dart';
 import '../../domain/usecases/update_expense_usecase.dart';
 import '../../../../core/events/refresh_bus.dart';
 import 'expense_event.dart';
@@ -25,6 +27,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   final GetCategoriesUseCase getCategoriesUseCase;
   final ExpenseRepository repository;
   final BudgetRepository budgetRepository;
+  final RankCategoriesByUseUseCase rankCategoriesByUse;
 
   ExpenseBloc({
     required this.createExpenseUseCase,
@@ -35,8 +38,10 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     required this.getCategoriesUseCase,
     required this.repository,
     required this.budgetRepository,
+    this.rankCategoriesByUse = const RankCategoriesByUseUseCase(),
   }) : super(const ExpenseState()) {
     on<ExpenseLoadCategories>(_onLoadCategories);
+    on<ExpenseLoadQuickAdd>(_onLoadQuickAdd);
     on<ExpenseInitialize>(_onInitialize);
     on<ExpenseLoadById>(_onLoadById);
     on<ExpenseLoadAll>(_onLoadAll);
@@ -76,6 +81,52 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
       case ExpenseError(:final failure):
         emit(state.copyWith(message: failure.message));
     }
+  }
+
+  /// Reads the active budget and ranks the categories by use. Each part
+  /// degrades on its own: without a budget the sheet says so, and without
+  /// history the shortcuts fall back to catalogue order.
+  Future<void> _onLoadQuickAdd(
+    ExpenseLoadQuickAdd event,
+    Emitter<ExpenseState> emit,
+  ) async {
+    emit(state.copyWith(quickAddLoad: QuickAddLoad.loading));
+
+    var categories = state.categories;
+    if (categories.isEmpty) {
+      final result = await getCategoriesUseCase();
+      if (result case ExpenseSuccess(:final data)) categories = data;
+    }
+
+    BudgetEntity? budget;
+    try {
+      final id = await budgetRepository.getActiveBudgetId();
+      budget = id == null ? null : await budgetRepository.getBudgetById(id);
+    } catch (_) {
+      budget = null;
+    }
+    if (budget?.isArchived ?? false) budget = null;
+
+    final now = event.now ?? DateTime.now();
+    final from = DateTime(now.year, now.month, now.day - event.days);
+    final recent = await getExpensesUseCase(from: from, to: now);
+    final expenses = switch (recent) {
+      ExpenseSuccess(:final data) => data,
+      ExpenseError() => const <ExpenseEntity>[],
+    };
+
+    emit(
+      state.copyWith(
+        categories: categories,
+        quickAddLoad: QuickAddLoad.loaded,
+        quickAddBudget: budget,
+        clearQuickAddBudget: budget == null,
+        frequentCategories: rankCategoriesByUse(
+          categories: categories,
+          expenses: expenses,
+        ),
+      ),
+    );
   }
 
   /// Captures the current date/time once (from a single [DateTime.now()] call)

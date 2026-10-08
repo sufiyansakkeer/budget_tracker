@@ -34,9 +34,8 @@ void main() {
       expect(find.text('Food'), findsOneWidget);
     });
 
-    testWidgets('shows loading indicator when categories are empty', (
-      tester,
-    ) async {
+    testWidgets('shows chip placeholders, not a spinner, while categories '
+        'load', (tester) async {
       await tester.pumpWidget(
         wrap(
           CategoryPicker(
@@ -47,7 +46,10 @@ void main() {
         ),
       );
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      // Changed on purpose in the redesign: skeleton chips replace the
+      // spinner, and they are announced once.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.bySemanticsLabel('Loading categories'), findsOneWidget);
     });
 
     testWidgets('calls onSelected when a category chip is tapped', (

@@ -21,6 +21,9 @@ class AppListRow extends StatelessWidget {
   final VoidCallback? onLongPress;
   final String? semanticLabel;
 
+  /// What a long press does, read by screen readers ("more actions").
+  final String? longPressHint;
+
   /// Colour for the title, e.g. a destructive action.
   final Color? titleColor;
 
@@ -34,6 +37,7 @@ class AppListRow extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.semanticLabel,
+    this.longPressHint,
     this.titleColor,
   });
 
@@ -87,7 +91,16 @@ class AppListRow extends StatelessWidget {
             ),
             if (trailing != null) ...[
               const SizedBox(width: AppSpacing.smd),
-              trailing!,
+              // An amount may take up to ~45% of the row and then scales
+              // down, so the title always keeps room at large text sizes.
+              // Sized from the screen rather than a LayoutBuilder, so the
+              // row still works inside dialogs that measure intrinsics.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.42,
+                ),
+                child: trailing!,
+              ),
             ],
           ],
         ),
@@ -104,6 +117,7 @@ class AppListRow extends StatelessWidget {
       label: semanticLabel ?? [title, ?subtitle].join(', '),
       onTap: onTap,
       onLongPress: onLongPress,
+      onLongPressHint: onLongPress == null ? null : longPressHint,
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,
