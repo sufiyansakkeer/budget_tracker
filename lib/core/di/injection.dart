@@ -508,6 +508,7 @@ Future<void> initDependencyInjection({
     () => ReportsBloc(
       getReportDataUseCase: getIt<GetReportDataUseCase>(),
       insightGenerator: getIt<ReportInsightGenerator>(),
+      budgetRepository: getIt<BudgetRepository>(),
     ),
   );
 

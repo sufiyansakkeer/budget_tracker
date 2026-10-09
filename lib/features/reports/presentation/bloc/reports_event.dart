@@ -49,6 +49,13 @@ class ReportsPeriodChanged extends ReportsEvent {
   List<Object?> get props => [period, customStart, customEnd];
 }
 
+/// Reports the active budget's own period, from its start to today (or its
+/// end, if that came first), and keeps following it when the budget or its
+/// dates change.
+class ReportsBudgetPeriodSelected extends ReportsEvent {
+  const ReportsBudgetPeriodSelected();
+}
+
 /// Applies a full filter set and reloads.
 class ReportsFilterChanged extends ReportsEvent {
   final ExpenseHistoryFilter filter;

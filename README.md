@@ -163,23 +163,32 @@ safe-spending calculations.
 
 Reports are scoped to the **Active Budget's** expenses.
 
-- Period selector: This Week, Last Week, This Month, Last Month, This Year, Custom
-  range. The same filter set as the expense history can be applied on top.
-- Total spending summary with a spending trend.
-- Budget progress card — shown only when the selected range covers the current
-  calendar month.
-- Category breakdown: pie chart plus ranked per-category analytics.
+- Period selector: **This Budget** (the Active Budget's own period, from its start
+  to today), This Week, Last Week, This Month, Last Month, This Year, Custom
+  range. Dates are chosen there only; the filter sheet narrows by category,
+  amount, tags and receipts.
+- **The total first**: what was spent, and how that compares with the same
+  number of days just before ("12% more than the 9 days before (22 – 30 Sep)").
+  No sentence when there was no spending to compare with. Then the daily
+  average, the number of expenses and the biggest one.
+- **Planned vs actual** for This Budget: spent against the budget amount, on a
+  bar with a tick for today. Facts only, no status word.
+- **Where it went**: every category ranked by amount with a bar of its share;
+  tap one to list those expenses.
 - **Categories vs previous period** — which categories moved most against the
   equal-length window immediately before the selected range, with the change in
   money and percent, and a "New" marker for categories with no earlier spending.
-- Daily spending line chart.
+- Day by day: one column per day (real totals, never smoothed) with a dashed
+  line at the daily average; tap a day to see its total.
 - Bar chart of weekly buckets (month views) or monthly buckets (year views), shown
   when the range produces more than one bucket.
-- Week-over-week comparison, shown when a preceding period exists.
-- Time analytics: most/least expensive day, most/least active day, highest-spending
-  weekday, weekday vs. weekend split.
-- Report insights, generated from the figures on screen, collapsible to a short list.
-- Export the report as **CSV** or **PDF** through the system share sheet.
+- Weekly rhythm: spending by day of the week, the heaviest day, and the weekend
+  share.
+- Report insights, only those that add something the figures and charts don't
+  already show.
+- Export the report as **CSV** or **PDF** from the menu, through the system share
+  sheet.
+- A refresh that fails keeps the last report on screen with a Retry.
 
 Charts are drawn with `fl_chart`.
 

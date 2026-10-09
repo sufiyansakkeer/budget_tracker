@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses) and 5
-(Budgets and Bills). Direction and plan:
+Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses), 5
+(Budgets and Bills) and 6 (Reports). Direction and plan:
 `docs/design/monivo-design-direction.html`.
 
 ### Changed
+- **Reports leads with the answer**: what was spent, and how that compares with
+  the same number of days just before. Then planned vs actual for the new
+  **This Budget** period (the active budget from its start to today), every
+  category ranked by amount (tap one to see its expenses), daily columns with
+  an average line (tap a day for its total), the weekly rhythm, and only the
+  insights that say something new. Export moved to the menu. The report is
+  one flat page instead of a stack of cards.
+- **Dates are chosen in one place** on Reports: the period chips and range.
+  The filter sheet there no longer offers dates.
 - **Budgets screen.** The active budget leads as the one raised card: what is
   left, a bar with a tick for today, the day of the period and "Home, Expenses
   and Reports follow this budget". Other budgets are compact rows grouped by
@@ -92,6 +101,17 @@ Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses) and 5
   Reduce Motion.
 
 ### Fixed
+- **A failed Reports refresh replaced the whole screen** with raw error text.
+  The last report now stays, with "Couldn't update the report" and Retry.
+- **Reports could show one range and use another**: dates set in the filter
+  sheet silently overrode the selected period. Dates now come from the period
+  only.
+- **Custom ranges over 62 days drew monthly bars labelled "week".** The label
+  now follows the bars.
+- **Report insights outside the current month labelled amounts in ₹** whatever
+  the budget's currency.
+- **Bars no longer change colour at 80% used**, so Reports can't call a budget
+  "on track" while Home says "at risk": the threshold colour helper is gone.
 - **Amounts in Omani rials could not be entered to the fils.** Every amount
   field and its check (expenses, quick add, bills, budgets, set-aside
   amounts, onboarding) stopped at two decimals. Each now follows its
@@ -125,6 +145,9 @@ Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses) and 5
   and the delete confirmation on an expense's screen (now Undo).
 - The budget card grid, the bill status tiles and "Next up" card, and the
   80%-used colour change on budget bars.
+- On Reports: the pie chart, the smoothed daily line, the week-over-week
+  card, the time analytics card, the budget utilisation card and the export
+  buttons; `AppProgress` and the unused `InsightCard`.
 
 ### Added (for developers)
 - `AppTypography` (money roles with tabular figures), `AppTone` and tone
@@ -148,6 +171,11 @@ Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses) and 5
   `ExpenseHistoryState.budgetCurrency` / `summaryByCurrency`.
 - `ActiveBudgetCard`, `BudgetRow`, `BudgetUsageTrack`, `BudgetPeriodCopy`,
   `BillVisuals.totalsByCurrency` / `isDueSoon` and `AppDisclosure`.
+- `ReportsBudgetPeriodSelected` and `ReportsState.followsBudget` / `budget`
+  ("This Budget" is a custom range the bloc re-reads from the active budget on
+  every load); `ReportTotal`, `PlannedVsActual`, `CategoryRanking`,
+  `DailyColumnsChart`, `WeekdayRhythm`, `ReportExport`, `ReportCopy`;
+  `FilterBottomSheet(showDates:)`.
 - `MoneyInput` (`lib/core/currency/money_input.dart`): the decimals an amount
   may have per currency, the typing pattern, the decimals message and
   unrounded edit text. `ExpenseValidator.validateAmount` and

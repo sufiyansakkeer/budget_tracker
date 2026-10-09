@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/domain/entities/budget_entity.dart';
+
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 import '../../../expenses/domain/entities/expense_history_filter.dart';
 import '../../domain/entities/report_data.dart';
@@ -32,6 +34,13 @@ class ReportsState extends Equatable {
 
   final String? errorMessage;
 
+  /// Whether the report follows the active budget's period ("This budget"),
+  /// shown as a custom range from its start to today.
+  final bool followsBudget;
+
+  /// The active budget while [followsBudget], for planned versus actual.
+  final BudgetEntity? budget;
+
   const ReportsState({
     this.status = ReportsStatus.initial,
     this.period = ReportPeriod.thisMonth,
@@ -42,6 +51,8 @@ class ReportsState extends Equatable {
     this.insights,
     this.isEmpty = false,
     this.errorMessage,
+    this.followsBudget = false,
+    this.budget,
   });
 
   ReportsState copyWith({
@@ -55,6 +66,9 @@ class ReportsState extends Equatable {
     bool? isEmpty,
     String? errorMessage,
     bool clearError = false,
+    bool? followsBudget,
+    BudgetEntity? budget,
+    bool clearBudget = false,
   }) {
     return ReportsState(
       status: status ?? this.status,
@@ -66,6 +80,8 @@ class ReportsState extends Equatable {
       insights: insights ?? this.insights,
       isEmpty: isEmpty ?? this.isEmpty,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      followsBudget: followsBudget ?? this.followsBudget,
+      budget: clearBudget ? null : (budget ?? this.budget),
     );
   }
 
@@ -80,5 +96,7 @@ class ReportsState extends Equatable {
     insights,
     isEmpty,
     errorMessage,
+    followsBudget,
+    budget,
   ];
 }

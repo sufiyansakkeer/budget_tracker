@@ -16,7 +16,7 @@ class TrackMarker {
 
 /// A rounded progress track with an animated fill and optional [markers].
 ///
-/// Unlike `AppProgress` it never picks a colour from a ratio: the caller
+/// It never picks a colour from a ratio (an 80%-used threshold): the caller
 /// passes the colour of the status the bar shows, so a bar can never
 /// disagree with the chip beside it. The fill animates from its previous
 /// value (instant under reduced motion).

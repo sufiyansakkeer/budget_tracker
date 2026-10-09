@@ -15,15 +15,20 @@ class BarChartCard extends StatelessWidget {
   final List<SpendingBucket> buckets;
   final String currency;
 
-  /// "week" or "month" – used in the title and copy.
-  final String unit;
-
   const BarChartCard({
     super.key,
     required this.buckets,
     required this.currency,
-    this.unit = 'week',
   });
+
+  /// "week" or "month", read from the buckets themselves (a month apart or
+  /// a week apart), so the label always matches what is drawn. Before, a
+  /// custom range over 62 days drew months labelled "week".
+  String get unit =>
+      buckets.length > 1 &&
+          buckets[1].startDate.difference(buckets[0].startDate).inDays >= 28
+      ? 'month'
+      : 'week';
 
   @override
   Widget build(BuildContext context) {
