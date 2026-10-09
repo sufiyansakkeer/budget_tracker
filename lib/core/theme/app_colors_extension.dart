@@ -159,19 +159,25 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color step(Color candidate, double minRatio) =>
         Contrast.ensureContrast(candidate, surface, minRatio: minRatio);
 
-    final bg = isDark
-        ? _darken(surface, 0.04)
-        : step(_darken(surface, 0.035), 1.07);
-    final cardColor = isDark ? step(_lighten(surface, 0.045), 1.15) : surface;
-    final container = isDark
-        ? step(_lighten(surface, 0.08), 1.3)
-        : step(_darken(surface, 0.06), 1.12);
+    // A level [amount] of lightness away from the surface. Light levels keep
+    // the surface's hue but only a whisper of its saturation: near white, a
+    // tint of two or three units is already 100% HSL saturation, so stepping
+    // the surface as-is turned a blush card into a pink page and pink inputs.
+    // The cap goes after the step, because a capped near-white surface rounds
+    // straight back to full saturation in 8 bits.
+    Color away(double amount) => isDark
+        ? _lighten(surface, amount)
+        : _capSaturation(_darken(surface, amount), _lightLevelMaxSaturation);
+
+    final bg = isDark ? _darken(surface, 0.04) : step(away(0.035), 1.07);
+    final cardColor = isDark ? step(away(0.045), 1.15) : surface;
+    final container = isDark ? step(away(0.08), 1.3) : step(away(0.06), 1.12);
     final containerHigh = isDark
-        ? step(_lighten(surface, 0.13), 1.55)
-        : step(_darken(surface, 0.10), 1.22);
+        ? step(away(0.13), 1.55)
+        : step(away(0.10), 1.22);
     final containerHighest = isDark
-        ? step(_lighten(surface, 0.18), 1.85)
-        : step(_darken(surface, 0.14), 1.35);
+        ? step(away(0.18), 1.85)
+        : step(away(0.14), 1.35);
 
     // -------------------------------------------------------------------------
     // Accents, made legible on the surfaces they are drawn on.
@@ -432,6 +438,10 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
 
   /// The most saturation a dark-theme surface keeps.
   static const double _darkSurfaceMaxSaturation = 0.3;
+
+  /// The most saturation the light page and container levels keep: enough
+  /// for a warm or cool cast, not enough to read as a colour.
+  static const double _lightLevelMaxSaturation = 0.12;
 
   static Color _capSaturation(Color color, double max) {
     final hsl = HSLColor.fromColor(color);

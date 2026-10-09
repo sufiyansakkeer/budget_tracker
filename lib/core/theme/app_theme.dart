@@ -191,10 +191,12 @@ class AppTheme {
     final textSecondary = tokens.textSecondary;
     final cardColor = tokens.card;
 
-    // "On" colours are held to AA against the colour they sit on. Container
-    // "on" colours are the accent itself made legible on its container, so a
-    // tinted chip, nav indicator or icon tile keeps the brand hue in both
-    // themes instead of collapsing to near-black / near-white.
+    // "On" colours are held to AA against the colour they sit on. Palettes
+    // author container "on" colours as the accent's own hue, deep enough
+    // to read on its container, so a tinted chip, segment or icon tile
+    // keeps the brand hue instead of collapsing to near-black / near-white.
+    // Palettes are authored at these floors (see color_palette_test), so
+    // [on] is a safety net here, not where the colour is decided.
     Color on(Color foreground, Color background) =>
         Contrast.ensureContrast(foreground, background);
 
@@ -207,19 +209,31 @@ class AppTheme {
       primary: tokens.primary,
       onPrimary: on(baseScheme.onPrimary, tokens.primary),
       primaryContainer: baseScheme.primaryContainer,
-      onPrimaryContainer: on(tokens.primary, baseScheme.primaryContainer),
+      onPrimaryContainer: on(
+        baseScheme.onPrimaryContainer,
+        baseScheme.primaryContainer,
+      ),
       secondary: tokens.secondary,
       onSecondary: on(baseScheme.onSecondary, tokens.secondary),
       secondaryContainer: baseScheme.secondaryContainer,
-      onSecondaryContainer: on(tokens.secondary, baseScheme.secondaryContainer),
+      onSecondaryContainer: on(
+        baseScheme.onSecondaryContainer,
+        baseScheme.secondaryContainer,
+      ),
       tertiary: tokens.tertiary,
       onTertiary: on(baseScheme.onTertiary, tokens.tertiary),
       tertiaryContainer: baseScheme.tertiaryContainer,
-      onTertiaryContainer: on(tokens.tertiary, baseScheme.tertiaryContainer),
+      onTertiaryContainer: on(
+        baseScheme.onTertiaryContainer,
+        baseScheme.tertiaryContainer,
+      ),
       error: tokens.error,
       onError: on(baseScheme.onError, tokens.error),
       errorContainer: baseScheme.errorContainer,
-      onErrorContainer: on(tokens.error, baseScheme.errorContainer),
+      onErrorContainer: on(
+        baseScheme.onErrorContainer,
+        baseScheme.errorContainer,
+      ),
       surface: surface,
       onSurface: baseScheme.onSurface,
       onSurfaceVariant: textSecondary,

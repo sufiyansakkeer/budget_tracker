@@ -45,41 +45,41 @@ const List<PaletteOption> paletteOptions = [
   PaletteOption(
     palette: ColorPalette.defaultPalette,
     label: 'Default',
-    description: 'Classic blue & teal',
+    description: 'Indigo & teal',
   ),
   PaletteOption(
     palette: ColorPalette.blossomVapor,
     label: 'Blossom Vapor',
-    description: 'lavender & Coral Rush',
+    description: 'Orchid & lavender',
   ),
   PaletteOption(
     palette: ColorPalette.mahoganyBlaze,
     label: 'Mahogany Blaze',
-    description: 'Ignite Orange & Glaze Blue',
+    description: 'Sienna & slate blue',
   ),
   PaletteOption(
     palette: ColorPalette.ocean,
     label: 'Ocean',
-    description: 'Deep blue & aqua',
+    description: 'Deep blue & coral',
   ),
   PaletteOption(
     palette: ColorPalette.forest,
     label: 'Forest',
-    description: 'Emerald green & sage',
+    description: 'Evergreen & clay',
   ),
   PaletteOption(
     palette: ColorPalette.sunset,
     label: 'Sunset',
-    description: 'Warm amber & coral',
+    description: 'Orange & amber',
   ),
   PaletteOption(
     palette: ColorPalette.violet,
     label: 'Violet',
-    description: 'Rich purple & lavender',
+    description: 'Violet & champagne',
   ),
   PaletteOption(
     palette: ColorPalette.rose,
     label: 'Rose',
-    description: 'Blush pink & mauve',
+    description: 'Deep rose & teal',
   ),
 ];
