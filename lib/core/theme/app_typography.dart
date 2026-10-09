@@ -26,6 +26,10 @@ class AppTypography extends ThemeExtension<AppTypography> {
   /// The bundled family declared in pubspec.yaml.
   static const String fontFamily = 'Manrope';
 
+  /// Bundled fonts for characters Manrope lacks and system fonts don't draw
+  /// yet: the Omani rial sign (U+20C4). Every text style lists it.
+  static const List<String> fontFamilyFallback = ['MonivoOmaniRial'];
+
   /// Tabular (fixed-width) figures. Manrope's default digits are
   /// proportional, so every money role switches this on.
   static const List<FontFeature> tabularFigures = [
@@ -53,6 +57,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
   static const AppTypography standard = AppTypography(
     moneyHero: TextStyle(
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       fontSize: 48,
       height: 1.04,
       fontWeight: FontWeight.w800,
@@ -61,6 +66,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
     ),
     moneyDisplay: TextStyle(
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       fontSize: 32,
       height: 1.12,
       fontWeight: FontWeight.w800,
@@ -69,6 +75,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
     ),
     moneyTitle: TextStyle(
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       fontSize: 20,
       height: 1.2,
       fontWeight: FontWeight.w700,
@@ -77,6 +84,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
     ),
     moneyBody: TextStyle(
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       fontSize: 15,
       height: 1.33,
       fontWeight: FontWeight.w700,
@@ -85,6 +93,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
     ),
     moneyCaption: TextStyle(
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       fontSize: 12,
       height: 1.33,
       fontWeight: FontWeight.w600,
@@ -93,6 +102,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
     ),
     eyebrow: TextStyle(
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       fontSize: 12,
       height: 1.33,
       fontWeight: FontWeight.w700,

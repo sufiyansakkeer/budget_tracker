@@ -13,7 +13,8 @@ Results below are from 9 October 2026, on `feature/monivo-premium-ui`.
 |---|---|
 | Amount | Floored and split exactly as Home's hero (`₹45.45`, symbol and minor units as separate pieces) |
 | Currency | OMR keeps its own symbol and three decimals (the old widget showed `₹4`) |
-| Right-to-left symbols | Figures with `ر.ع.` are identical to what `AppMoney` draws on Home (symbol before the digits) |
+| Right-to-left symbols | Figures with `د.إ` are identical to what `AppMoney` draws on Home (symbol before the digits) |
+| Omani rial sign | OMR figures carry U+20C4 with its space; screen readers get "OMR" |
 | Copy | Status label and tone, spent / left today, "Over by", budget line and days left all come from `SafeToSpendCopy` |
 | States | On track, over today's amount (caution), over budget (critical), no budget, error, stale message |
 | Colours | Every palette colour present in both modes; the accent follows the palette, status colours do not |

@@ -47,10 +47,12 @@ class AppTheme {
   //   labelMedium    → chips, eyebrows
   //   labelSmall     → tiny status text, navigation labels
   static const String _family = AppTypography.fontFamily;
+  static const List<String> _fallback = AppTypography.fontFamilyFallback;
 
   static const TextTheme _textTheme = TextTheme(
     displaySmall: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 36,
       fontWeight: FontWeight.w800,
       height: 1.12,
@@ -58,6 +60,7 @@ class AppTheme {
     ),
     headlineMedium: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 28,
       fontWeight: FontWeight.w800,
       height: 1.2,
@@ -65,6 +68,7 @@ class AppTheme {
     ),
     headlineSmall: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 24,
       fontWeight: FontWeight.w700,
       height: 1.25,
@@ -72,6 +76,7 @@ class AppTheme {
     ),
     titleLarge: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 20,
       fontWeight: FontWeight.w700,
       height: 1.3,
@@ -79,6 +84,7 @@ class AppTheme {
     ),
     titleMedium: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 16,
       fontWeight: FontWeight.w700,
       height: 1.375,
@@ -86,24 +92,28 @@ class AppTheme {
     ),
     titleSmall: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 14,
       fontWeight: FontWeight.w600,
       height: 1.43,
     ),
     bodyLarge: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 16,
       fontWeight: FontWeight.w500,
       height: 1.5,
     ),
     bodyMedium: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 14,
       fontWeight: FontWeight.w500,
       height: 1.5,
     ),
     bodySmall: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 12,
       fontWeight: FontWeight.w500,
       height: 1.45,
@@ -111,6 +121,7 @@ class AppTheme {
     ),
     labelLarge: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 14,
       fontWeight: FontWeight.w700,
       height: 1.3,
@@ -118,6 +129,7 @@ class AppTheme {
     ),
     labelMedium: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 12,
       fontWeight: FontWeight.w600,
       height: 1.33,
@@ -125,6 +137,7 @@ class AppTheme {
     ),
     labelSmall: TextStyle(
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       fontSize: 11,
       fontWeight: FontWeight.w600,
       height: 1.36,
@@ -264,6 +277,7 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: bg,
       fontFamily: _family,
+      fontFamilyFallback: _fallback,
       textTheme: _textTheme,
       extensions: [tokens, AppTypography.standard],
       visualDensity: VisualDensity.standard,

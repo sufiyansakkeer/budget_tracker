@@ -12,8 +12,8 @@ import 'package:monivo/core/theme/app_theme.dart';
 /// that have nothing to do with the UI. Every golden test passes
 /// [goldenSkip] as its `skip:` and carries the `golden` tag.
 ///
-/// The real fonts are loaded (Manrope from the app's assets, Material Icons
-/// from the Flutter SDK) so the images show the actual design instead of
+/// The real fonts are loaded (Manrope and the Omani rial sign from the app's
+/// assets, Material Icons from the Flutter SDK) so the images show the actual design instead of
 /// the test font's boxes.
 final bool goldenSkip = !Platform.isMacOS;
 
@@ -29,6 +29,16 @@ Future<void> loadAppFonts() async {
     manrope.addFont(Future.value(ByteData.sublistView(bytes)));
   }
   await manrope.load();
+
+  // The Omani rial sign (U+20C4), the theme's fallback after Manrope.
+  final rial = FontLoader('MonivoOmaniRial');
+  for (final weight in ['Light', 'Medium', 'Bold']) {
+    final bytes = File(
+      'assets/fonts/omani_rial/MonivoOmaniRial-$weight.ttf',
+    ).readAsBytesSync();
+    rial.addFont(Future.value(ByteData.sublistView(bytes)));
+  }
+  await rial.load();
 
   final icons = _materialIconsFont();
   if (icons != null) {

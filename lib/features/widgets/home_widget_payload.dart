@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/currency/currency_formatter.dart';
 import '../../core/theme/app_colors_extension.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_tone.dart';
@@ -78,26 +79,24 @@ abstract final class HomeWidgetPayload {
       'today': {
         'progress': _fraction(todayUsed),
         'spentLabel': 'Spent today',
-        'spent': _ltr(SafeToSpendCopy.amount(e.todayDiscretionary, e.currency)),
+        'spent': SafeToSpendCopy.amount(e.todayDiscretionary, e.currency),
         'restLabel': over ? 'Over by' : 'Left today',
-        'rest': _ltr(
-          over
-              ? SafeToSpendCopy.amount(e.overToday, e.currency)
-              : SafeToSpendCopy.safeAmount(e.remainingToday, e.currency),
-        ),
+        'rest': over
+            ? SafeToSpendCopy.amount(e.overToday, e.currency)
+            : SafeToSpendCopy.safeAmount(e.remainingToday, e.currency),
         // Over today's amount is recoverable, so caution, never critical.
         if (over) 'restTone': AppTone.caution.name,
       },
       'budget': {
         'name': e.budgetName,
         'daysLeft': SafeToSpendCopy.daysLeft(e),
-        'left': _ltr(SafeToSpendCopy.budgetLeftLine(e)),
+        'left': SafeToSpendCopy.budgetLeftLine(e),
         'progress': _fraction(budgetUtilization),
         'tone': e.availableBalance < 0
             ? AppTone.critical.name
             : AppTone.neutral.name,
       },
-      'summary': summary.toString(),
+      'summary': CurrencyFormatter.forSpeech(summary.toString()),
     };
   }
 
@@ -187,14 +186,6 @@ abstract final class HomeWidgetPayload {
         tone.name: _hex(tokens.tone(tone).accent),
     };
   }
-
-  static final RegExp _arabicSymbol = RegExp(r'([؀-ۿ][؀-ۿ.]*)(?=[−\-+]?\d)');
-
-  /// [text] with a left-to-right mark after each Arabic-script currency
-  /// symbol that comes before digits, as [AppMoney] draws single figures on
-  /// Home: without it "ر.ع.12.345" is drawn with the symbol after the digits.
-  static String _ltr(String text) =>
-      text.replaceAllMapped(_arabicSymbol, (m) => '${m[1]}\u200E');
 
   static double _fraction(double value) =>
       value.isFinite ? value.clamp(0.0, 1.0).toDouble() : 0.0;

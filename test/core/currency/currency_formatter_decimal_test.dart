@@ -8,7 +8,10 @@ void main() {
   group('resolveSymbol', () {
     test('uses the app symbol for its settings currencies', () {
       expect(CurrencyFormatter.resolveSymbol('INR', providerSymbol: 'Rs'), '₹');
-      expect(CurrencyFormatter.resolveSymbol('OMR'), 'ر.ع.');
+      expect(
+        CurrencyFormatter.resolveSymbol('OMR'),
+        CurrencyFormatter.omaniRialSign,
+      );
       expect(
         CurrencyFormatter.resolveSymbol('aud', providerSymbol: r'$'),
         r'A$',

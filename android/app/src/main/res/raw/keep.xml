@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resources the Dart side refers to only by name, which resource
+     shrinking in release builds cannot see and would otherwise remove.
+     Without the notification icon, every reminder crashed the release app
+     ("Invalid notification (no valid small icon)"). -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_notification" />

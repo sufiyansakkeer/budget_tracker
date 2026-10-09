@@ -157,7 +157,7 @@ it is paid*.
 - **Never shown higher than it is.** Money is summed in integer units
   (`MoneyMath`). The domain keeps the exact quotient. The screens and the
   notification floor safe amounts to the currency's digits (OMR 7.6 shows as
-  "ر.ع.7.600", never "8").
+  "⃄ 7.600", never "8").
 - **Calendar days.** Day counts compare UTC calendar dates, so a
   daylight-saving day is still one day.
 - **The forecast is informational.** It uses only completed days and

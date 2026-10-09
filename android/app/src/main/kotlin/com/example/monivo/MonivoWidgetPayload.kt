@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Paint
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
@@ -49,7 +50,7 @@ internal class WidgetPayload private constructor(
         }
 
         fun parse(raw: String): WidgetPayload? {
-            val json = JSONObject(raw)
+            val json = JSONObject(OmaniRialSign.forSystemFonts(raw))
             // A format this version doesn't know: show "open the app" instead.
             if (json.optInt("v") != VERSION) return null
             val colors = json.optJSONObject("colors")
@@ -71,6 +72,26 @@ internal class WidgetPayload private constructor(
         fun today(now: Date = Date()): String =
             SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now)
     }
+}
+
+/**
+ * U+20C4 OMANI RIAL SIGN (Central Bank of Oman, 2025). The app formats OMR
+ * with it and draws it from a bundled font, but a launcher draws widgets with
+ * system fonts only (it inflates them in a restricted context that cannot
+ * load app fonts). Until the system font has the sign, the widget shows the
+ * abbreviation the app used before it; once it does, the sign appears with no
+ * change here.
+ */
+internal object OmaniRialSign {
+    const val SIGN = "\u20C4"
+    private const val FALLBACK = "ر.ع.\u200E"
+
+    private val systemDrawsSign: Boolean by lazy { Paint().hasGlyph(SIGN) }
+
+    /** [text] with the sign (and its space) replaced when the system can't draw it. */
+    fun forSystemFonts(text: String): String =
+        if (systemDrawsSign) text
+        else text.replace("$SIGN\u00A0", FALLBACK).replace(SIGN, FALLBACK)
 }
 
 internal sealed interface WidgetContent
@@ -171,7 +192,9 @@ internal data class WidgetMoney(
             }
         }
         add(sign, small = false)
-        add(prefix, small = true)
+        // The Omani rial sign stands at the height of the figures, as its
+        // guidelines require; other symbols are set at half size.
+        add(prefix, small = !prefix.startsWith(OmaniRialSign.SIGN))
         add(whole, small = false)
         if (fraction) add(this.fraction, small = true)
         add(suffix, small = true)

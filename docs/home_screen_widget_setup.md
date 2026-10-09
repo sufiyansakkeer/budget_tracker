@@ -150,6 +150,22 @@ iOS 15 has no `ViewThatFits`; there the layout is picked by text size.
 
 ---
 
+## The Omani rial sign
+
+OMR is formatted with the Central Bank of Oman's sign, **U+20C4** (2025,
+Unicode 18.0), to the left of the figures with a space: "⃄ 7.600". No system
+font draws it yet, so:
+
+| Surface | What it shows |
+|---|---|
+| The app | The sign, from the bundled `MonivoOmaniRial` font (fallback after Manrope) |
+| iOS widget | The sign: the extension registers the same font at runtime (embedded in `MonivoWidget.swift`) |
+| Android widget | "ر.ع." — launchers draw widgets with system fonts only (they inflate them in a restricted context that can't load app fonts). Once the system font has the sign (`Paint.hasGlyph`), it appears with no change |
+| Notifications | "ر.ع." via `CurrencyFormatter.forSystemText` — the system draws them |
+| Screen readers | "OMR" via `CurrencyFormatter.forSpeech` — speech engines don't know the sign yet |
+
+---
+
 ## Taps
 
 | Target | Android | iOS | Opens |

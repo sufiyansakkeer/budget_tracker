@@ -50,9 +50,16 @@ void main() {
     });
 
     test('an Arabic-script symbol is followed by a left-to-right mark', () {
-      final text = AppMoney.format(12.45, currency: 'OMR');
-      expect(text, startsWith('ر.ع.‎'));
-      expect(text, endsWith('12.450'));
+      final text = AppMoney.format(12.45, currency: 'AED');
+      expect(text, 'د.إ\u200E12.45');
+    });
+
+    test('the Omani rial sign comes first, with a space', () {
+      expect(AppMoney.format(12.45, currency: 'OMR'), '\u20C4\u00A012.450');
+      final described = AppMoney.describe(12.45, currency: 'OMR');
+      expect(described.parts.prefix, '\u20C4\u00A0');
+      // Speech engines don't know the sign yet.
+      expect(described.spoken, 'OMR 12.450');
     });
   });
 

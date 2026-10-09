@@ -171,11 +171,16 @@ class AppMoney extends StatelessWidget {
       letterSpacing: size * 0.06,
     );
     final parts = f.parts;
+    // The Omani rial sign is set at the height of the figures, as the Central
+    // Bank's guidelines require; its own space separates it from them.
+    final prefixStyle = parts.prefix.startsWith(CurrencyFormatter.omaniRialSign)
+        ? base.copyWith(color: muted)
+        : symbol;
     return TextSpan(
       children: [
         if (parts.sign.isNotEmpty) TextSpan(text: parts.sign, style: base),
         if (parts.prefix.isNotEmpty)
-          TextSpan(text: parts.prefix, style: symbol),
+          TextSpan(text: parts.prefix, style: prefixStyle),
         TextSpan(text: parts.whole, style: base),
         if (parts.fraction.isNotEmpty)
           TextSpan(text: parts.fraction, style: small),
@@ -242,7 +247,11 @@ class _Formatted {
         ? 'minus '
         : (showPlus ? 'plus ' : '');
     final parts = MoneyParts._of(sign, body);
-    return _Formatted(parts.join(), '$spokenSign$body', parts);
+    return _Formatted(
+      parts.join(),
+      '$spokenSign${CurrencyFormatter.forSpeech(body)}',
+      parts,
+    );
   }
 }
 
@@ -280,10 +289,12 @@ class MoneyParts {
     var prefix = body.substring(0, first);
     final number = body.substring(first, last + 1);
     final suffix = body.substring(last + 1);
-    // Arabic-script symbols (ر.ع.) would pull the digits after them into a
-    // right-to-left run and draw "7.600ر.ع."; a left-to-right mark after the
-    // symbol keeps it in front.
-    if (RegExp(r'[؀-ۿ]').hasMatch(prefix)) prefix = '$prefix\u200E';
+    // Arabic-script symbols (د.إ) would pull the digits after them into a
+    // right-to-left run and draw "7.600د.إ"; a left-to-right mark after the
+    // symbol keeps it in front. CurrencyFormatter normally adds it already.
+    if (RegExp(r'[؀-ۿ]').hasMatch(prefix) && !prefix.endsWith('\u200E')) {
+      prefix = '$prefix\u200E';
+    }
 
     final sep = number.lastIndexOf(_decimalSeparator);
     if (sep < 0) return MoneyParts(sign, prefix, number, '', suffix);

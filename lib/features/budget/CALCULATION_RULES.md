@@ -480,7 +480,7 @@ Ahead of plan               = Actual to date − Planned to date
   is snapped to it first.
   - It is shown with those digits when it has a fraction at that precision,
     and with 0 otherwise.
-  - Examples: OMR 7.6 → "ر.ع.7.600" (never "8"); ₹1,000 ÷ 3 → ₹333.33;
+  - Examples: OMR 7.6 → "⃄ 7.600" (never "8"); ₹1,000 ÷ 3 → ₹333.33;
     ₹1,000.004 → ₹1,000; JPY 99.9 → ¥99.
   - A safe amount is never shown higher than it is.
 - **Other amounts** (bills, kept aside, projections) are rounded to the minor

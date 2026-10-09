@@ -1,3 +1,4 @@
+import CoreText
 import SwiftUI
 import UIKit
 import WidgetKit
@@ -351,7 +352,7 @@ private struct Figures: View {
             track.padding(.top, 10)
             metrics.padding(.top, 4)
             Rectangle().fill(colors.color("divider")).frame(height: 1).padding(.vertical, 8)
-            Text(ltr: p.budget?.left ?? "")
+            OmaniRialSign.text(p.budget?.left ?? "", style: .subheadline, bold: false)
                 .font(.subheadline.weight(.medium))
                 .monospacedDigit()
                 .foregroundStyle(colors.color("ink"))
@@ -436,7 +437,9 @@ private struct Amount: View {
     private func figure(size: CGFloat, fraction: Bool) -> some View {
         let big = Font.system(size: size, weight: .bold).monospacedDigit()
         let small = Font.system(size: size * 0.5, weight: .bold).monospacedDigit()
-        var text = Text(ltr: money.sign).font(big) + Text(money.prefix).font(small) + Text(money.whole).font(big)
+        var text = Text(ltr: money.sign).font(big)
+            + OmaniRialSign.heroPrefix(money.prefix, size: size, big: big, small: small)
+            + Text(money.whole).font(big)
         if fraction { text = text + Text(money.fraction).font(small) }
         text = text + Text(money.suffix).font(small)
         return text.foregroundStyle(color).lineLimit(1)
@@ -452,7 +455,8 @@ private struct Metric: View {
     var body: some View {
         VStack(alignment: alignment, spacing: 1) {
             Text(ltr: label).font(.caption).foregroundStyle(colors.color("muted")).lineLimit(1)
-            Text(ltr: value).font(.subheadline.weight(.semibold)).monospacedDigit()
+            OmaniRialSign.text(value, style: .subheadline, bold: true)
+                .font(.subheadline.weight(.semibold)).monospacedDigit()
                 .foregroundStyle(colors.color("ink")).lineLimit(1)
         }
     }
@@ -468,7 +472,8 @@ private struct InlineMetric: View {
     var body: some View {
         Fitting(axis: .horizontal) {
             (Text(ltr: (label ?? "") + " ").foregroundColor(colors.color("muted"))
-                + Text(value ?? "").fontWeight(.semibold).foregroundColor(colors.color("ink")))
+                + OmaniRialSign.text(value ?? "", style: .footnote, bold: true, weight: .semibold)
+                .foregroundColor(colors.color("ink")))
                 .font(.footnote)
                 .monospacedDigit()
                 .lineLimit(1)
@@ -480,7 +485,8 @@ private struct InlineMetric: View {
     private var stacked: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(ltr: label ?? "").font(.footnote).foregroundColor(colors.color("muted")).lineLimit(1)
-            Text(ltr: value ?? "").font(.footnote.weight(.semibold)).monospacedDigit()
+            OmaniRialSign.text(value ?? "", style: .footnote, bold: true)
+                .font(.footnote.weight(.semibold)).monospacedDigit()
                 .foregroundColor(colors.color("ink")).lineLimit(1)
         }
     }
@@ -577,6 +583,152 @@ private struct Message: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+// MARK: - Omani rial sign
+
+/// U+20C4 OMANI RIAL SIGN (Central Bank of Oman, 2025). The app formats OMR
+/// with it, but iOS fonts don't draw it yet, so the widget registers the same
+/// glyph the app bundles (assets/fonts/omani_rial, embedded below) and sets
+/// the sign in it. Should the system font gain the sign, it is used as is; if
+/// the font can't be registered, the widget shows the abbreviation the app
+/// used before the sign.
+enum OmaniRialSign {
+    static let sign = "\u{20C4}"
+    static let fallback = "\u{0631}.\u{0639}.\u{200E}"
+
+    enum Mode { case system, bundled, abbreviated }
+
+    static let mode: Mode = {
+        let system = CTFontCreateUIFontForLanguage(.system, 17, nil)!
+        var chars = Array(sign.utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: chars.count)
+        if CTFontGetGlyphsForCharacters(system, &chars, &glyphs, chars.count), glyphs[0] != 0 {
+            return .system
+        }
+        return registerBundled() ? .bundled : .abbreviated
+    }()
+
+    private static func registerBundled() -> Bool {
+        var registered = true
+        for encoded in [medium, bold] {
+            guard let data = Data(base64Encoded: encoded),
+                  let provider = CGDataProvider(data: data as CFData),
+                  let font = CGFont(provider)
+            else { registered = false; continue }
+            var error: Unmanaged<CFError>?
+            if !CTFontManagerRegisterGraphicsFont(font, &error),
+               let failure = error?.takeRetainedValue(),
+               CFErrorGetCode(failure) != CTFontManagerError.alreadyRegistered.rawValue {
+                registered = false
+            }
+        }
+        return registered
+    }
+
+    /// [text] set left to right, with the sign in the bundled font when the
+    /// system can't draw it. [weight] applies to the rest of the text.
+    static func text(_ text: String, style: Font.TextStyle, bold: Bool, weight: Font.Weight? = nil) -> Text {
+        func plain(_ s: String) -> Text {
+            let t = Text(verbatim: s)
+            return weight.map { t.fontWeight($0) } ?? t
+        }
+        switch mode {
+        case .system:
+            return plain("\u{200E}" + text)
+        case .abbreviated:
+            return plain("\u{200E}" + abbreviated(text))
+        case .bundled:
+            let base = UIFont.preferredFont(
+                forTextStyle: style.uiKit,
+                compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+            ).pointSize
+            let signFont = Font.custom(fontName(bold: bold), size: base, relativeTo: style)
+            let parts = text.components(separatedBy: sign)
+            var out = plain("\u{200E}" + parts[0])
+            for part in parts.dropFirst() {
+                out = out + Text(verbatim: sign).font(signFont) + plain(part)
+            }
+            return out
+        }
+    }
+
+    /// The hero figure's symbol: the sign at the figures' height, as its
+    /// guidelines require; other symbols (and the fallback) at [small].
+    static func heroPrefix(_ prefix: String, size: CGFloat, big: Font, small: Font) -> Text {
+        guard prefix.hasPrefix(sign) else { return Text(verbatim: prefix).font(small) }
+        switch mode {
+        case .system:
+            return Text(verbatim: prefix).font(big)
+        case .abbreviated:
+            return Text(verbatim: abbreviated(prefix)).font(small)
+        case .bundled:
+            return Text(verbatim: sign).font(.custom(fontName(bold: true), fixedSize: size))
+                + Text(verbatim: String(prefix.dropFirst())).font(big)
+        }
+    }
+
+    private static func abbreviated(_ text: String) -> String {
+        text.replacingOccurrences(of: sign + "\u{00A0}", with: fallback)
+            .replacingOccurrences(of: sign, with: fallback)
+    }
+
+    private static func fontName(bold: Bool) -> String {
+        bold ? "MonivoOmaniRial-Bold" : "MonivoOmaniRial-Medium"
+    }
+
+    // MonivoOmaniRial-Medium.ttf and -Bold.ttf (assets/fonts/omani_rial),
+    // base64. The glyph is the Central Bank of Oman's (public domain).
+    private static let medium =
+        "AAEAAAAKAIAAAwAgT1MvMmjafecAAAEoAAAAYGNtYXAAtCFOAAABmAAAAERnbHlmjRmCkgAAAegAAAC8aGVhZGqMSnAAAACs" +
+        "AAAANmhoZWETzAmHAAAA5AAAACRobXR4E24AZAAAAYgAAAAQbG9jYQBeAAAAAAHcAAAACm1heHAABgBAAAABCAAAACBuYW1l" +
+        "JQhAfAAAAqQAAAOlcG9zdGJCckwAAAZMAAAAOgABAAAAAQAAhV5BcF8PPPUAAwfQAAAAAAAAAAAAAAAAAAAAAABkAAALEgWo" +
+        "AAAAAwACAAAAAAAAAAEAAAhU/agAAAt2AGQAZAsSAAEAAAAAAAAAAAAAAAAAAAAEAAEAAAAEAD4AAQAAAAAAAgAAAAAAAAAA" +
+        "AAAAAAAAAAAABATcAfQABQAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAATU5WTwDA" +
+        "ACAgxAhU/agAAAhUAlgAAAABAAAAAAQ4BaAAAAAgAAAD6AAAAggAAAIIAAALdgBkAAAAAgAAAAMAAAAUAAMAAQAAABQABAAw" +
+        "AAAACAAIAAIAAAAgAKAgxP//AAAAIACgIMT////h/2LfPwABAAAAAAAAAAAAAAAAAAAAAABeAAAAAQBkAAALEgWoAD0AAAEC" +
+        "Nz4CFhceBRcWDgUHLgUGBw4CHgIXIQMlBhYWFx4GMwUDIRMhJyETIQQXBIwzb4GdYgomLjEqHgQEBxIZGRcPAR1FT1dbXl0t" +
+        "KygEFicvFgYElfu4AgMGAworO0JCOy0LAoyW9siVBAeM/NGUAj4CoQEY8ll0MBgyBRggJCMcCQkzSldYTzwPHkVEPS0WCBgW" +
+        "NTo9OzcY/vYICQUBAwgUFxcUEAkI/vIBDokBCgAAABAAxgABAAAAAAAAAEMAAAABAAAAAAABABEAQwABAAAAAAACAAYAVAAB" +
+        "AAAAAAADABwAWgABAAAAAAAEABgAdgABAAAAAAAFAA0AjgABAAAAAAAGABYAmwABAAAAAAAKAEQAsQADAAEECQAAAIYA9QAD" +
+        "AAEECQABACIBewADAAEECQACAAwBnQADAAEECQADADgBqQADAAEECQAEADAB4QADAAEECQAFABoCEQADAAEECQAGACwCKwAD" +
+        "AAEECQAKAIgCV0dseXBoOiBPbWFuaSBSaWFsIFNpZ24gYnkgdGhlIENlbnRyYWwgQmFuayBvZiBPbWFuIChwdWJsaWMgZG9t" +
+        "YWluKS5Nb25pdm8gT21hbmkgUmlhbE1lZGl1bU1vbml2b09tYW5pUmlhbC1NZWRpdW07MS4wMDBNb25pdm8gT21hbmkgUmlh" +
+        "bCBNZWRpdW1WZXJzaW9uIDEuMDAwTW9uaXZvT21hbmlSaWFsLU1lZGl1bVUrMjBDNCBPTUFOSSBSSUFMIFNJR04gb25seSwg" +
+        "bWV0cmljcyBtYXRjaGVkIHRvIE1hbnJvcGUsIGZvciBNb25pdm8uAEcAbAB5AHAAaAA6ACAATwBtAGEAbgBpACAAUgBpAGEA" +
+        "bAAgAFMAaQBnAG4AIABiAHkAIAB0AGgAZQAgAEMAZQBuAHQAcgBhAGwAIABCAGEAbgBrACAAbwBmACAATwBtAGEAbgAgACgA" +
+        "cAB1AGIAbABpAGMAIABkAG8AbQBhAGkAbgApAC4ATQBvAG4AaQB2AG8AIABPAG0AYQBuAGkAIABSAGkAYQBsAE0AZQBkAGkA" +
+        "dQBtAE0AbwBuAGkAdgBvAE8AbQBhAG4AaQBSAGkAYQBsAC0ATQBlAGQAaQB1AG0AOwAxAC4AMAAwADAATQBvAG4AaQB2AG8A" +
+        "IABPAG0AYQBuAGkAIABSAGkAYQBsACAATQBlAGQAaQB1AG0AVgBlAHIAcwBpAG8AbgAgADEALgAwADAAMABNAG8AbgBpAHYA" +
+        "bwBPAG0AYQBuAGkAUgBpAGEAbAAtAE0AZQBkAGkAdQBtAFUAKwAyADAAQwA0ACAATwBNAEEATgBJACAAUgBJAEEATAAgAFMA" +
+        "SQBHAE4AIABvAG4AbAB5ACwAIABtAGUAdAByAGkAYwBzACAAbQBhAHQAYwBoAGUAZAAgAHQAbwAgAE0AYQBuAHIAbwBwAGUA" +
+        "LAAgAGYAbwByACAATQBvAG4AaQB2AG8ALgAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAADAQIBAwd1" +
+        "bmkwMEEwB3VuaTIwQzQAAA=="
+
+    private static let bold =
+        "AAEAAAAKAIAAAwAgT1MvMmmifb4AAAEoAAAAYGNtYXAAtCFOAAABmAAAAERnbHlmkTuxWQAAAegAAAC0aGVhZGppSmwAAACs" +
+        "AAAANmhoZWETqAljAAAA5AAAACRobXR4E0oAZAAAAYgAAAAQbG9jYQBaAAAAAAHcAAAACm1heHAABgA8AAABCAAAACBuYW1l" +
+        "YBazFAAAApwAAAONcG9zdGJCckwAAAYsAAAAOgABAAAAAQAABkr/pF8PPPUAAwfQAAAAAAAAAAAAAAAAAAAAAABkAAAK7gWk" +
+        "AAEAAwACAAAAAAAAAAEAAAhU/agAAAtSAGQAZAruAAEAAAAAAAAAAAAAAAAAAAAEAAEAAAAEADoAAQAAAAAAAgAAAAAAAAAA" +
+        "AAAAAAAAAAAABATTArwABQAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAATU5WTwCg" +
+        "ACAgxAhU/agAAAhUAlgAAAABAAAAAAQ4BaAAAAAgAAAD6AAAAggAAAIIAAALUgBkAAAAAgAAAAMAAAAUAAMAAQAAABQABAAw" +
+        "AAAACAAIAAIAAAAgAKAgxP//AAAAIACgIMT////h/2LfPwABAAAAAAAAAAAAAAAAAAAAAABaAAAAAQBkAAAK7gWkADkAAAET" +
+        "JSY+Azc+Ah4CFx4DBwMuBAcOAgcGHgMXIQMhHgIXHgQzIQMhEyEnIQFbngIeAhAhMkEnKVtiZWJbKAgaGhMBayVVXmhxPxMs" +
+        "JgoPAxkmKhAF7Z/7zhc4PBwJIiopIQcCjqD3DKED8HP82QG9AR4CPIGBfW8vLzINEik6IwYYHBoJ/mcqVUg0FQoDGSERGTU2" +
+        "MSwQ/uAUJR8NBA0QDgn+4AEgnQAAAAAQAMYAAQAAAAAAAABDAAAAAQAAAAAAAQARAEMAAQAAAAAAAgAEAFQAAQAAAAAAAwAa" +
+        "AFgAAQAAAAAABAAWAHIAAQAAAAAABQANAIgAAQAAAAAABgAUAJUAAQAAAAAACgBEAKkAAwABBAkAAACGAO0AAwABBAkAAQAi" +
+        "AXMAAwABBAkAAgAIAZUAAwABBAkAAwA0AZ0AAwABBAkABAAsAdEAAwABBAkABQAaAf0AAwABBAkABgAoAhcAAwABBAkACgCI" +
+        "Aj9HbHlwaDogT21hbmkgUmlhbCBTaWduIGJ5IHRoZSBDZW50cmFsIEJhbmsgb2YgT21hbiAocHVibGljIGRvbWFpbikuTW9u" +
+        "aXZvIE9tYW5pIFJpYWxCb2xkTW9uaXZvT21hbmlSaWFsLUJvbGQ7MS4wMDBNb25pdm8gT21hbmkgUmlhbCBCb2xkVmVyc2lv" +
+        "biAxLjAwME1vbml2b09tYW5pUmlhbC1Cb2xkVSsyMEM0IE9NQU5JIFJJQUwgU0lHTiBvbmx5LCBtZXRyaWNzIG1hdGNoZWQg" +
+        "dG8gTWFucm9wZSwgZm9yIE1vbml2by4ARwBsAHkAcABoADoAIABPAG0AYQBuAGkAIABSAGkAYQBsACAAUwBpAGcAbgAgAGIA" +
+        "eQAgAHQAaABlACAAQwBlAG4AdAByAGEAbAAgAEIAYQBuAGsAIABvAGYAIABPAG0AYQBuACAAKABwAHUAYgBsAGkAYwAgAGQA" +
+        "bwBtAGEAaQBuACkALgBNAG8AbgBpAHYAbwAgAE8AbQBhAG4AaQAgAFIAaQBhAGwAQgBvAGwAZABNAG8AbgBpAHYAbwBPAG0A" +
+        "YQBuAGkAUgBpAGEAbAAtAEIAbwBsAGQAOwAxAC4AMAAwADAATQBvAG4AaQB2AG8AIABPAG0AYQBuAGkAIABSAGkAYQBsACAA" +
+        "QgBvAGwAZABWAGUAcgBzAGkAbwBuACAAMQAuADAAMAAwAE0AbwBuAGkAdgBvAE8AbQBhAG4AaQBSAGkAYQBsAC0AQgBvAGwA" +
+        "ZABVACsAMgAwAEMANAAgAE8ATQBBAE4ASQAgAFIASQBBAEwAIABTAEkARwBOACAAbwBuAGwAeQAsACAAbQBlAHQAcgBpAGMA" +
+        "cwAgAG0AYQB0AGMAaABlAGQAIAB0AG8AIABNAGEAbgByAG8AcABlACwAIABmAG8AcgAgAE0AbwBuAGkAdgBvAC4AAAAAAgAA" +
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAwECAQMHdW5pMDBBMAd1bmkyMEM0AAA="
 }
 
 // MARK: - Helpers

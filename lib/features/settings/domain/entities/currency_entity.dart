@@ -22,7 +22,8 @@ const List<CurrencyEntity> availableCurrencies = [
   CurrencyEntity(code: 'USD', symbol: r'$', name: 'US Dollar'),
   CurrencyEntity(code: 'EUR', symbol: '€', name: 'Euro'),
   CurrencyEntity(code: 'AED', symbol: 'د.إ', name: 'UAE Dirham'),
-  CurrencyEntity(code: 'OMR', symbol: 'ر.ع.', name: 'Omani Rial'),
+  // The Central Bank of Oman's sign (U+20C4, 2025); the app bundles its glyph.
+  CurrencyEntity(code: 'OMR', symbol: '\u20C4', name: 'Omani Rial'),
   CurrencyEntity(code: 'GBP', symbol: '£', name: 'British Pound'),
   CurrencyEntity(code: 'CAD', symbol: r'C$', name: 'Canadian Dollar'),
   CurrencyEntity(code: 'AUD', symbol: r'A$', name: 'Australian Dollar'),

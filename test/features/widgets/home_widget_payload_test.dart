@@ -91,24 +91,28 @@ void main() {
       );
       expect(safe['text'], isNot(contains('₹')));
       expect(safe['fraction'], '.545');
-      // The symbol carries a left-to-right mark so the digits stay after it.
-      expect(safe['prefix'], endsWith('‎'));
+      // The Central Bank's sign, with the space its guidelines require.
+      expect(safe['prefix'], '\u20C4\u00A0');
+      // Screen readers get the currency code: speech engines don't know
+      // the sign yet.
+      expect(safe['spoken'], 'OMR 4.545');
+      expect(ready(e)['summary'], isNot(contains('\u20C4')));
     });
 
     test('Arabic-script symbols stay before the digits, as on Home', () {
-      // 100 OMR over 22 days (4.545 a day); 1.25 spent today.
-      final e = engine(amount: 100, spentToday: 1.25, currency: 'OMR');
+      // 100 AED over 22 days (4.54 a day); 1.25 spent today.
+      final e = engine(amount: 100, spentToday: 1.25, currency: 'AED');
       final today = section(ready(e), 'today');
       final budget = section(ready(e), 'budget');
 
       // Identical to what AppMoney draws for these figures on Home.
       expect(
         today['spent'],
-        AppMoney.format(e.todayDiscretionary, currency: 'OMR'),
+        AppMoney.format(e.todayDiscretionary, currency: 'AED'),
       );
       expect(
         today['rest'],
-        AppMoney.format(e.remainingToday, currency: 'OMR', floored: true),
+        AppMoney.format(e.remainingToday, currency: 'AED', floored: true),
       );
       expect(today['spent'], contains('\u200E'));
       // Both figures in the budget line keep their symbol in front.
