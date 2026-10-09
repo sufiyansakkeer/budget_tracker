@@ -21,24 +21,27 @@ class CurrencyFormatter {
 
   /// Formats [amount] using the symbol resolved from [code].
   ///
-  /// [decimalDigits] controls how many decimal places are shown. When [amount]
-  /// is a whole value and [decimalDigits] is not specified, decimals are
-  /// omitted to avoid rendering values like `₹1,428.570000`.
+  /// [decimalDigits] controls how many decimal places are shown. When it is
+  /// not specified, a whole amount shows none (never `₹1,428.570000` or
+  /// `₹250.00`) and a fractional one shows as many as amounts in [code] may
+  /// be entered with: OMR 7.125 → 3, ₹249.5 → 2.
   static String format(double amount, {String? code, int? decimalDigits}) {
     final symbol = symbolFor(code);
-    final digits = decimalDigits ?? _defaultDigits(amount);
+    final digits = decimalDigits ?? _defaultDigits(amount, code);
     return NumberFormat.currency(
       symbol: symbol,
       decimalDigits: digits,
     ).format(amount);
   }
 
-  /// Chooses a sensible default decimal count: 0 for whole amounts, 2 for
-  /// fractional amounts where the fraction is meaningful.
-  static int _defaultDigits(double amount) {
-    final abs = amount.abs();
-    if (abs == abs.roundToDouble()) return 0;
-    return 2;
+  /// 0 when [amount] is whole at the precision amounts in [code] are
+  /// entered with (the currency's minor units, never fewer than two, as
+  /// `MoneyInput.maxDecimals`), otherwise that precision.
+  static int _defaultDigits(double amount, String? code) {
+    final digits = math.max(decimalDigitsFor(code ?? ''), 2);
+    final factor = math.pow(10, digits).toDouble();
+    final units = (amount.abs() * factor).round();
+    return units % factor.toInt() == 0 ? 0 : digits;
   }
 
   // ── Any-currency helpers (currency converter) ────────────────────────────

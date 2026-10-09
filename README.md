@@ -75,6 +75,16 @@ safe-spending calculations.
 - Budget status is classified as under budget, near limit or over budget from a
   configurable utilization threshold.
 - Budgets can be edited and archived. Archived budgets keep their expenses.
+- **The Budgets screen** leads with the Active Budget as one card (what is
+  left, a bar with a tick for today, the day of the period, and "Home, Expenses
+  and Reports follow this budget"). Other budgets are compact rows grouped as
+  running, starting later, ended and archived. "Total remaining" is a quiet
+  footer with one figure per currency.
+- **A budget's screen** offers "Add expense" only when it is the Active Budget,
+  since that is where new expenses go; any other budget offers "Make active".
+- Budget and bill forms show what must be decided first; icon, colour and notes
+  (budgets) or category, repeat, reminder and note (bills) sit under "More
+  options", folded for a new item and open when editing.
 - **Change active budget amount** (Settings) rewrites only the amount; dates and
   expenses stay as they are, and the remaining amount is recomputed from what has
   already been spent.
@@ -185,7 +195,10 @@ Charts are drawn with `fl_chart`.
 - Mark a bill paid or unpaid. Marking a recurring bill paid advances it to its next
   occurrence instead of closing it permanently, and writes a payment-history record.
   The payment record and the bill update are written atomically.
-- List filters: All, Upcoming, Due Today, Overdue, Paid, Recurring.
+- The list groups bills as **Overdue**, **Due soon** (today and the next six
+  days), **Later** and **Paid**, each with a count and its unpaid total per
+  currency; amounts in different currencies are never added together.
+- List filters: All, Upcoming, Due Today, Overdue, Paid, Recurring, Not linked.
 - Per-bill reminders with a configurable lead time in days, delivered as local
   notifications on a dedicated channel. Reminders are never scheduled for a time in
   the past, and reminder IDs are derived from the bill ID so they can be reliably

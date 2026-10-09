@@ -75,10 +75,14 @@ void main() {
     expect(e.text, '125');
   });
 
-  test('OMR is held to the validator\'s two places for now', () {
-    // OMR has three minor digits, but ExpenseValidator accepts two.
-    expect(AmountEntry.empty('OMR').maxFractionDigits, 2);
-    expect(type(AmountEntry.empty('OMR'), '7.125').text, '7.12');
+  test('OMR takes its three places (fils), never a fourth', () {
+    expect(AmountEntry.empty('OMR').maxFractionDigits, 3);
+    final e = type(AmountEntry.empty('OMR'), '7.1259');
+    expect(e.text, '7.125');
+    expect(
+      ExpenseValidator.validateAmount(e.normalized, currency: 'OMR'),
+      isNull,
+    );
   });
 
   test('of() pre-fills without trailing zeros', () {

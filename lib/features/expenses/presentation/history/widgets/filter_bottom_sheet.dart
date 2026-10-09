@@ -8,6 +8,7 @@ import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
 import '../../../domain/entities/quick_date_preset.dart';
 import '../../widgets/category_visuals.dart';
+import '../../../../../core/currency/money_input.dart';
 
 /// Bottom sheet for applying expense filters.
 ///
@@ -256,7 +257,11 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           ),
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d{0,2}'),
+                              // Any budget's currency may be in view: allow
+                              // the most decimals one takes (OMR's three).
+                              MoneyInput.pattern(
+                                MoneyInput.anyCurrencyDecimals,
+                              ),
                             ),
                           ],
                           textInputAction: TextInputAction.next,
@@ -273,7 +278,11 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           ),
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d{0,2}'),
+                              // Any budget's currency may be in view: allow
+                              // the most decimals one takes (OMR's three).
+                              MoneyInput.pattern(
+                                MoneyInput.anyCurrencyDecimals,
+                              ),
                             ),
                           ],
                           textInputAction: TextInputAction.done,

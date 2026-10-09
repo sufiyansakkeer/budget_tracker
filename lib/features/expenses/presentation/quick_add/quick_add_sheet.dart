@@ -170,7 +170,10 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     if (budget == null) return;
     final amountError = _entry.value <= 0
         ? 'Enter an amount.'
-        : ExpenseValidator.validateAmount(_entry.normalized);
+        : ExpenseValidator.validateAmount(
+            _entry.normalized,
+            currency: budget.currency,
+          );
     final categoryError = _categoryId == null ? 'Choose a category.' : null;
     final dateError = ExpenseDateRules.outsideBudget(_date, budget);
     setState(() {

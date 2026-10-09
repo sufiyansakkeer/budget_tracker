@@ -1,3 +1,4 @@
+import '../../../../core/currency/money_input.dart';
 import '../../../../core/currency/money_math.dart';
 
 /// Reusable, pure validation logic for expense inputs.
@@ -8,8 +9,10 @@ class ExpenseValidator {
   static const int maxNoteLength = 500;
   static const int maxTags = 10;
 
-  /// Validates an amount string. Returns null if valid, otherwise an error message.
-  static String? validateAmount(String? input) {
+  /// Validates an amount string in [currency]. Returns null if valid,
+  /// otherwise an error message. Decimals follow the currency's minor units,
+  /// never fewer than two (OMR 3, INR 2, JPY 2); see [MoneyInput].
+  static String? validateAmount(String? input, {String? currency}) {
     if (input == null || input.trim().isEmpty) {
       return 'Amount cannot be empty';
     }
@@ -28,12 +31,7 @@ class ExpenseValidator {
       return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
     }
 
-    final decimalParts = input.trim().split('.');
-    if (decimalParts.length > 1 && decimalParts[1].length > 2) {
-      return 'Amount cannot have more than 2 decimal places';
-    }
-
-    return null;
+    return MoneyInput.decimalsError(input, currency);
   }
 
   /// Validates a double amount value.

@@ -294,4 +294,36 @@ void main() {
       'No budget is running or upcoming. You can link this bill later.',
     );
   });
+
+  testWidgets('category, repeat, reminder and note are folded on a new bill, '
+      'with their current values in the summary', (tester) async {
+    await pumpForm(tester);
+    expect(find.text('Repeat this bill', skipOffstage: false), findsNothing);
+    expect(
+      // New bills default to a reminder one day before.
+      find.textContaining('One-time · 1 day before', skipOffstage: false),
+      findsOneWidget,
+    );
+
+    final more = find.text('More options', skipOffstage: false);
+    await tester.ensureVisible(more);
+    await tester.pumpAndSettle();
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    expect(find.text('Repeat this bill', skipOffstage: false), findsOneWidget);
+    expect(find.text('Remind me', skipOffstage: false), findsOneWidget);
+  });
+
+  testWidgets('a bill in OMR takes its amount to the fils', (tester) async {
+    await pumpForm(tester);
+    await pick(tester, 'Household ·');
+    await enter(tester, 'Bill name', 'Visa');
+    await enter(tester, 'Amount', '12.1259');
+    expect(find.text('12.125', skipOffstage: false), findsOneWidget);
+    await save(tester, 'Add bill');
+
+    final saved = bills.store.values.single;
+    expect(saved.currency, 'OMR');
+    expect(saved.amount, 12.125);
+  });
 }

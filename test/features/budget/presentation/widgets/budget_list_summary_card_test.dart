@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/features/budget/domain/entities/budget_list_summary_entity.dart';
 import 'package:monivo/features/budget/presentation/widgets/budget_list_summary_card.dart';
 
@@ -46,17 +47,11 @@ void main() {
       ),
     );
 
-    expect(
-      find.text(CurrencyFormatter.format(100, code: 'OMR')),
-      findsOneWidget,
-    );
-    expect(
-      find.text(CurrencyFormatter.format(10000, code: 'INR')),
-      findsOneWidget,
-    );
-    expect(
-      find.text(CurrencyFormatter.format(10100, code: 'OMR')),
-      findsNothing,
-    );
+    // Figures are drawn by AppMoney, which keeps the Arabic-script symbol
+    // in front of the digits (changed on purpose in the redesign).
+    expect(find.text(AppMoney.format(100, currency: 'OMR')), findsOneWidget);
+    expect(find.text(AppMoney.format(10000, currency: 'INR')), findsOneWidget);
+    expect(find.text(AppMoney.format(10100, currency: 'OMR')), findsNothing);
+    expect(find.textContaining('10,100'), findsNothing);
   });
 }

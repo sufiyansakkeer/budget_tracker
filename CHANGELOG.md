@@ -7,10 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Premium redesign, Phases 2 (the design system), 3 (Home) and 4 (Expenses).
-Direction and plan: `docs/design/monivo-design-direction.html`.
+Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses) and 5
+(Budgets and Bills). Direction and plan:
+`docs/design/monivo-design-direction.html`.
 
 ### Changed
+- **Budgets screen.** The active budget leads as the one raised card: what is
+  left, a bar with a tick for today, the day of the period and "Home, Expenses
+  and Reports follow this budget". Other budgets are compact rows grouped by
+  where they are in their period. "Total remaining" moved to a quiet footer
+  with one figure per currency.
+- **A budget's screen** is one surface (left, the bar, % used and day of the
+  period, spent, spent today, expenses). Bars are neutral and turn red only
+  once a budget is overspent; they no longer change colour at 80% used.
+- **Bills** are grouped as Overdue, Due soon (the next 7 days), Later and Paid,
+  each with a count and its total per currency, as compact rows. The status
+  tiles and the "Next up" card are gone. A bill's screen puts the bill and its
+  facts on one surface with the pay actions together right under it; their
+  wording and confirmations are unchanged.
+- **Forms:** icon, colour and notes (budgets) and category, repeat, reminder
+  and note (bills) sit under "More options", folded for a new item and open
+  when editing.
 - **Quick add.** The Add expense button on Home, Expenses and Reports opens a
   sheet with a number pad, your five most used categories and Today,
   Yesterday or another day. "More details" opens the full form with what was
@@ -75,6 +92,18 @@ Direction and plan: `docs/design/monivo-design-direction.html`.
   Reduce Motion.
 
 ### Fixed
+- **Amounts in Omani rials could not be entered to the fils.** Every amount
+  field and its check (expenses, quick add, bills, budgets, set-aside
+  amounts, onboarding) stopped at two decimals. Each now follows its
+  currency's minor units, never fewer than two: OMR takes three (7.125), INR
+  two, and JPY keeps the two it had. Editing shows every saved decimal
+  instead of rounding 7.125 to 7.13, and amounts on screens not yet redesigned
+  show the fils too.
+- **"Add expense" on a budget's screen recorded into the active budget**, not
+  the budget on screen. It now appears only on the active budget; any other
+  budget offers "Make active" instead.
+- **The bills summary added amounts in different currencies** under the first
+  bill's symbol. Each group now totals each currency separately.
 - **Expenses showed every amount in ₹.** The list now uses the active
   budget's currency, so an OMR budget's expenses read in rials.
 - **A combined view of budgets in different currencies added them up** under
@@ -94,6 +123,8 @@ Direction and plan: `docs/design/monivo-design-direction.html`.
   the hero, Coming up and the Add expense button.
 - The Active budget / Combined switch on Expenses (now in the budget menu)
   and the delete confirmation on an expense's screen (now Undo).
+- The budget card grid, the bill status tiles and "Next up" card, and the
+  80%-used colour change on budget bars.
 
 ### Added (for developers)
 - `AppTypography` (money roles with tabular figures), `AppTone` and tone
@@ -115,6 +146,12 @@ Direction and plan: `docs/design/monivo-design-direction.html`.
   shortcuts), `ExpenseLoadQuickAdd`, `AppAmountPad`, `TransactionRow` (shared
   by Home and Expenses), `ExpenseUndo`, `ExpensePrefill` and
   `ExpenseHistoryState.budgetCurrency` / `summaryByCurrency`.
+- `ActiveBudgetCard`, `BudgetRow`, `BudgetUsageTrack`, `BudgetPeriodCopy`,
+  `BillVisuals.totalsByCurrency` / `isDueSoon` and `AppDisclosure`.
+- `MoneyInput` (`lib/core/currency/money_input.dart`): the decimals an amount
+  may have per currency, the typing pattern, the decimals message and
+  unrounded edit text. `ExpenseValidator.validateAmount` and
+  `BillValidator.validateAmount` take an optional `currency`.
 - `initDependencyInjection(database:)` lets a widget test use an in-memory
   database; the app smoke test now does, which fixes its intermittent failure.
 

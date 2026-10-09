@@ -59,6 +59,20 @@ void main() {
       expect(ExpenseValidator.validateAmount('12.50'), isNull);
     });
 
+    test('OMR takes three decimal places (fils), not four', () {
+      expect(ExpenseValidator.validateAmount('7.125', currency: 'OMR'), isNull);
+      expect(
+        ExpenseValidator.validateAmount('7.1255', currency: 'OMR'),
+        'Amount cannot have more than 3 decimal places',
+      );
+      // Rupees still stop at paise; yen keep the two places they had.
+      expect(
+        ExpenseValidator.validateAmount('7.125', currency: 'INR'),
+        'Amount cannot have more than 2 decimal places',
+      );
+      expect(ExpenseValidator.validateAmount('120.5', currency: 'JPY'), isNull);
+    });
+
     test('returns null for whole number', () {
       expect(ExpenseValidator.validateAmount('100'), isNull);
     });

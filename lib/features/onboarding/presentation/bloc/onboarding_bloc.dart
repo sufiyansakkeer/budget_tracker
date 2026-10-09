@@ -7,6 +7,7 @@ import '../../domain/usecases/create_budget_usecase.dart';
 import 'onboarding_event.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import 'onboarding_state.dart';
+import '../../../../core/currency/money_input.dart';
 
 class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   final CreateBudgetUseCase createBudgetUseCase;
@@ -134,14 +135,17 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       return;
     }
 
-    final decimalParts = input.split('.');
-    if (decimalParts.length > 1 && decimalParts[1].length > 2) {
+    final decimalsError = MoneyInput.decimalsError(
+      input,
+      state.selectedCurrency.code,
+      subject: 'Budget',
+    );
+    if (decimalsError != null) {
       emit(
         state.copyWith(
           monthlyBudgetInput: input,
           clearParsedBudget: true,
-          budgetValidationError:
-              'Budget cannot have more than 2 decimal places',
+          budgetValidationError: decimalsError,
         ),
       );
       return;

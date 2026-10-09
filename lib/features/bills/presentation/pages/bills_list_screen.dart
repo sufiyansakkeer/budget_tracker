@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/events/refresh_bus.dart';
-import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/widgets/app_list.dart';
+import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/delayed_reveal.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/info_content.dart';
@@ -25,12 +26,13 @@ import '../bloc/bill_state.dart';
 import 'bill_budget_link.dart';
 import 'bill_payment_dialogs.dart';
 import 'bill_widgets.dart';
-import '../../../../core/constants/app_motion.dart';
-import '../../../../core/widgets/animated_amount.dart';
 import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/navigation/push_unique.dart';
 
-/// Bills & reminders: what is due next, totals by status, and the full list.
+/// Bills & reminders as one list: overdue, due soon (the next
+/// [BillVisuals.dueSoonDays] days), later and paid. Each group says how many
+/// and what they add up to per currency, so amounts in different currencies
+/// are never summed.
 class BillsListScreen extends StatefulWidget {
   const BillsListScreen({super.key});
 
@@ -53,7 +55,8 @@ class _BillsListScreenState extends State<BillsListScreen> {
         'Due today: unpaid and due today.\n'
         'Overdue: unpaid and due before today.\n'
         'Paid: marked as paid.\n\n'
-        'The summary tiles add up the unpaid amounts in each status.',
+        'Overdue, Due soon (the next 7 days) and Later each show the unpaid '
+        'total per currency.',
     additionalNotes:
         '• A bill due today is not overdue; it becomes overdue from the next '
         'day\n'
@@ -181,9 +184,6 @@ class _BillsListScreenState extends State<BillsListScreen> {
 
   Widget _buildContent(BuildContext context, BillState state) {
     final filtered = state.filteredBills;
-    final unpaid = state.allBills.where((b) => !b.isPaid).toList()
-      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
-    final nextUp = unpaid.isEmpty ? null : unpaid.first;
     var index = 0;
 
     return RefreshIndicator(
@@ -193,34 +193,6 @@ class _BillsListScreenState extends State<BillsListScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.pagePaddingWithFab,
         children: [
-          if (nextUp != null) ...[
-            FadeSlideIn(
-              index: index++,
-              // When the next bill changes (e.g. one was just paid) the
-              // card cross-fades to the new one.
-              child: AnimatedSwitcher(
-                duration: AppMotion.respectReducedMotion(
-                  context,
-                  AppMotion.medium,
-                ),
-                switchInCurve: AppMotion.enter,
-                switchOutCurve: AppMotion.exit,
-                layoutBuilder: (current, previous) => Stack(
-                  fit: StackFit.passthrough,
-                  alignment: Alignment.topCenter,
-                  children: [...previous, if (current != null) current],
-                ),
-                child: _NextUpCard(key: ValueKey(nextUp.id), bill: nextUp),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-          FadeSlideIn(
-            index: index++,
-            child: _SummaryRow(state: state),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
           TextField(
             controller: _searchController,
             textInputAction: TextInputAction.search,
@@ -258,6 +230,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
                     child: FilterChip(
                       label: Text(filter.label),
                       selected: state.filter == filter,
+                      showCheckmark: false,
                       onSelected: (_) => context.read<BillBloc>().add(
                         BillFilterChanged(filter),
                       ),
@@ -266,59 +239,96 @@ class _BillsListScreenState extends State<BillsListScreen> {
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
 
           if (filtered.isEmpty)
             _buildEmptyFilter(context, state)
           else if (state.filter == BillFilter.all)
-            ..._grouped(context, filtered, index)
-          else
-            for (final bill in filtered)
+            for (final section in _sections(filtered)) ...[
               FadeSlideIn(
-                key: ValueKey('bill_${bill.id}'),
+                key: ValueKey('section_${section.title}'),
                 index: index++,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: _card(context, bill),
+                child: AppSection(
+                  title: section.title,
+                  subtitle: section.summary,
+                  child: AppGroupedList(
+                    dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                    children: [
+                      for (final bill in section.bills)
+                        KeyedSubtree(
+                          key: ValueKey('bill_${bill.id}'),
+                          child: _card(context, bill),
+                        ),
+                    ],
+                  ),
                 ),
               ),
+              const SizedBox(height: AppSpacing.lg),
+            ]
+          else
+            FadeSlideIn(
+              index: index++,
+              child: AppSection(
+                title: state.filter.label,
+                subtitle: _summary(filtered, unpaidOnly: false),
+                child: AppGroupedList(
+                  dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                  children: [
+                    for (final bill in filtered)
+                      KeyedSubtree(
+                        key: ValueKey('bill_${bill.id}'),
+                        child: _card(context, bill),
+                      ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  List<Widget> _grouped(
-    BuildContext context,
-    List<BillEntity> bills,
-    int index,
-  ) {
-    const order = [
-      (BillStatus.overdue, 'Overdue'),
-      (BillStatus.dueToday, 'Due today'),
-      (BillStatus.upcoming, 'Upcoming'),
-      (BillStatus.paid, 'Paid'),
+  /// Overdue, due soon (within [BillVisuals.dueSoonDays]), later and paid,
+  /// each in due-date order. Empty sections are left out.
+  List<_BillSection> _sections(List<BillEntity> bills) {
+    final now = DateTime.now();
+    List<BillEntity> sorted(Iterable<BillEntity> list) =>
+        list.toList()..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    final overdue = sorted(bills.where((b) => b.status == BillStatus.overdue));
+    final soon = sorted(bills.where((b) => BillVisuals.isDueSoon(b, now)));
+    final later = sorted(
+      bills.where(
+        (b) =>
+            !b.isPaid &&
+            b.status != BillStatus.overdue &&
+            !BillVisuals.isDueSoon(b, now),
+      ),
+    );
+    final paid = bills.where((b) => b.isPaid).toList()
+      ..sort(
+        (a, b) => (b.paidDate ?? b.dueDate).compareTo(a.paidDate ?? a.dueDate),
+      );
+    return [
+      if (overdue.isNotEmpty)
+        _BillSection('Overdue', overdue, _summary(overdue)),
+      if (soon.isNotEmpty) _BillSection('Due soon', soon, _summary(soon)),
+      if (later.isNotEmpty) _BillSection('Later', later, _summary(later)),
+      if (paid.isNotEmpty) _BillSection('Paid', paid, _count(paid.length)),
     ];
-    final widgets = <Widget>[];
-    for (final (status, title) in order) {
-      final group = bills.where((b) => b.status == status).toList()
-        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
-      if (group.isEmpty) continue;
-      widgets.add(SectionHeader(title: title));
-      for (final bill in group) {
-        widgets.add(
-          FadeSlideIn(
-            key: ValueKey('bill_${bill.id}'),
-            index: index++,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: _card(context, bill),
-            ),
-          ),
-        );
-      }
-      widgets.add(const SizedBox(height: AppSpacing.sm));
-    }
-    return widgets;
+  }
+
+  static String _count(int n) => '$n ${n == 1 ? 'bill' : 'bills'}';
+
+  /// "2 bills · ₹2,499" or, across currencies, "3 bills · ₹2,499 · OMR 12":
+  /// one total per currency, never added together.
+  static String _summary(List<BillEntity> bills, {bool unpaidOnly = true}) {
+    final counted = unpaidOnly ? bills.where((b) => !b.isPaid) : bills;
+    final totals = BillVisuals.totalsByCurrency(counted);
+    return [
+      _count(bills.length),
+      for (final MapEntry(key: code, value: amount) in totals.entries)
+        AppMoney.format(amount, currency: code),
+    ].join(' · ');
   }
 
   Widget _card(BuildContext context, BillEntity bill) {
@@ -397,184 +407,15 @@ class _BillsListScreenState extends State<BillsListScreen> {
   }
 }
 
-/// The single most important bill: the earliest unpaid one.
-class _NextUpCard extends StatelessWidget {
-  final BillEntity bill;
-  const _NextUpCard({super.key, required this.bill});
+/// One group of the bills list.
+class _BillSection {
+  final String title;
+  final List<BillEntity> bills;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final status = bill.status;
-    final color = BillVisuals.colorFor(context, status);
-    return AppCard(
-      onTap: () => context.pushUnique('/app/bills/${bill.id}'),
-      color: color.withValues(alpha: 0.08),
-      showBorder: false,
-      child: Row(
-        children: [
-          IconTile(
-            icon: BillVisuals.statusIcon(status),
-            color: color,
-            circular: true,
-          ),
-          const SizedBox(width: AppSpacing.smd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  status == BillStatus.overdue ? 'Needs attention' : 'Next up',
-                  style: theme.textTheme.labelMedium?.copyWith(color: color),
-                ),
-                Text(
-                  bill.title,
-                  style: theme.textTheme.titleMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  BillVisuals.dueText(bill),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            CurrencyFormatter.format(
-              bill.amount,
-              code: bill.currency,
-              decimalDigits: 0,
-            ),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+  /// Count and per-currency totals, under the title.
+  final String summary;
 
-class _SummaryRow extends StatelessWidget {
-  final BillState state;
-  const _SummaryRow({required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    double sum(Iterable<BillEntity> bills) =>
-        bills.fold(0.0, (s, b) => s + b.amount);
-    final overdue = state.overdueBills;
-    final dueToday = state.dueTodayBills;
-    final upcoming = state.upcomingBills;
-    final currency = state.allBills.isNotEmpty
-        ? state.allBills.first.currency
-        : '';
-
-    return Row(
-      children: [
-        Expanded(
-          child: _SummaryTile(
-            status: BillStatus.overdue,
-            amount: sum(overdue),
-            count: overdue.length,
-            currency: currency,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _SummaryTile(
-            status: BillStatus.dueToday,
-            amount: sum(dueToday),
-            count: dueToday.length,
-            currency: currency,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _SummaryTile(
-            status: BillStatus.upcoming,
-            amount: sum(upcoming),
-            count: upcoming.length,
-            currency: currency,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SummaryTile extends StatelessWidget {
-  final BillStatus status;
-  final double amount;
-  final int count;
-  final String currency;
-
-  const _SummaryTile({
-    required this.status,
-    required this.amount,
-    required this.count,
-    required this.currency,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = BillVisuals.colorFor(context, status);
-    final label = BillVisuals.statusLabel(status);
-    return Semantics(
-      label:
-          '$label: $count ${count == 1 ? 'bill' : 'bills'}, '
-          '${CurrencyFormatter.format(amount, code: currency, decimalDigits: 0)}',
-      child: ExcludeSemantics(
-        child: AppCard(
-          padding: const EdgeInsets.all(AppSpacing.smd),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    BillVisuals.statusIcon(status),
-                    size: AppSizes.iconSm,
-                    color: color,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: color,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              AnimatedAmount(
-                amount: amount,
-                currency: currency,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              Text(
-                '$count ${count == 1 ? 'bill' : 'bills'}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  const _BillSection(this.title, this.bills, this.summary);
 }
 
 class _BillsSkeleton extends StatelessWidget {
@@ -582,35 +423,21 @@ class _BillsSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer(
-      child: ListView(
-        physics: const NeverScrollableScrollPhysics(),
-        padding: AppSpacing.pagePadding,
-        children: const [
-          SkeletonBox(height: 84, radius: AppSpacing.radiusLg),
-          SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: SkeletonBox(height: 88, radius: AppSpacing.radiusLg),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: SkeletonBox(height: 88, radius: AppSpacing.radiusLg),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: SkeletonBox(height: 88, radius: AppSpacing.radiusLg),
-              ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.lg),
-          SkeletonBox(height: 48, radius: AppSpacing.radiusMd),
-          SizedBox(height: AppSpacing.md),
-          SkeletonListTile(),
-          SkeletonListTile(),
-          SkeletonListTile(),
-        ],
+    final theme = Theme.of(context);
+    return DelayedReveal(
+      child: Shimmer(
+        child: ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: AppSpacing.pagePadding,
+          children: [
+            const SkeletonBox(height: 48, radius: AppSpacing.radiusSm),
+            const SizedBox(height: AppSpacing.lg),
+            SkeletonText(style: theme.textTheme.titleMedium, width: 120),
+            const SizedBox(height: AppSpacing.sm),
+            for (var i = 0; i < 3; i++)
+              const SkeletonListTile(leadingSize: AppSizes.avatarSm),
+          ],
+        ),
       ),
     );
   }

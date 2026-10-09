@@ -1,17 +1,15 @@
-import 'dart:math' as math;
-
 import 'package:intl/intl.dart';
 
-import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/currency/money_input.dart';
 import '../../domain/validators/expense_validator.dart';
 
 /// What has been typed on the amount pad, kept as text so a trailing "."
 /// or "0" stays exactly as entered.
 ///
 /// The pad never produces an amount [ExpenseValidator] would reject: the
-/// fraction is capped at the currency's minor units and at the validator's
-/// two places (so JPY gets no decimal key), and the whole part stops at the
-/// largest amount the app accepts.
+/// fraction stops at the currency's minor units (OMR three, INR two, JPY
+/// none, so JPY gets no decimal key), which the validator always accepts,
+/// and the whole part stops at the largest amount the app accepts.
 class AmountEntry {
   /// Digits typed, with at most one "." (e.g. "1250.5").
   final String text;
@@ -22,19 +20,11 @@ class AmountEntry {
   /// 999,999,999,999 is the largest whole amount below the app's limit.
   static const int maxWholeDigits = 12;
 
-  /// The validator's limit on decimal places.
-  static const int validatorFractionDigits = 2;
-
   const AmountEntry._(this.text, this.maxFractionDigits);
 
   /// An empty entry for [currency].
-  factory AmountEntry.empty(String? currency) => AmountEntry._(
-    '',
-    math.min(
-      CurrencyFormatter.decimalDigitsFor(currency ?? ''),
-      validatorFractionDigits,
-    ),
-  );
+  factory AmountEntry.empty(String? currency) =>
+      AmountEntry._('', MoneyInput.padDecimals(currency));
 
   /// An entry pre-filled with [amount], trimmed to what the pad allows.
   factory AmountEntry.of(double amount, String? currency) {

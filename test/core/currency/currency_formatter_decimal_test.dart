@@ -168,4 +168,15 @@ void main() {
       );
     });
   });
+
+  group('format default digits', () {
+    test('whole amounts show none; fractions follow the currency', () {
+      expect(CurrencyFormatter.format(250, code: 'INR'), '₹250');
+      expect(CurrencyFormatter.format(249.5, code: 'INR'), '₹249.50');
+      // OMR shows its fils instead of rounding 7.125 to 7.13.
+      expect(CurrencyFormatter.format(7.125, code: 'OMR'), endsWith('7.125'));
+      expect(CurrencyFormatter.format(12, code: 'OMR'), endsWith('12'));
+      expect(CurrencyFormatter.format(120.5, code: 'JPY'), '¥120.50');
+    });
+  });
 }

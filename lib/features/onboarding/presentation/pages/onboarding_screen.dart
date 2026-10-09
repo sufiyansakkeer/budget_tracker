@@ -15,6 +15,7 @@ import '../widgets/budget_step_widget.dart';
 import '../widgets/confirmation_step_widget.dart';
 import '../widgets/currency_step_widget.dart';
 import '../widgets/welcome_step_widget.dart';
+import '../../../../core/currency/money_input.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -155,6 +156,9 @@ class _OnboardingViewState extends State<_OnboardingView> {
                         BudgetStepWidget(
                           initialValue: state.monthlyBudgetInput,
                           currencySymbol: state.selectedCurrency.symbol,
+                          maxDecimals: MoneyInput.maxDecimals(
+                            state.selectedCurrency.code,
+                          ),
                           errorMessage: state.budgetValidationError,
                           onChanged: (val) =>
                               bloc.add(OnboardingBudgetInputChangedEvent(val)),

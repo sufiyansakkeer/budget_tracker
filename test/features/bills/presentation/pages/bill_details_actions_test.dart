@@ -343,6 +343,34 @@ void main() {
       );
     });
   });
+
+  for (final width in [320.0, 360.0]) {
+    testWidgets('fits at ${width.toInt()}dp with 200% text', (tester) async {
+      tester.view.physicalSize = Size(width, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final linked = rent(budgetId: 'household');
+      bills.store[linked.id] = linked;
+      bloc = buildTestBillBloc(bills, payBill: payBill, expenses: expenses);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: Size(width, 1600),
+              textScaler: const TextScaler.linear(2),
+            ),
+            child: BlocProvider.value(
+              value: bloc,
+              child: BillDetailsScreen(billId: linked.id),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 /// The real use case, except the confirmation's preview read fails.

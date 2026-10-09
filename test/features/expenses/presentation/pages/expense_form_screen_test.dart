@@ -241,4 +241,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Discard changes?'), findsOneWidget);
   });
+
+  group('OMR budget', () {
+    setUp(() {
+      final today = DateTime.now();
+      budgets.budgets['personal'] = testBudget(
+        currency: 'OMR',
+        start: DateTime(today.year, today.month, today.day - 20),
+        end: DateTime(today.year, today.month, today.day + 10),
+      );
+    });
+
+    testWidgets('saves an amount to the fils (review: it stopped at two '
+        'decimal places)', (tester) async {
+      await pumpForm(tester);
+      await tester.enterText(amountField(), '7.1259');
+      await tester.pump();
+      // The field stops at three decimals.
+      expect(find.text('7.125'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('category_food')));
+      await tester.pump();
+      await tapSave(tester);
+
+      expect(expenses.store.values.single.amount, 7.125);
+    });
+
+    testWidgets('editing shows every saved decimal, never 7.13', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      final day = DateTime(now.year, now.month, now.day);
+      expenses.store['omr'] = ExpenseEntity(
+        id: 'omr',
+        budgetId: 'personal',
+        amount: 7.125,
+        categoryId: 'food',
+        date: day,
+        time: day.add(const Duration(hours: 9)),
+        createdAt: day,
+        updatedAt: day,
+      );
+      await pumpForm(tester, expenseId: 'omr');
+
+      expect(find.text('7.125'), findsOneWidget);
+      expect(find.text('7.13'), findsNothing);
+    });
+  });
 }

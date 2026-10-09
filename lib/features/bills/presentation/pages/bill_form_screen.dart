@@ -29,11 +29,13 @@ import '../bloc/bill_state.dart';
 import 'bill_budget_link.dart';
 import 'bill_widgets.dart';
 import '../../../../core/widgets/app_animated_size.dart';
+import '../../../../core/widgets/app_disclosure.dart';
+import '../../../../core/currency/money_input.dart';
 
 /// Add/Edit bill form screen.
 ///
-/// Order: what and how much → which budget pays it → when it is due →
-/// repeat → reminder → note.
+/// Order: what and how much → which budget pays it → when it is due, then
+/// "More options" (category, repeat, reminder, note), folded on a new bill.
 ///
 /// The budget picker is optional and starts at "Not linked". A bill is only
 /// set aside from a budget in its own currency, so picking a budget in
@@ -216,9 +218,8 @@ class _BillFormScreenState extends State<BillFormScreen> {
       _original = bill;
       _populated = true;
       _titleController.text = bill.title;
-      _amountController.text = bill.amount == bill.amount.roundToDouble()
-          ? bill.amount.toStringAsFixed(0)
-          : bill.amount.toStringAsFixed(2);
+      // Every saved decimal, so OMR 12.125 is not edited back as 12.13.
+      _amountController.text = MoneyInput.forInput(bill.amount);
       _noteController.text = bill.note ?? '';
       _dueDate = bill.dueDate;
       if (bill.dueTime != null) {
@@ -257,7 +258,8 @@ class _BillFormScreenState extends State<BillFormScreen> {
     if (!MoneyMath.isWithinLimit(value)) {
       return 'The amount must be less than ${MoneyMath.maxAmountLabel}.';
     }
-    return null;
+    // The currency's minor units, never fewer than two (OMR three).
+    return MoneyInput.decimalsError(text, _currency);
   }
 
   void _save() {
@@ -441,7 +443,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
                   textInputAction: TextInputAction.done,
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(
-                      RegExp(r'^\d*\.?\d{0,2}'),
+                      MoneyInput.pattern(MoneyInput.maxDecimals(_currency)),
                     ),
                   ],
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -467,42 +469,6 @@ class _BillFormScreenState extends State<BillFormScreen> {
                 // Which budget pays it
                 _buildBudgetPicker(theme),
                 const SizedBox(height: AppSpacing.md),
-
-                // Category
-                DropdownButtonFormField<BillCategory>(
-                  value: _selectedCategory,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: 'Category',
-                    prefixIcon: Icon(BillVisuals.iconFor(_selectedCategory)),
-                  ),
-                  items: [
-                    for (final cat in BillCategory.values)
-                      DropdownMenuItem(
-                        value: cat,
-                        child: Row(
-                          children: [
-                            Icon(
-                              BillVisuals.iconFor(cat),
-                              size: AppSizes.iconMd,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: AppSpacing.smd),
-                            Text(cat.label),
-                          ],
-                        ),
-                      ),
-                  ],
-                  selectedItemBuilder: (context) => [
-                    for (final cat in BillCategory.values) Text(cat.label),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedCategory = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: AppSpacing.lg),
 
                 // When
                 Text('Due', style: theme.textTheme.titleSmall),
@@ -545,165 +511,223 @@ class _BillFormScreenState extends State<BillFormScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Repeat
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.repeat_rounded),
-                  title: const Text('Repeat this bill'),
-                  subtitle: Text(
-                    _isRecurring ? _recurrenceSummary() : 'One-time bill',
-                  ),
-                  value: _isRecurring,
-                  onChanged: (value) => setState(() => _isRecurring = value),
-                ),
-                AppAnimatedSize(
-                  duration: AppMotion.respectReducedMotion(
-                    context,
-                    AppMotion.standard,
-                  ),
-                  curve: AppMotion.standardCurve,
-                  alignment: Alignment.topCenter,
-                  child: !_isRecurring
-                      ? const SizedBox(width: double.infinity)
-                      : Padding(
-                          padding: const EdgeInsets.only(
-                            left: AppSpacing.xxl - AppSpacing.sm,
-                            bottom: AppSpacing.sm,
+                // Category, repeat, reminder and note: folded on a new
+                // bill, open when editing one.
+                AppDisclosure(
+                  key: const ValueKey('billMoreOptions'),
+                  title: 'More options',
+                  summary: _moreOptionsSummary(),
+                  initiallyExpanded: _isEditing,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Category
+                      DropdownButtonFormField<BillCategory>(
+                        value: _selectedCategory,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          prefixIcon: Icon(
+                            BillVisuals.iconFor(_selectedCategory),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SegmentedButton<RecurrenceType>(
-                                showSelectedIcon: false,
-                                segments: const [
-                                  ButtonSegment(
-                                    value: RecurrenceType.weekly,
-                                    label: Text('Weekly'),
-                                  ),
-                                  ButtonSegment(
-                                    value: RecurrenceType.monthly,
-                                    label: Text('Monthly'),
-                                  ),
-                                  ButtonSegment(
-                                    value: RecurrenceType.yearly,
-                                    label: Text('Yearly'),
-                                  ),
-                                ],
-                                selected: {_recurrenceType},
-                                onSelectionChanged: (s) =>
-                                    setState(() => _recurrenceType = s.first),
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              Row(
+                        ),
+                        items: [
+                          for (final cat in BillCategory.values)
+                            DropdownMenuItem(
+                              value: cat,
+                              child: Row(
                                 children: [
-                                  Text(
-                                    'Every',
-                                    style: theme.textTheme.bodyMedium,
+                                  Icon(
+                                    BillVisuals.iconFor(cat),
+                                    size: AppSizes.iconMd,
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
-                                  const SizedBox(width: AppSpacing.sm),
-                                  SizedBox(
-                                    width: 64,
-                                    child: TextField(
-                                      controller: _intervalController,
-                                      keyboardType: TextInputType.number,
-                                      textAlign: TextAlign.center,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly,
-                                        LengthLimitingTextInputFormatter(2),
+                                  const SizedBox(width: AppSpacing.smd),
+                                  Text(cat.label),
+                                ],
+                              ),
+                            ),
+                        ],
+                        selectedItemBuilder: (context) => [
+                          for (final cat in BillCategory.values)
+                            Text(cat.label),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedCategory = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // Repeat
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        secondary: const Icon(Icons.repeat_rounded),
+                        title: const Text('Repeat this bill'),
+                        subtitle: Text(
+                          _isRecurring ? _recurrenceSummary() : 'One-time bill',
+                        ),
+                        value: _isRecurring,
+                        onChanged: (value) =>
+                            setState(() => _isRecurring = value),
+                      ),
+                      AppAnimatedSize(
+                        duration: AppMotion.respectReducedMotion(
+                          context,
+                          AppMotion.standard,
+                        ),
+                        curve: AppMotion.standardCurve,
+                        alignment: Alignment.topCenter,
+                        child: !_isRecurring
+                            ? const SizedBox(width: double.infinity)
+                            : Padding(
+                                padding: const EdgeInsets.only(
+                                  left: AppSpacing.xxl - AppSpacing.sm,
+                                  bottom: AppSpacing.sm,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SegmentedButton<RecurrenceType>(
+                                      showSelectedIcon: false,
+                                      segments: const [
+                                        ButtonSegment(
+                                          value: RecurrenceType.weekly,
+                                          label: Text('Weekly'),
+                                        ),
+                                        ButtonSegment(
+                                          value: RecurrenceType.monthly,
+                                          label: Text('Monthly'),
+                                        ),
+                                        ButtonSegment(
+                                          value: RecurrenceType.yearly,
+                                          label: Text('Yearly'),
+                                        ),
                                       ],
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: AppSpacing.sm,
-                                          vertical: AppSpacing.smd,
+                                      selected: {_recurrenceType},
+                                      onSelectionChanged: (s) => setState(
+                                        () => _recurrenceType = s.first,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.sm),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Every',
+                                          style: theme.textTheme.bodyMedium,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        SizedBox(
+                                          width: 64,
+                                          child: TextField(
+                                            controller: _intervalController,
+                                            keyboardType: TextInputType.number,
+                                            textAlign: TextAlign.center,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter
+                                                  .digitsOnly,
+                                              LengthLimitingTextInputFormatter(
+                                                2,
+                                              ),
+                                            ],
+                                            decoration: const InputDecoration(
+                                              isDense: true,
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                    horizontal: AppSpacing.sm,
+                                                    vertical: AppSpacing.smd,
+                                                  ),
+                                            ),
+                                            onChanged: (value) {
+                                              final n = int.tryParse(value);
+                                              if (n != null && n >= 1) {
+                                                setState(
+                                                  () => _recurrenceInterval = n,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Flexible(
+                                          child: Text(
+                                            _unitLabel(),
+                                            style: theme.textTheme.bodyMedium,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                      ),
+
+                      // Reminder
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        secondary: const Icon(Icons.notifications_outlined),
+                        title: const Text('Remind me'),
+                        subtitle: Text(
+                          _reminderEnabled ? _reminderSummary() : 'No reminder',
+                        ),
+                        value: _reminderEnabled,
+                        onChanged: (value) =>
+                            setState(() => _reminderEnabled = value),
+                      ),
+                      AppAnimatedSize(
+                        duration: AppMotion.respectReducedMotion(
+                          context,
+                          AppMotion.standard,
+                        ),
+                        curve: AppMotion.standardCurve,
+                        alignment: Alignment.topCenter,
+                        child: !_reminderEnabled
+                            ? const SizedBox(width: double.infinity)
+                            : Padding(
+                                padding: const EdgeInsets.only(
+                                  left: AppSpacing.xxl - AppSpacing.sm,
+                                  bottom: AppSpacing.sm,
+                                ),
+                                child: Wrap(
+                                  spacing: AppSpacing.sm,
+                                  runSpacing: AppSpacing.sm,
+                                  children: [
+                                    for (final (days, label) in const [
+                                      (0, 'On the day'),
+                                      (1, '1 day before'),
+                                      (2, '2 days before'),
+                                      (3, '3 days before'),
+                                      (7, '1 week before'),
+                                    ])
+                                      ChoiceChip(
+                                        label: Text(label),
+                                        selected: _reminderOffsetDays == days,
+                                        onSelected: (_) => setState(
+                                          () => _reminderOffsetDays = days,
                                         ),
                                       ),
-                                      onChanged: (value) {
-                                        final n = int.tryParse(value);
-                                        if (n != null && n >= 1) {
-                                          setState(
-                                            () => _recurrenceInterval = n,
-                                          );
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: AppSpacing.sm),
-                                  Flexible(
-                                    child: Text(
-                                      _unitLabel(),
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-
-                // Reminder
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.notifications_outlined),
-                  title: const Text('Remind me'),
-                  subtitle: Text(
-                    _reminderEnabled ? _reminderSummary() : 'No reminder',
-                  ),
-                  value: _reminderEnabled,
-                  onChanged: (value) =>
-                      setState(() => _reminderEnabled = value),
-                ),
-                AppAnimatedSize(
-                  duration: AppMotion.respectReducedMotion(
-                    context,
-                    AppMotion.standard,
-                  ),
-                  curve: AppMotion.standardCurve,
-                  alignment: Alignment.topCenter,
-                  child: !_reminderEnabled
-                      ? const SizedBox(width: double.infinity)
-                      : Padding(
-                          padding: const EdgeInsets.only(
-                            left: AppSpacing.xxl - AppSpacing.sm,
-                            bottom: AppSpacing.sm,
-                          ),
-                          child: Wrap(
-                            spacing: AppSpacing.sm,
-                            runSpacing: AppSpacing.sm,
-                            children: [
-                              for (final (days, label) in const [
-                                (0, 'On the day'),
-                                (1, '1 day before'),
-                                (2, '2 days before'),
-                                (3, '3 days before'),
-                                (7, '1 week before'),
-                              ])
-                                ChoiceChip(
-                                  label: Text(label),
-                                  selected: _reminderOffsetDays == days,
-                                  onSelected: (_) => setState(
-                                    () => _reminderOffsetDays = days,
-                                  ),
+                                  ],
                                 ),
-                            ],
-                          ),
-                        ),
-                ),
-                const SizedBox(height: AppSpacing.md),
+                              ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
 
-                // Note
-                TextFormField(
-                  controller: _noteController,
-                  maxLines: 3,
-                  minLines: 1,
-                  keyboardType: TextInputType.multiline,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Note',
-                    hintText: 'Account number, provider, anything useful',
-                    alignLabelWithHint: true,
-                    prefixIcon: Icon(Icons.notes_rounded),
+                      // Note
+                      TextFormField(
+                        controller: _noteController,
+                        maxLines: 3,
+                        minLines: 1,
+                        keyboardType: TextInputType.multiline,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          labelText: 'Note',
+                          hintText: 'Account number, provider, anything useful',
+                          alignLabelWithHint: true,
+                          prefixIcon: Icon(Icons.notes_rounded),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -731,6 +755,13 @@ class _BillFormScreenState extends State<BillFormScreen> {
       ),
     );
   }
+
+  /// What "More options" holds, as its current values.
+  String _moreOptionsSummary() => [
+    _selectedCategory.label,
+    _isRecurring ? _recurrenceSummary() : 'One-time',
+    _reminderEnabled ? _reminderSummary() : 'No reminder',
+  ].join(' · ');
 
   Widget _buildBudgetPicker(ThemeData theme) {
     if (_loadingBudgets) {

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/currency/money_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
@@ -277,10 +278,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     });
   }
 
-  String _formatAmountForInput(double amount) {
-    if (amount == amount.roundToDouble()) return amount.toStringAsFixed(0);
-    return amount.toStringAsFixed(2);
-  }
+  /// Every decimal the amount was saved with, so OMR 7.125 is not edited
+  /// back as 7.13.
+  String _formatAmountForInput(double amount) => MoneyInput.forInput(amount);
 
   String? _validateDateInBudget(DateTime? date) =>
       ExpenseDateRules.outsideBudget(date, _selectedBudget);
@@ -299,7 +299,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   void _save() {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final amountError = ExpenseValidator.validateAmount(_amountController.text);
+    final amountError = ExpenseValidator.validateAmount(
+      _amountController.text,
+      currency: _selectedBudget?.currency,
+    );
     final categoryError = _selectedCategoryId == null
         ? 'Choose a category for this expense.'
         : null;
@@ -483,6 +486,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                       controller: _amountController,
                       focusNode: _amountFocus,
                       currencySymbol: _currencySymbol,
+                      maxDecimals: MoneyInput.maxDecimals(
+                        _selectedBudget?.currency,
+                      ),
                       errorText: _amountError,
                       // Checked on save; typing only clears the message.
                       onChanged: (_) => setState(() => _amountError = null),

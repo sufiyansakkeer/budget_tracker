@@ -240,6 +240,20 @@ void main() {
     });
   });
 
+  testWidgets('an OMR budget takes amounts to the fils', (tester) async {
+    budgets.budgets['personal'] = testBudget(
+      currency: 'OMR',
+      start: DateTime(2026, 10, 1),
+      end: DateTime(2026, 10, 31),
+    );
+    await open(tester);
+    await typeAmount(tester, '7.1259');
+    await tester.tap(find.byKey(const Key('quickCategory_food')));
+    await tapAdd(tester);
+
+    expect(expenses.store.values.single.amount, 7.125);
+  });
+
   testWidgets('a currency without minor units has no decimal key', (
     tester,
   ) async {

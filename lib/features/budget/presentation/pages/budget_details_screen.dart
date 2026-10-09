@@ -8,11 +8,15 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
-import '../../../../core/widgets/animated_amount.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
-import '../../../../core/widgets/app_progress.dart';
+import '../../../../core/widgets/app_metric.dart';
+import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/info_content.dart';
@@ -25,6 +29,8 @@ import '../../../bills/domain/usecases/get_bills_usecase.dart';
 import '../../domain/entities/monthly_statistics_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
+import '../../../expenses/presentation/quick_add/quick_add_sheet.dart';
+import '../widgets/budget_list_items.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/widgets/app_dialog.dart';
@@ -33,12 +39,19 @@ import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 
-/// Entry point for a selected budget: amount, progress, period, status and
-/// actions (edit, set active, archive, duplicate, delete, add expense).
+/// Entry point for a selected budget: what is left on one surface (bar
+/// with a tick for today, the period, spent, spent today, expenses), then
+/// what the budget means for the rest of the app. Actions: edit, set active,
+/// archive, duplicate and delete; "Add expense" only on the active budget,
+/// since that is where quick add records, and "Make active" on any other.
 class BudgetDetailsScreen extends StatefulWidget {
   final String budgetId;
 
   const BudgetDetailsScreen({super.key, required this.budgetId});
+
+  /// "Now" for the period and day counts; replaced in golden tests.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
 
   @override
   State<BudgetDetailsScreen> createState() => _BudgetDetailsScreenState();
@@ -312,16 +325,27 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
         ],
       ),
       body: SafeArea(bottom: false, child: AppStateSwitcher(child: _body())),
-      floatingActionButton: budget != null && !budget.isArchived
+      // Adding goes to the active budget, so only the active budget offers
+      // it (review: from another budget it recorded into the active one).
+      // Any other budget offers to become active instead.
+      floatingActionButton: budget == null || budget.isArchived
+          ? null
+          : _isActive
           ? AppFab(
+              key: const Key('budgetAddExpense'),
               heroTag: 'budget_details_fab',
-              onPressed: _busy
-                  ? null
-                  : () => context.pushUnique('/app/expenses/add'),
+              onPressed: _busy ? null : () => QuickAddSheet.show(context),
               icon: Icons.add_rounded,
               label: 'Add expense',
             )
-          : null,
+          : AppFab(
+              key: const Key('budgetMakeActive'),
+              heroTag: 'budget_details_fab',
+              onPressed: _busy ? null : _setActive,
+              icon: Icons.check_circle_outline_rounded,
+              label: 'Make active',
+              tooltip: 'Make this the active budget',
+            ),
     );
   }
 
@@ -353,7 +377,6 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       stats: _stats,
       isActive: _isActive,
       busy: _busy,
-      onSetActive: _setActive,
       onRestore: _restore,
     );
   }
@@ -364,7 +387,6 @@ class _Content extends StatelessWidget {
   final MonthlyStatisticsEntity stats;
   final bool isActive;
   final bool busy;
-  final VoidCallback onSetActive;
   final VoidCallback onRestore;
 
   const _Content({
@@ -373,47 +395,48 @@ class _Content extends StatelessWidget {
     required this.stats,
     required this.isActive,
     required this.busy,
-    required this.onSetActive,
     required this.onRestore,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = context.appColors;
-    final accent = BudgetVisuals.colorFor(context, budget);
-    final now = DateTime.now();
-    final phase = budget.phaseOn(now);
+    final typography = context.appTypography;
+    final now = BudgetDetailsScreen.clock();
     final spent = stats.totalSpent;
     final remaining = budget.monthlyAmount - spent;
-    final utilization = budget.monthlyAmount <= 0
-        ? 0.0
-        : spent / budget.monthlyAmount;
-    final overBudget = remaining < 0;
-    final totalDays = budget.totalDays < 1 ? 1 : budget.totalDays;
-    final daysLeft = budget.daysRemaining(now);
-    final dayNumber = (totalDays - daysLeft + 1).clamp(1, totalDays);
+    final over = remaining < 0;
+    final used = budget.monthlyAmount <= 0 ? 0.0 : spent / budget.monthlyAmount;
     final s = CurrencyFormatter.symbolFor(budget.currency);
-    String money(double v) =>
-        CurrencyFormatter.format(v, code: budget.currency, decimalDigits: 0);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final progressParts = [
+      '${(used * 100).clamp(0, 999).round()}% used',
+      ?BudgetPeriodCopy.dayOf(budget, now),
+      BudgetPeriodCopy.when(budget, now),
+    ];
 
     return ListView(
       padding: AppSpacing.pagePaddingWithFab,
       children: [
-        // Header
-        AppCard(
-          padding: const EdgeInsets.all(AppSpacing.mlg),
+        AppSurface(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.mlg,
+            AppSpacing.mlg,
+            AppSpacing.mlg,
+            AppSpacing.md,
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
                   IconTile(
                     icon: BudgetVisuals.iconFor(budget.icon),
-                    color: accent,
-                    size: AppSizes.avatarLg,
+                    color: BudgetVisuals.colorFor(context, budget),
                   ),
-                  const SizedBox(width: AppSpacing.md),
+                  const SizedBox(width: AppSpacing.smd),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,68 +447,46 @@ class _Content extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: AppSpacing.xxs),
                         Text(
                           formatDateRange(budget.startDate, budget.endDate),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                          style: muted,
                         ),
+                        // Under the name rather than beside it, so a long
+                        // name keeps its width at large text sizes.
+                        const SizedBox(height: AppSpacing.xs),
+                        _statusChip(budget.phaseOn(now)),
                       ],
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  _statusChip(context, phase),
                 ],
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.mlg),
               Text(
-                overBudget ? 'Over budget by' : 'Remaining',
-                style: theme.textTheme.labelMedium?.copyWith(
+                over ? 'Over by' : 'Left',
+                style: typography.eyebrow.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: AnimatedAmount(
-                      amount: remaining.abs(),
-                      currency: budget.currency,
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        color: overBudget
-                            ? colors.error
-                            : theme.colorScheme.onSurface,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    'of ${money(budget.monthlyAmount)}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+              AppMoney(
+                amount: remaining.abs(),
+                currency: budget.currency,
+                role: MoneyRole.display,
+                color: over ? context.tone(AppTone.critical).accent : null,
+              ),
+              Text(
+                'of ${AppMoney.format(budget.monthlyAmount, currency: budget.currency)}',
+                style: muted,
               ),
               const SizedBox(height: AppSpacing.smd),
+              BudgetUsageTrack(
+                budget: budget.copyWith(remainingAmount: remaining),
+                now: now,
+                height: AppSizes.progressSm,
+              ),
               Row(
                 children: [
                   Expanded(
-                    child: AppProgress(
-                      value: utilization,
-                      semanticLabel: 'Budget used',
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    '${(utilization * 100).clamp(0, 999).toStringAsFixed(0)}%',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: overBudget
-                          ? colors.error
-                          : AppProgress.colorFor(context, utilization),
-                    ),
+                    child: Text(progressParts.join(' · '), style: muted),
                   ),
                   InfoIcon(
                     content: InfoContent(
@@ -509,239 +510,155 @@ class _Content extends StatelessWidget {
                           'date you chose; it does not have to be a calendar '
                           'month\n'
                           '• The bar stops at 100% even if you spend more '
-                          'than the budget amount',
+                          'than the budget amount; the tick marks today',
+                    ),
+                  ),
+                ],
+              ),
+              Divider(color: theme.colorScheme.outlineVariant),
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: AppMetric(
+                      label: 'Spent',
+                      value: AppMoney(
+                        amount: spent,
+                        currency: budget.currency,
+                        role: MoneyRole.body,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: AppMetric(
+                      label: 'Spent today',
+                      value: AppMoney(
+                        amount: stats.todaySpending,
+                        currency: budget.currency,
+                        role: MoneyRole.body,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: AppMetric(
+                      label: 'Expenses',
+                      alignEnd: true,
+                      value: Text(
+                        '${stats.expenseCount}',
+                        style: typography.moneyBody,
+                      ),
                     ),
                   ),
                 ],
               ),
               if (budget.notes != null && budget.notes!.trim().isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  budget.notes!.trim(),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(budget.notes!.trim(), style: muted),
               ],
             ],
           ),
         ),
+        const SizedBox(height: AppSpacing.md),
 
-        // Not-active / archived banner. Collapses smoothly when the budget
-        // is made active or restored instead of vanishing.
+        // What this budget means for the rest of the app. Changes ease in
+        // rather than snapping when it is made active or restored.
         AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,
-          child: (budget.isArchived || !isActive)
-              ? Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.smd),
-                  child: StatusCard(
-                    color: budget.isArchived
-                        ? theme.colorScheme.onSurfaceVariant
-                        : colors.info,
-                    icon: budget.isArchived
-                        ? Icons.archive_outlined
-                        : Icons.info_outline_rounded,
-                    message: budget.isArchived
-                        ? 'This budget is archived. Restore it to record '
-                              'expenses again.'
-                        : 'Not the active budget. Home, Expenses and Reports '
-                              'show the active budget.',
-                    trailing: budget.isArchived
-                        ? TextButton(
-                            onPressed: busy ? null : onRestore,
-                            child: const Text('Restore'),
-                          )
-                        : TextButton(
-                            onPressed: busy ? null : onSetActive,
-                            child: const Text('Make active'),
-                          ),
+          child: budget.isArchived
+              ? AppNotice(
+                  key: const ValueKey('archivedNotice'),
+                  tone: AppTone.neutral,
+                  icon: Icons.archive_outlined,
+                  title: 'Archived',
+                  message: 'Restore it to record expenses again.',
+                  action: TextButton(
+                    onPressed: busy ? null : onRestore,
+                    child: const Text('Restore'),
                   ),
                 )
-              : const SizedBox(width: double.infinity),
-        ),
-
-        // Stats
-        const SizedBox(height: AppSpacing.md),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final tiles = [
-              _StatTile(
-                icon: Icons.payments_outlined,
-                label: 'Spent',
-                value: money(spent),
-              ),
-              _StatTile(
-                icon: Icons.today_outlined,
-                label: 'Spent today',
-                value: money(stats.todaySpending),
-              ),
-              _StatTile(
-                icon: Icons.receipt_long_outlined,
-                label: 'Expenses',
-                value: '${stats.expenseCount}',
-              ),
-              _StatTile(
-                icon: Icons.timelapse_rounded,
-                label: phase == BudgetPhase.running
-                    ? 'Days left'
-                    : phase == BudgetPhase.upcoming
-                    ? 'Starts in'
-                    : 'Period',
-                value: phase == BudgetPhase.running
-                    ? '$daysLeft'
-                    : phase == BudgetPhase.upcoming
-                    ? '${budget.startDate.difference(now).inDays + 1} days'
-                    : 'Ended',
-                caption: phase == BudgetPhase.running
-                    ? 'Day $dayNumber of $totalDays'
-                    : null,
-              ),
-            ];
-            final columns = constraints.maxWidth >= 520 ? 4 : 2;
-            final width =
-                (constraints.maxWidth - AppSpacing.sm * (columns - 1)) /
-                columns;
-            return Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final t in tiles) SizedBox(width: width, child: t),
-              ],
-            );
-          },
-        ),
-
-        // Navigation to this budget's data (only meaningful when active).
-        if (isActive && !budget.isArchived) ...[
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.go('/app/expenses'),
-                  icon: const Icon(Icons.receipt_long_outlined),
-                  label: const Text('Expenses'),
+              : !isActive
+              ? AppNotice(
+                  key: const ValueKey('inactiveNotice'),
+                  tone: AppTone.info,
+                  icon: Icons.info_outline_rounded,
+                  title: 'Not your active budget',
+                  // "Make active" is the screen's button below; the note
+                  // only says why it is there.
+                  message:
+                      'Home, Expenses and Reports show the active budget. '
+                      'Make this one active to follow it there and add '
+                      'expenses to it.',
+                )
+              : Column(
+                  key: const ValueKey('activeLinks'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Home, Expenses and Reports follow this budget',
+                      style: muted,
+                    ),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => context.go('/app/expenses'),
+                          icon: const Icon(Icons.receipt_long_outlined),
+                          label: const Text('Expenses'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => context.go('/app/reports'),
+                          icon: const Icon(Icons.insights_outlined),
+                          label: const Text('Reports'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.go('/app/reports'),
-                  icon: const Icon(Icons.insights_outlined),
-                  label: const Text('Reports'),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ],
     );
   }
 
-  Widget _statusChip(BuildContext context, BudgetPhase phase) {
-    final theme = Theme.of(context);
-    final colors = context.appColors;
+  Widget _statusChip(BudgetPhase phase) {
     if (budget.isArchived) {
-      return StatusChip(
+      return const StatusChip.tone(
+        wrapLabel: true,
         label: 'Archived',
-        color: theme.colorScheme.onSurfaceVariant,
+        tone: AppTone.neutral,
         icon: Icons.archive_rounded,
       );
     }
     if (isActive) {
-      return StatusChip(
+      return const StatusChip.tone(
+        wrapLabel: true,
         label: 'Active',
-        color: theme.colorScheme.primary,
+        tone: AppTone.positive,
         icon: Icons.check_circle_rounded,
       );
     }
     return switch (phase) {
-      BudgetPhase.upcoming => StatusChip(
+      BudgetPhase.upcoming => const StatusChip.tone(
+        wrapLabel: true,
         label: 'Upcoming',
-        color: colors.info,
+        tone: AppTone.info,
         icon: Icons.schedule_rounded,
       ),
-      BudgetPhase.ended => StatusChip(
+      BudgetPhase.ended => const StatusChip.tone(
+        wrapLabel: true,
         label: 'Ended',
-        color: theme.colorScheme.onSurfaceVariant,
+        tone: AppTone.neutral,
         icon: Icons.event_busy_rounded,
       ),
-      _ => StatusChip(
-        label: 'Inactive',
-        color: theme.colorScheme.onSurfaceVariant,
+      _ => const StatusChip.tone(
+        wrapLabel: true,
+        label: 'Not active',
+        tone: AppTone.neutral,
         icon: Icons.radio_button_off_rounded,
       ),
     };
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final String? caption;
-
-  const _StatTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.caption,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.smd),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                icon,
-                size: AppSizes.iconSm,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-              maxLines: 1,
-            ),
-          ),
-          if (caption != null)
-            Text(
-              caption!,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-        ],
-      ),
-    );
   }
 }
 
