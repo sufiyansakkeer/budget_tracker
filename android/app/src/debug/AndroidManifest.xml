@@ -4,4 +4,16 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <application>
+        <!-- Debug builds only: renders the home-screen widget's layouts at
+             many sizes and font scales, for checking (see
+             docs/home_screen_widget_test_plan.md). -->
+        <activity
+            android:name=".WidgetPreviewActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="Widget preview"
+            android:noHistory="true" />
+    </application>
 </manifest>

@@ -1,63 +1,216 @@
 package com.example.monivo
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.SystemClock
 import android.util.Log
+import android.util.SizeF
 import android.widget.RemoteViews
-import es.antonborri.home_widget.HomeWidgetLaunchIntent
+import androidx.annotation.RequiresApi
 import es.antonborri.home_widget.HomeWidgetPlugin
-import java.util.Locale
+import java.util.Calendar
 
 /**
- * Home-screen widget that displays Today's Safe Spending and related
- * budget data computed by the Dart side.
+ * Home-screen widget: Today's Safe Spending for the active budget.
  *
- * Data is written to SharedPreferences by the Dart [HomeWidgetService]
- * using the `home_widget` package. This provider reads those values
- * and updates the RemoteViews accordingly.
+ * The Dart side ([HomeWidgetService]) works out and formats everything and
+ * stores it as one payload ([WidgetPayload]); this provider only decides
+ * what to show and paints it:
  *
- * The widget also provides quick-action buttons to launch the app
- * directly into the Dashboard or the Add Expense screen.
+ * - **Size.** It offers the launcher one layout per size class, each keyed
+ *   by the room its content needs at the current font and display size
+ *   ([WidgetRenderer.sizedLayouts]). Android 12+ switches between them as
+ *   the widget is resized; older versions get the best fit for the reported
+ *   portrait and landscape sizes, redrawn on every resize.
+ * - **Freshness.** The figures are for one day. Once the day turns, the
+ *   widget asks to be opened instead of showing yesterday's amount as
+ *   today's; one inexact, non-waking alarm a day redraws it after midnight.
+ * - **Taps.** The widget opens Home; its button opens Add expense.
  */
 class HomeScreenWidgetProvider : AppWidgetProvider() {
 
-    init {
-        Log.d(TAG, "HomeScreenWidgetProvider instantiated")
-    }
-
     companion object {
         private const val TAG = "MonivoWidget"
-        // Must match the keys in Dart's WidgetDataKeys
-        private const val KEY_DAILY_SAFE = "home_widget_daily_safe"
-        private const val KEY_SPENT_TODAY = "home_widget_spent_today"
-        private const val KEY_STATUS = "home_widget_status"
-        private const val KEY_REMAINING = "home_widget_remaining"
-        private const val KEY_REMAINING_DAYS = "home_widget_remaining_days"
-        private const val KEY_CURRENCY = "home_widget_currency"
-        private const val KEY_LAST_UPDATED = "home_widget_last_updated"
-        private const val KEY_HAS_BUDGET = "home_widget_has_budget"
-        private const val KEY_QUICK_ACTION = "home_widget_quick_action"
-
         private const val HOME_WIDGET_PREFS = "HomeWidgetPreferences"
+        private const val ACTION_DAY_CHANGED = "com.example.monivo.widget.DAY_CHANGED"
+        private const val ACTION_FORCE_UPDATE = "com.sufiyan.monivo.FORCE_WIDGET_UPDATE"
 
-        fun updateAllWidgets(context: Context) {
-            val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(
-                ComponentName(context, HomeScreenWidgetProvider::class.java)
-            )
-            for (id in ids) {
-                val intent = Intent(context, HomeScreenWidgetProvider::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(id))
+        /** RemoteViews accepts at most 16 sized layouts. */
+        private const val MAX_LAYOUTS = 16
+
+        /**
+         * Measuring the layouts takes a few hundred milliseconds, so widgets
+         * are drawn on their own thread rather than the app's main thread,
+         * which also handles touches while Monivo is open. One thread, so
+         * redraws happen in order.
+         */
+        private val worker: Handler by lazy {
+            Handler(HandlerThread("MonivoWidget").apply { start() }.looper)
+        }
+
+        /** Draws [ids] (default: every placed Monivo widget) off the main thread. */
+        private fun drawAsync(
+            receiver: BroadcastReceiver,
+            context: Context,
+            ids: IntArray? = null,
+        ) {
+            val pending = receiver.goAsync()
+            val app = context.applicationContext
+            worker.post {
+                try {
+                    val manager = AppWidgetManager.getInstance(app)
+                    val targets = ids ?: manager.getAppWidgetIds(
+                        ComponentName(app, HomeScreenWidgetProvider::class.java),
+                    )
+                    if (targets.isNotEmpty()) render(app, manager, targets)
+                } finally {
+                    pending.finish()
                 }
-                context.sendBroadcast(intent)
             }
+        }
+
+        private fun render(context: Context, manager: AppWidgetManager, ids: IntArray) {
+            val started = SystemClock.elapsedRealtime()
+            val prefs = prefs(context)
+            val payload = WidgetPayload.read(prefs)
+            val content = payload?.contentFor(WidgetPayload.today()) ?: WidgetMessage(
+                title = context.getString(R.string.widget_setup_title),
+                body = context.getString(R.string.widget_setup_body),
+            )
+            val light = payload?.light ?: WidgetColors.defaults(context, night = false)
+            val dark = payload?.dark ?: WidgetColors.defaults(context, night = true)
+
+            for (id in ids) {
+                try {
+                    val renderer = WidgetRenderer(
+                        context,
+                        light,
+                        dark,
+                        openApp = launchIntent(context, "monivo:///app/home", id * 10),
+                        addExpense = launchIntent(context, "monivo:///app/expenses/add", id * 10 + 1),
+                    )
+                    val layouts = renderer.sizedLayouts(content)
+                    manager.updateAppWidget(id, views(manager, id, renderer, content, layouts))
+                } catch (e: Exception) {
+                    Log.e(TAG, "Couldn't draw widget $id", e)
+                }
+            }
+            scheduleDayChange(context)
+            Log.d(TAG, "Drew ${ids.size} widget(s) in ${SystemClock.elapsedRealtime() - started} ms")
+        }
+
+        private fun views(
+            manager: AppWidgetManager,
+            id: Int,
+            renderer: WidgetRenderer,
+            content: WidgetContent,
+            layouts: List<SizedLayout>,
+        ): RemoteViews {
+            val options = manager.getAppWidgetOptions(id)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // Each layout keyed by the room it needs: Android picks among
+                // these as the widget is resized...
+                val bySize = LinkedHashMap<SizeF, RemoteViews>()
+                for (layout in layouts) bySize[layout.size] = layout.views
+                // ...and each size the launcher says the widget has gets the
+                // richest layout that fits it exactly (Android's own pick
+                // favours the closest size, not the richest content).
+                for (size in options.sizes()) {
+                    if (bySize.size >= MAX_LAYOUTS && size !in bySize) break
+                    val layout = WidgetRenderer.choose(layouts, size).layout
+                    Log.d(TAG, "Widget $id at $size: $layout")
+                    bySize[size] = renderer.build(layout, content)
+                }
+                return RemoteViews(bySize)
+            }
+            // Before Android 12 the launcher reports the widget's size range:
+            // narrowest and tallest in portrait, widest and shortest in landscape.
+            // Until the launcher reports them, assume the default 4 x 2 size.
+            val minWidth = options.dp(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250f)
+            val maxWidth = options.dp(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, minWidth)
+            val minHeight = options.dp(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110f)
+            val maxHeight = options.dp(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, minHeight)
+            val portrait = WidgetRenderer.choose(layouts, SizeF(minWidth, maxHeight)).views
+            val landscape = WidgetRenderer.choose(layouts, SizeF(maxWidth, minHeight)).views
+            return if (portrait === landscape) portrait else RemoteViews(landscape, portrait)
+        }
+
+        /** The sizes (dp) the launcher reports for the widget (Android 12+). */
+        @RequiresApi(Build.VERSION_CODES.S)
+        private fun Bundle.sizes(): List<SizeF> {
+            val sizes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+            }
+            return sizes.orEmpty().filter { it.width > 0 && it.height > 0 }
+        }
+
+        private fun Bundle.dp(key: String, fallback: Float): Float =
+            getInt(key, 0).takeIf { it > 0 }?.toFloat() ?: fallback
+
+        private fun launchIntent(context: Context, uri: String, requestCode: Int): PendingIntent {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = "es.antonborri.home_widget.action.LAUNCH"
+                data = Uri.parse(uri)
+                putExtra("es.antonborri.home_widget.initiallyLaunchedFromHomeWidget", uri)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            return if (Build.VERSION.SDK_INT >= 35) {
+                val options = android.app.ActivityOptions.makeBasic()
+                    .setPendingIntentCreatorBackgroundActivityStartMode(1)
+                PendingIntent.getActivity(context, requestCode, intent, flags, options.toBundle())
+            } else if (Build.VERSION.SDK_INT >= 34) {
+                val options = android.app.ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(1)
+                PendingIntent.getActivity(context, requestCode, intent, flags, options.toBundle())
+            } else {
+                PendingIntent.getActivity(context, requestCode, intent, flags)
+            }
+        }
+
+        /**
+         * Redraws the widgets just after the next midnight, so yesterday's
+         * amount is never shown as today's. Inexact and non-waking: it fires
+         * when the device is next awake, which is when the widget is seen.
+         */
+        private fun scheduleDayChange(context: Context) {
+            val alarms = context.getSystemService(AlarmManager::class.java) ?: return
+            val nextDay = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, 1)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 5)
+                set(Calendar.MILLISECOND, 0)
+            }
+            alarms.set(AlarmManager.RTC, nextDay.timeInMillis, dayChangeIntent(context))
+        }
+
+        private fun dayChangeIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(context, HomeScreenWidgetProvider::class.java).setAction(ACTION_DAY_CHANGED),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        private fun prefs(context: Context): SharedPreferences = try {
+            HomeWidgetPlugin.getData(context)
+        } catch (e: Exception) {
+            context.getSharedPreferences(HOME_WIDGET_PREFS, Context.MODE_PRIVATE)
         }
     }
 
@@ -66,228 +219,32 @@ class HomeScreenWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        Log.d(TAG, "onUpdate called with ${appWidgetIds.size} widget(s)")
-        try {
-            val prefs = getPrefs(context)
-
-            for (appWidgetId in appWidgetIds) {
-                try {
-                    Log.d(TAG, "Rendering widget id=$appWidgetId")
-                    val views = RemoteViews(context.packageName, R.layout.widget_spending_view)
-
-                    val hasBudgetStr = getStringSafe(prefs, KEY_HAS_BUDGET, "false")
-                    val hasBudget = hasBudgetStr == "true"
-                    Log.d(TAG, "hasBudget=$hasBudget")
-
-                    if (!hasBudget) {
-                        renderEmptyState(views, context)
-                    } else {
-                        renderSpendingData(views, prefs, context)
-                    }
-
-                    // ── Quick Action: tap body opens Dashboard ──────────────────
-                    val openAppPendingIntent = createLaunchPendingIntent(
-                        context,
-                        Uri.parse("monivo:///app/home"),
-                        appWidgetId * 10,
-                    )
-                    views.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent)
-
-                    // ── Quick Action: Add Expense button opens Expense Form ─────
-                    val addExpensePendingIntent = createLaunchPendingIntent(
-                        context,
-                        Uri.parse("monivo:///app/expenses/add"),
-                        appWidgetId * 10 + 1,
-                    )
-                    views.setOnClickPendingIntent(R.id.widget_add_expense_button, addExpensePendingIntent)
-
-
-                    appWidgetManager.updateAppWidget(appWidgetId, views)
-                    Log.d(TAG, "Widget id=$appWidgetId updated successfully")
-                } catch (innerEx: Exception) {
-                    Log.e(TAG, "Error updating single widget id=$appWidgetId: ${innerEx.message}", innerEx)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "ERROR in onUpdate: ${e.javaClass.simpleName}: ${e.message}", e)
-        }
+        drawAsync(this, context, appWidgetIds)
     }
 
-    private fun createLaunchPendingIntent(
+    /** Resized: redraw, so the layouts are measured for the current font size too. */
+    override fun onAppWidgetOptionsChanged(
         context: Context,
-        uri: Uri,
-        requestCode: Int,
-    ): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = "es.antonborri.home_widget.action.LAUNCH"
-            data = uri
-            putExtra("es.antonborri.home_widget.initiallyLaunchedFromHomeWidget", uri.toString())
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        return if (android.os.Build.VERSION.SDK_INT >= 35) {
-            val options = android.app.ActivityOptions.makeBasic().setPendingIntentCreatorBackgroundActivityStartMode(1)
-            PendingIntent.getActivity(context, requestCode, intent, flags, options.toBundle())
-        } else if (android.os.Build.VERSION.SDK_INT >= 34) {
-            val options = android.app.ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(1)
-            PendingIntent.getActivity(context, requestCode, intent, flags, options.toBundle())
-        } else {
-            PendingIntent.getActivity(context, requestCode, intent, flags)
-        }
-    }
-
-
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        Log.d(TAG, "onEnabled called — first widget placed")
-        HomeWidgetServiceWrapper.updateWidgetData(context)
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        drawAsync(this, context, intArrayOf(appWidgetId))
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "onReceive action=${intent.action}")
         super.onReceive(context, intent)
-        if (intent.action == "com.sufiyan.monivo.FORCE_WIDGET_UPDATE") {
-            HomeWidgetServiceWrapper.updateWidgetData(context)
+        when (intent.action) {
+            ACTION_DAY_CHANGED,
+            ACTION_FORCE_UPDATE,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            -> drawAsync(this, context)
         }
     }
 
-    private fun renderSpendingData(
-        views: RemoteViews,
-        prefs: SharedPreferences,
-        context: Context,
-    ) {
-        val dailySafeRaw = getStringSafe(prefs, KEY_DAILY_SAFE, "0")
-        val spentTodayRaw = getStringSafe(prefs, KEY_SPENT_TODAY, "0")
-        val status = getStringSafe(prefs, KEY_STATUS, "on_track")
-        val remainingRaw = getStringSafe(prefs, KEY_REMAINING, "0")
-        val remainingDaysRaw = getStringSafe(prefs, KEY_REMAINING_DAYS, "0")
-        val currency = getStringSafe(prefs, KEY_CURRENCY, "INR")
-
-        val dailySafe = dailySafeRaw.toDoubleOrNull() ?: 0.0
-        val spentToday = spentTodayRaw.toDoubleOrNull() ?: 0.0
-        val remaining = remainingRaw.toDoubleOrNull() ?: 0.0
-        val remainingDays = remainingDaysRaw.toIntOrNull() ?: 0
-
-        val symbol = getCurrencySymbol(currency)
-
-        // ── Safe Spending amount ────────────────────────────────────────
-        views.setTextViewText(
-            R.id.widget_safe_spending_amount,
-            formatCurrency(dailySafe, symbol),
-        )
-
-        // ── Spent Today ─────────────────────────────────────────────────
-        views.setTextViewText(
-            R.id.widget_spent_today_amount,
-            formatCurrency(spentToday, symbol),
-        )
-
-        // ── Status label ────────────────────────────────────────────────
-        val statusLabel = when {
-            status.startsWith("over:") -> {
-                val overAmount = status.removePrefix("over:").toDoubleOrNull() ?: 0.0
-                "${formatCurrency(overAmount, symbol)} over"
-            }
-            // Over budget, or bills and money set aside exceed what's left.
-            status.startsWith("short:") -> {
-                val shortAmount = status.removePrefix("short:").toDoubleOrNull() ?: 0.0
-                "${formatCurrency(shortAmount, symbol)} short"
-            }
-            status == "careful" -> "Spend carefully"
-            status == "on_track" -> "On Track"
-            status == "no_budget" -> "No Budget"
-            status == "error" -> "Open app to refresh"
-            // Unknown (e.g. written by a newer app version): never claim
-            // "On Track" for a status we can't read.
-            else -> "Open app to refresh"
-        }
-        views.setTextViewText(R.id.widget_status, statusLabel)
-
-        // ── Status color ────────────────────────────────────────────────
-        val statusColor = when {
-            status.startsWith("over:") -> 0xFFD32F2F.toInt()  // Red
-            status.startsWith("short:") -> 0xFFD32F2F.toInt() // Red
-            status == "careful" -> 0xFFE65100.toInt()         // Amber
-            status == "on_track" -> 0xFF388E3C.toInt()        // Green
-            else -> 0xFF757575.toInt()                         // Grey
-        }
-        views.setTextColor(R.id.widget_status, statusColor)
-        views.setTextColor(R.id.widget_safe_spending_amount, statusColor)
-
-        // ── Add Expense button text ─────────────────────────────────────
-        views.setTextViewText(R.id.widget_add_expense_button, "+ Add Expense")
-
-        // ── Label text ──────────────────────────────────────────────────
-        views.setTextViewText(R.id.widget_safe_spending_label, "Today's Safe Spending")
-        views.setTextViewText(R.id.widget_spent_today_label, "Spent Today")
-
-        if (remainingDays > 0) {
-            views.setTextViewText(
-                R.id.widget_remaining_text,
-                "${formatCurrency(remaining, symbol)} left · ${remainingDays}d remaining",
-            )
-        } else {
-            views.setTextViewText(R.id.widget_remaining_text, "")
-        }
-    }
-
-    private fun renderEmptyState(views: RemoteViews, context: Context) {
-        views.setTextViewText(R.id.widget_safe_spending_label, "Monivo")
-        views.setTextViewText(R.id.widget_safe_spending_amount, "—")
-        views.setTextViewText(R.id.widget_spent_today_label, "")
-        views.setTextViewText(R.id.widget_spent_today_amount, "")
-        views.setTextViewText(
-            R.id.widget_status,
-            "Open app to set up a budget",
-        )
-        views.setTextColor(R.id.widget_status, 0xFF757575.toInt())
-        views.setTextViewText(R.id.widget_add_expense_button, "+ Add Expense")
-        views.setTextViewText(R.id.widget_remaining_text, "")
-    }
-
-    private fun formatCurrency(amount: Double, symbol: String): String {
-        return "$symbol${String.format(Locale.US, "%,.0f", amount)}"
-    }
-
-    private fun getCurrencySymbol(code: String): String {
-        return when (code) {
-            "INR" -> "₹"
-            "USD" -> "$"
-            "EUR" -> "€"
-            "GBP" -> "£"
-            "JPY" -> "¥"
-            "AED" -> "د.إ"
-            "CAD" -> "C$"
-            "AUD" -> "A$"
-            "SGD" -> "S$"
-            else -> "₹"
-        }
-    }
-
-    private fun getStringSafe(prefs: SharedPreferences, key: String, default: String): String {
-        return try {
-            val value = prefs.all[key] ?: return default
-            value.toString()
-        } catch (e: Exception) {
-            default
-        }
-    }
-
-    private fun getPrefs(context: Context): SharedPreferences {
-        return try {
-            HomeWidgetPlugin.getData(context)
-        } catch (e: Exception) {
-            context.getSharedPreferences(HOME_WIDGET_PREFS, Context.MODE_PRIVATE)
-        }
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        context.getSystemService(AlarmManager::class.java)?.cancel(dayChangeIntent(context))
     }
 }
-
-/**
- * Helper that invokes the native widget update.
- */
-object HomeWidgetServiceWrapper {
-    fun updateWidgetData(context: Context) {
-        HomeScreenWidgetProvider.updateAllWidgets(context)
-    }
-}
-

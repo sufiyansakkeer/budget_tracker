@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget metrics. Text is in sp, so it follows the system font
+     size; the widget measures its layouts with these same values to decide
+     which one fits (HomeScreenWidgetProvider). -->
+<resources>
+    <dimen name="widget_radius">24dp</dimen>
+    <dimen name="widget_inner_radius">16dp</dimen>
+    <dimen name="widget_pill_radius">100dp</dimen>
+
+    <dimen name="widget_pad_h">16dp</dimen>
+    <dimen name="widget_pad_v">14dp</dimen>
+    <dimen name="widget_pad_h_compact">14dp</dimen>
+    <dimen name="widget_pad_v_compact">12dp</dimen>
+    <dimen name="widget_pad_h_large">18dp</dimen>
+    <dimen name="widget_pad_v_large">16dp</dimen>
+
+    <dimen name="widget_gap_xs">2dp</dimen>
+    <dimen name="widget_gap_sm">4dp</dimen>
+    <dimen name="widget_gap_md">8dp</dimen>
+    <dimen name="widget_gap_lg">12dp</dimen>
+    <dimen name="widget_gap_xl">16dp</dimen>
+
+    <dimen name="widget_dot">8dp</dimen>
+    <dimen name="widget_track">6dp</dimen>
+    <dimen name="widget_track_thin">4dp</dimen>
+    <dimen name="widget_hairline">1dp</dimen>
+    <dimen name="widget_icon">20dp</dimen>
+    <dimen name="widget_icon_small">18dp</dimen>
+    <!-- Touch targets. -->
+    <dimen name="widget_icon_button">40dp</dimen>
+    <dimen name="widget_button_height">44dp</dimen>
+
+    <dimen name="widget_text_hero_compact">30sp</dimen>
+    <dimen name="widget_text_hero_row">32sp</dimen>
+    <dimen name="widget_text_hero">36sp</dimen>
+    <dimen name="widget_text_hero_large">44sp</dimen>
+    <!-- The smallest the amount is drawn while its label still shows. -->
+    <dimen name="widget_text_hero_floor">20sp</dimen>
+    <dimen name="widget_text_title">16sp</dimen>
+    <dimen name="widget_text_value">15sp</dimen>
+    <dimen name="widget_text_button">14sp</dimen>
+    <dimen name="widget_text_body">13sp</dimen>
+    <dimen name="widget_text_label">13sp</dimen>
+    <dimen name="widget_text_caption">12sp</dimen>
+    <!-- Last-resort layouts only: in dp, so the amount or message shrinks to
+         fit a very small slot at a very large font size instead of being cut. -->
+    <dimen name="widget_text_last_resort">10dp</dimen>
+</resources>

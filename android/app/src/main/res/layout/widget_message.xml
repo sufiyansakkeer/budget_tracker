@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Messages (no budget, error, out of date, not set up): what to do, and
+     Add expense when there is room. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layoutDirection="ltr"
+    android:textDirection="ltr">
+
+    <ImageView
+        android:id="@+id/widget_surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_surface"
+        android:tint="@color/widget_surface" />
+
+    <LinearLayout
+        android:id="@+id/widget_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingStart="@dimen/widget_pad_h"
+        android:paddingTop="@dimen/widget_pad_v_compact"
+        android:paddingEnd="@dimen/widget_pad_h"
+        android:paddingBottom="@dimen/widget_pad_v_compact">
+
+        <TextView
+            android:textDirection="ltr"
+            android:id="@+id/widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:includeFontPadding="false"
+            android:maxLines="3"
+            android:textColor="@color/widget_ink"
+            android:textSize="@dimen/widget_text_title"
+            android:textStyle="bold" />
+
+        <TextView
+            android:textDirection="ltr"
+            android:id="@+id/widget_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/widget_gap_sm"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:includeFontPadding="false"
+            android:maxLines="3"
+            android:textColor="@color/widget_muted"
+            android:textSize="@dimen/widget_text_body" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <FrameLayout
+            android:id="@+id/widget_add"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/widget_gap_md"
+            android:contentDescription="@string/widget_add_expense"
+            android:minHeight="@dimen/widget_button_height">
+
+            <ImageView
+                android:id="@+id/widget_add_bg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_pill"
+                android:tint="@color/widget_accent" />
+
+            <!-- match_parent, so the FrameLayout stretches the fill behind it
+                 (it re-measures match_parent children only when there are two). -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingStart="@dimen/widget_gap_lg"
+                android:paddingTop="@dimen/widget_gap_md"
+                android:paddingEnd="@dimen/widget_gap_xl"
+                android:paddingBottom="@dimen/widget_gap_md">
+
+                <ImageView
+                    android:id="@+id/widget_add_icon"
+                    android:layout_width="@dimen/widget_icon_small"
+                    android:layout_height="@dimen/widget_icon_small"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_widget_add"
+                    android:tint="@color/widget_on_accent" />
+
+                <TextView
+                    android:textDirection="ltr"
+                    android:id="@+id/widget_add_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/widget_gap_sm"
+                    android:importantForAccessibility="no"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="@string/widget_add_expense"
+                    android:textColor="@color/widget_on_accent"
+                    android:textSize="@dimen/widget_text_button" />
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

@@ -87,6 +87,12 @@ Future<void> main() async {
   // ── Home Widget: listen for data changes and refresh widget ───────────
   _widgetRefreshListener = WidgetRefreshListener(
     widgetService: HomeWidgetService.fromDI(),
+    // The widget is drawn in the user's palette.
+    appearanceChanges: di
+        .getIt<ThemeBloc>()
+        .stream
+        .map((state) => state.palette)
+        .distinct(),
   )..startListening();
 
   runApp(const SmartBudgetApp());

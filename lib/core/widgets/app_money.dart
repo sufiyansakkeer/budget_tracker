@@ -82,6 +82,18 @@ class AppMoney extends StatelessWidget {
     bool showPlus = false,
   }) => _Formatted.of(amount, currency, floored, showPlus).text;
 
+  /// The figure cut into the pieces [split] sets at different sizes, plus
+  /// what a screen reader says, for surfaces outside Flutter that typeset it
+  /// themselves (the home-screen widget). Same rounding as [format].
+  static ({MoneyParts parts, String spoken}) describe(
+    double amount, {
+    required String? currency,
+    bool floored = false,
+  }) {
+    final f = _Formatted.of(amount, currency, floored, false);
+    return (parts: f.parts, spoken: f.spoken);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -181,7 +193,7 @@ class _Formatted {
 
   /// What a screen reader says, e.g. "minus ₹1,250.50".
   final String spoken;
-  final _Parts parts;
+  final MoneyParts parts;
 
   const _Formatted(this.text, this.spoken, this.parts);
 
@@ -229,21 +241,27 @@ class _Formatted {
         : negative
         ? 'minus '
         : (showPlus ? 'plus ' : '');
-    final parts = _Parts.of(sign, body);
+    final parts = MoneyParts._of(sign, body);
     return _Formatted(parts.join(), '$spokenSign$body', parts);
   }
 }
 
-/// [_Formatted.text] cut into sign, symbol, whole units, fraction and any
+/// A formatted figure cut into sign, symbol, whole units, fraction and any
 /// trailing symbol, so a hero figure can size them differently.
-class _Parts {
+class MoneyParts {
   final String sign;
   final String prefix;
   final String whole;
   final String fraction;
   final String suffix;
 
-  const _Parts(this.sign, this.prefix, this.whole, this.fraction, this.suffix);
+  const MoneyParts(
+    this.sign,
+    this.prefix,
+    this.whole,
+    this.fraction,
+    this.suffix,
+  );
 
   /// The figure as drawn (with the left-to-right mark where needed).
   String join() => '$sign$prefix$whole$fraction$suffix';
@@ -251,10 +269,10 @@ class _Parts {
   static final String _decimalSeparator =
       NumberFormat.currency().symbols.DECIMAL_SEP;
 
-  static _Parts of(String sign, String body) {
+  static MoneyParts _of(String sign, String body) {
     final digit = RegExp(r'\d');
     final first = body.indexOf(digit);
-    if (first < 0) return _Parts(sign, '', body, '', '');
+    if (first < 0) return MoneyParts(sign, '', body, '', '');
     var last = body.length - 1;
     while (last > first && !digit.hasMatch(body[last])) {
       last--;
@@ -268,8 +286,8 @@ class _Parts {
     if (RegExp(r'[؀-ۿ]').hasMatch(prefix)) prefix = '$prefix\u200E';
 
     final sep = number.lastIndexOf(_decimalSeparator);
-    if (sep < 0) return _Parts(sign, prefix, number, '', suffix);
-    return _Parts(
+    if (sep < 0) return MoneyParts(sign, prefix, number, '', suffix);
+    return MoneyParts(
       sign,
       prefix,
       number.substring(0, sep),

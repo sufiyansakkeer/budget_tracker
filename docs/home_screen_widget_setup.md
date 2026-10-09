@@ -1,272 +1,182 @@
 # Home Screen Widget — Setup & Architecture
 
-## Overview
+The Monivo widget shows the **active budget's** Today's Safe Spending on the
+home screen, with its status, what was spent and is left today, and the budget
+behind it when there is room. It has an **Add expense** quick action. Budgets
+are never combined.
 
-This feature adds two capabilities to Monivo:
-
-1. **Quick View Widget** — Displays the **active budget's** Today's Safe Spending, Spent Today, status, Remaining Budget and remaining days on the home screen. Budgets are never combined.
-2. **Quick Action** — "Add Expense" button that launches the app directly into the Add Expense screen.
+How it was tested, and how to check it on a device:
+[home_screen_widget_test_plan.md](home_screen_widget_test_plan.md).
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  Dart Layer                          │
-│                                                     │
-│  ExpenseRefreshBus ──┐                              │
-│                      ├──→ WidgetRefreshListener      │
-│  BudgetRefreshBus  ──┘        │                     │
-│                               ▼                     │
-│                     HomeWidgetService                │
-│                      │                              │
-│           ┌──────────┴──────────┐                   │
-│           │  Uses existing      │                   │
-│           │  use cases:         │                   │
-│           │  • GetSpending      │                   │
-│           │    TargetsUseCase   │                   │
-│           │  • BudgetRepository │                   │
-│           └──────────┬──────────┘                   │
-│                      ▼                              │
-│           HomeWidget.saveWidgetData()               │
-│           HomeWidget.updateWidget()                 │
-│                      │                              │
-└──────────────────────┼──────────────────────────────┘
-                       │ SharedPreferences
-┌──────────────────────┼──────────────────────────────┐
-│                  Android                            │
-│                      ▼                              │
-│           HomeScreenWidgetProvider                  │
-│           (AppWidgetProvider + RemoteViews)          │
-│                      │                              │
-│              Reads SharedPreferences               │
-│              Renders widget UI                      │
-│              PendingIntent → MainActivity           │
-└─────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────┐
-│                  iOS                                 │
-│                      ▼                              │
-│           MonivoWidget (WidgetKit)                  │
-│           (Swift + SwiftUI)                         │
-│                      │                              │
-│              Reads UserDefaults (App Group)          │
-│              Renders widget UI                      │
-│              Link → monivo:// URL scheme             │
-└─────────────────────────────────────────────────────┘
+Dart (lib/features/widgets/)
+  RefreshBuses.expenses / .budgets / .bills ─┐
+  ThemeBloc palette changes ─────────────────┼─▶ WidgetRefreshListener
+  app start (main.dart) ─────────────────────┘          │
+                                                        ▼
+                                              HomeWidgetService
+                         GetSpendingTargetsUseCase ─▶ │ (the active budget's
+                         (safe-to-spend engine)       │  BudgetDailyLimitEntity)
+                                                        ▼
+                                              HomeWidgetPayload
+                         AppMoney / SafeToSpendCopy ─▶ │ (every figure and
+                         AppTheme palette colours  ─▶  │  sentence, formatted)
+                                                        ▼
+                         HomeWidget.saveWidgetData('home_widget_payload', json)
+                         HomeWidget.updateWidget()
+                                   │
+           ┌───────────────────────┴───────────────────────┐
+           ▼                                               ▼
+Android: HomeScreenWidgetProvider               iOS: MonivoWidget (WidgetKit)
+  MonivoWidgetPayload.kt  – reads the JSON        MonivoWidget.swift
+  MonivoWidgetRenderer.kt – layouts, sizing,      – reads the JSON from the App
+                            colours                 Group's UserDefaults
+  res/layout/widget_*.xml                         – ViewThatFits per family
 ```
 
----
-
-## Data Flow
-
-### Widget Data Keys
-
-All widget data is stored in SharedPreferences with these keys:
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `home_widget_daily_safe` | String (double) | Active budget's Today's Safe Spending |
-| `home_widget_spent_today` | String (double) | Active budget's Spent Today |
-| `home_widget_status` | String | `on_track`, `over:{amount}`, `no_budget`, or `error` |
-| `home_widget_remaining` | String (double) | Active budget's Remaining Budget |
-| `home_widget_remaining_days` | String (int) | Active budget's remaining days (including today) |
-| `home_widget_currency` | String | Currency code (e.g., `INR`, `USD`) |
-| `home_widget_has_budget` | String | `true` or `false` |
-| `home_widget_last_updated` | String | ISO 8601 timestamp of last update |
-| `home_widget_quick_action` | String | Route path for quick action navigation |
-
-### When Widget Updates
-
-The widget refreshes when:
-- An expense is created, updated, or deleted
-- A budget is created, updated, deleted, or switched
-- The app starts (startup refresh)
-- The widget's own refresh period elapses (Android: 1 hour, iOS: 1 hour)
-
-### Safe Spending Calculation
-
-The widget does NOT duplicate any calculation. It uses:
-
-```dart
-// GetSpendingTargetsUseCase.callPerBudget()
-// → Per-budget daily limits (same as dashboard)
-// → The entry for the ACTIVE budget is written to the widget
-```
-
-The formula used (via existing `BudgetCalculationService`):
-
-```
-Today's Safe Spending = (Budget Amount - Total Spent + Spent Today) ÷ Remaining Days
-```
-
-This is the same formula as `BudgetCalculationService.buildSummary`: the amount
-is fixed for the day and today's expenses count against it.
-
-If the active budget's period does not include today, the widget shows the
-"no budget" state until another budget is made active.
+**The native widgets never compute or format money.** The Dart side reuses the
+safe-to-spend engine (`GetSpendingTargetsUseCase.callPerBudget`) and formats
+every figure with the same code Home uses (`AppMoney`, `SafeToSpendCopy`), so
+the widget always agrees with the app: the currency's own symbol and minor
+units (OMR 4.250, not "₹4"), safe amounts floored, the status words Home uses.
 
 ---
 
-## Android Requirements
+## The payload
 
-The `home_widget` package requires `androidx.work:work-runtime-ktx:2.11.2`, which mandates **minSdk ≥ 23** (Android 6.0 Marshmallow). The project's `build.gradle.kts` has been updated to:
+One JSON string under `home_widget_payload`, written in one call so a widget
+redraw never reads half an update. Built by `HomeWidgetPayload`
+(`lib/features/widgets/home_widget_payload.dart`), which documents the shape.
 
-```kotlin
-minSdk = 23  // Required by home_widget's androidx.work dependency
-```
+| Field | Meaning |
+|---|---|
+| `v` | Format version (2). A widget that doesn't know the version asks the user to open the app. |
+| `state` | `ready`, `noBudget` or `error`. |
+| `asOf` | The day the figures are for (`yyyy-MM-dd`, local time). |
+| `colors.light` / `colors.dark` | The user's palette as the app ships it: surface, ink, muted, track, accent, onAccent, divider and the status tones (`#AARRGGBB`). |
+| `stale` | Title and body shown once the day has turned since `asOf`. |
+| `label`, `shortLabel` | "Today's Safe Spending", "Safe today". |
+| `safe` | The amount, whole and in pieces (sign, symbol, whole units, minor units) so the widget can set the symbol and minor units at half size like Home. |
+| `status` | Home's status label ("On track", "Over today's amount"…) and its tone. |
+| `today` | Today's track position, "Spent today", and "Left today" or "Over by". |
+| `budget` | Name, days left, "₹x left of ₹y", its track position and tone. |
+| `summary` | The whole widget as one sentence, for screen readers. |
+| `message` | For `noBudget` / `error`: title, body and a short title. |
 
-Android 5.0–5.1 (API 21–22) devices are no longer supported. This is consistent with the Flutter 3.32.8 ecosystem and Google Play's device distribution.
-
-## Android Setup (Automatic)
-
-The Android widget is fully configured via files:
-
-- `android/app/src/main/kotlin/com/example/monivo/HomeScreenWidgetProvider.kt`
-- `android/app/src/main/res/layout/widget_spending_view.xml`
-- `android/app/src/main/res/xml/widget_spending_info.xml`
-- `android/app/src/main/AndroidManifest.xml` (updated with receiver)
-
-**No manual Xcode/IDE configuration needed for Android.**
-
-To add the widget to the home screen:
-1. Long-press on the home screen
-2. Tap "Widgets"
-3. Find "Budget Tracker"
-4. Drag to home screen
+Older keys (`home_widget_daily_safe`, `home_widget_status`, …) are no longer
+written or read. A widget placed before this version shows "Open Monivo" until
+the app next starts and writes the payload.
 
 ---
 
-## iOS Setup
+## When it updates
 
-The iOS WidgetKit extension is configured programmatically:
+| Trigger | How |
+|---|---|
+| Expense, budget or bill change | `WidgetRefreshListener` on `RefreshBuses` |
+| Palette change | `WidgetRefreshListener` on the `ThemeBloc` stream |
+| App start | `main.dart` |
+| The day turns | Android: one inexact, non-waking alarm just after midnight, plus `TIME_SET` / `TIMEZONE_CHANGED`. iOS: a second timeline entry at midnight. Neither recomputes anything: the widget switches to "Tap to update". |
+| Android periodic refresh | `updatePeriodMillis` = 1 hour (redraw only, no work in Dart) |
+| Resize (Android) | `onAppWidgetOptionsChanged` redraws, re-measuring at the current font size |
 
-- `ios/MonivoWidget/MonivoWidget.swift` — Widget implementation
-- `ios/MonivoWidget/Info.plist` — Extension configuration
-- `ios/MonivoWidget/MonivoWidget.entitlements` — App Group entitlement
-- `ios/Runner/Runner.entitlements` — Main app App Group entitlement
-- `ios/Podfile` — Updated with MonivoWidget target
+Updates are serialised in `HomeWidgetService`, so a slow older update can
+never overwrite a newer one.
 
-### App Group Configuration
-
-Both the main app and widget extension share data via App Group `group.com.sufiyan.monivo`. The entitlements files are created automatically.
-
-**Critical:** The App Group must be registered in the Apple Developer portal for distribution builds. For development, Xcode auto-provisions it.
-
-### Dart-Side Initialization
-
-The `main.dart` calls `HomeWidget.setAppGroupId('group.com.sufiyan.monivo')` at startup. This is required before any `saveWidgetData` calls on iOS — without it, all iOS data sharing fails silently.
-
-### Build and Run
-
-1. Select a physical iOS device (widgets don't work in simulator)
-2. Build and run
-3. Long-press on home screen
-4. Tap "+" → Find "Budget Tracker" widget
-5. Add to home screen
+**Why "Tap to update" after midnight:** the figures are "safe to spend
+*today*". Yesterday's amount shown as today's would be misleading, and working
+out today's amount needs the app's engine and database, so the widget asks to
+be opened instead.
 
 ---
 
-## Cold Start & Warm Start Navigation
+## Layouts
 
-### Cold Start (App Fully Closed)
+Content priority, highest first: **the amount**; what it is (label) and its
+status; today's spending against it; the budget behind it; Add expense.
+Smaller layouts drop from the end of that list; the amount is never cut off.
 
-1. User taps widget's "Add Expense" button
-2. Android: `PendingIntent` launches `MainActivity` with `home_widget_action=add_expense` extra
-3. iOS: `Link` opens `monivo://add-expense` URL scheme
-4. `main.dart` checks `HomeWidget.initiallyLaunchedFromHomeWidget()`
-5. Route is stored via `setPendingWidgetRoute()`
-6. GoRouter redirect detects the pending route
-7. App navigates to `/app/expenses/add`
+### Android (`MonivoWidgetRenderer.kt`, `res/layout/widget_*.xml`)
 
-### Warm Start (App Backgrounded)
+| Layout | Shows | Typical slot (default text) |
+|---|---|---|
+| `EXPANDED` | budget + days left, label, amount, status, today's track, spent / left today, budget left + track, Add expense | 4×3 and up |
+| `STANDARD` | label + Add button, amount, status · budget, today's track, spent / left today | 3×2 – 5×2 |
+| `COMPACT_TALL` | label, amount, status, track, left today, Add | 2×2, 2×3 |
+| `ROW_WIDE` / `ROW` / `ROW_SLIM` | amount, label, status, (left today), Add button | 3×1 – 5×1 |
+| `COMPACT` / `COMPACT_SLIM` | label, amount, (status) | 2×1 |
+| `GLANCE_LABELLED` / `GLANCE` | label?, amount filling the slot | very small or very large text |
+| `GLANCE_WHOLE` | the amount in whole units, shrunk to fit | last resort |
+| `MESSAGE_FULL` … `MESSAGE_GLANCE` | title, body, Add expense — then less | no budget, error, out of date, not set up |
 
-1. User taps widget
-2. App comes to foreground
-3. Same flow as cold start
+How a layout is chosen:
 
-### Intent Handling
+1. The provider fills every layout and **measures it in-process** with the
+   device's current font scale and density (`TextView`s in sp, the same view
+   tree the launcher inflates). Each layout's key is the smallest width and
+   height at which its must-fit text — the amount, label, status, figures —
+   shows in full. This is the "content-first" breakpoint: it moves with the
+   font size, the display size, the currency and the length of the amount.
+2. Android 12+: the provider passes these sized layouts to
+   `RemoteViews(Map<SizeF, RemoteViews>)`, and adds one entry for each size
+   the launcher reports (`OPTION_APPWIDGET_SIZES`) holding the **richest
+   layout that fits** it. The launcher switches layouts itself on resize.
+3. Before Android 12: the provider picks the richest layout that fits the
+   reported portrait and landscape sizes, and redraws on every resize.
 
-On Android, the intent extra `home_widget_action` is set by the widget provider:
+Colours: Android 12+ gets the palette's light and dark colours on every view
+(`setColorInt` / `setColorStateList`), so the widget follows the system theme
+without a redraw. Before Android 12 the widget uses the colours for the theme
+in force when it was drawn, and its progress bars use neutral colours.
 
-```kotlin
-putExtra("home_widget_action", "add_expense")
-```
+The widget follows the **system** light/dark setting, as widgets do, even when
+the app is forced light or dark.
 
-On iOS, the URL scheme `monivo://add-expense` is used via WidgetKit's `Link`.
+### iOS (`MonivoWidget.swift`)
 
----
+Families: `systemSmall`, `systemMedium` and (new) `systemLarge`. Each family
+lists its layouts richest first inside `ViewThatFits`, so Dynamic Type picks
+the layout: larger text drops the figures, then the status, then the label.
+The amount is set at its text style's size, then smaller, then in whole units
+(it is a floored safe amount, so that never overstates it), and only then
+scaled down — never truncated. Small widgets have no Add button: iOS sends
+every tap on a small widget to its single URL.
 
-## Midnight / Day Change
-
-The widget refreshes automatically:
-- **Android**: `updatePeriodMillis="3600000"` (1 hour) triggers periodic refresh
-- **iOS**: Timeline policy `.after(nextUpdate)` with 1-hour interval
-- **On app start**: Widget data is refreshed immediately
-
-After midnight, the next app launch or periodic refresh will show the new day's data.
-
----
-
-## Multiple Budgets
-
-The widget is scoped to the **active budget only** — the same budget the
-dashboard shows. Budgets are never combined, because each budget has its own
-currency, period and safe-spending limit:
-
-```
-Today's Safe Spending     ← active budget: (remaining + spent today) ÷ remaining days
-₹1,300
-
-Spent Today               ← expenses assigned to the active budget, today
-₹860
-
-On Track                  ← spent today vs. today's limit for that budget
-```
-
-Switching the active budget in the app (dashboard selector or Settings →
-Budgets) refreshes the widget through `RefreshBuses.budgets`. When no budget
-covers today the widget shows its "No Budget" state.
+iOS 15 has no `ViewThatFits`; there the layout is picked by text size.
 
 ---
 
-## Error Handling
+## Taps
 
-| State | Widget Display |
-|-------|---------------|
-| No active budget | "Open app to set up a budget" with empty values |
-| Data fetch error | "Open app to refresh" with empty values |
-| Widget data unavailable | Shows last known values (from SharedPreferences) |
+| Target | Android | iOS | Opens |
+|---|---|---|---|
+| Widget body | `PendingIntent` on `@android:id/background` | `widgetURL` | `monivo:///app/home` |
+| Add expense | `PendingIntent` on `widget_add` | `Link` (medium, large) | `monivo:///app/expenses/add` |
 
----
-
-## Offline-First
-
-The widget works entirely offline:
-- All data comes from local SharedPreferences
-- No network calls are made by the widget
-- The Dart service reads from the local Drift database
-- No cloud backend is used
+`main.dart` resolves the URI with `resolveWidgetUriToRoute`; the cold-start and
+warm-start handling (pending route, lock screen) is unchanged.
 
 ---
 
-## Testing
+## Platform setup
 
-### Unit Tests
+**Android:** nothing manual. The receiver is declared in `AndroidManifest.xml`
+with `res/xml/widget_spending_info.xml` (default 4×2, resizable from 2×1).
+`minSdk` is 23 (`home_widget`'s WorkManager dependency).
 
-Run `flutter test` — all existing 595 tests pass.
+**iOS:** the `MonivoWidget` extension shares data through the App Group
+`group.com.sufiyan.monivo` (entitlements on both targets; register the group
+in the Apple Developer portal for distribution builds). `main.dart` calls
+`HomeWidget.setAppGroupId` before any write. iOS builds currently need
+`flutter config --no-enable-swift-package-manager` (see `TODO.md`).
 
-### Manual Testing Checklist
+---
 
-- [ ] Widget displays correct spending data on home screen
-- [ ] Widget updates after adding an expense
-- [ ] Widget updates after editing an expense
-- [ ] Widget updates after deleting an expense
-- [ ] "Add Expense" button launches app into Add Expense screen
-- [ ] Widget shows "On Track" when under daily limit
-- [ ] Widget shows "Over" amount when over daily limit
-- [ ] Widget shows empty state when no budget exists
-- [ ] Widget updates at midnight (new day)
-- [ ] Switching the active budget updates the widget (never a combined total)
-- [ ] Currency symbol matches app settings
+## Offline
+
+The widget works entirely offline: the data comes from the app's local
+database, and neither widget makes network calls.
