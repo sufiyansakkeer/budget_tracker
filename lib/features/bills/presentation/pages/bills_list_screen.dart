@@ -11,7 +11,6 @@ import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
-import '../../../../core/widgets/delayed_reveal.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/info_content.dart';
@@ -44,7 +43,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   static const _info = InfoContent(
-    title: 'Bills & Reminders',
+    title: 'Bills & reminders',
     whatIsThis:
         'Payments you want to remember, such as rent, utilities or '
         'subscriptions. Link a bill to a budget and its amount is set aside '
@@ -151,7 +150,9 @@ class _BillsListScreenState extends State<BillsListScreen> {
             child = ErrorState(
               key: const ValueKey('error'),
               title: "Couldn't load your bills",
-              message: state.message ?? 'Please try again.',
+              message:
+                  'Your bills are still on this device. Try again in a '
+                  'moment.',
               onRetry: () => context.read<BillBloc>().add(const BillRefresh()),
             );
           } else if (state.allBills.isEmpty) {
@@ -424,20 +425,18 @@ class _BillsSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DelayedReveal(
-      child: Shimmer(
-        child: ListView(
-          physics: const NeverScrollableScrollPhysics(),
-          padding: AppSpacing.pagePadding,
-          children: [
-            const SkeletonBox(height: 48, radius: AppSpacing.radiusSm),
-            const SizedBox(height: AppSpacing.lg),
-            SkeletonText(style: theme.textTheme.titleMedium, width: 120),
-            const SizedBox(height: AppSpacing.sm),
-            for (var i = 0; i < 3; i++)
-              const SkeletonListTile(leadingSize: AppSizes.avatarSm),
-          ],
-        ),
+    return Shimmer(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: AppSpacing.pagePadding,
+        children: [
+          const SkeletonBox(height: 48, radius: AppSpacing.radiusSm),
+          const SizedBox(height: AppSpacing.lg),
+          SkeletonText(style: theme.textTheme.titleMedium, width: 120),
+          const SizedBox(height: AppSpacing.sm),
+          for (var i = 0; i < 3; i++)
+            const SkeletonListTile(leadingSize: AppSizes.avatarSm),
+        ],
       ),
     );
   }

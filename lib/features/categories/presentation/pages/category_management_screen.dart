@@ -113,6 +113,11 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
         listener: (context, state) {
           final text = state.message ?? state.errorMessage;
           if (text == null) return;
+          // A failed first load is the error view's to show.
+          if (state.status == CategoryBlocStatus.error &&
+              state.categories.isEmpty) {
+            return;
+          }
           final isError = state.message == null;
           final scheme = Theme.of(context).colorScheme;
           ScaffoldMessenger.of(context)
@@ -157,7 +162,8 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               state.categories.isEmpty) {
             child = ErrorState(
               key: const ValueKey('error'),
-              message: state.errorMessage ?? 'Categories could not be loaded',
+              title: "Couldn't load your categories",
+              message: 'They are still on this device. Try again in a moment.',
               onRetry: () =>
                   context.read<CategoryBloc>().add(const CategoryLoad()),
             );

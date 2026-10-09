@@ -87,15 +87,19 @@ class CurrencyField extends StatelessWidget {
           ),
           child: Row(
             children: [
-              SizedBox(
-                width: 48,
+              // At least 48 dp so From and To line up; wider at large text
+              // sizes rather than breaking the word.
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 48),
                 child: Text(
                   label,
+                  softWrap: false,
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
               ),
+              const SizedBox(width: AppSpacing.xs),
               Expanded(
                 // Cross-fades the currency when a swap or selection changes it.
                 child: AnimatedSwitcher(

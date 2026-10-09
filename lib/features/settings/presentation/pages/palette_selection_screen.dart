@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors_extension.dart';
 import '../../domain/entities/color_palette_entity.dart';
 import '../bloc/theme/theme_bloc.dart';
 import '../bloc/theme/theme_event.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// Full-screen palette selection. Each palette is previewed as two small
 /// screens, light and dark, drawn with the same colour tokens the app
@@ -49,9 +50,14 @@ class PaletteSelectionScreen extends StatelessWidget {
                         key: Key('palette_${option.palette.name}'),
                         option: option,
                         isSelected: option.palette == currentPalette,
-                        onTap: () => context.read<ThemeBloc>().add(
-                          ColorPaletteChanged(option.palette),
-                        ),
+                        onTap: () {
+                          if (option.palette != currentPalette) {
+                            AppHaptics.selection();
+                          }
+                          context.read<ThemeBloc>().add(
+                            ColorPaletteChanged(option.palette),
+                          );
+                        },
                       ),
                     ),
                 ],

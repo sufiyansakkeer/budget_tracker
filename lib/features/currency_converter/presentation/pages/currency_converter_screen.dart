@@ -12,6 +12,7 @@ import '../widgets/converter_amount_field.dart';
 import '../widgets/converter_copy.dart';
 import '../widgets/currency_field.dart';
 import '../widgets/rate_info.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// Converts an amount between any two currencies the rate provider supports.
 ///
@@ -21,6 +22,10 @@ import '../widgets/rate_info.dart';
 class CurrencyConverterScreen extends StatefulWidget {
   const CurrencyConverterScreen({super.key});
 
+  /// "Now" for the rate's "fetched" line; tests and goldens pin it.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
+
   @override
   State<CurrencyConverterScreen> createState() =>
       _CurrencyConverterScreenState();
@@ -28,6 +33,15 @@ class CurrencyConverterScreen extends StatefulWidget {
 
 class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
   final _amountController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Normally the saved amount arrives after the first frame (see the
+    // listener below); when the bloc restored it earlier, take it now.
+    final state = context.read<CurrencyConverterBloc>().state;
+    if (state.isRestored) _amountController.text = state.amountText;
+  }
 
   @override
   void dispose() {
@@ -205,7 +219,10 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
       buildWhen: (prev, curr) => prev.swapCount != curr.swapCount,
       builder: (context, state) => SwapDivider(
         swapCount: state.swapCount,
-        onPressed: () => bloc.add(const CurrencyConverterSwapped()),
+        onPressed: () {
+          AppHaptics.selection();
+          bloc.add(const CurrencyConverterSwapped());
+        },
       ),
     );
   }
@@ -243,6 +260,7 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
         final lookup = state.rate;
         if (lookup == null) return const SizedBox.shrink();
         return RateInfo(
+          now: CurrencyConverterScreen.clock(),
           lookup: lookup,
           target: state.target,
           isRefreshing: state.isRefreshing,

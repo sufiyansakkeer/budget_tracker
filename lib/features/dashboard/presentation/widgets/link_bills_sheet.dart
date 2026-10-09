@@ -10,6 +10,8 @@ import '../../../bills/domain/usecases/link_bills_to_budget_usecase.dart';
 import '../../../budget/domain/entities/budget_error.dart';
 import '../../domain/usecases/get_linkable_bills_usecase.dart';
 import 'safe_to_spend_copy.dart';
+import '../../../../core/errors/user_facing_error.dart';
+import '../../../bills/presentation/bill_failure_copy.dart';
 
 /// "Link bills": links upcoming bills that no budget sets aside to the
 /// active budget, so Today's Safe Spending keeps money for them.
@@ -29,7 +31,16 @@ abstract final class LinkBillsSheet {
       final result = await getIt<GetLinkableBillsUseCase>()(budgetId: budgetId);
       switch (result) {
         case BudgetError(:final failure):
-          if (context.mounted) _snack(context, failure.message);
+          if (context.mounted) {
+            _snack(
+              context,
+              userFacingError(
+                failure.message,
+                forPeople: false,
+                fallback: "Couldn't load this budget. Try again.",
+              ),
+            );
+          }
           return;
         case BudgetSuccess(:final data):
           bills = data;
@@ -64,7 +75,7 @@ abstract final class LinkBillsSheet {
           '${bills.budget.name}.',
         );
       case BillError(:final failure):
-        _snack(context, failure.message);
+        _snack(context, failure.shown("Couldn't link the bills. Try again."));
     }
   }
 

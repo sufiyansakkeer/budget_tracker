@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
 import 'nav_destination.dart';
 import 'nav_icon.dart';
+import '../feedback/app_haptics.dart';
 
 /// Monivo's bottom navigation bar.
 ///
@@ -54,7 +54,7 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
     if (index == widget.selectedIndex) {
       setState(() => _pulseTokens[index]++);
     } else {
-      HapticFeedback.selectionClick();
+      AppHaptics.selection();
     }
     widget.onDestinationSelected(index);
   }

@@ -4,6 +4,7 @@ import '../../domain/entities/report_data.dart';
 import '../../domain/entities/report_failure.dart';
 import '../../domain/usecases/export_csv_usecase.dart';
 import '../../domain/usecases/export_pdf_usecase.dart';
+import '../../../../core/errors/user_facing_error.dart';
 
 /// Shares the report as CSV or PDF through the system sheet, from the
 /// Reports menu, and says how it went.
@@ -26,10 +27,16 @@ abstract final class ReportExport {
         case ReportSuccess():
           say('$kind report ready to share.');
         case ReportError(:final failure):
-          say(failure.message);
+          say(
+            userFacingError(
+              failure.message,
+              forPeople: false,
+              fallback: "Couldn't export the $kind report. Try again.",
+            ),
+          );
       }
     } catch (_) {
-      say("Couldn't export the $kind report.");
+      say("Couldn't export the $kind report. Try again.");
     }
   }
 }

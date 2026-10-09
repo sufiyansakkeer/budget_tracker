@@ -23,6 +23,10 @@ abstract final class MoveExpenseSheet {
   }) async {
     final all = budgets ?? await _loadBudgets();
     if (!context.mounted) return null;
+    if (all == null) {
+      _snack(context, "Couldn't load your budgets. Try again.");
+      return null;
+    }
 
     final candidates = all
         .where((b) => b.id != expense.budgetId && !b.isArchived)
@@ -77,11 +81,14 @@ abstract final class MoveExpenseSheet {
     return selected;
   }
 
-  static Future<List<BudgetEntity>> _loadBudgets() async {
+  /// Null when the budgets couldn't be read, so that is never mistaken
+  /// for having no other budget.
+  static Future<List<BudgetEntity>?> _loadBudgets() async {
     try {
       return await getIt<ManageBudgetUseCase>().getAll();
-    } catch (_) {
-      return const [];
+    } catch (e) {
+      debugPrint('[error] Loading budgets to move an expense: $e');
+      return null;
     }
   }
 

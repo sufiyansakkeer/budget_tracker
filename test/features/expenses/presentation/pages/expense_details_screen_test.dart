@@ -117,6 +117,20 @@ void main() {
     expect(find.text('#friends'), findsOneWidget);
   });
 
+  testWidgets('a failed read offers a retry, not "not found"', (tester) async {
+    expenses.failReadById = 'database is locked';
+    await pumpDetails(tester);
+
+    expect(find.text("Couldn't open this expense"), findsOneWidget);
+    expect(find.text('Expense not found'), findsNothing);
+    expect(find.textContaining('database is locked'), findsNothing);
+
+    expenses.failReadById = null;
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dinner'), findsWidgets);
+  });
+
   testWidgets('delete asks nothing, closes, and Undo brings it back', (
     tester,
   ) async {

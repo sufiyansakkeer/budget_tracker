@@ -35,7 +35,7 @@ void main() {
     UpdateDialogService.show(testResult);
     await tester.pumpAndSettle();
 
-    expect(find.text('Update Available'), findsOneWidget);
+    expect(find.text('Update available'), findsOneWidget);
   });
 
   testWidgets('displays current and latest version', (tester) async {
@@ -81,7 +81,7 @@ void main() {
     await tester.tap(find.text('Later'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Update Available'), findsNothing);
+    expect(find.text('Update available'), findsNothing);
   });
 
   testWidgets('dialog is not dismissible by tapping outside', (tester) async {
@@ -96,7 +96,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Dialog should still be visible (barrierDismissible: false)
-    expect(find.text('Update Available'), findsOneWidget);
+    expect(find.text('Update available'), findsOneWidget);
   });
 
   testWidgets('hides release notes section when notes are empty', (
@@ -132,7 +132,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should still have exactly one dialog
-    expect(find.text('Update Available'), findsOneWidget);
+    expect(find.text('Update available'), findsOneWidget);
   });
 
   testWidgets('guard resets after dialog is dismissed', (tester) async {
@@ -149,6 +149,6 @@ void main() {
     UpdateDialogService.show(testResult);
     await tester.pumpAndSettle();
 
-    expect(find.text('Update Available'), findsOneWidget);
+    expect(find.text('Update available'), findsOneWidget);
   });
 }

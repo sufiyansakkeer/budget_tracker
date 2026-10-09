@@ -214,7 +214,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             IntegrityResultSheet.show(context, result);
             return;
           }
-          if (state.errorMessage != null) {
+          if (state.errorMessage != null &&
+              state.status == SettingsStatus.error &&
+              !_loadedOnce) {
+            // A failed first load is the error view's to show.
+            bloc.add(const SettingsClearMessageEvent());
+          } else if (state.errorMessage != null) {
             messenger
               ..hideCurrentSnackBar()
               ..showSnackBar(SnackBar(content: Text(state.errorMessage!)));
@@ -241,7 +246,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child = ErrorState(
               key: const ValueKey('error'),
               title: "Couldn't load settings",
-              message: 'Please try again.',
+              message:
+                  'Your settings are still on this device. Try again in a '
+                  'moment.',
               onRetry: () => bloc.add(const SettingsLoadEvent()),
             );
           } else {

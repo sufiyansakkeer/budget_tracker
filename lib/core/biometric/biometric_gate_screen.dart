@@ -9,6 +9,7 @@ import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_animated_size.dart';
 import 'app_lock_bloc.dart';
 import 'app_lock_event.dart';
 import 'app_lock_state.dart';
@@ -194,7 +195,11 @@ class _LockScreenBody extends StatelessWidget {
       return const Scaffold(body: SizedBox.expand());
     }
 
-    final message = isAuthenticating ? 'Authenticating…' : 'Unlock to continue';
+    // No spinner: the system prompt is the activity. The screen stays
+    // still behind it, with the button in place but resting.
+    final message = isAuthenticating
+        ? "Confirm it's you"
+        : 'Unlock to continue';
 
     return Scaffold(
       body: SafeArea(
@@ -246,55 +251,47 @@ class _LockScreenBody extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  AnimatedSwitcher(
+                  AppAnimatedSize(
                     duration: AppMotion.respectReducedMotion(
                       context,
                       AppMotion.standard,
                     ),
-                    child: isAuthenticating || isChecking
-                        ? const SizedBox(
-                            key: ValueKey('progress'),
-                            height: AppSizes.touchTarget,
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        : Column(
-                            key: const ValueKey('actions'),
-                            children: [
-                              if (state.errorMessage != null) ...[
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.error_outline_rounded,
-                                      size: AppSizes.iconSm,
+                    alignment: Alignment.topCenter,
+                    child: state.errorMessage == null || isAuthenticating
+                        ? const SizedBox(width: double.infinity)
+                        : Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.error_outline_rounded,
+                                  size: AppSizes.iconSm,
+                                  color: colorScheme.error,
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                Flexible(
+                                  child: Text(
+                                    state.errorMessage!,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
                                       color: colorScheme.error,
                                     ),
-                                    const SizedBox(width: AppSpacing.xs),
-                                    Flexible(
-                                      child: Text(
-                                        state.errorMessage!,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                              color: colorScheme.error,
-                                            ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                  ],
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
-                                const SizedBox(height: AppSpacing.md),
                               ],
-                              // Always-available re-authentication action so the
-                              // user can retry even after dismissing the native
-                              // biometric prompt.
-                              FilledButton.icon(
-                                onPressed: onRetry,
-                                icon: const Icon(Icons.fingerprint_rounded),
-                                label: const Text('Unlock'),
-                              ),
-                            ],
+                            ),
                           ),
+                  ),
+                  // Always available, so the user can retry after dismissing
+                  // the system prompt; resting while the prompt is open.
+                  FilledButton.icon(
+                    onPressed: isAuthenticating ? null : onRetry,
+                    icon: const Icon(Icons.lock_open_rounded),
+                    label: const Text('Unlock'),
                   ),
                 ],
               ),

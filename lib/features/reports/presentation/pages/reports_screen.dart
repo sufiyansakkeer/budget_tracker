@@ -7,7 +7,6 @@ import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
-import '../../../../core/widgets/delayed_reveal.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
@@ -208,15 +207,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
               key: const ValueKey('error'),
               message: state.errorMessage == ReportsBloc.noBudgetMessage
                   ? ReportsBloc.noBudgetMessage
-                  : 'Something went wrong while reading your expenses. '
-                        'Try again.',
+                  : 'Your expenses are still on this device. Try again in '
+                        'a moment.',
               onRetry: _retry,
             );
           } else if (data == null) {
-            child = const DelayedReveal(
-              key: ValueKey('loading'),
-              child: _ReportsSkeleton(),
-            );
+            child = const _ReportsSkeleton(key: ValueKey('loading'));
           } else {
             // Period and filter changes keep the previous report on screen
             // with a slim progress bar instead of dropping to a spinner.
@@ -535,7 +531,7 @@ class _ReportContent extends StatelessWidget {
 }
 
 class _ReportsSkeleton extends StatelessWidget {
-  const _ReportsSkeleton();
+  const _ReportsSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../domain/entities/report_period.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// The one place a report's dates are chosen: "This Budget" (the active
 /// budget's own period), the calendar presets and Custom. The filter sheet
@@ -41,7 +42,10 @@ class PeriodSelector extends StatelessWidget {
                 avatar: const Icon(Icons.account_balance_wallet_outlined),
                 showCheckmark: false,
                 selected: followsBudget,
-                onSelected: (_) => onBudget!(),
+                onSelected: (_) {
+                  AppHaptics.selection();
+                  onBudget!();
+                },
               ),
             ),
           for (final period in ReportPeriod.values)
@@ -55,7 +59,10 @@ class PeriodSelector extends StatelessWidget {
                     : null,
                 showCheckmark: false,
                 selected: !followsBudget && period == selected,
-                onSelected: (_) => onSelected(period),
+                onSelected: (_) {
+                  AppHaptics.selection();
+                  onSelected(period);
+                },
               ),
             ),
         ],

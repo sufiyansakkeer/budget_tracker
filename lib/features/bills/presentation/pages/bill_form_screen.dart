@@ -31,6 +31,7 @@ import 'bill_widgets.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// Add/Edit bill form screen.
 ///
@@ -368,7 +369,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
         listener: (context, state) {
           if (state.isBusy) return;
           if (state.status == BillBlocStatus.success) {
-            HapticFeedback.lightImpact();
+            AppHaptics.confirm();
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(SnackBar(content: Text(state.message ?? 'Saved')));

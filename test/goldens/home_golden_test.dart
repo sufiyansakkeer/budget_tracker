@@ -218,4 +218,35 @@ void main() {
       size: const Size(360, 2000),
     );
   }, skip: goldenSkip);
+
+  testWidgets('home tablet', (tester) async {
+    DashboardHeader.clock = () => DateTime(2026, 10, 8, 15, 30);
+    addTearDown(() => DashboardHeader.clock = DateTime.now);
+    final bloc = _StaticDashboardBloc(_sampleState());
+    addTearDown(bloc.close);
+    // Two columns from 840 dp: today's figure on the left, the rest beside.
+    await expectGoldenMatrix(
+      tester,
+      'home_tablet',
+      BlocProvider<DashboardBloc>.value(
+        value: bloc,
+        child: const DashboardScreen(),
+      ),
+      size: const Size(1024, 1300),
+    );
+  }, skip: goldenSkip);
+
+  testWidgets('home without a budget', (tester) async {
+    final bloc = _StaticDashboardBloc(const DashboardEmpty());
+    addTearDown(bloc.close);
+    await expectGoldenMatrix(
+      tester,
+      'home_empty',
+      BlocProvider<DashboardBloc>.value(
+        value: bloc,
+        child: const DashboardScreen(),
+      ),
+      size: const Size(360, 780),
+    );
+  }, skip: goldenSkip);
 }

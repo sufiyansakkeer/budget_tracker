@@ -121,6 +121,24 @@ void main() {
     );
   }, skip: goldenSkip);
 
+  testWidgets('expenses empty', (tester) async {
+    final state = ExpenseHistoryState(
+      status: ExpenseHistoryStatus.loaded,
+      categories: defaultCategories,
+      budgetId: budget.id,
+      budgetName: budget.name,
+      budgetCurrency: 'INR',
+    );
+    await expectGoldenMatrix(
+      tester,
+      'expenses_empty',
+      BlocProvider<ExpenseHistoryBloc>(
+        create: (_) => _StaticHistoryBloc(state),
+        child: const ExpenseHistoryScreen(),
+      ),
+    );
+  }, skip: goldenSkip);
+
   // Fixed dates where a date is drawn ("until 31 Oct", "Wed, 7 Oct 2026"),
   // so these images never change with the calendar or the time zone.
   final october = testBudget(

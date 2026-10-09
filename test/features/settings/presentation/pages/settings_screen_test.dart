@@ -25,6 +25,7 @@ void main() {
     double width = 360,
     double textScale = 1,
     bool settle = true,
+    Brightness brightness = Brightness.light,
   }) async {
     final settings = StaticSettingsBloc(
       state,
@@ -39,7 +40,9 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: AppTheme.lightTheme,
+        theme: brightness == Brightness.light
+            ? AppTheme.lightTheme
+            : AppTheme.darkTheme,
         home: Builder(
           builder: (context) => MediaQuery(
             data: MediaQuery.of(
@@ -321,6 +324,20 @@ void main() {
     expect(find.text('v1.0.0 (1)'), findsOneWidget);
     expect(find.text('Open source licenses'), findsOneWidget);
   });
+
+  for (final brightness in Brightness.values) {
+    testWidgets('meets tap target, label and contrast guidelines '
+        '(${brightness.name})', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pump(tester, brightness: brightness, withIntegrityCheck: true);
+
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      semantics.dispose();
+    });
+  }
 
   testWidgets('fits a small screen at twice the text size', (tester) async {
     await pump(tester, width: 320, textScale: 2);

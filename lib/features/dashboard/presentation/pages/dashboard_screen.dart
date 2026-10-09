@@ -13,7 +13,6 @@ import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
-import '../../../../core/widgets/delayed_reveal.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -86,10 +85,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             buildWhen: (prev, curr) => prev != curr,
             builder: (context, state) {
               final child = switch (state) {
-                DashboardInitial() || DashboardLoading() => const DelayedReveal(
-                  key: ValueKey('loading'),
-                  child: DashboardSkeleton(),
-                ),
+                DashboardInitial() || DashboardLoading() =>
+                  const DashboardSkeleton(key: ValueKey('loading')),
                 DashboardLoaded() => _DashboardContent(
                   key: const ValueKey('loaded'),
                   state: state,
@@ -155,7 +152,7 @@ class _DashboardContent extends StatelessWidget {
     final insights = HomeInsightFilter.visible(state.insights);
 
     return _DashboardScroll(
-      children: [
+      primary: [
         FadeSlideIn(index: 0, child: _header(context, safeToSpend)),
         const SizedBox(height: AppSpacing.md),
 
@@ -224,7 +221,8 @@ class _DashboardContent extends StatelessWidget {
             },
           ),
         ),
-
+      ],
+      secondary: [
         if (pace != null && pace.isMeaningful) ...[
           const SizedBox(height: _sectionGap),
           FadeSlideIn(index: 4, child: SpendingPaceSection(pace: pace)),
@@ -282,7 +280,7 @@ class _NotRunningContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final safeToSpend = state.safeToSpend;
     return _DashboardScroll(
-      children: [
+      primary: [
         FadeSlideIn(
           index: 0,
           child: DashboardHeader(
@@ -333,6 +331,8 @@ class _NotRunningContent extends StatelessWidget {
             },
           ),
         ),
+      ],
+      secondary: [
         ..._otherBudgets(state.otherBudgetLimits),
         ..._recentExpenses(
           context,
@@ -348,10 +348,25 @@ class _NotRunningContent extends StatelessWidget {
 // ── Shared sections ────────────────────────────────────────────────────────
 
 /// Pull-to-refresh scroll view with the dashboard's width constraint.
+/// Home's scroll view. On a phone the sections stack in one column, the
+/// [primary] ones (today's figure and what it depends on) first. From
+/// [_twoColumnWidth] the [secondary] ones (pace, insights, other budgets,
+/// recent expenses) move into a second column beside them.
 class _DashboardScroll extends StatelessWidget {
-  final List<Widget> children;
+  final List<Widget> primary;
+  final List<Widget> secondary;
 
-  const _DashboardScroll({required this.children});
+  const _DashboardScroll({required this.primary, required this.secondary});
+
+  /// The Material "expanded" window width: tablets in landscape, large
+  /// tablets and foldables open.
+  static const double _twoColumnWidth = 840;
+  static const double _twoColumnMaxWidth = 1120;
+
+  Widget _column(List<Widget> children) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: children,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -366,22 +381,38 @@ class _DashboardScroll extends StatelessWidget {
         );
         return completion.future;
       },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppSpacing.pagePaddingWithFab,
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppSizes.contentMaxWidth,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final twoColumns = constraints.maxWidth >= _twoColumnWidth;
+          // The second column starts level with the first, without the gap
+          // that separates it from the sections above on a phone.
+          final side = secondary.skipWhile((w) => w is SizedBox).toList();
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: AppSpacing.pagePaddingWithFab,
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: twoColumns
+                        ? _twoColumnMaxWidth
+                        : AppSizes.contentMaxWidth,
+                  ),
+                  child: twoColumns
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: _column(primary)),
+                            const SizedBox(width: AppSpacing.xl),
+                            Expanded(child: _column(side)),
+                          ],
+                        )
+                      : _column([...primary, ...secondary]),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children,
-              ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -511,7 +542,7 @@ class _NoBudgetState extends StatelessWidget {
           context.read<DashboardBloc>().add(const DashboardRefresh());
         }
       },
-      secondaryActionLabel: 'Open Budgets',
+      secondaryActionLabel: 'Open budgets',
       onSecondaryAction: () => context.pushUnique('/app/budgets'),
     );
   }

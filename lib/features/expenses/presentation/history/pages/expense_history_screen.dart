@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/constants/app_motion.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/theme/app_colors_extension.dart';
 import '../../../../../core/widgets/app_state_switcher.dart';
-import '../../../../../core/widgets/delayed_reveal.dart';
 import '../../../../../core/widgets/info_content.dart';
 import '../../../../../core/widgets/info_icon.dart';
 import '../../../../../core/widgets/loading_skeleton.dart';
@@ -43,6 +41,7 @@ import '../../../../../core/widgets/app_fab.dart';
 import '../../../../../core/widgets/fade_slide_in.dart';
 import '../../../../../core/navigation/push_unique.dart';
 import '../../../../../core/widgets/app_animated_size.dart';
+import '../../../../../core/feedback/app_haptics.dart';
 
 /// Expense history: search, filters, sorting, day grouping, pagination,
 /// swipe-to-delete, pull-to-refresh, and the combined multi-budget view.
@@ -229,7 +228,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   /// would refresh the list mid-animation and make the rows below jump.
   Future<bool> _confirmDismiss(ExpenseEntity expense) async {
     if (context.read<ExpenseBloc?>() == null) return false;
-    HapticFeedback.mediumImpact();
+    AppHaptics.threshold();
     return true;
   }
 
@@ -238,7 +237,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     ExpenseCategory? category,
     BudgetEntity? budget,
   ) async {
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     final action = await ExpenseActionsSheet.show(
       context,
       expense: expense,
@@ -263,7 +262,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           ),
         );
       case ExpenseRowAction.delete:
-        HapticFeedback.mediumImpact();
+        AppHaptics.confirm();
         _deleteWithUndo(expense);
     }
   }
@@ -369,7 +368,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               ..showSnackBar(
                 SnackBar(
                   content: Text(
-                    state.errorMessage ?? "Couldn't refresh expenses",
+                    state.errorMessage == null ||
+                            state.errorMessage ==
+                                ExpenseHistoryBloc.loadFailedMessage
+                        ? "Couldn't refresh expenses. Try again in a moment."
+                        : state.errorMessage!,
                   ),
                 ),
               );
@@ -569,10 +572,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     if (neverLoaded) {
       // Local data usually arrives first; the skeleton only shows when it
       // does not.
-      child = const DelayedReveal(
-        key: ValueKey('loading'),
-        child: ExpenseListSkeleton(),
-      );
+      child = const ExpenseListSkeleton(key: ValueKey('loading'));
     } else if (state.status == ExpenseHistoryStatus.error &&
         state.allExpenses.isEmpty) {
       child = ExpenseHistoryErrorWidget(

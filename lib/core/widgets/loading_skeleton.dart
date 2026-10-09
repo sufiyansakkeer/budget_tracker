@@ -3,16 +3,25 @@ import 'package:flutter/material.dart';
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
 import '../theme/app_typography.dart';
+import 'delayed_reveal.dart';
 
 /// Wraps skeleton placeholders in a single, shared shimmer sweep.
 ///
 /// One [AnimationController] drives every [SkeletonBox] beneath it, so a whole
 /// loading layout costs one ticker. Honors reduced-motion settings by
 /// rendering static placeholders.
+///
+/// Placeholders appear only after [delay] (300 ms): Monivo reads a local
+/// database, so most loads finish sooner and a skeleton would only flash.
 class Shimmer extends StatefulWidget {
   final Widget child;
+  final Duration delay;
 
-  const Shimmer({super.key, required this.child});
+  const Shimmer({
+    super.key,
+    required this.child,
+    this.delay = const Duration(milliseconds: 300),
+  });
 
   @override
   State<Shimmer> createState() => _ShimmerState();
@@ -47,6 +56,12 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final sweep = _sweep(context);
+    if (widget.delay == Duration.zero) return sweep;
+    return DelayedReveal(delay: widget.delay, child: sweep);
+  }
+
+  Widget _sweep(BuildContext context) {
     if (_reduced) {
       return widget.child;
     }

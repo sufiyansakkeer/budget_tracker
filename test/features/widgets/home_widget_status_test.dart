@@ -18,6 +18,18 @@ import '../../helpers/safe_to_spend_fakes.dart';
 /// engine: a running budget with nothing free to spend is "short", never
 /// "no budget".
 void main() {
+  group('widget amounts', () {
+    test('what is left rounds down, so the widget never promises more', () {
+      expect(HomeWidgetService.unitsLeft(41.66), '41');
+      expect(HomeWidgetService.unitsLeft(41.999), '41');
+      expect(HomeWidgetService.unitsLeft(42), '42');
+      // Float noise from the engine does not cost a unit.
+      expect(HomeWidgetService.unitsLeft(41.9999999999), '42');
+      expect(HomeWidgetService.unitsLeft(0), '0');
+      expect(HomeWidgetService.unitsLeft(-12.4), '-13');
+    });
+  });
+
   final today = DateTime(2026, 8, 10);
   final calculator = SafeToSpendCalculator(BudgetCalculationService());
 

@@ -51,11 +51,12 @@ void main() {
 
   Future<_StaticDashboardBloc> pump(
     WidgetTester tester,
-    DashboardState state,
-  ) async {
+    DashboardState state, {
+    double width = 540,
+  }) async {
     final bloc = _StaticDashboardBloc(state);
     addTearDown(bloc.close);
-    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.physicalSize = Size(width * 2, 4000);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -119,6 +120,27 @@ void main() {
     expect(find.text('Switch budget'), findsOneWidget);
     // Not the old "blank body" or error view.
     expect(find.text("Couldn't load your dashboard"), findsNothing);
+  });
+
+  testWidgets('on a tablet the secondary sections move into a second column', (
+    tester,
+  ) async {
+    final entity = safeToSpend(today: DateTime(2026, 7, 25));
+    final state = DashboardNotRunning(
+      activeBudgetId: 'b1',
+      safeToSpend: entity,
+    );
+
+    await pump(tester, state, width: 1000);
+    final hero = tester.getRect(find.byKey(const ValueKey('paused_b1')));
+    final recent = tester.getRect(find.text('Recent'));
+    expect(recent.left, greaterThan(hero.right), reason: 'beside the hero');
+    expect(recent.top, lessThan(hero.bottom), reason: 'level with it');
+
+    await pump(tester, state);
+    final phoneHero = tester.getRect(find.byKey(const ValueKey('paused_b1')));
+    final phoneRecent = tester.getRect(find.text('Recent'));
+    expect(phoneRecent.top, greaterThan(phoneHero.bottom), reason: 'below');
   });
 
   testWidgets('an ended active budget reports its result, no breakdown', (

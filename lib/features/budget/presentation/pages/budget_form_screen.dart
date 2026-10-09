@@ -28,6 +28,7 @@ import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// Create or edit a budget.
 ///
@@ -72,6 +73,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   bool _saving = false;
   bool _loading = false;
   bool _notFound = false;
+
+  /// The budget couldn't be read (as opposed to no longer existing).
+  bool _loadFailed = false;
   String? _dateError;
   String? _saveError;
 
@@ -99,7 +103,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   }
 
   Future<void> _loadBudget() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+    });
     try {
       final budget = await _manageBudget.getById(widget.budgetId!);
       if (!mounted) return;
@@ -129,11 +136,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         _loading = false;
       });
       _loadLinkedBills(budget.id);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading budget ${widget.budgetId}: $e');
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _notFound = true;
+        _loadFailed = true;
       });
     }
   }
@@ -336,7 +344,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       }
       RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
-      HapticFeedback.lightImpact();
+      AppHaptics.confirm();
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -362,6 +370,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final title = _isEditing ? 'Edit budget' : 'New budget';
+
+    if (_loadFailed) {
+      return Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: ErrorState(
+          title: "Couldn't open this budget",
+          message: "It's still on this device. Try again in a moment.",
+          onRetry: _loadBudget,
+        ),
+      );
+    }
 
     if (_notFound) {
       return Scaffold(

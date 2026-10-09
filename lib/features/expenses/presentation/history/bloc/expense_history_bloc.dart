@@ -20,12 +20,18 @@ import '../../../../budget/domain/repository/budget_repository.dart';
 import '../../../../../core/events/refresh_bus.dart';
 import 'expense_history_event.dart';
 import 'expense_history_state.dart';
+import '../../expense_failure_copy.dart';
 
 /// Manages the expense history screen: loading, search (debounced), filtering,
 /// sorting, grouping, pagination, summary calculations, and combined
 /// multi-budget view mode.
 class ExpenseHistoryBloc
     extends Bloc<ExpenseHistoryEvent, ExpenseHistoryState> {
+  /// Shown when expenses or categories fail to load. The screen shows its
+  /// own "couldn't refresh" line instead when a list is already on screen.
+  static const loadFailedMessage =
+      'Your expenses are still on this device. Try again in a moment.';
+
   final GetExpensesUseCase getExpensesUseCase;
   final GetExpensesForBudgetsUseCase getExpensesForBudgetsUseCase;
   final GetCategoriesUseCase getCategoriesUseCase;
@@ -289,7 +295,7 @@ class ExpenseHistoryBloc
       case ExpenseSuccess(:final data):
         categories = data;
       case ExpenseError(:final failure):
-        errorMessage = failure.message;
+        errorMessage = failure.shown(loadFailedMessage);
     }
 
     if (errorMessage != null) {
@@ -311,7 +317,7 @@ class ExpenseHistoryBloc
       case ExpenseSuccess(:final data):
         expenses = data;
       case ExpenseError(:final failure):
-        errorMessage = failure.message;
+        errorMessage = failure.shown(loadFailedMessage);
     }
 
     if (errorMessage != null) {
@@ -411,7 +417,7 @@ class ExpenseHistoryBloc
       case ExpenseSuccess(:final data):
         categories = data;
       case ExpenseError(:final failure):
-        errorMessage = failure.message;
+        errorMessage = failure.shown(loadFailedMessage);
     }
 
     if (isCombined) {
@@ -424,7 +430,7 @@ class ExpenseHistoryBloc
         case ExpenseSuccess(:final data):
           expenses = data;
         case ExpenseError(:final failure):
-          errorMessage ??= failure.message;
+          errorMessage ??= failure.shown(loadFailedMessage);
       }
     } else {
       // Single-budget mode — scope to the active budget.
@@ -441,7 +447,7 @@ class ExpenseHistoryBloc
         case ExpenseSuccess(:final data):
           expenses = data;
         case ExpenseError(:final failure):
-          errorMessage ??= failure.message;
+          errorMessage ??= failure.shown(loadFailedMessage);
       }
     }
 

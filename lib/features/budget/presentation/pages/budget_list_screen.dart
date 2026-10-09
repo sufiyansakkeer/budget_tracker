@@ -96,7 +96,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = "Couldn't load your budgets.";
+        _error = "They're still on this device. Try again in a moment.";
         _loading = false;
       });
     }
@@ -140,6 +140,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     if (_error != null) {
       return ErrorState(
         key: const ValueKey('error'),
+        title: "Couldn't load your budgets",
         message: _error!,
         onRetry: _load,
       );

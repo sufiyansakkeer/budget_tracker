@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
 
@@ -150,18 +151,16 @@ class HomeWidgetService {
       final status = statusFor(active);
 
       // ── Write data to SharedPreferences via home_widget ───────────────
-      await _saveString(
-        WidgetDataKeys.dailySafeSpending,
-        dailySafe.toStringAsFixed(2),
-      );
-      await _saveString(
-        WidgetDataKeys.spentToday,
-        spentToday.toStringAsFixed(2),
-      );
+      // Whole units, decided here so the Android widget (which rounds) and
+      // the iOS widget (which truncates) show the same figure: what is left
+      // rounds down, never promising more than Home; what is spent rounds
+      // up, like the over and short amounts.
+      await _saveString(WidgetDataKeys.dailySafeSpending, unitsLeft(dailySafe));
+      await _saveString(WidgetDataKeys.spentToday, _wholeUnits(spentToday));
       await _saveString(WidgetDataKeys.status, status);
       await _saveString(
         WidgetDataKeys.remainingBudget,
-        remainingBudget.toStringAsFixed(2),
+        unitsLeft(remainingBudget),
       );
       await _saveString(WidgetDataKeys.remainingDays, remainingDays.toString());
       await _saveString(WidgetDataKeys.currency, currency);
@@ -215,6 +214,13 @@ class HomeWidgetService {
       SafeToSpendStatus.periodEnded => 'no_budget',
     };
   }
+
+  /// An amount left (today's safe amount, the budget remaining) in whole
+  /// units, rounded down: ₹41.66 → "41". Negative amounts stay negative.
+  @visibleForTesting
+  static String unitsLeft(double amount) =>
+      // The epsilon keeps float noise (40.9999999999) from losing a unit.
+      (amount + 1e-9).floor().toString();
 
   static String _wholeUnits(double amount) {
     // The epsilon keeps float noise (300.0000000001) from adding a unit.

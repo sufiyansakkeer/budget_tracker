@@ -58,7 +58,7 @@ class UpdateDialog extends StatelessWidget {
 
             // Title
             Text(
-              'Update Available',
+              'Update available',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

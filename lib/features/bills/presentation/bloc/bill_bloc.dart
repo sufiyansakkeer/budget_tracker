@@ -16,8 +16,12 @@ import '../../domain/usecases/update_bill_usecase.dart';
 import '../../../../core/events/refresh_bus.dart';
 import 'bill_event.dart';
 import 'bill_state.dart';
+import '../bill_failure_copy.dart';
 
 class BillBloc extends Bloc<BillEvent, BillState> {
+  /// Shown when a bill can't be read (not when it no longer exists).
+  static const openFailedMessage = "Couldn't open this bill. Try again.";
+
   final CreateBillUseCase createBillUseCase;
   final UpdateBillUseCase updateBillUseCase;
   final DeleteBillUseCase deleteBillUseCase;
@@ -79,7 +83,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown("Couldn't load your bills. Try again."),
           ),
         );
     }
@@ -96,7 +100,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown(openFailedMessage),
           ),
         );
     }
@@ -123,7 +127,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown("Couldn't save the bill. Try again."),
           ),
         );
     }
@@ -151,7 +155,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown("Couldn't save your changes. Try again."),
           ),
         );
     }
@@ -180,7 +184,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown("Couldn't delete the bill. Try again."),
           ),
         );
     }
@@ -213,7 +217,9 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown(
+              "Couldn't mark the bill as paid. Try again.",
+            ),
           ),
         );
     }
@@ -253,7 +259,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown("Couldn't pay the bill. Try again."),
           ),
         );
     }
@@ -285,7 +291,9 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown(
+              "Couldn't mark the bill as unpaid. Try again.",
+            ),
           ),
         );
     }
@@ -326,7 +334,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.error,
-            message: failure.message,
+            message: failure.shown("Couldn't load your bills. Try again."),
           ),
         );
     }

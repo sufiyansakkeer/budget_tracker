@@ -358,7 +358,7 @@ void main() {
       );
 
       expect(find.text('No search results'), findsOneWidget);
-      expect(find.text('Clear Search'), findsOneWidget);
+      expect(find.text('Clear search'), findsOneWidget);
     });
   });
 }

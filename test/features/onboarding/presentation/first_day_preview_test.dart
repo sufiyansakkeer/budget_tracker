@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import 'package:monivo/features/onboarding/presentation/bloc/onboarding_state.dart';
@@ -85,22 +86,66 @@ void main() {
     testWidgets('shows the engine\'s day count and daily amount', (
       tester,
     ) async {
+      final semantics = tester.ensureSemantics();
       await pump(tester, draft);
 
       expect(find.textContaining('24 days'), findsWidgets);
-      expect(find.text("Today's Safe Spending starts at ₹100"), findsOneWidget);
+      // The hero: the label over the figure, read as one sentence.
+      expect(find.text("Today's Safe Spending starts at"), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(r"^Today's Safe Spending starts at ₹100\. "),
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('23 days'), findsNothing);
+      semantics.dispose();
     });
+
+    for (final theme in [AppTheme.lightTheme, AppTheme.darkTheme]) {
+      testWidgets('meets tap target, label and contrast guidelines '
+          '(${theme.brightness.name})', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: ConfirmationStepWidget(
+                state: draft,
+                onCreateBudget: () {},
+                onBack: () {},
+              ),
+            ),
+          ),
+        );
+
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(textContrastGuideline));
+        semantics.dispose();
+      });
+    }
 
     testWidgets('never rounds the daily amount up', (tester) async {
       // ₹1,000 ÷ 24 = ₹41.666…: shown as ₹41.66, never ₹42.
+      final semantics = tester.ensureSemantics();
       await pump(tester, draft.copyWith(parsedBudget: 1000));
 
       expect(
-        find.text("Today's Safe Spending starts at ₹41.66"),
+        find.bySemanticsLabel(
+          RegExp(r"^Today's Safe Spending starts at ₹41\.66\. "),
+        ),
         findsOneWidget,
       );
+      final hero = tester.widget<AppMoney>(
+        find.byWidgetPredicate(
+          (w) => w is AppMoney && w.role == MoneyRole.hero,
+        ),
+      );
+      expect(hero.floored, isTrue);
       expect(find.textContaining('₹42'), findsNothing);
+      semantics.dispose();
     });
   });
 }

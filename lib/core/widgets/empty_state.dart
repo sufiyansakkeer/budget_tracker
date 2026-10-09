@@ -162,8 +162,8 @@ class ErrorState extends StatelessWidget {
     super.key,
     required this.message,
     required this.onRetry,
-    this.retryLabel = 'Try Again',
-    this.title = 'Something went wrong',
+    this.retryLabel = 'Try again',
+    required this.title,
   });
 
   @override

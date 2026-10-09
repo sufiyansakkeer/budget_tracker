@@ -153,6 +153,19 @@ class _OnboardingViewState extends State<_OnboardingView> {
                           onContinue: _nextPage,
                           onBack: _previousPage,
                         ),
+                        // Currency first, so the amount step shows its symbol
+                        // and decimals.
+                        CurrencyStepWidget(
+                          selectedCurrency: state.selectedCurrency,
+                          onSelected: (curr) => bloc.add(
+                            OnboardingCurrencySelectedEvent(
+                              code: curr.code,
+                              symbol: curr.symbol,
+                            ),
+                          ),
+                          onContinue: _nextPage,
+                          onBack: _previousPage,
+                        ),
                         BudgetStepWidget(
                           initialValue: state.monthlyBudgetInput,
                           currencySymbol: state.selectedCurrency.symbol,
@@ -162,17 +175,6 @@ class _OnboardingViewState extends State<_OnboardingView> {
                           errorMessage: state.budgetValidationError,
                           onChanged: (val) =>
                               bloc.add(OnboardingBudgetInputChangedEvent(val)),
-                          onContinue: _nextPage,
-                          onBack: _previousPage,
-                        ),
-                        CurrencyStepWidget(
-                          selectedCurrency: state.selectedCurrency,
-                          onSelected: (curr) => bloc.add(
-                            OnboardingCurrencySelectedEvent(
-                              code: curr.code,
-                              symbol: curr.symbol,
-                            ),
-                          ),
                           onContinue: _nextPage,
                           onBack: _previousPage,
                         ),

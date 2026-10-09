@@ -107,6 +107,20 @@ void main() {
     semantics.dispose();
   });
 
+  for (final brightness in Brightness.values) {
+    testWidgets('meets tap target, label and contrast guidelines '
+        '(${brightness.name})', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pump(tester, brightness: brightness, selected: ColorPalette.ocean);
+
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      semantics.dispose();
+    });
+  }
+
   testWidgets('fits a small screen at twice the text size, in dark', (
     tester,
   ) async {

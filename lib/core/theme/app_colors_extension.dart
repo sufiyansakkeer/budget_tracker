@@ -132,7 +132,13 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
         ? colors.lightScheme
         : colors.darkScheme;
     final isDark = brightness == Brightness.dark;
-    final surface = scheme.surface;
+    // Dark surfaces keep the palette's hue but not its full saturation: a
+    // saturated dark surface turns vivid as the container levels lighten
+    // (Violet reached 60% saturation at 36% lightness), and colour should
+    // come from the accents, not from every card.
+    final surface = isDark
+        ? _capSaturation(scheme.surface, _darkSurfaceMaxSaturation)
+        : scheme.surface;
 
     // -------------------------------------------------------------------------
     // Surface hierarchy.
@@ -423,6 +429,14 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
   // ---------------------------------------------------------------------------
   // Color manipulation helpers
   // ---------------------------------------------------------------------------
+
+  /// The most saturation a dark-theme surface keeps.
+  static const double _darkSurfaceMaxSaturation = 0.3;
+
+  static Color _capSaturation(Color color, double max) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.saturation <= max ? color : hsl.withSaturation(max).toColor();
+  }
 
   static Color _lighten(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);

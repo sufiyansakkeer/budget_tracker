@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../domain/entities/theme_mode_entity.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// The theme mode as one segmented control: System, Light and Dark side by
 /// side, each with its icon, name and what it does. The selected segment
@@ -64,7 +65,10 @@ class ThemeSelector extends StatelessWidget {
                       child: _Segment(
                         option: themeOptions[i],
                         selected: i == selected,
-                        onTap: () => onChanged(themeOptions[i].mode),
+                        onTap: () {
+                          if (i != selected) AppHaptics.selection();
+                          onChanged(themeOptions[i].mode);
+                        },
                       ),
                     ),
                 ],

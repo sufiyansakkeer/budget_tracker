@@ -267,9 +267,7 @@ void main() {
     expect(find.byKey(const Key('amountPad_0')), findsOneWidget);
   });
 
-  testWidgets('a failed save keeps the sheet open with the reason', (
-    tester,
-  ) async {
+  testWidgets('a failed save keeps the sheet open and says so', (tester) async {
     expenses.failWrites = 'disk full';
     await open(tester);
     await typeAmount(tester, '10');
@@ -277,7 +275,8 @@ void main() {
     await tapAdd(tester);
 
     expect(find.byType(QuickAddSheet), findsOneWidget);
-    expect(find.textContaining('disk full'), findsOneWidget);
+    expect(find.text("Couldn't save the expense. Try again."), findsOneWidget);
+    expect(find.textContaining('disk full'), findsNothing);
   });
 
   for (final width in [320.0, 360.0]) {

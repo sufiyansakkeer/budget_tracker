@@ -8,6 +8,7 @@ import 'onboarding_event.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import 'onboarding_state.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../../core/errors/user_facing_error.dart';
 
 class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   final CreateBudgetUseCase createBudgetUseCase;
@@ -252,7 +253,11 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           status: OnboardingStatus.failure,
-          errorMessage: 'Failed to create initial budget: ${e.toString()}',
+          errorMessage: userFacingError(
+            '$e',
+            forPeople: false,
+            fallback: "Couldn't create your budget. Try again.",
+          ),
         ),
       );
     }

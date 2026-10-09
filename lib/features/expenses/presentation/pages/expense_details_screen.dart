@@ -47,6 +47,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   List<BudgetEntity> _budgets = const [];
   bool _deleting = false;
 
+  /// The expense couldn't be read (as opposed to no longer existing).
+  bool _openFailed = false;
+
   /// Name of the budget a move is heading to, for its confirmation.
   String? _movingTo;
 
@@ -139,15 +142,27 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           ..showSnackBar(SnackBar(content: Text('Moved to $name')));
       }
     } else if (state.status == ExpenseBlocStatus.error) {
+      // A failed read shows the error view with a retry, not "not found"
+      // and a toast.
+      final openFailed =
+          state.expense == null &&
+          state.message == ExpenseBloc.openFailedMessage;
       setState(() {
         _deleting = false;
         _movingTo = null;
+        _openFailed = openFailed;
       });
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(state.message ?? 'Something went wrong')),
-        );
+      if (!openFailed) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                state.message ?? "Couldn't finish that. Try again.",
+              ),
+            ),
+          );
+      }
       context.read<ExpenseBloc>().add(const ExpenseClearMessage());
     }
   }
@@ -184,6 +199,18 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           final expense = state.expense;
           if (state.status == ExpenseBlocStatus.loading && expense == null) {
             child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
+          } else if (expense == null && _openFailed) {
+            child = ErrorState(
+              key: const ValueKey('error'),
+              title: "Couldn't open this expense",
+              message: "It's still on this device. Try again in a moment.",
+              onRetry: () {
+                setState(() => _openFailed = false);
+                context.read<ExpenseBloc>().add(
+                  ExpenseLoadById(widget.expenseId),
+                );
+              },
+            );
           } else if (expense == null) {
             child = EmptyState(
               key: const ValueKey('missing'),

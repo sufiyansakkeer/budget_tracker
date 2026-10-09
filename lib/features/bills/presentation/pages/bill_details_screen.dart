@@ -32,6 +32,7 @@ import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_animated_size.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// One bill: what it is and the amount on one surface with its facts
 /// (paid from, due, repeats, reminder), then the pay actions together right
@@ -49,6 +50,9 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
   List<BillPaymentRecord> _payments = const [];
   bool _paymentsFailed = false;
   bool _deleting = false;
+
+  /// The bill couldn't be read (as opposed to no longer existing).
+  bool _openFailed = false;
   Map<String, BudgetEntity> _budgetsById = const {};
   bool _budgetsLoaded = false;
   StreamSubscription<void>? _budgetSubscription;
@@ -152,6 +156,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
       body: BlocConsumer<BillBloc, BillState>(
         listener: (context, state) {
           if (state.status == BillBlocStatus.success) {
+            AppHaptics.confirm();
             final wasDelete = _deleting;
             context.read<BillBloc>().add(const BillClearMessage());
             ScaffoldMessenger.of(context)
@@ -169,14 +174,26 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               _loadPayments();
             }
           } else if (state.status == BillBlocStatus.error) {
-            setState(() => _deleting = false);
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(state.message ?? 'Something went wrong'),
-                ),
-              );
+            // A failed read shows the error view with a retry, not "not
+            // found" and a toast.
+            final openFailed =
+                state.selectedBill == null &&
+                state.message == BillBloc.openFailedMessage;
+            setState(() {
+              _deleting = false;
+              _openFailed = openFailed;
+            });
+            if (!openFailed) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      state.message ?? "Couldn't finish that. Try again.",
+                    ),
+                  ),
+                );
+            }
             context.read<BillBloc>().add(const BillClearMessage());
           }
         },
@@ -185,6 +202,16 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
           if (state.status == BillBlocStatus.loading &&
               state.selectedBill == null) {
             child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
+          } else if (state.selectedBill == null && _openFailed) {
+            child = ErrorState(
+              key: const ValueKey('error'),
+              title: "Couldn't open this bill",
+              message: "It's still on this device. Try again in a moment.",
+              onRetry: () {
+                setState(() => _openFailed = false);
+                context.read<BillBloc>().add(BillLoadById(widget.billId));
+              },
+            );
           } else if (state.selectedBill == null) {
             child = EmptyState(
               key: const ValueKey('missing'),

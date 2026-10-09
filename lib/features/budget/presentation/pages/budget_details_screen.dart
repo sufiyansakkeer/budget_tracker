@@ -117,7 +117,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = "Couldn't load this budget.";
+        _error = "It's still on this device. Try again in a moment.";
       });
     }
   }
@@ -128,12 +128,17 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  /// Runs one of the budget's actions; [failed] names what didn't happen.
+  Future<void> _run(
+    Future<void> Function() action, {
+    required String failed,
+  }) async {
     setState(() => _busy = true);
     try {
       await action();
-    } catch (_) {
-      if (mounted) _notify("Something went wrong. Please try again.");
+    } catch (e) {
+      debugPrint('[error] $failed: $e');
+      if (mounted) _notify('$failed Try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -145,7 +150,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     if (!mounted) return;
     setState(() => _isActive = true);
     _notify('${_budget?.name ?? 'Budget'} is now your active budget');
-  });
+  }, failed: "Couldn't make this budget active.");
 
   /// Bills linked to this budget, for the archive and delete confirmations.
   /// Best effort: on failure the dialogs just don't mention bills.
@@ -188,7 +193,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       if (!mounted) return;
       setState(() => _budget = _budget?.copyWith(isArchived: true));
       _notify('Budget archived');
-    });
+    }, failed: "Couldn't archive the budget.");
   }
 
   Future<void> _restore() => _run(() async {
@@ -197,7 +202,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     if (!mounted) return;
     setState(() => _budget = _budget?.copyWith(isArchived: false));
     _notify('Budget restored');
-  });
+  }, failed: "Couldn't restore the budget.");
 
   Future<void> _duplicate() async {
     final name = await AppDialog.show<String>(
@@ -210,7 +215,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       await _manageBudget.duplicate(widget.budgetId, newName: name);
       RefreshBuses.budgets.notifyChanged();
       if (mounted) _notify('Created "$name"');
-    });
+    }, failed: "Couldn't duplicate the budget.");
   }
 
   Future<void> _delete() async {
@@ -241,7 +246,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       if (!mounted) return;
       _notify('Budget deleted');
       context.pop(true);
-    });
+    }, failed: "Couldn't delete the budget.");
   }
 
   @override
@@ -354,6 +359,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     if (_error != null) {
       return ErrorState(
         key: const ValueKey('error'),
+        title: "Couldn't load this budget",
         message: _error!,
         onRetry: _load,
       );

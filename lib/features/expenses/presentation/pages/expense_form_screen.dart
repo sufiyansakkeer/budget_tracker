@@ -418,12 +418,27 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
             _onSaved();
           } else if (state.status == ExpenseBlocStatus.error) {
+            // Before the form is filled the failure was the load, so Retry
+            // loads again; afterwards it was the save.
+            final sourceId = widget.expenseId ?? widget.copyFromId;
+            final loadFailed = sourceId != null && !_populated;
+            final bloc = context.read<ExpenseBloc>();
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
-                  content: Text(state.message ?? "Couldn't save the expense"),
-                  action: SnackBarAction(label: 'Retry', onPressed: _save),
+                  content: Text(
+                    state.message ??
+                        (loadFailed
+                            ? "Couldn't open this expense. Try again."
+                            : "Couldn't save the expense. Try again."),
+                  ),
+                  action: SnackBarAction(
+                    label: 'Retry',
+                    onPressed: loadFailed
+                        ? () => bloc.add(ExpenseLoadById(sourceId))
+                        : _save,
+                  ),
                 ),
               );
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());

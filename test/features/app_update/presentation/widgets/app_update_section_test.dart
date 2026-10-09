@@ -40,7 +40,7 @@ void main() {
     await tester.pumpWidget(buildWithBloc(bloc));
     await tester.pumpAndSettle();
 
-    expect(find.text('Current Version'), findsOneWidget);
+    expect(find.text('Current version'), findsOneWidget);
     expect(find.text('v1.1.0'), findsAtLeastNWidgets(1));
     bloc.close();
   });
@@ -50,7 +50,9 @@ void main() {
     await tester.pumpWidget(buildWithBloc(bloc));
     await tester.pumpAndSettle();
 
-    expect(find.text('Check for Updates'), findsOneWidget);
+    expect(find.text('Check for updates'), findsOneWidget);
+    // No "Current version —" placeholder before a check: About shows it.
+    expect(find.text('Current version'), findsNothing);
     bloc.close();
   });
 
@@ -75,9 +77,9 @@ void main() {
     await tester.pumpWidget(buildWithBloc(bloc));
     await tester.pumpAndSettle();
 
-    expect(find.text('Update Available'), findsOneWidget);
+    expect(find.text('Update available'), findsOneWidget);
     expect(find.text('Latest version: v1.1.0'), findsOneWidget);
-    expect(find.text('View Update'), findsOneWidget);
+    expect(find.text('View update'), findsOneWidget);
     bloc.close();
   });
 
@@ -104,7 +106,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text("Couldn't check for updates."), findsOneWidget);
-    expect(find.text('Try Again'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
     bloc.close();
   });
 }

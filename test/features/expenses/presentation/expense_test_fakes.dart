@@ -21,6 +21,9 @@ class MemoryExpenseRepository implements ExpenseRepository {
   /// Set to make every write fail with this message.
   String? failWrites;
 
+  /// Set to make reading one expense fail with this message.
+  String? failReadById;
+
   @override
   Future<void> createExpense(ExpenseEntity expense) async {
     if (failWrites != null) throw Exception(failWrites);
@@ -40,7 +43,10 @@ class MemoryExpenseRepository implements ExpenseRepository {
   }
 
   @override
-  Future<ExpenseEntity?> getExpenseById(String id) async => store[id];
+  Future<ExpenseEntity?> getExpenseById(String id) async {
+    if (failReadById != null) throw Exception(failReadById);
+    return store[id];
+  }
 
   @override
   Future<List<ExpenseEntity>> getExpenses({

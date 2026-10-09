@@ -8,10 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses), 5
-(Budgets and Bills), 6 (Reports) and 7 (Settings). Direction and plan:
-`docs/design/monivo-design-direction.html`.
+(Budgets and Bills), 6 (Reports), 7 (Settings) and 8 (Polish). Direction and
+plan: `docs/design/monivo-design-direction.html`.
 
 ### Changed
+- **Onboarding asks for the currency before the amount**, so the amount step
+  shows the right symbol and decimals. The last step leads with the first
+  day's Today's Safe Spending, then the budget's facts.
+- **The lock screen has no spinner.** While the system prompt is open the
+  screen stays still with the Unlock button resting; dismissing the prompt
+  says "Not unlocked. Tap Unlock to try again." instead of "Authentication
+  failed".
+- **Errors say what didn't happen and what to do.** Messages such as "Failed
+  to save expense: Exception: …" or "Corrupted JSON file: FormatException …"
+  are replaced by sentences like "Couldn't save the expense. Try again."
+  (the details still go to the log). Validation messages are shown as they
+  were. A failed first load no longer shows its error twice, and a record
+  that can't be read offers Try again instead of saying it was not found.
+- **Skeletons appear only after 300 ms** on every screen, so quick loads
+  don't flash a placeholder.
+- **Home uses two columns on tablets** (840 dp and wider): today's figure and
+  what it depends on on the left, pace, insights, other budgets and recent
+  expenses on the right.
+- **Snackbars on the tabs float above the Add expense button** instead of
+  covering it.
+- **Dark palettes are calmer:** dark surfaces keep each palette's hue at no
+  more than 30% saturation (Violet's cards were vivid purple).
+- **Haptics** use one vocabulary everywhere and now also mark chip, theme,
+  palette and swap choices and paid bills.
+- Sentence case for buttons and titles ("Try again", "Check for updates",
+  "Clear filters").
 - **Settings opens with your current choices**: currency, theme and palette,
   reminder times and the app lock, at a glance. Below, every group is one
   borderless list and every row has the same shape: icon, name, a line of
@@ -118,6 +144,21 @@ Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses), 5
   Reduce Motion.
 
 ### Fixed
+- A JSON import said "Imported 8 items." using the file's schema version as
+  the count; it now says "Import complete." (CSV imports still give the
+  number of expenses added).
+- Retry on a failed load of the expense form saved the form instead of
+  loading it again.
+- Moving an expense when the budgets couldn't be read said "There is no
+  other budget to move to".
+- The home-screen widget showed different figures on Android (rounded) and
+  iOS (truncated); amounts left now round down and amounts spent round up
+  on both, so the widget never promises more than Home.
+- The converter's amount field could stay empty when the saved amount was
+  restored before the screen opened, and its "From" label broke mid-word at
+  large text sizes.
+- The Updates section showed "Current version —" before a check; the
+  version is in About.
 - **A failed Reports refresh replaced the whole screen** with raw error text.
   The last report now stays, with "Couldn't update the report" and Retry.
 - **Reports could show one range and use another**: dates set in the filter
