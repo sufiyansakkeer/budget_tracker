@@ -16,6 +16,8 @@ import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_safe_to_spend_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
 import '../../domain/usecases/get_spending_targets_usecase.dart';
+import '../../domain/usecases/get_spending_pace_usecase.dart';
+import '../../domain/entities/spending_pace.dart';
 import '../../../../core/events/refresh_bus.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
@@ -29,6 +31,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final BudgetRepository budgetRepository;
   final BillRepository billRepository;
 
+  /// Optional: without it the dashboard simply shows no pace chart.
+  final GetSpendingPaceUseCase? getSpendingPaceUseCase;
+
   /// Source of "today" (time of day stripped once per load). Tests inject a
   /// fixed clock.
   final DateTime Function() _clock;
@@ -41,6 +46,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     required this.getSafeToSpendUseCase,
     required this.budgetRepository,
     required this.billRepository,
+    this.getSpendingPaceUseCase,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now,
        super(const DashboardInitial()) {
@@ -202,6 +208,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         final activeArchived =
             activeSafeToSpend == null && await _isArchived(activeId);
 
+        final spendingPace = await _spendingPace(activeSafeToSpend);
+
         final insights = getSmartInsightsUseCase(
           data,
           spendingTarget: spendingTarget,
@@ -222,8 +230,21 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             budgetDailyLimits: budgetDailyLimits,
             activeBudgetId: activeId,
             activeBudgetArchived: activeArchived,
+            spendingPace: spendingPace,
           ),
         );
+    }
+  }
+
+  /// The active budget's pace, or null when there is none to show or it
+  /// cannot be read (not critical for the dashboard).
+  Future<SpendingPace?> _spendingPace(SafeToSpendEntity? safeToSpend) async {
+    final useCase = getSpendingPaceUseCase;
+    if (useCase == null || safeToSpend == null) return null;
+    try {
+      return await useCase(safeToSpend);
+    } catch (_) {
+      return null;
     }
   }
 

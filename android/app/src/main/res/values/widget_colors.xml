@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget colours: Monivo's Default palette (light), as the app
+     ships it. Used by the picker preview and until the app first writes the
+     user's palette; after that the widget is tinted from the app's data. -->
+<resources>
+    <color name="widget_surface">#FFFFFFFF</color>
+    <color name="widget_ink">#FF17191F</color>
+    <color name="widget_muted">#FF66676A</color>
+    <color name="widget_track">#FFDBDBDB</color>
+    <color name="widget_accent">#FF3155D4</color>
+    <color name="widget_on_accent">#FFFFFFFF</color>
+    <color name="widget_divider">#FFCCCCCE</color>
+    <color name="widget_positive">#FF1E724D</color>
+    <color name="widget_caution">#FF8C591C</color>
+    <color name="widget_critical">#FFBC2D35</color>
+    <color name="widget_neutral">#FF66676A</color>
+</resources>

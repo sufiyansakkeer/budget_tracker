@@ -29,4 +29,17 @@ class DashboardRepositoryImpl implements DashboardRepository {
   }) {
     return localDataSource.getCommittedSpending(budgets: budgets, today: today);
   }
+
+  @override
+  Future<Map<DateTime, double>> getDailyDiscretionarySpending({
+    required String budgetId,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    return localDataSource.getDailyDiscretionarySpending(
+      budgetId: budgetId,
+      start: start,
+      end: end,
+    );
+  }
 }

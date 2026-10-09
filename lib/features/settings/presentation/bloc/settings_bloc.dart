@@ -16,6 +16,7 @@ import '../../domain/usecases/update_notification_settings_usecase.dart';
 import 'settings_event.dart';
 import 'settings_state.dart';
 import '../../../../core/domain/services/database_integrity_service.dart';
+import '../../../../core/errors/user_facing_error.dart';
 import '../../../../core/events/refresh_bus.dart';
 
 /// BLoC responsible for loading/saving app settings and managing data
@@ -89,7 +90,11 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       emit(
         state.copyWith(
           isBusy: false,
-          errorMessage: 'Database check failed: $e',
+          errorMessage: userFacingError(
+            '$e',
+            forPeople: false,
+            fallback: "Couldn't check the database. Try again.",
+          ),
         ),
       );
     }
@@ -123,7 +128,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         emit(
           state.copyWith(
             status: SettingsStatus.error,
-            errorMessage: failure.message,
+            errorMessage: _shown(
+              failure,
+              "Couldn't load your settings. Try again.",
+            ),
           ),
         );
     }
@@ -172,7 +180,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           ),
         );
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        emit(
+          state.copyWith(
+            isBusy: false,
+            errorMessage: _shown(
+              failure,
+              "Couldn't save the currency. Try again.",
+              forPeople: const {SettingsErrorType.invalidData},
+            ),
+          ),
+        );
     }
   }
 
@@ -187,7 +204,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       event.settings,
     );
     if (persistResult case SettingsError(:final failure)) {
-      emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+      emit(
+        state.copyWith(
+          isBusy: false,
+          errorMessage: _shown(
+            failure,
+            "Couldn't save your notification settings. Try again.",
+          ),
+        ),
+      );
       return;
     }
 
@@ -197,7 +222,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
     final scheduleResult = await scheduleNotificationsUseCase(updatedSettings);
     if (scheduleResult case SettingsError(:final failure)) {
-      emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+      emit(
+        state.copyWith(
+          isBusy: false,
+          errorMessage: _shown(
+            failure,
+            "Couldn't schedule your reminders. Check that Monivo may send "
+            'notifications in your device settings.',
+          ),
+        ),
+      );
       return;
     }
 
@@ -279,7 +313,13 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         );
       case SettingsError(:final failure):
         emit(
-          state.copyWith(isBiometricBusy: false, errorMessage: failure.message),
+          state.copyWith(
+            isBiometricBusy: false,
+            errorMessage: _shown(
+              failure,
+              "Couldn't save the app lock setting. Try again.",
+            ),
+          ),
         );
     }
   }
@@ -291,10 +331,25 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(state.copyWith(isBusy: true, clearError: true, clearInfo: true));
     final result = await exportDataUseCase(csv: event.csv);
     switch (result) {
-      case SettingsSuccess(:final data):
-        emit(state.copyWith(isBusy: false, infoMessage: data));
+      case SettingsSuccess():
+        emit(
+          state.copyWith(
+            isBusy: false,
+            infoMessage: event.csv
+                ? 'Spreadsheet exported.'
+                : 'Data file exported.',
+          ),
+        );
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        emit(
+          state.copyWith(
+            isBusy: false,
+            errorMessage: _shown(
+              failure,
+              "Couldn't export your data. Try again.",
+            ),
+          ),
+        );
     }
   }
 
@@ -312,11 +367,30 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         RefreshBuses.budgets.notifyChanged();
         RefreshBuses.expenses.notifyChanged();
         RefreshBuses.bills.notifyChanged();
+        // A CSV import returns how many expenses it added; a JSON import
+        // returns the file's schema version, not a count.
         emit(
-          state.copyWith(isBusy: false, infoMessage: 'Imported $data items.'),
+          state.copyWith(
+            isBusy: false,
+            infoMessage: event.json
+                ? 'Import complete.'
+                : 'Imported $data ${data == 1 ? 'expense' : 'expenses'}.',
+          ),
         );
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        emit(
+          state.copyWith(
+            isBusy: false,
+            errorMessage: failure.type == SettingsErrorType.invalidData
+                ? _shown(
+                    failure,
+                    "This file couldn't be imported. Use a CSV with date, "
+                    'amount and category columns, or a JSON file exported '
+                    'from Monivo.',
+                  )
+                : _shown(failure, "Couldn't import the file. Try again."),
+          ),
+        );
     }
   }
 
@@ -330,7 +404,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       case SettingsSuccess():
         emit(state.copyWith(isBusy: false, infoMessage: 'Backup created.'));
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        emit(
+          state.copyWith(
+            isBusy: false,
+            errorMessage: _shown(
+              failure,
+              "Couldn't create the backup. Try again.",
+            ),
+          ),
+        );
     }
   }
 
@@ -347,9 +429,23 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         RefreshBuses.budgets.notifyChanged();
         RefreshBuses.expenses.notifyChanged();
         RefreshBuses.bills.notifyChanged();
-        emit(state.copyWith(isBusy: false, infoMessage: data));
+        debugPrint('[settings] $data');
+        emit(state.copyWith(isBusy: false, infoMessage: 'Backup restored.'));
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        // A file that fails validation is rejected before anything is
+        // written.
+        emit(
+          state.copyWith(
+            isBusy: false,
+            errorMessage: failure.type == SettingsErrorType.invalidData
+                ? _shown(
+                    failure,
+                    "This file isn't a Monivo backup, or it is damaged. "
+                    'Nothing was changed.',
+                  )
+                : _shown(failure, "Couldn't restore the backup. Try again."),
+          ),
+        );
     }
   }
 
@@ -368,7 +464,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           state.copyWith(isBusy: false, infoMessage: 'Budget amount updated.'),
         );
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        emit(
+          state.copyWith(
+            isBusy: false,
+            errorMessage: _shown(
+              failure,
+              "Couldn't change the budget amount. Try again.",
+              forPeople: const {SettingsErrorType.invalidData},
+            ),
+          ),
+        );
     }
   }
 
@@ -390,7 +495,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           ),
         );
       case SettingsError(:final failure):
-        emit(state.copyWith(isBusy: false, errorMessage: failure.message));
+        emit(
+          state.copyWith(
+            isBusy: false,
+            errorMessage: _shown(
+              failure,
+              "Couldn't start a new budget period. Try again.",
+              forPeople: const {SettingsErrorType.invalidData},
+            ),
+          ),
+        );
     }
   }
 
@@ -406,4 +520,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       ),
     );
   }
+
+  /// [failure]'s own message when its type is in [forPeople] (validation
+  /// written for people), otherwise [fallback]; see [userFacingError].
+  String _shown(
+    SettingsFailure failure,
+    String fallback, {
+    Set<SettingsErrorType> forPeople = const {},
+  }) => userFacingError(
+    failure.message,
+    forPeople: forPeople.contains(failure.type),
+    fallback: fallback,
+  );
 }

@@ -69,10 +69,16 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color divider;
   final Color outline;
 
-  // Status containers
+  // Status containers: the fill behind a status chip or notice, and the
+  // text/icon colour that is legible on that fill (≥ 4.5:1).
   final Color successContainer;
   final Color warningContainer;
   final Color errorContainer;
+  final Color infoContainer;
+  final Color onSuccessContainer;
+  final Color onWarningContainer;
+  final Color onErrorContainer;
+  final Color onInfoContainer;
 
   const AppColorTokens({
     required this.primary,
@@ -104,6 +110,11 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.successContainer,
     required this.warningContainer,
     required this.errorContainer,
+    required this.infoContainer,
+    required this.onSuccessContainer,
+    required this.onWarningContainer,
+    required this.onErrorContainer,
+    required this.onInfoContainer,
   });
 
   /// Minimum ratio of a status/brand tint container against the surface, so
@@ -121,7 +132,13 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
         ? colors.lightScheme
         : colors.darkScheme;
     final isDark = brightness == Brightness.dark;
-    final surface = scheme.surface;
+    // Dark surfaces keep the palette's hue but not its full saturation: a
+    // saturated dark surface turns vivid as the container levels lighten
+    // (Violet reached 60% saturation at 36% lightness), and colour should
+    // come from the accents, not from every card.
+    final surface = isDark
+        ? _capSaturation(scheme.surface, _darkSurfaceMaxSaturation)
+        : scheme.surface;
 
     // -------------------------------------------------------------------------
     // Surface hierarchy.
@@ -142,19 +159,25 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color step(Color candidate, double minRatio) =>
         Contrast.ensureContrast(candidate, surface, minRatio: minRatio);
 
-    final bg = isDark
-        ? _darken(surface, 0.04)
-        : step(_darken(surface, 0.035), 1.07);
-    final cardColor = isDark ? step(_lighten(surface, 0.045), 1.15) : surface;
-    final container = isDark
-        ? step(_lighten(surface, 0.08), 1.3)
-        : step(_darken(surface, 0.06), 1.12);
+    // A level [amount] of lightness away from the surface. Light levels keep
+    // the surface's hue but only a whisper of its saturation: near white, a
+    // tint of two or three units is already 100% HSL saturation, so stepping
+    // the surface as-is turned a blush card into a pink page and pink inputs.
+    // The cap goes after the step, because a capped near-white surface rounds
+    // straight back to full saturation in 8 bits.
+    Color away(double amount) => isDark
+        ? _lighten(surface, amount)
+        : _capSaturation(_darken(surface, amount), _lightLevelMaxSaturation);
+
+    final bg = isDark ? _darken(surface, 0.04) : step(away(0.035), 1.07);
+    final cardColor = isDark ? step(away(0.045), 1.15) : surface;
+    final container = isDark ? step(away(0.08), 1.3) : step(away(0.06), 1.12);
     final containerHigh = isDark
-        ? step(_lighten(surface, 0.13), 1.55)
-        : step(_darken(surface, 0.10), 1.22);
+        ? step(away(0.13), 1.55)
+        : step(away(0.10), 1.22);
     final containerHighest = isDark
-        ? step(_lighten(surface, 0.18), 1.85)
-        : step(_darken(surface, 0.14), 1.35);
+        ? step(away(0.18), 1.85)
+        : step(away(0.14), 1.35);
 
     // -------------------------------------------------------------------------
     // Accents, made legible on the surfaces they are drawn on.
@@ -213,6 +236,14 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     final tintAlpha = isDark ? _tintAlphaDark : _tintAlphaLight;
     Color tint(Color c) =>
         Color.alphaBlend(c.withValues(alpha: tintAlpha), surface);
+    final successFill = tint(success);
+    final warningFill = tint(warning);
+    final errorFill = tint(error);
+    final infoFill = tint(info);
+    // The accent itself, made legible on its own fill, so a chip keeps its
+    // hue instead of collapsing to black or white.
+    Color onFill(Color accent, Color fill) =>
+        Contrast.ensureContrast(accent, fill);
 
     return AppColorTokens(
       primary: primary,
@@ -241,9 +272,14 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       textTertiary: textTertiary,
       divider: divider,
       outline: outline,
-      successContainer: tint(success),
-      warningContainer: tint(warning),
-      errorContainer: tint(error),
+      successContainer: successFill,
+      warningContainer: warningFill,
+      errorContainer: errorFill,
+      infoContainer: infoFill,
+      onSuccessContainer: onFill(success, successFill),
+      onWarningContainer: onFill(warning, warningFill),
+      onErrorContainer: onFill(error, errorFill),
+      onInfoContainer: onFill(info, infoFill),
     );
   }
 
@@ -278,6 +314,11 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? successContainer,
     Color? warningContainer,
     Color? errorContainer,
+    Color? infoContainer,
+    Color? onSuccessContainer,
+    Color? onWarningContainer,
+    Color? onErrorContainer,
+    Color? onInfoContainer,
   }) {
     return AppColorTokens(
       primary: primary ?? this.primary,
@@ -310,6 +351,11 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       successContainer: successContainer ?? this.successContainer,
       warningContainer: warningContainer ?? this.warningContainer,
       errorContainer: errorContainer ?? this.errorContainer,
+      infoContainer: infoContainer ?? this.infoContainer,
+      onSuccessContainer: onSuccessContainer ?? this.onSuccessContainer,
+      onWarningContainer: onWarningContainer ?? this.onWarningContainer,
+      onErrorContainer: onErrorContainer ?? this.onErrorContainer,
+      onInfoContainer: onInfoContainer ?? this.onInfoContainer,
     );
   }
 
@@ -366,12 +412,41 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
         t,
       )!,
       errorContainer: Color.lerp(errorContainer, other.errorContainer, t)!,
+      infoContainer: Color.lerp(infoContainer, other.infoContainer, t)!,
+      onSuccessContainer: Color.lerp(
+        onSuccessContainer,
+        other.onSuccessContainer,
+        t,
+      )!,
+      onWarningContainer: Color.lerp(
+        onWarningContainer,
+        other.onWarningContainer,
+        t,
+      )!,
+      onErrorContainer: Color.lerp(
+        onErrorContainer,
+        other.onErrorContainer,
+        t,
+      )!,
+      onInfoContainer: Color.lerp(onInfoContainer, other.onInfoContainer, t)!,
     );
   }
 
   // ---------------------------------------------------------------------------
   // Color manipulation helpers
   // ---------------------------------------------------------------------------
+
+  /// The most saturation a dark-theme surface keeps.
+  static const double _darkSurfaceMaxSaturation = 0.3;
+
+  /// The most saturation the light page and container levels keep: enough
+  /// for a warm or cool cast, not enough to read as a colour.
+  static const double _lightLevelMaxSaturation = 0.12;
+
+  static Color _capSaturation(Color color, double max) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.saturation <= max ? color : hsl.withSaturation(max).toColor();
+  }
 
   static Color _lighten(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);

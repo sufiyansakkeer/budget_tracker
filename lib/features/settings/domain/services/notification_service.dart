@@ -324,7 +324,7 @@ class NotificationService {
     await _plugin.zonedSchedule(
       testNotificationId,
       "Today's Safe Spending",
-      body,
+      CurrencyFormatter.forSystemText(body),
       scheduledDate,
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -431,10 +431,11 @@ class NotificationService {
       iOS: iosDetails,
     );
 
+    // The system draws notifications with its own fonts.
     await _plugin.zonedSchedule(
       id,
-      title,
-      body,
+      CurrencyFormatter.forSystemText(title),
+      CurrencyFormatter.forSystemText(body),
       at,
       platformDetails,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

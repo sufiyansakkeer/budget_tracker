@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
 import 'nav_destination.dart';
 import 'nav_icon.dart';
+import '../feedback/app_haptics.dart';
 
-/// Smart Monivo's bottom navigation bar.
+/// Monivo's bottom navigation bar.
 ///
 /// Material 3 proportions (68 dp + safe area, stadium indicator, always-on
 /// labels) with animated icons. Everything about the *steady* selected state
 /// is driven by [selectedIndex]: indicator width and colour, icon tint and
-/// scale, label weight. The Rive icon only adds a one-shot pulse when a tab
-/// becomes selected, so state is always correct after navigation, after
+/// scale, outlined-to-filled glyph, label weight. A short pulse plays when a
+/// tab becomes selected, so state is always correct after navigation, after
 /// returning from another screen and after a cold start.
 ///
 /// Interaction: press-scale feedback, ink ripple, a selection haptic when the
@@ -20,7 +20,7 @@ import 'nav_icon.dart';
 /// reports the index (the shell pops that tab to its root).
 ///
 /// Honours reduced motion: indicator/tint changes become instant and the
-/// Rive input is never pulsed.
+/// pulse never plays.
 ///
 /// The bar knows nothing about routing; it only reports taps through
 /// [onDestinationSelected].
@@ -54,7 +54,7 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
     if (index == widget.selectedIndex) {
       setState(() => _pulseTokens[index]++);
     } else {
-      HapticFeedback.selectionClick();
+      AppHaptics.selection();
     }
     widget.onDestinationSelected(index);
   }

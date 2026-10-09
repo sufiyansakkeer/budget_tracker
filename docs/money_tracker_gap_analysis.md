@@ -14,13 +14,14 @@ This document was written as an audit and a plan before any code changed. It is
 kept as the record of *why* each decision was taken. What follows is what
 shipped, so the plan and the code do not drift apart.
 
-**Shipped** — released as 1.3.0, see [`CHANGELOG.md`](../CHANGELOG.md):
+**Shipped** — originally as 1.3.0; version numbers were later reset, so it is now part of
+1.0.0. See [`CHANGELOG.md`](../CHANGELOG.md):
 
 | From the plan | Where it lives |
 | --- | --- |
 | P-A Foundations: one safe-spending formula, one refresh bus, one preference-key owner, dead code removed, pubspec cleaned | `lib/core/events/`, `lib/core/constants/preference_keys.dart`, `BudgetCalculationService` |
 | P-B Database: foreign keys enforced, composite index, SQL aggregation, CSV round trip, migration test | `lib/core/database/app_database.dart` (v5), `test/core/database/app_database_migration_test.dart` |
-| P-C Rive navigation | `lib/core/navigation/`, [`architecture/rive_navigation.md`](architecture/rive_navigation.md) |
+| P-C Rive navigation (later replaced) | `lib/core/navigation/`, [`architecture/navigation.md`](architecture/navigation.md) |
 | P-D Category management | `lib/features/categories/` |
 | P-E Transaction experience: undo delete, long-press actions, duplicate, move, date presets, press feedback | `lib/features/expenses/presentation/` |
 | P-F Dashboard polish: weekly line, sorted bills, press feedback | `lib/features/dashboard/presentation/` |
@@ -204,6 +205,11 @@ a missing composite index, and stale docs/version strings.
 
 ## 8. Rive bottom navigation — reference analysis and Smart Monivo design
 
+> **Superseded on 2026-10-08.** The Rive icons were replaced with Material
+> outlined/filled icons during the premium redesign; see
+> [`architecture/navigation.md`](architecture/navigation.md). This section is kept as a
+> record of the original decision.
+
 ### 8.1 What Money Tracker does (facts)
 
 - Package `rive: ^0.13.4` (locked 0.13.20). Widgets: `RiveAnimation.asset(src, artboard:, onInit:)`;
@@ -379,7 +385,7 @@ Each phase ends with `flutter analyze` + `flutter test` green and a commit on `f
 1. **Income tracking: not implemented.** Reason in §4. If wanted, the recommended shape is an
    `income` transaction type that *optionally* tops up the linked budget's amount, with the
    safe-spending formula unchanged — a separate, scoped piece of work.
-   *Note (Smart Safe-to-Spend, after 1.3.0):* the safe-spending formula has since changed. It
+   *Note (Smart Safe-to-Spend, later in 1.0.0):* the safe-spending formula has since changed. It
    now deducts the budget's commitments before dividing: unpaid bills linked to the budget,
    an optional kept-aside amount and an optional savings goal. Bill payments that settle
    money set aside are not counted against today's amount. See

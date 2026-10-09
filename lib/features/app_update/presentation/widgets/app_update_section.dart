@@ -10,6 +10,7 @@ import '../bloc/app_update_bloc.dart';
 import '../bloc/app_update_event.dart';
 import '../bloc/app_update_state.dart';
 import 'update_dialog_service.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// Settings section for App Updates.
 ///
@@ -23,7 +24,6 @@ class AppUpdateSection extends StatelessWidget {
     final theme = Theme.of(context);
     return SettingsSection(
       title: 'Updates',
-      icon: Icons.system_update_outlined,
       description:
           'Compares your installed version with the latest GitHub release. '
           'Nothing installs automatically.',
@@ -35,9 +35,13 @@ class AppUpdateSection extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _VersionRow(state: state),
-                  const SizedBox(height: AppSpacing.smd),
-                  AnimatedSize(
+                  // About shows the installed version; this row only
+                  // appears once a check has reported one.
+                  if (_VersionRow.versionOf(state) != null) ...[
+                    _VersionRow(state: state),
+                    const SizedBox(height: AppSpacing.smd),
+                  ],
+                  AppAnimatedSize(
                     duration: AppMotion.respectReducedMotion(
                       context,
                       AppMotion.standard,
@@ -69,20 +73,22 @@ class _VersionRow extends StatelessWidget {
   final AppUpdateState state;
   const _VersionRow({required this.state});
 
+  /// The installed version a check reported, or null before one has.
+  static String? versionOf(AppUpdateState state) => switch (state) {
+    AppUpdateAvailable(:final result) => 'v${result.currentVersion}',
+    AppUpdateUpToDate(:final result) => 'v${result.currentVersion}',
+    _ => null,
+  };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    String version = '—';
-    if (state is AppUpdateAvailable) {
-      version = 'v${(state as AppUpdateAvailable).result.currentVersion}';
-    } else if (state is AppUpdateUpToDate) {
-      version = 'v${(state as AppUpdateUpToDate).result.currentVersion}';
-    }
+    final version = versionOf(state) ?? '';
     return Row(
       children: [
         Expanded(
           child: Text(
-            'Current Version',
+            'Current version',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -208,7 +214,7 @@ class _StatusContent extends StatelessWidget {
             onPressed: () =>
                 context.read<AppUpdateBloc>().add(const AppUpdateManualCheck()),
             icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Try Again'),
+            label: const Text('Try again'),
           ),
         ],
       );
@@ -219,7 +225,7 @@ class _StatusContent extends StatelessWidget {
       onPressed: () =>
           context.read<AppUpdateBloc>().add(const AppUpdateManualCheck()),
       icon: const Icon(Icons.refresh_rounded),
-      label: const Text('Check for Updates'),
+      label: const Text('Check for updates'),
     );
   }
 }
@@ -283,7 +289,7 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                'Update Available',
+                'Update available',
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: theme.colorScheme.primary,
                 ),
@@ -308,7 +314,7 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.open_in_new_rounded),
-          label: const Text('View Update'),
+          label: const Text('View update'),
         ),
       ],
     );

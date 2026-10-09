@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget colours: Monivo's Default palette (dark). -->
+<resources>
+    <color name="widget_surface">#FF222229</color>
+    <color name="widget_ink">#FFF2F2F6</color>
+    <color name="widget_muted">#FFA4A4A8</color>
+    <color name="widget_track">#FF42424E</color>
+    <color name="widget_accent">#FF869DEC</color>
+    <color name="widget_on_accent">#FF0B1947</color>
+    <color name="widget_divider">#FF454549</color>
+    <color name="widget_positive">#FF5EC999</color>
+    <color name="widget_caution">#FFDEB17C</color>
+    <color name="widget_critical">#FFEA878B</color>
+    <color name="widget_neutral">#FFA4A4A8</color>
+</resources>

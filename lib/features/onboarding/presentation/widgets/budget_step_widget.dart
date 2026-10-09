@@ -4,10 +4,14 @@ import 'package:flutter/services.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import 'onboarding_step_layout.dart';
+import '../../../../core/currency/money_input.dart';
 
 class BudgetStepWidget extends StatefulWidget {
   final String initialValue;
   final String currencySymbol;
+
+  /// Decimals the amount may have, from [MoneyInput.maxDecimals].
+  final int maxDecimals;
   final String? errorMessage;
   final ValueChanged<String> onChanged;
   final VoidCallback onContinue;
@@ -17,6 +21,7 @@ class BudgetStepWidget extends StatefulWidget {
     super.key,
     required this.initialValue,
     required this.currencySymbol,
+    this.maxDecimals = 2,
     this.errorMessage,
     required this.onChanged,
     required this.onContinue,
@@ -102,7 +107,7 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
                     textInputAction: TextInputAction.done,
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(
-                        RegExp(r'^\d*\.?\d{0,2}'),
+                        MoneyInput.pattern(widget.maxDecimals),
                       ),
                     ],
                     autofocus: true,

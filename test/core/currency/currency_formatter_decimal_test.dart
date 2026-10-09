@@ -8,7 +8,10 @@ void main() {
   group('resolveSymbol', () {
     test('uses the app symbol for its settings currencies', () {
       expect(CurrencyFormatter.resolveSymbol('INR', providerSymbol: 'Rs'), '₹');
-      expect(CurrencyFormatter.resolveSymbol('OMR'), 'ر.ع.');
+      expect(
+        CurrencyFormatter.resolveSymbol('OMR'),
+        CurrencyFormatter.omaniRialSign,
+      );
       expect(
         CurrencyFormatter.resolveSymbol('aud', providerSymbol: r'$'),
         r'A$',
@@ -166,6 +169,17 @@ void main() {
         CurrencyFormatter.formatRate(d('0.3845'), symbol: 'ر.ع.', code: 'OMR'),
         'ر.ع.\u200E0.3845',
       );
+    });
+  });
+
+  group('format default digits', () {
+    test('whole amounts show none; fractions follow the currency', () {
+      expect(CurrencyFormatter.format(250, code: 'INR'), '₹250');
+      expect(CurrencyFormatter.format(249.5, code: 'INR'), '₹249.50');
+      // OMR shows its fils instead of rounding 7.125 to 7.13.
+      expect(CurrencyFormatter.format(7.125, code: 'OMR'), endsWith('7.125'));
+      expect(CurrencyFormatter.format(12, code: 'OMR'), endsWith('12'));
+      expect(CurrencyFormatter.format(120.5, code: 'JPY'), '¥120.50');
     });
   });
 }

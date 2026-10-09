@@ -1143,4 +1143,60 @@ void main() {
       expect(() => run(_input(amount: 1e17)), throwsA(isA<ArgumentError>()));
     });
   });
+
+  group('tomorrow outlook (informational)', () {
+    // 1–30 Oct, today 11 Oct: 20 days left including today, 19 after it.
+
+    test('tomorrow = raw ÷ days after today when nothing more is spent', () {
+      final e = run(_input(periodSpent: 1000, todaySpent: 100));
+      // raw = 3000 − 1000 = 2000; today = (2000 + 100) ÷ 20 = 105.
+      expect(e.dailySafeToSpend, closeTo(105, 1e-9));
+      expect(e.tomorrowIfNoMoreSpending, closeTo(2000 / 19, 1e-6));
+      // Under today's amount: no overspend to spread.
+      expect(e.overTodayPerRemainingDay, isNull);
+    });
+
+    test('an overspend lowers each later day by over ÷ days after today', () {
+      final e = run(_input(periodSpent: 1000, todaySpent: 300));
+      // raw = 2000; today = (2000 + 300) ÷ 20 = 115; over by 185.
+      expect(e.dailySafeToSpend, closeTo(115, 1e-9));
+      expect(e.overToday, closeTo(185, 1e-9));
+      expect(e.tomorrowIfNoMoreSpending, closeTo(2000 / 19, 1e-6));
+      expect(e.overTodayPerRemainingDay, closeTo(185 / 19, 1e-6));
+      // Identity: spending exactly today's amount would have left
+      // (2300 − 115) ÷ 19 = 115 for each later day; the spread is the gap.
+      expect(
+        115 - e.tomorrowIfNoMoreSpending!,
+        closeTo(e.overTodayPerRemainingDay!, 1e-6),
+      );
+    });
+
+    test('there is no tomorrow on the last day of the period', () {
+      final e = run(
+        _input(
+          periodSpent: 1000,
+          todaySpent: 300,
+          today: DateTime(2026, 10, 30),
+        ),
+      );
+      expect(e.remainingDays, 1);
+      expect(e.tomorrowIfNoMoreSpending, isNull);
+      expect(e.overTodayPerRemainingDay, isNull);
+    });
+
+    test('nothing is projected before the period starts', () {
+      final e = run(_input(today: DateTime(2026, 9, 20)));
+      expect(e.status, SafeToSpendStatus.notStarted);
+      expect(e.tomorrowIfNoMoreSpending, isNull);
+      expect(e.overTodayPerRemainingDay, isNull);
+    });
+
+    test('no spread is stated once tomorrow is already 0', () {
+      // A = 3000 − 3100 = −100: tomorrow floors at 0.
+      final e = run(_input(periodSpent: 3100, todaySpent: 200));
+      expect(e.overToday, greaterThan(0));
+      expect(e.tomorrowIfNoMoreSpending, 0);
+      expect(e.overTodayPerRemainingDay, isNull);
+    });
+  });
 }

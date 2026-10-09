@@ -131,7 +131,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(resultText(tester), 'ر.ع.\u200E100.000');
+    expect(resultText(tester), '\u20C4\u00A0100.000');
     expect(find.text('Calculated from the OMR → INR rate'), findsOneWidget);
     expect(remote.rateCalls, ['OMR_INR']);
   });

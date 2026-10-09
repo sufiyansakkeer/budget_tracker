@@ -34,7 +34,7 @@ class BiometricTile extends StatelessWidget {
 
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text('Biometric Lock', style: theme.textTheme.titleSmall),
+      title: Text('Biometric lock', style: theme.textTheme.titleSmall),
       subtitle: Text(subtitle),
       secondary: AnimatedSwitcher(
         duration: AppMotion.respectReducedMotion(context, AppMotion.fast),

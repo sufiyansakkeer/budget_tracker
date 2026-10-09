@@ -99,6 +99,13 @@ class SafeSpendFakeDashboardRepository implements DashboardRepository {
       for (final b in budgets) b.id: committed[b.id] ?? CommittedSpending.zero,
     };
   }
+
+  @override
+  Future<Map<DateTime, double>> getDailyDiscretionarySpending({
+    required String budgetId,
+    required DateTime start,
+    required DateTime end,
+  }) async => const {};
 }
 
 /// A real [GetSafeToSpendUseCase] over [budgetRepository] with no bills and

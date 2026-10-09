@@ -296,7 +296,7 @@ void main() {
       );
 
       expect(find.text('No expenses yet'), findsOneWidget);
-      expect(find.text('Add Your First Expense'), findsOneWidget);
+      expect(find.text('Add your first expense'), findsOneWidget);
     });
 
     testWidgets('shows clear filters action when filtered', (tester) async {
@@ -313,7 +313,7 @@ void main() {
       );
 
       expect(find.text('No filtered results'), findsOneWidget);
-      expect(find.text('Clear Filters'), findsOneWidget);
+      expect(find.text('Clear filters'), findsOneWidget);
     });
   });
 
@@ -330,9 +330,9 @@ void main() {
       );
 
       expect(find.text('DB failure'), findsOneWidget);
-      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
 
-      await tester.tap(find.text('Retry'));
+      await tester.tap(find.text('Try again'));
       expect(retried, isTrue);
     });
   });

@@ -17,4 +17,13 @@ abstract class DashboardLocalDataSource {
     required List<BudgetEntity> budgets,
     required DateTime today,
   });
+
+  /// Discretionary spending (expenses without a `bill_id`) of budget
+  /// [budgetId] per calendar day from [start] through [end], whole days.
+  /// Days without spending are absent.
+  Future<Map<DateTime, double>> getDailyDiscretionarySpending({
+    required String budgetId,
+    required DateTime start,
+    required DateTime end,
+  });
 }

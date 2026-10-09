@@ -39,7 +39,7 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
         message:
             'Record what you spend and it will show up here, grouped '
             'by day.',
-        actionLabel: 'Add Your First Expense',
+        actionLabel: 'Add your first expense',
         actionIcon: Icons.add_rounded,
         onAction: onAddFirst,
       );
@@ -51,7 +51,7 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
         message:
             'Nothing matches that search. Try a different word, or '
             'search by category or tag.',
-        actionLabel: 'Clear Search',
+        actionLabel: 'Clear search',
         actionIcon: Icons.clear_all_rounded,
         onAction: onClearFilters,
       );
@@ -61,7 +61,7 @@ class ExpenseHistoryEmptyState extends StatelessWidget {
         icon: Icons.filter_alt_off_rounded,
         title: 'No filtered results',
         message: 'No expenses match the current filters.',
-        actionLabel: 'Clear Filters',
+        actionLabel: 'Clear filters',
         actionIcon: Icons.clear_all_rounded,
         onAction: onClearFilters,
       );

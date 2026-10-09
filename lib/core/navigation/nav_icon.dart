@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import 'nav_destination.dart';
-import 'nav_icon_mode.dart';
-import 'rive_nav_icon.dart';
 
 /// The icon of one navigation destination.
 ///
-/// Picks the renderer from [NavIconMode] and applies the shared selection
-/// treatment (tint lerp and a slight scale) so Rive and Material icons look
-/// identical in every respect but motion.
-class NavIcon extends StatelessWidget {
+/// The outlined glyph cross-fades into its filled twin while the tint lerps
+/// and the icon scales up slightly, so selection reads as one movement.
+/// Re-tapping the selected tab ([pulseToken] changes) plays a short pulse.
+/// Under reduced motion every change is instant and the pulse is skipped.
+class NavIcon extends StatefulWidget {
   final AppNavDestination destination;
   final bool selected;
   final int pulseToken;
@@ -29,51 +28,90 @@ class NavIcon extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final reduced = AppMotion.isReduced(context);
-    final renderer = NavIconMode.of(context);
+  State<NavIcon> createState() => _NavIconState();
+}
 
+class _NavIconState extends State<NavIcon> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: AppMotion.medium,
+  );
+
+  /// 1 → 1.12 → 1: a quick bump that settles, never a bounce.
+  late final Animation<double> _pulseScale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.0,
+        end: 1.12,
+      ).chain(CurveTween(curve: AppMotion.emphasizedDecelerate)),
+      weight: 40,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.12,
+        end: 1.0,
+      ).chain(CurveTween(curve: AppMotion.standardCurve)),
+      weight: 60,
+    ),
+  ]).animate(_pulse);
+
+  @override
+  void didUpdateWidget(covariant NavIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final becameSelected = widget.selected && !oldWidget.selected;
+    final reTapped = widget.pulseToken != oldWidget.pulseToken;
+    if ((becameSelected || reTapped) && !AppMotion.isReduced(context)) {
+      _pulse.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: selected ? 1 : 0),
+      tween: Tween<double>(end: widget.selected ? 1 : 0),
       duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
       curve: AppMotion.emphasizedDecelerate,
       builder: (context, t, _) {
-        final color = Color.lerp(unselectedColor, selectedColor, t)!;
+        final color = Color.lerp(
+          widget.unselectedColor,
+          widget.selectedColor,
+          t,
+        )!;
         final scale = 1 + (AppMotion.navIconSelectedScale - 1) * t;
-        final material = _MaterialNavIcon(
-          outlined: destination.icon,
-          filled: destination.selectedIcon,
-          progress: t,
-          color: color,
-          size: size,
+        return ScaleTransition(
+          scale: _pulseScale,
+          child: Transform.scale(
+            scale: scale,
+            child: _CrossFadeIcon(
+              outlined: widget.destination.icon,
+              filled: widget.destination.selectedIcon,
+              progress: t,
+              color: color,
+              size: widget.size,
+            ),
+          ),
         );
-        final child = renderer == NavIconRenderer.material
-            ? material
-            : RiveNavIcon(
-                spec: destination.rive,
-                color: color,
-                size: size,
-                selected: selected,
-                pulseToken: pulseToken,
-                reduceMotion: reduced,
-                fallback: material,
-              );
-        return Transform.scale(scale: scale, child: child);
       },
     );
   }
 }
 
 /// Cross-fades the outlined glyph into its filled twin as [progress] goes
-/// 0 → 1. Used as the Material renderer and as the Rive loading fallback.
-class _MaterialNavIcon extends StatelessWidget {
+/// 0 → 1.
+class _CrossFadeIcon extends StatelessWidget {
   final IconData outlined;
   final IconData filled;
   final double progress;
   final Color color;
   final double size;
 
-  const _MaterialNavIcon({
+  const _CrossFadeIcon({
     required this.outlined,
     required this.filled,
     required this.progress,

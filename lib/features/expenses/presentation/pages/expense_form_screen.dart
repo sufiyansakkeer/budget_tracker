@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -7,10 +6,13 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/currency/money_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
@@ -22,6 +24,7 @@ import '../bloc/expense_state.dart';
 import '../widgets/category_picker.dart';
 import '../widgets/expense_amount_field.dart';
 import '../widgets/expense_date_picker.dart';
+import '../widgets/expense_date_rules.dart';
 import '../widgets/expense_form_actions.dart';
 import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
@@ -29,10 +32,48 @@ import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
 import '../../../../core/navigation/push_unique.dart';
 
+/// What quick add hands to the full form ("More details"): the values
+/// entered so far, read from the route's query.
+class ExpensePrefill {
+  final String? amount;
+  final String? categoryId;
+  final DateTime? date;
+  final String? budgetId;
+
+  const ExpensePrefill({
+    this.amount,
+    this.categoryId,
+    this.date,
+    this.budgetId,
+  });
+
+  /// From `?amount=250&category=food&date=2026-10-08&budget=…`; anything
+  /// malformed is ignored.
+  factory ExpensePrefill.fromQuery(Map<String, String> query) {
+    final amount = query['amount'];
+    final date = DateTime.tryParse(query['date'] ?? '');
+    return ExpensePrefill(
+      amount: amount != null && (double.tryParse(amount) ?? 0) > 0
+          ? amount
+          : null,
+      categoryId: query['category'],
+      date: date == null ? null : DateTime(date.year, date.month, date.day),
+      budgetId: query['budget'],
+    );
+  }
+
+  bool get isEmpty =>
+      amount == null && categoryId == null && date == null && budgetId == null;
+}
+
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense, or
 /// [copyFromId] to start a new expense pre-filled from another one (its
 /// amount, category, note, tags and budget; the date is today and no receipt
-/// is copied).
+/// is copied). [prefill] carries what quick add already has.
+///
+/// Fields are checked when Add is tapped, not on every keystroke. Leaving
+/// with unsaved input asks first. A save closes the form at once with a
+/// short confirmation.
 ///
 /// Priority order on screen: amount → category → date & time → optional
 /// details (budget, note, tags, receipt). Date and time are pre-filled by the
@@ -42,12 +83,17 @@ import '../../../../core/navigation/push_unique.dart';
 class ExpenseFormScreen extends StatefulWidget {
   final String? expenseId;
   final String? copyFromId;
+  final ExpensePrefill? prefill;
 
-  const ExpenseFormScreen({super.key, this.expenseId, this.copyFromId})
-    : assert(
-        expenseId == null || copyFromId == null,
-        'Edit or duplicate, not both',
-      );
+  const ExpenseFormScreen({
+    super.key,
+    this.expenseId,
+    this.copyFromId,
+    this.prefill,
+  }) : assert(
+         expenseId == null || copyFromId == null,
+         'Edit or duplicate, not both',
+       );
 
   @override
   State<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
@@ -82,7 +128,15 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   bool _populated = false;
   bool _justSaved = false;
 
+  /// What an edit or a duplicate started from, to tell whether anything
+  /// changed; null for a new expense, which compares against blank fields.
+  String? _baseline;
+
   final FocusNode _amountFocus = FocusNode();
+
+  /// Whether leaving was last known to lose input, so typing in a text
+  /// field rebuilds (and arms the back gesture's check) only when it flips.
+  bool _lastDirty = false;
 
   bool get _isEditing => widget.expenseId != null;
   bool get _isDuplicating => widget.copyFromId != null;
@@ -98,7 +152,62 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (_isEditing) bloc.add(ExpenseLoadById(widget.expenseId!));
     if (_isDuplicating) bloc.add(ExpenseLoadById(widget.copyFromId!));
     // Keyboard after the page has settled, not during the transition.
+    final prefill = widget.prefill;
+    if (prefill != null && !_isEditing && !_isDuplicating) {
+      if (prefill.amount != null) _amountController.text = prefill.amount!;
+      _selectedCategoryId = prefill.categoryId;
+      _date = prefill.date;
+      _selectedBudgetId = prefill.budgetId;
+    }
     if (!_isEditing) requestFocusAfterTransition(context, _amountFocus);
+    _noteController.addListener(_onTextChanged);
+    _amountController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final dirty = _isDirty;
+    if (dirty != _lastDirty && mounted) setState(() => _lastDirty = dirty);
+  }
+
+  String _signature() => [
+    _amountController.text.trim(),
+    _selectedCategoryId,
+    _date?.toIso8601String(),
+    _time == null ? null : '${_time!.hour}:${_time!.minute}',
+    _noteController.text.trim(),
+    _tags.join(','),
+    _receiptPath,
+    _selectedBudgetId,
+  ].join('|');
+
+  /// Whether leaving now would lose something the person entered.
+  bool get _isDirty {
+    if (_justSaved) return false;
+    final baseline = _baseline;
+    if (baseline != null) return _signature() != baseline;
+    if (_isEditing || _isDuplicating) return false; // still loading
+    return _amountController.text.trim().isNotEmpty ||
+        _selectedCategoryId != null ||
+        _noteController.text.trim().isNotEmpty ||
+        _tags.isNotEmpty ||
+        _receiptPath != null;
+  }
+
+  Future<void> _requestClose() async {
+    if (!_isDirty) return _close();
+    FocusManager.instance.primaryFocus?.unfocus();
+    final discard = await ConfirmationDialog.show(
+      context: context,
+      title: _isEditing ? 'Discard changes?' : 'Discard this expense?',
+      message: _isEditing
+          ? "Your changes haven't been saved."
+          : "What you entered hasn't been saved.",
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      icon: Icons.edit_off_outlined,
+      isDestructive: true,
+    );
+    if (discard && mounted) _close();
   }
 
   @override
@@ -169,33 +278,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     });
   }
 
-  String _formatAmountForInput(double amount) {
-    if (amount == amount.roundToDouble()) return amount.toStringAsFixed(0);
-    return amount.toStringAsFixed(2);
-  }
+  /// Every decimal the amount was saved with, so OMR 7.125 is not edited
+  /// back as 7.13.
+  String _formatAmountForInput(double amount) => MoneyInput.forInput(amount);
 
-  String? _validateDateInBudget(DateTime? date) {
-    if (date == null) return null;
-    final budget = _selectedBudget;
-    if (budget == null) return null;
-
-    final day = DateTime(date.year, date.month, date.day);
-    final start = DateTime(
-      budget.startDate.year,
-      budget.startDate.month,
-      budget.startDate.day,
-    );
-    final end = DateTime(
-      budget.endDate.year,
-      budget.endDate.month,
-      budget.endDate.day,
-    );
-    if (day.isBefore(start) || day.isAfter(end)) {
-      return 'Outside the ${budget.name} budget period '
-          '(${formatShortDateRange(budget.startDate, budget.endDate)}).';
-    }
-    return null;
-  }
+  String? _validateDateInBudget(DateTime? date) =>
+      ExpenseDateRules.outsideBudget(date, _selectedBudget);
 
   void _scrollTo(GlobalKey key) {
     final ctx = key.currentContext;
@@ -211,7 +299,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   void _save() {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final amountError = ExpenseValidator.validateAmount(_amountController.text);
+    final amountError = ExpenseValidator.validateAmount(
+      _amountController.text,
+      currency: _selectedBudget?.currency,
+    );
     final categoryError = _selectedCategoryId == null
         ? 'Choose a category for this expense.'
         : null;
@@ -277,22 +368,35 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     }
   }
 
-  Future<void> _onSaved(String? message) async {
-    HapticFeedback.lightImpact();
+  /// Quiet success: a light tap, the form closes, and a short note says it
+  /// worked. Nothing holds the screen.
+  void _onSaved() {
+    AppHaptics.confirm();
     setState(() => _justSaved = true);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message ?? 'Saved')));
-    // Let the check mark land before leaving the screen.
-    await Future<void>.delayed(
-      AppMotion.respectReducedMotion(context, AppMotion.emphasized),
-    );
-    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
     _close();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(_isEditing ? 'Changes saved' : 'Expense added'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -305,21 +409,36 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         leading: IconButton(
           tooltip: 'Close',
           icon: const Icon(Icons.close_rounded),
-          onPressed: _close,
+          onPressed: _requestClose,
         ),
       ),
       body: BlocConsumer<ExpenseBloc, ExpenseState>(
         listener: (context, state) {
           if (state.status == ExpenseBlocStatus.success && !_justSaved) {
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
-            _onSaved(state.message);
+            _onSaved();
           } else if (state.status == ExpenseBlocStatus.error) {
+            // Before the form is filled the failure was the load, so Retry
+            // loads again; afterwards it was the save.
+            final sourceId = widget.expenseId ?? widget.copyFromId;
+            final loadFailed = sourceId != null && !_populated;
+            final bloc = context.read<ExpenseBloc>();
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
-                  content: Text(state.message ?? "Couldn't save the expense"),
-                  action: SnackBarAction(label: 'Retry', onPressed: _save),
+                  content: Text(
+                    state.message ??
+                        (loadFailed
+                            ? "Couldn't open this expense. Try again."
+                            : "Couldn't save the expense. Try again."),
+                  ),
+                  action: SnackBarAction(
+                    label: 'Retry',
+                    onPressed: loadFailed
+                        ? () => bloc.add(ExpenseLoadById(sourceId))
+                        : _save,
+                  ),
                 ),
               );
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
@@ -335,7 +454,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           }
 
           // Apply the BLoC-provided default date/time for new expenses.
-          if (!_isEditing && (_date == null || _time == null)) {
+          final needsDefaults = !_isEditing && (_date == null || _time == null);
+          if (needsDefaults) {
             setState(() {
               _date ??= state.initialDate;
               if (_time == null && state.initialTime != null) {
@@ -345,6 +465,15 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                 );
               }
             });
+          }
+
+          // An edit or duplicate is "unchanged" once it is fully filled in.
+          if ((_isEditing || _isDuplicating) &&
+              _populated &&
+              _baseline == null &&
+              _date != null &&
+              _time != null) {
+            _baseline = _signature();
           }
         },
         builder: (context, state) {
@@ -372,12 +501,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                       controller: _amountController,
                       focusNode: _amountFocus,
                       currencySymbol: _currencySymbol,
+                      maxDecimals: MoneyInput.maxDecimals(
+                        _selectedBudget?.currency,
+                      ),
                       errorText: _amountError,
-                      onChanged: (value) => setState(() {
-                        _amountError = value.isEmpty
-                            ? null
-                            : ExpenseValidator.validateAmount(value);
-                      }),
+                      // Checked on save; typing only clears the message.
+                      onChanged: (_) => setState(() => _amountError = null),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/domain/entities/budget_entity.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 
@@ -16,6 +17,9 @@ enum ExpenseBlocStatus {
 
 /// Which mutation produced the latest [ExpenseBlocStatus.success].
 enum ExpenseAction { none, created, updated, deleted, restored }
+
+/// Progress of the quick-add sheet's data ([ExpenseLoadQuickAdd]).
+enum QuickAddLoad { idle, loading, loaded }
 
 class ExpenseState extends Equatable {
   final ExpenseBlocStatus status;
@@ -39,6 +43,16 @@ class ExpenseState extends Equatable {
   /// Default time captured once when the Add Expense form is initialized.
   final DateTime? initialTime;
 
+  /// Quick add: whether its budget and shortcuts have loaded.
+  final QuickAddLoad quickAddLoad;
+
+  /// Quick add: the active budget the expense goes to (null when there is
+  /// none, or it could not be read).
+  final BudgetEntity? quickAddBudget;
+
+  /// Quick add: the category shortcuts, most used first.
+  final List<ExpenseCategory> frequentCategories;
+
   const ExpenseState({
     this.status = ExpenseBlocStatus.initial,
     this.categories = const [],
@@ -50,6 +64,9 @@ class ExpenseState extends Equatable {
     this.lastDeleted,
     this.initialDate,
     this.initialTime,
+    this.quickAddLoad = QuickAddLoad.idle,
+    this.quickAddBudget,
+    this.frequentCategories = const [],
   });
 
   bool get isBusy =>
@@ -71,6 +88,10 @@ class ExpenseState extends Equatable {
     bool clearLastDeleted = false,
     DateTime? initialDate,
     DateTime? initialTime,
+    QuickAddLoad? quickAddLoad,
+    BudgetEntity? quickAddBudget,
+    bool clearQuickAddBudget = false,
+    List<ExpenseCategory>? frequentCategories,
   }) {
     return ExpenseState(
       status: status ?? this.status,
@@ -83,6 +104,11 @@ class ExpenseState extends Equatable {
       lastDeleted: clearLastDeleted ? null : (lastDeleted ?? this.lastDeleted),
       initialDate: initialDate ?? this.initialDate,
       initialTime: initialTime ?? this.initialTime,
+      quickAddLoad: quickAddLoad ?? this.quickAddLoad,
+      quickAddBudget: clearQuickAddBudget
+          ? null
+          : (quickAddBudget ?? this.quickAddBudget),
+      frequentCategories: frequentCategories ?? this.frequentCategories,
     );
   }
 
@@ -98,5 +124,8 @@ class ExpenseState extends Equatable {
     lastDeleted,
     initialDate,
     initialTime,
+    quickAddLoad,
+    quickAddBudget,
+    frequentCategories,
   ];
 }

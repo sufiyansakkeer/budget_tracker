@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/currency/exact_decimal.dart';
 import 'package:monivo/features/currency_converter/data/datasources/currency_local_datasource.dart';
 import 'package:monivo/features/currency_converter/data/models/currency_model.dart';
@@ -299,7 +300,7 @@ void main() {
         expect(byCode['USD']?.symbol, r'$');
         expect(byCode['THB']?.name, 'Thai Baht');
         expect(byCode['THB']?.symbol, '฿');
-        expect(byCode['OMR']?.symbol, 'ر.ع.');
+        expect(byCode['OMR']?.symbol, CurrencyFormatter.omaniRialSign);
       },
     );
 

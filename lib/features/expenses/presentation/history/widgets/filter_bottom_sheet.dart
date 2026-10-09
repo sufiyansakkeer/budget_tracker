@@ -8,6 +8,7 @@ import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
 import '../../../domain/entities/quick_date_preset.dart';
 import '../../widgets/category_visuals.dart';
+import '../../../../../core/currency/money_input.dart';
 
 /// Bottom sheet for applying expense filters.
 ///
@@ -17,10 +18,15 @@ class FilterBottomSheet extends StatefulWidget {
   final ExpenseHistoryFilter current;
   final List<ExpenseCategory> categories;
 
+  /// False where the screen chooses dates itself (Reports' period), so the
+  /// sheet never offers a second, conflicting date range.
+  final bool showDates;
+
   const FilterBottomSheet({
     super.key,
     required this.current,
     required this.categories,
+    this.showDates = true,
   });
 
   @override
@@ -199,52 +205,53 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  _SectionLabel('Date range'),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: [
-                      for (final preset in QuickDatePreset.values)
-                        ChoiceChip(
-                          key: Key('filter_preset_${preset.name}'),
-                          label: Text(preset.label),
-                          selected: _presetSelected(preset),
-                          onSelected: (_) => _applyPreset(preset),
+                  if (widget.showDates) ...[
+                    _SectionLabel('Date range'),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        for (final preset in QuickDatePreset.values)
+                          ChoiceChip(
+                            key: Key('filter_preset_${preset.name}'),
+                            label: Text(preset.label),
+                            selected: _presetSelected(preset),
+                            onSelected: (_) => _applyPreset(preset),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DateButton(
+                            label: _dateFrom == null
+                                ? 'From'
+                                : dateFmt.format(_dateFrom!),
+                            isSet: _dateFrom != null,
+                            onTap: () => _pickDate(isFrom: true),
+                            onClear: _dateFrom == null
+                                ? null
+                                : () => setState(() => _dateFrom = null),
+                          ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _DateButton(
-                          label: _dateFrom == null
-                              ? 'From'
-                              : dateFmt.format(_dateFrom!),
-                          isSet: _dateFrom != null,
-                          onTap: () => _pickDate(isFrom: true),
-                          onClear: _dateFrom == null
-                              ? null
-                              : () => setState(() => _dateFrom = null),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: _DateButton(
+                            label: _dateTo == null
+                                ? 'To'
+                                : dateFmt.format(_dateTo!),
+                            isSet: _dateTo != null,
+                            onTap: () => _pickDate(isFrom: false),
+                            onClear: _dateTo == null
+                                ? null
+                                : () => setState(() => _dateTo = null),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: _DateButton(
-                          label: _dateTo == null
-                              ? 'To'
-                              : dateFmt.format(_dateTo!),
-                          isSet: _dateTo != null,
-                          onTap: () => _pickDate(isFrom: false),
-                          onClear: _dateTo == null
-                              ? null
-                              : () => setState(() => _dateTo = null),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
                   _SectionLabel('Amount range'),
                   Row(
                     children: [
@@ -256,7 +263,11 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           ),
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d{0,2}'),
+                              // Any budget's currency may be in view: allow
+                              // the most decimals one takes (OMR's three).
+                              MoneyInput.pattern(
+                                MoneyInput.anyCurrencyDecimals,
+                              ),
                             ),
                           ],
                           textInputAction: TextInputAction.next,
@@ -273,7 +284,11 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           ),
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d{0,2}'),
+                              // Any budget's currency may be in view: allow
+                              // the most decimals one takes (OMR's three).
+                              MoneyInput.pattern(
+                                MoneyInput.anyCurrencyDecimals,
+                              ),
                             ),
                           ],
                           textInputAction: TextInputAction.done,
@@ -421,10 +436,14 @@ Future<ExpenseHistoryFilter?> showFilterBottomSheet(
   BuildContext context, {
   required ExpenseHistoryFilter current,
   required List<ExpenseCategory> categories,
+  bool showDates = true,
 }) {
   return AppBottomSheet.show<ExpenseHistoryFilter>(
     context: context,
-    builder: (context) =>
-        FilterBottomSheet(current: current, categories: categories),
+    builder: (context) => FilterBottomSheet(
+      current: current,
+      categories: categories,
+      showDates: showDates,
+    ),
   );
 }

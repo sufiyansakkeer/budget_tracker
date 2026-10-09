@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -10,6 +9,7 @@ import '../../../expenses/domain/entities/expense_category.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../domain/entities/category_catalog.dart';
 import '../../domain/validators/category_validator.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// What the user entered in [CategoryFormSheet].
 class CategoryDraft {
@@ -84,7 +84,7 @@ class _CategoryFormSheetState extends State<CategoryFormSheet> {
       setState(() => _nameError = error);
       return;
     }
-    HapticFeedback.lightImpact();
+    AppHaptics.confirm();
     Navigator.of(context).pop(
       CategoryDraft(
         id: widget.category?.id,

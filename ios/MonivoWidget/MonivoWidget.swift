@@ -1,251 +1,852 @@
-import WidgetKit
+import CoreText
 import SwiftUI
+import UIKit
+import WidgetKit
 
-// MARK: - Timeline Provider
+// The home-screen widget: Today's Safe Spending for the active budget.
+//
+// The Flutter app works out and formats everything and stores it as one JSON
+// payload (lib/features/widgets/home_widget_payload.dart) in the App Group's
+// UserDefaults. This extension never formats money or recomputes a budget; it
+// decides what to show for the day and lays it out for the widget's size and
+// the user's text size.
 
-/// Provides timeline entries for the Monivo spending widget.
-/// Data is read from shared UserDefaults (App Group container).
-struct Provider: TimelineProvider {
-    func placeholder(in context: Context) -> SpendingEntry {
-        SpendingEntry(
-            date: Date(),
-            dailySafeSpending: 0,
-            spentToday: 0,
-            remainingBudget: 0,
-            remainingDays: 0,
-            currency: "INR",
-            status: "on_track",
-            hasActiveBudget: false
-        )
+// MARK: - Payload
+
+struct WidgetPayload: Decodable {
+    let v: Int
+    let state: String
+    /// The day the figures are for, yyyy-MM-dd in local time.
+    let asOf: String
+    let colors: PaletteColors?
+    let stale: WidgetMessage
+    let label: String?
+    let shortLabel: String?
+    let safe: Money?
+    let status: Status?
+    let today: Today?
+    let budget: Budget?
+    let summary: String?
+    let message: WidgetMessage?
+
+    static let key = "home_widget_payload"
+    static let version = 2
+
+    static func load() -> WidgetPayload? {
+        let defaults = UserDefaults(suiteName: "group.com.sufiyan.monivo") ?? .standard
+        guard let raw = defaults.string(forKey: key), let data = raw.data(using: .utf8),
+              let payload = try? JSONDecoder().decode(WidgetPayload.self, from: data),
+              payload.v == version
+        else { return nil }
+        return payload
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (SpendingEntry) -> Void) {
-        let entry = loadEntry()
-        completion(entry)
+    struct Money: Decodable {
+        let text: String
+        let spoken: String
+        let sign: String
+        let prefix: String
+        let whole: String
+        let fraction: String
+        let suffix: String
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<SpendingEntry>) -> Void) {
-        let entry = loadEntry()
-
-        // Refresh the widget every hour. The Dart side also pushes
-        // updates via HomeWidget.updateWidget() after data changes.
-        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: entry.date)!
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-        completion(timeline)
+    struct Status: Decodable {
+        let label: String
+        let tone: String
     }
 
-    private func loadEntry() -> SpendingEntry {
-        let defaults = UserDefaults(suiteName: "group.com.sufiyan.monivo")
-            ?? UserDefaults.standard
+    struct Today: Decodable {
+        let progress: Double
+        let spentLabel: String
+        let spent: String
+        let restLabel: String
+        let rest: String
+    }
 
-        let hasBudget = defaults.string(forKey: "home_widget_has_budget") == "true"
-        let dailySafe = defaults.string(forKey: "home_widget_daily_safe")
-            .flatMap(Double.init) ?? 0
-        let spentToday = defaults.string(forKey: "home_widget_spent_today")
-            .flatMap(Double.init) ?? 0
-        let remaining = defaults.string(forKey: "home_widget_remaining")
-            .flatMap(Double.init) ?? 0
-        let remainingDays = defaults.string(forKey: "home_widget_remaining_days")
-            .flatMap(Int.init) ?? 0
-        let currency = defaults.string(forKey: "home_widget_currency") ?? "INR"
-        let status = defaults.string(forKey: "home_widget_status") ?? "no_budget"
+    struct Budget: Decodable {
+        let name: String
+        let daysLeft: String
+        let left: String
+        let progress: Double
+        let tone: String
+    }
+}
 
-        return SpendingEntry(
-            date: Date(),
-            dailySafeSpending: dailySafe,
-            spentToday: spentToday,
-            remainingBudget: remaining,
-            remainingDays: remainingDays,
-            currency: currency,
-            status: status,
-            hasActiveBudget: hasBudget
+struct WidgetMessage: Decodable {
+    let title: String
+    let body: String
+    let short: String?
+
+    var shortTitle: String { short ?? title }
+
+    static let setup = WidgetMessage(
+        title: "Open Monivo",
+        body: "Open the app to set up this widget.",
+        short: nil
+    )
+}
+
+/// The palette's colours for light and dark, as the app ships them.
+struct PaletteColors: Decodable {
+    let light: [String: String]
+    let dark: [String: String]
+
+    /// Monivo's Default palette, until the app has written the user's.
+    static let fallback = PaletteColors(
+        light: [
+            "surface": "#FFFFFFFF", "ink": "#FF17191F", "muted": "#FF66676A",
+            "track": "#FFDBDBDB", "accent": "#FF3155D4", "onAccent": "#FFFFFFFF",
+            "divider": "#FFCCCCCE", "positive": "#FF1E724D", "caution": "#FF8C591C",
+            "critical": "#FFBC2D35", "neutral": "#FF66676A",
+        ],
+        dark: [
+            "surface": "#FF222229", "ink": "#FFF2F2F6", "muted": "#FFA4A4A8",
+            "track": "#FF42424E", "accent": "#FF869DEC", "onAccent": "#FF0B1947",
+            "divider": "#FF454549", "positive": "#FF5EC999", "caution": "#FFDEB17C",
+            "critical": "#FFEA878B", "neutral": "#FFA4A4A8",
+        ]
+    )
+
+    /// A colour that follows the system appearance.
+    func color(_ name: String) -> Color {
+        let day = Self.uiColor(light[name] ?? Self.fallback.light[name] ?? "#FF808080")
+        let night = Self.uiColor(dark[name] ?? Self.fallback.dark[name] ?? "#FF808080")
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? night : day })
+    }
+
+    func tone(_ name: String?) -> Color {
+        switch name {
+        case "positive", "caution", "critical": return color(name!)
+        default: return color("neutral")
+        }
+    }
+
+    /// "#AARRGGBB".
+    private static func uiColor(_ hex: String) -> UIColor {
+        let value = UInt32(hex.dropFirst(), radix: 16) ?? 0xFF80_8080
+        return UIColor(
+            red: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: CGFloat((value >> 24) & 0xFF) / 255
         )
     }
 }
 
-// MARK: - Timeline Entry
+// MARK: - What to show
+
+enum WidgetContent {
+    case figures(WidgetPayload)
+    case message(WidgetMessage)
+
+    /// The figures or message for the entry's day; once the day has turned
+    /// since the app last wrote, a request to open it instead of yesterday's
+    /// amount shown as today's.
+    static func resolve(_ payload: WidgetPayload?, on date: Date) -> WidgetContent {
+        guard let payload else { return .message(.setup) }
+        if payload.asOf != dayFormatter.string(from: date) { return .message(payload.stale) }
+        if payload.state == "ready", payload.safe != nil { return .figures(payload) }
+        return .message(payload.message ?? .setup)
+    }
+
+    static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+}
+
+// MARK: - Timeline
 
 struct SpendingEntry: TimelineEntry {
     let date: Date
-    let dailySafeSpending: Double
-    let spentToday: Double
-    let remainingBudget: Double
-    let remainingDays: Int
-    let currency: String
-    let status: String
-    let hasActiveBudget: Bool
+    let payload: WidgetPayload?
+
+    var content: WidgetContent { .resolve(payload, on: date) }
+    var colors: PaletteColors { payload?.colors ?? .fallback }
 }
 
-// MARK: - Currency Formatting
-
-struct CurrencyHelper {
-    static func symbol(for code: String) -> String {
-        switch code {
-        case "INR": return "₹"
-        case "USD": return "$"
-        case "EUR": return "€"
-        case "GBP": return "£"
-        case "JPY": return "¥"
-        case "AED": return "د.إ"
-        case "CAD": return "C$"
-        case "AUD": return "A$"
-        case "SGD": return "S$"
-        default: return "₹"
-        }
+struct Provider: TimelineProvider {
+    func placeholder(in context: Context) -> SpendingEntry {
+        SpendingEntry(date: Date(), payload: nil)
     }
 
-    static func format(_ amount: Double, code: String) -> String {
-        let sym = symbol(for: code)
-        return "\(sym)\(Int(amount).formatted())"
+    func getSnapshot(in context: Context, completion: @escaping (SpendingEntry) -> Void) {
+        completion(SpendingEntry(date: Date(), payload: WidgetPayload.load()))
+    }
+
+    /// Now, and again just after midnight, when the figures turn into a
+    /// request to open the app. The app also reloads the widget whenever its
+    /// data changes, so there is no polling.
+    func getTimeline(in context: Context, completion: @escaping (Timeline<SpendingEntry>) -> Void) {
+        let now = Date()
+        let payload = WidgetPayload.load()
+        let calendar = Calendar.current
+        let midnight = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: now)!)
+        let entries = [
+            SpendingEntry(date: now, payload: payload),
+            SpendingEntry(date: midnight.addingTimeInterval(5), payload: payload),
+        ]
+        completion(Timeline(entries: entries, policy: .atEnd))
     }
 }
 
-// MARK: - Widget Entry View
+// MARK: - Views
 
 struct MonivoWidgetEntryView: View {
     var entry: Provider.Entry
-    @Environment(\.widgetFamily) var family
+    @Environment(\.widgetFamily) private var family
 
     var body: some View {
-        Group {
-            if !entry.hasActiveBudget {
-                emptyStateView
-            } else {
-                spendingView
+        WidgetBody(content: entry.content, colors: entry.colors, family: family)
+            .widgetSurface(entry.colors.color("surface"))
+            .widgetURL(Links.home)
+    }
+}
+
+enum Links {
+    static let home = URL(string: "monivo:///app/home")!
+    static let addExpense = URL(string: "monivo:///app/expenses/add")!
+}
+
+/// The widget's content for one family. Each family lists its layouts
+/// richest first; the first that fits the space at the user's text size is
+/// used. Content priority: the amount; what it is and its status; today's
+/// spending against it; the budget; Add expense.
+struct WidgetBody: View {
+    let content: WidgetContent
+    let colors: PaletteColors
+    let family: WidgetFamily
+
+    var body: some View {
+        switch content {
+        case .figures(let payload):
+            // The figures read as one sentence; Add expense stays its own
+            // button beside them.
+            let figures = Figures(p: payload, colors: colors, family: family)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(payload.summary ?? payload.safe?.spoken ?? "")
+            switch family {
+            case .systemSmall:
+                // Small widgets have one tap target: the whole widget.
+                figures.frame(maxHeight: .infinity, alignment: .top)
+            case .systemMedium:
+                figures.frame(maxHeight: .infinity, alignment: .top)
+                    .overlay(alignment: .topTrailing) { AddButton(colors: colors, compact: true) }
+            default:
+                VStack(spacing: 12) {
+                    figures.frame(maxHeight: .infinity, alignment: .top)
+                    AddButton(colors: colors, compact: false)
+                }
+            }
+        case .message(let message):
+            Message(message: message, colors: colors, family: family)
+        }
+    }
+}
+
+// MARK: Figures
+
+private struct Figures: View {
+    let p: WidgetPayload
+    let colors: PaletteColors
+    let family: WidgetFamily
+
+    var body: some View {
+        switch family {
+        case .systemSmall:
+            Fitting {
+                VStack(alignment: .leading, spacing: 4) {
+                    label(short: true); amount(.title); statusLine
+                    track.padding(.top, 6)
+                    InlineMetric(label: p.today?.restLabel, value: p.today?.rest, colors: colors)
+                }
+                VStack(alignment: .leading, spacing: 4) { label(short: true); amount(.title); statusLine }
+                VStack(alignment: .leading, spacing: 2) { label(short: true); amount(.title) }
+                amount(.title)
+            }
+        case .systemMedium:
+            // The Add button sits over the top-right corner; the top block
+            // keeps that corner free.
+            Fitting {
+                VStack(alignment: .leading, spacing: 4) {
+                    beside(button: VStack(alignment: .leading, spacing: 0) { label(short: false); amount(.largeTitle) })
+                    budgetStatusLine
+                    track.padding(.top, 4)
+                    HStack(spacing: 8) {
+                        InlineMetric(label: p.today?.spentLabel, value: p.today?.spent, colors: colors)
+                        Spacer(minLength: 0)
+                        InlineMetric(label: p.today?.restLabel, value: p.today?.rest, colors: colors)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    beside(button: VStack(alignment: .leading, spacing: 0) { label(short: true); amount(.largeTitle) })
+                    statusLine
+                    InlineMetric(label: p.today?.restLabel, value: p.today?.rest, colors: colors)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    beside(button: VStack(alignment: .leading, spacing: 0) { label(short: true); amount(.largeTitle) })
+                    statusLine
+                }
+                beside(button: VStack(alignment: .leading, spacing: 0) { label(short: true); amount(.largeTitle) })
+                beside(button: amount(.largeTitle))
+            }
+        default:
+            Fitting {
+                large
+                VStack(alignment: .leading, spacing: 4) {
+                    label(short: false); amount(.largeTitle); budgetStatusLine
+                    track.padding(.top, 8)
+                    metrics.padding(.top, 4)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    label(short: true); amount(.largeTitle); statusLine
+                    InlineMetric(label: p.today?.restLabel, value: p.today?.rest, colors: colors)
+                }
+                VStack(alignment: .leading, spacing: 4) { label(short: true); amount(.largeTitle); statusLine }
+                amount(.largeTitle)
             }
         }
-        .widgetURL(URL(string: "monivo:///app/home"))
     }
 
-
-    // MARK: - Spending View
-
-    private var spendingView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Title
-            Text("Monivo")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 4)
-
-            // Safe Spending
-            Text("Today's Safe Spending")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
-
-            Text(CurrencyHelper.format(entry.dailySafeSpending, code: entry.currency))
-                .font(.system(size: family == .systemSmall ? 22 : 28, weight: .bold))
-                .foregroundStyle(statusColor)
-                .padding(.bottom, 8)
-
-            // Spent Today
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Spent Today")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text(CurrencyHelper.format(entry.spentToday, code: entry.currency))
-                        .font(.system(size: 16, weight: .bold))
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Status")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text(statusLabel)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(statusColor)
-                }
-            }
-            .padding(.bottom, 6)
-
+    /// [content] with the top-right corner kept free for the Add button.
+    private func beside<Content: View>(button content: Content) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            content
             Spacer(minLength: 0)
+            Color.clear.frame(width: 40, height: 40)
+        }
+    }
 
-            // Quick action button
-            Link(destination: URL(string: "monivo:///app/expenses/add")!) {
-                HStack {
-                    Spacer()
-                    Text("+ Add Expense")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                    Spacer()
+    /// "On track · Food".
+    private var budgetStatusLine: some View {
+        HStack(spacing: 6) {
+            statusLine
+            Text(ltr: "· \(p.budget?.name ?? "")")
+                .font(.footnote)
+                .foregroundStyle(colors.color("muted"))
+                .lineLimit(1)
+        }
+    }
+
+    private var large: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(ltr: p.budget?.name ?? "")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(colors.color("ink"))
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(ltr: p.budget?.daysLeft ?? "")
+                    .font(.footnote)
+                    .foregroundStyle(colors.color("muted"))
+                    .lineLimit(1)
+            }
+            label(short: false).padding(.top, 8)
+            amount(.largeTitle, scale: 1.25)
+            statusLine
+            track.padding(.top, 10)
+            metrics.padding(.top, 4)
+            Rectangle().fill(colors.color("divider")).frame(height: 1).padding(.vertical, 8)
+            OmaniRialSign.text(p.budget?.left ?? "", style: .subheadline, bold: false)
+                .font(.subheadline.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(colors.color("ink"))
+                .fixedSize(horizontal: false, vertical: true)
+            Track(value: p.budget?.progress ?? 0, fill: colors.tone(p.budget?.tone), track: colors.color("track"), height: 4)
+                .padding(.top, 4)
+        }
+    }
+
+    /// The label with the status dot set inline, so it wraps with the text.
+    private func label(short: Bool) -> some View {
+        (Text("\u{25CF}")
+            .foregroundColor(colors.tone(p.status?.tone))
+            + Text("  " + ((short ? p.shortLabel : p.label) ?? ""))
+            .foregroundColor(colors.color("muted")))
+            .font(.subheadline.weight(.medium))
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func amount(_ style: Font.TextStyle, scale: CGFloat = 1) -> some View {
+        Amount(money: p.safe!, style: style, scale: scale, color: colors.color("ink"))
+    }
+
+    private var statusLine: some View {
+        Text(ltr: p.status?.label ?? "")
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(colors.color("ink"))
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var track: some View {
+        Track(value: p.today?.progress ?? 0, fill: colors.tone(p.status?.tone), track: colors.color("track"), height: 6)
+    }
+
+    private var rest: some View {
+        Metric(label: p.today?.restLabel ?? "", value: p.today?.rest ?? "", colors: colors, alignment: .leading)
+    }
+
+    /// Spent and left today side by side, or one above the other when they
+    /// don't fit, so neither figure is cut.
+    private var metrics: some View {
+        let spent = Metric(label: p.today?.spentLabel ?? "", value: p.today?.spent ?? "", colors: colors, alignment: .leading)
+        let rest = { (alignment: HorizontalAlignment) in
+            Metric(label: p.today?.restLabel ?? "", value: p.today?.rest ?? "", colors: colors, alignment: alignment)
+        }
+        return Fitting(axis: .horizontal) {
+            HStack(alignment: .top) { spent; Spacer(minLength: 12); rest(.trailing) }
+            VStack(alignment: .leading, spacing: 6) { spent; rest(.leading) }
+            VStack(alignment: .leading, spacing: 6) { spent; rest(.leading) }.minimumScaleFactor(0.5)
+        }
+    }
+}
+
+/// The hero figure the app's way: the symbol and minor units at half size.
+/// It never truncates: when the whole figure doesn't fit at its size it is
+/// set smaller, then in whole units (a floored safe amount, so dropping the
+/// minor units never promises more), and only then scaled down.
+private struct Amount: View {
+    let money: WidgetPayload.Money
+    let style: Font.TextStyle
+    let scale: CGFloat
+    let color: Color
+
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let size = UIFont.preferredFont(forTextStyle: style.uiKit, compatibleWith: UITraitCollection(preferredContentSizeCategory: typeSize.uiKit)).pointSize * scale
+        if #available(iOS 16.0, *) {
+            Fitting(axis: .horizontal) {
+                figure(size: size, fraction: true)
+                figure(size: size * 0.8, fraction: true)
+                // Last resort, so it may shrink a long way rather than be cut.
+            figure(size: size * 0.8, fraction: false).minimumScaleFactor(0.25)
+            }
+        } else {
+            figure(size: size, fraction: true).minimumScaleFactor(0.5)
+        }
+    }
+
+    private func figure(size: CGFloat, fraction: Bool) -> some View {
+        let big = Font.system(size: size, weight: .bold).monospacedDigit()
+        let small = Font.system(size: size * 0.5, weight: .bold).monospacedDigit()
+        var text = Text(ltr: money.sign).font(big)
+            + OmaniRialSign.heroPrefix(money.prefix, size: size, big: big, small: small)
+            + Text(money.whole).font(big)
+        if fraction { text = text + Text(money.fraction).font(small) }
+        text = text + Text(money.suffix).font(small)
+        return text.foregroundStyle(color).lineLimit(1)
+    }
+}
+
+private struct Metric: View {
+    let label: String
+    let value: String
+    let colors: PaletteColors
+    let alignment: HorizontalAlignment
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: 1) {
+            Text(ltr: label).font(.caption).foregroundStyle(colors.color("muted")).lineLimit(1)
+            OmaniRialSign.text(value, style: .subheadline, bold: true)
+                .font(.subheadline.weight(.semibold)).monospacedDigit()
+                .foregroundStyle(colors.color("ink")).lineLimit(1)
+        }
+    }
+}
+
+/// "Left today ₹587.50" on one line, for the compact layouts; stacked when
+/// that line doesn't fit, so the figure is never cut.
+private struct InlineMetric: View {
+    let label: String?
+    let value: String?
+    let colors: PaletteColors
+
+    var body: some View {
+        Fitting(axis: .horizontal) {
+            (Text(ltr: (label ?? "") + " ").foregroundColor(colors.color("muted"))
+                + OmaniRialSign.text(value ?? "", style: .footnote, bold: true, weight: .semibold)
+                .foregroundColor(colors.color("ink")))
+                .font(.footnote)
+                .monospacedDigit()
+                .lineLimit(1)
+            stacked
+            stacked.minimumScaleFactor(0.6)
+        }
+    }
+
+    private var stacked: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(ltr: label ?? "").font(.footnote).foregroundColor(colors.color("muted")).lineLimit(1)
+            OmaniRialSign.text(value ?? "", style: .footnote, bold: true)
+                .font(.footnote.weight(.semibold)).monospacedDigit()
+                .foregroundColor(colors.color("ink")).lineLimit(1)
+        }
+    }
+}
+
+private struct Track: View {
+    let value: Double
+    let fill: Color
+    let track: Color
+    let height: CGFloat
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(track)
+                if value > 0 {
+                    Capsule().fill(fill)
+                        .frame(width: max(height, geo.size.width * min(1, value)))
+                        .accentable()
                 }
-                .padding(.vertical, 6)
-                .background(Color(red: 0.11, green: 0.37, blue: 0.11))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
-        .padding(12)
+        .frame(height: height)
+        .accessibilityHidden(true)
     }
+}
 
-    // MARK: - Empty State View
+private struct AddButton: View {
+    let colors: PaletteColors
+    let compact: Bool
 
-    private var emptyStateView: some View {
-        VStack(spacing: 8) {
-            Spacer()
-            Image(systemName: "wallet.pass")
-                .font(.system(size: 32))
-                .foregroundStyle(.secondary)
-            Text("Monivo")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.primary)
-            Text("Open app to set up a budget")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Link(destination: URL(string: "monivo:///app/expenses/add")!) {
-                HStack {
-                    Spacer()
-                    Text("+ Add Expense")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                }
-                .padding(.vertical, 6)
-                .background(Color(red: 0.11, green: 0.37, blue: 0.11))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+    var body: some View {
+        Link(destination: Links.addExpense) {
+            if compact {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(colors.color("onAccent"))
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(colors.color("accent")))
+            } else {
+                Label("Add expense", systemImage: "plus")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(colors.color("onAccent"))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(Capsule().fill(colors.color("accent")))
+                    // Large enough to read, small enough to leave the
+                    // figures their room.
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             }
         }
-        .padding(12)
+        .accessibilityLabel("Add expense")
     }
+}
 
+// MARK: Messages
 
-    // MARK: - Helpers
+private struct Message: View {
+    let message: WidgetMessage
+    let colors: PaletteColors
+    let family: WidgetFamily
 
-    private var statusColor: Color {
-        if entry.status.hasPrefix("over:") || entry.status.hasPrefix("short:") {
-            return .red
-        } else if entry.status == "careful" {
-            return .orange
-        } else if entry.status == "on_track" {
-            return .green
-        } else {
-            return .gray
+    var body: some View {
+        Fitting {
+            full(button: family != .systemSmall)
+            full(button: false)
+            title(message.title)
+            title(message.shortTitle).minimumScaleFactor(0.5)
         }
     }
 
-    private var statusLabel: String {
-        if entry.status.hasPrefix("over:") {
-            let amount = Double(
-                entry.status.replacingOccurrences(of: "over:", with: "")
-            ) ?? 0
-            return "\(CurrencyHelper.format(amount, code: entry.currency)) over"
-        } else if entry.status.hasPrefix("short:") {
-            // Over budget, or bills and money set aside exceed what's left.
-            let amount = Double(
-                entry.status.replacingOccurrences(of: "short:", with: "")
-            ) ?? 0
-            return "\(CurrencyHelper.format(amount, code: entry.currency)) short"
-        } else if entry.status == "careful" {
-            return "Spend carefully"
-        } else if entry.status == "on_track" {
-            return "On Track"
-        } else if entry.status == "no_budget" {
-            return "No Budget"
+    private func full(button: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
+                title(message.title)
+                Text(ltr: message.body)
+                    .font(.subheadline)
+                    .foregroundStyle(colors.color("muted"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            if button {
+                Spacer(minLength: 8)
+                AddButton(colors: colors, compact: false)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func title(_ text: String) -> some View {
+        Text(ltr: text)
+            .font(.headline)
+            .foregroundStyle(colors.color("ink"))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Omani rial sign
+
+/// U+20C4 OMANI RIAL SIGN (Central Bank of Oman, 2025). The app formats OMR
+/// with it, but iOS fonts don't draw it yet, so the widget registers the same
+/// glyph the app bundles (assets/fonts/omani_rial, embedded below) and sets
+/// the sign in it. Should the system font gain the sign, it is used as is; if
+/// the font can't be registered, the widget shows the abbreviation the app
+/// used before the sign.
+enum OmaniRialSign {
+    static let sign = "\u{20C4}"
+    static let fallback = "\u{0631}.\u{0639}.\u{200E}"
+
+    enum Mode { case system, bundled, abbreviated }
+
+    static let mode: Mode = {
+        let system = CTFontCreateUIFontForLanguage(.system, 17, nil)!
+        var chars = Array(sign.utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: chars.count)
+        if CTFontGetGlyphsForCharacters(system, &chars, &glyphs, chars.count), glyphs[0] != 0 {
+            return .system
+        }
+        return registerBundled() ? .bundled : .abbreviated
+    }()
+
+    private static func registerBundled() -> Bool {
+        var registered = true
+        for encoded in [medium, bold] {
+            guard let data = Data(base64Encoded: encoded),
+                  let provider = CGDataProvider(data: data as CFData),
+                  let font = CGFont(provider)
+            else { registered = false; continue }
+            var error: Unmanaged<CFError>?
+            if !CTFontManagerRegisterGraphicsFont(font, &error),
+               let failure = error?.takeRetainedValue(),
+               CFErrorGetCode(failure) != CTFontManagerError.alreadyRegistered.rawValue {
+                registered = false
+            }
+        }
+        return registered
+    }
+
+    /// [text] set left to right, with the sign in the bundled font when the
+    /// system can't draw it. [weight] applies to the rest of the text.
+    static func text(_ text: String, style: Font.TextStyle, bold: Bool, weight: Font.Weight? = nil) -> Text {
+        func plain(_ s: String) -> Text {
+            let t = Text(verbatim: s)
+            return weight.map { t.fontWeight($0) } ?? t
+        }
+        switch mode {
+        case .system:
+            return plain("\u{200E}" + text)
+        case .abbreviated:
+            return plain("\u{200E}" + abbreviated(text))
+        case .bundled:
+            let base = UIFont.preferredFont(
+                forTextStyle: style.uiKit,
+                compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+            ).pointSize
+            let signFont = Font.custom(fontName(bold: bold), size: base, relativeTo: style)
+            let parts = text.components(separatedBy: sign)
+            var out = plain("\u{200E}" + parts[0])
+            for part in parts.dropFirst() {
+                out = out + Text(verbatim: sign).font(signFont) + plain(part)
+            }
+            return out
+        }
+    }
+
+    /// The hero figure's symbol: the sign at the figures' height, as its
+    /// guidelines require; other symbols (and the fallback) at [small].
+    static func heroPrefix(_ prefix: String, size: CGFloat, big: Font, small: Font) -> Text {
+        guard prefix.hasPrefix(sign) else { return Text(verbatim: prefix).font(small) }
+        switch mode {
+        case .system:
+            return Text(verbatim: prefix).font(big)
+        case .abbreviated:
+            return Text(verbatim: abbreviated(prefix)).font(small)
+        case .bundled:
+            return Text(verbatim: sign).font(.custom(fontName(bold: true), fixedSize: size))
+                + Text(verbatim: String(prefix.dropFirst())).font(big)
+        }
+    }
+
+    private static func abbreviated(_ text: String) -> String {
+        text.replacingOccurrences(of: sign + "\u{00A0}", with: fallback)
+            .replacingOccurrences(of: sign, with: fallback)
+    }
+
+    private static func fontName(bold: Bool) -> String {
+        bold ? "MonivoOmaniRial-Bold" : "MonivoOmaniRial-Medium"
+    }
+
+    // MonivoOmaniRial-Medium.ttf and -Bold.ttf (assets/fonts/omani_rial),
+    // base64. The glyph is the Central Bank of Oman's (public domain).
+    private static let medium =
+        "AAEAAAAKAIAAAwAgT1MvMmjafecAAAEoAAAAYGNtYXAAtCFOAAABmAAAAERnbHlmjRmCkgAAAegAAAC8aGVhZGqMSnAAAACs" +
+        "AAAANmhoZWETzAmHAAAA5AAAACRobXR4E24AZAAAAYgAAAAQbG9jYQBeAAAAAAHcAAAACm1heHAABgBAAAABCAAAACBuYW1l" +
+        "JQhAfAAAAqQAAAOlcG9zdGJCckwAAAZMAAAAOgABAAAAAQAAhV5BcF8PPPUAAwfQAAAAAAAAAAAAAAAAAAAAAABkAAALEgWo" +
+        "AAAAAwACAAAAAAAAAAEAAAhU/agAAAt2AGQAZAsSAAEAAAAAAAAAAAAAAAAAAAAEAAEAAAAEAD4AAQAAAAAAAgAAAAAAAAAA" +
+        "AAAAAAAAAAAABATcAfQABQAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAATU5WTwDA" +
+        "ACAgxAhU/agAAAhUAlgAAAABAAAAAAQ4BaAAAAAgAAAD6AAAAggAAAIIAAALdgBkAAAAAgAAAAMAAAAUAAMAAQAAABQABAAw" +
+        "AAAACAAIAAIAAAAgAKAgxP//AAAAIACgIMT////h/2LfPwABAAAAAAAAAAAAAAAAAAAAAABeAAAAAQBkAAALEgWoAD0AAAEC" +
+        "Nz4CFhceBRcWDgUHLgUGBw4CHgIXIQMlBhYWFx4GMwUDIRMhJyETIQQXBIwzb4GdYgomLjEqHgQEBxIZGRcPAR1FT1dbXl0t" +
+        "KygEFicvFgYElfu4AgMGAworO0JCOy0LAoyW9siVBAeM/NGUAj4CoQEY8ll0MBgyBRggJCMcCQkzSldYTzwPHkVEPS0WCBgW" +
+        "NTo9OzcY/vYICQUBAwgUFxcUEAkI/vIBDokBCgAAABAAxgABAAAAAAAAAEMAAAABAAAAAAABABEAQwABAAAAAAACAAYAVAAB" +
+        "AAAAAAADABwAWgABAAAAAAAEABgAdgABAAAAAAAFAA0AjgABAAAAAAAGABYAmwABAAAAAAAKAEQAsQADAAEECQAAAIYA9QAD" +
+        "AAEECQABACIBewADAAEECQACAAwBnQADAAEECQADADgBqQADAAEECQAEADAB4QADAAEECQAFABoCEQADAAEECQAGACwCKwAD" +
+        "AAEECQAKAIgCV0dseXBoOiBPbWFuaSBSaWFsIFNpZ24gYnkgdGhlIENlbnRyYWwgQmFuayBvZiBPbWFuIChwdWJsaWMgZG9t" +
+        "YWluKS5Nb25pdm8gT21hbmkgUmlhbE1lZGl1bU1vbml2b09tYW5pUmlhbC1NZWRpdW07MS4wMDBNb25pdm8gT21hbmkgUmlh" +
+        "bCBNZWRpdW1WZXJzaW9uIDEuMDAwTW9uaXZvT21hbmlSaWFsLU1lZGl1bVUrMjBDNCBPTUFOSSBSSUFMIFNJR04gb25seSwg" +
+        "bWV0cmljcyBtYXRjaGVkIHRvIE1hbnJvcGUsIGZvciBNb25pdm8uAEcAbAB5AHAAaAA6ACAATwBtAGEAbgBpACAAUgBpAGEA" +
+        "bAAgAFMAaQBnAG4AIABiAHkAIAB0AGgAZQAgAEMAZQBuAHQAcgBhAGwAIABCAGEAbgBrACAAbwBmACAATwBtAGEAbgAgACgA" +
+        "cAB1AGIAbABpAGMAIABkAG8AbQBhAGkAbgApAC4ATQBvAG4AaQB2AG8AIABPAG0AYQBuAGkAIABSAGkAYQBsAE0AZQBkAGkA" +
+        "dQBtAE0AbwBuAGkAdgBvAE8AbQBhAG4AaQBSAGkAYQBsAC0ATQBlAGQAaQB1AG0AOwAxAC4AMAAwADAATQBvAG4AaQB2AG8A" +
+        "IABPAG0AYQBuAGkAIABSAGkAYQBsACAATQBlAGQAaQB1AG0AVgBlAHIAcwBpAG8AbgAgADEALgAwADAAMABNAG8AbgBpAHYA" +
+        "bwBPAG0AYQBuAGkAUgBpAGEAbAAtAE0AZQBkAGkAdQBtAFUAKwAyADAAQwA0ACAATwBNAEEATgBJACAAUgBJAEEATAAgAFMA" +
+        "SQBHAE4AIABvAG4AbAB5ACwAIABtAGUAdAByAGkAYwBzACAAbQBhAHQAYwBoAGUAZAAgAHQAbwAgAE0AYQBuAHIAbwBwAGUA" +
+        "LAAgAGYAbwByACAATQBvAG4AaQB2AG8ALgAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAADAQIBAwd1" +
+        "bmkwMEEwB3VuaTIwQzQAAA=="
+
+    private static let bold =
+        "AAEAAAAKAIAAAwAgT1MvMmmifb4AAAEoAAAAYGNtYXAAtCFOAAABmAAAAERnbHlmkTuxWQAAAegAAAC0aGVhZGppSmwAAACs" +
+        "AAAANmhoZWETqAljAAAA5AAAACRobXR4E0oAZAAAAYgAAAAQbG9jYQBaAAAAAAHcAAAACm1heHAABgA8AAABCAAAACBuYW1l" +
+        "YBazFAAAApwAAAONcG9zdGJCckwAAAYsAAAAOgABAAAAAQAABkr/pF8PPPUAAwfQAAAAAAAAAAAAAAAAAAAAAABkAAAK7gWk" +
+        "AAEAAwACAAAAAAAAAAEAAAhU/agAAAtSAGQAZAruAAEAAAAAAAAAAAAAAAAAAAAEAAEAAAAEADoAAQAAAAAAAgAAAAAAAAAA" +
+        "AAAAAAAAAAAABATTArwABQAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAATU5WTwCg" +
+        "ACAgxAhU/agAAAhUAlgAAAABAAAAAAQ4BaAAAAAgAAAD6AAAAggAAAIIAAALUgBkAAAAAgAAAAMAAAAUAAMAAQAAABQABAAw" +
+        "AAAACAAIAAIAAAAgAKAgxP//AAAAIACgIMT////h/2LfPwABAAAAAAAAAAAAAAAAAAAAAABaAAAAAQBkAAAK7gWkADkAAAET" +
+        "JSY+Azc+Ah4CFx4DBwMuBAcOAgcGHgMXIQMhHgIXHgQzIQMhEyEnIQFbngIeAhAhMkEnKVtiZWJbKAgaGhMBayVVXmhxPxMs" +
+        "JgoPAxkmKhAF7Z/7zhc4PBwJIiopIQcCjqD3DKED8HP82QG9AR4CPIGBfW8vLzINEik6IwYYHBoJ/mcqVUg0FQoDGSERGTU2" +
+        "MSwQ/uAUJR8NBA0QDgn+4AEgnQAAAAAQAMYAAQAAAAAAAABDAAAAAQAAAAAAAQARAEMAAQAAAAAAAgAEAFQAAQAAAAAAAwAa" +
+        "AFgAAQAAAAAABAAWAHIAAQAAAAAABQANAIgAAQAAAAAABgAUAJUAAQAAAAAACgBEAKkAAwABBAkAAACGAO0AAwABBAkAAQAi" +
+        "AXMAAwABBAkAAgAIAZUAAwABBAkAAwA0AZ0AAwABBAkABAAsAdEAAwABBAkABQAaAf0AAwABBAkABgAoAhcAAwABBAkACgCI" +
+        "Aj9HbHlwaDogT21hbmkgUmlhbCBTaWduIGJ5IHRoZSBDZW50cmFsIEJhbmsgb2YgT21hbiAocHVibGljIGRvbWFpbikuTW9u" +
+        "aXZvIE9tYW5pIFJpYWxCb2xkTW9uaXZvT21hbmlSaWFsLUJvbGQ7MS4wMDBNb25pdm8gT21hbmkgUmlhbCBCb2xkVmVyc2lv" +
+        "biAxLjAwME1vbml2b09tYW5pUmlhbC1Cb2xkVSsyMEM0IE9NQU5JIFJJQUwgU0lHTiBvbmx5LCBtZXRyaWNzIG1hdGNoZWQg" +
+        "dG8gTWFucm9wZSwgZm9yIE1vbml2by4ARwBsAHkAcABoADoAIABPAG0AYQBuAGkAIABSAGkAYQBsACAAUwBpAGcAbgAgAGIA" +
+        "eQAgAHQAaABlACAAQwBlAG4AdAByAGEAbAAgAEIAYQBuAGsAIABvAGYAIABPAG0AYQBuACAAKABwAHUAYgBsAGkAYwAgAGQA" +
+        "bwBtAGEAaQBuACkALgBNAG8AbgBpAHYAbwAgAE8AbQBhAG4AaQAgAFIAaQBhAGwAQgBvAGwAZABNAG8AbgBpAHYAbwBPAG0A" +
+        "YQBuAGkAUgBpAGEAbAAtAEIAbwBsAGQAOwAxAC4AMAAwADAATQBvAG4AaQB2AG8AIABPAG0AYQBuAGkAIABSAGkAYQBsACAA" +
+        "QgBvAGwAZABWAGUAcgBzAGkAbwBuACAAMQAuADAAMAAwAE0AbwBuAGkAdgBvAE8AbQBhAG4AaQBSAGkAYQBsAC0AQgBvAGwA" +
+        "ZABVACsAMgAwAEMANAAgAE8ATQBBAE4ASQAgAFIASQBBAEwAIABTAEkARwBOACAAbwBuAGwAeQAsACAAbQBlAHQAcgBpAGMA" +
+        "cwAgAG0AYQB0AGMAaABlAGQAIAB0AG8AIABNAGEAbgByAG8AcABlACwAIABmAG8AcgAgAE0AbwBuAGkAdgBvAC4AAAAAAgAA" +
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAwECAQMHdW5pMDBBMAd1bmkyMEM0AAA="
+}
+
+// MARK: - Helpers
+
+/// The first of its views that fits (ViewThatFits on iOS 16+). iOS 15 has no
+/// way to measure, so it picks by text size: the first layout up to xxLarge,
+/// the next-to-last above it.
+private struct Fitting<A: View, B: View, C: View, D: View, E: View>: View {
+    let axis: Axis.Set
+    let count: Int
+    let a: A, b: B, c: C, d: D, e: E
+
+    init(axis: Axis.Set = .vertical, @ViewBuilder _ views: () -> TupleView<(A, B, C)>)
+    where D == EmptyView, E == EmptyView {
+        self.axis = axis
+        count = 3
+        (a, b, c) = views().value
+        d = EmptyView(); e = EmptyView()
+    }
+
+    init(axis: Axis.Set = .vertical, @ViewBuilder _ views: () -> TupleView<(A, B, C, D)>)
+    where E == EmptyView {
+        self.axis = axis
+        count = 4
+        (a, b, c, d) = views().value
+        e = EmptyView()
+    }
+
+    init(axis: Axis.Set = .vertical, @ViewBuilder _ views: () -> TupleView<(A, B, C, D, E)>) {
+        self.axis = axis
+        count = 5
+        (a, b, c, d, e) = views().value
+    }
+
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        if #available(iOS 16.0, *) {
+            switch count {
+            case 3: ViewThatFits(in: axis) { a; b; c }
+            case 4: ViewThatFits(in: axis) { a; b; c; d }
+            default: ViewThatFits(in: axis) { a; b; c; d; e }
+            }
+        } else if typeSize >= .xxxLarge {
+            switch count {
+            case 3: b
+            case 4: c
+            default: d
+            }
         } else {
-            return "Open app to refresh"
+            a
+        }
+    }
+}
+
+private extension View {
+    /// The widget's background: the palette surface, with iOS 17's system
+    /// margins, or this padding before iOS 17.
+    @ViewBuilder
+    func widgetSurface(_ color: Color) -> some View {
+        if #available(iOS 17.0, *) {
+            containerBackground(for: .widget) { color }
+        } else {
+            padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(color)
+        }
+    }
+
+    /// Tinted in the accented and vibrant renderings (iOS 16+).
+    @ViewBuilder
+    func accentable() -> some View {
+        if #available(iOS 16.0, *) { widgetAccentable() } else { self }
+    }
+}
+
+private extension Text {
+    /// Text set left to right, like the app: a figure that starts with an
+    /// Arabic-script currency symbol (ر.ع.) would otherwise turn the whole
+    /// line right to left and move the symbol after the digits.
+    init(ltr text: String) {
+        self.init(verbatim: "\u{200E}" + text)
+    }
+}
+
+private extension Font.TextStyle {
+    var uiKit: UIFont.TextStyle {
+        switch self {
+        case .largeTitle: return .largeTitle
+        case .title: return .title1
+        case .title2: return .title2
+        case .title3: return .title3
+        case .headline: return .headline
+        case .subheadline: return .subheadline
+        case .callout: return .callout
+        case .footnote: return .footnote
+        case .caption: return .caption1
+        case .caption2: return .caption2
+        default: return .body
+        }
+    }
+}
+
+private extension DynamicTypeSize {
+    var uiKit: UIContentSizeCategory {
+        switch self {
+        case .xSmall: return .extraSmall
+        case .small: return .small
+        case .medium: return .medium
+        case .large: return .large
+        case .xLarge: return .extraLarge
+        case .xxLarge: return .extraExtraLarge
+        case .xxxLarge: return .extraExtraExtraLarge
+        case .accessibility1: return .accessibilityMedium
+        case .accessibility2: return .accessibilityLarge
+        case .accessibility3: return .accessibilityExtraLarge
+        case .accessibility4: return .accessibilityExtraExtraLarge
+        case .accessibility5: return .accessibilityExtraExtraExtraLarge
+        @unknown default: return .large
         }
     }
 }
@@ -258,11 +859,10 @@ struct MonivoWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             MonivoWidgetEntryView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Monivo")
-        .description("Shows your active budget's safe spending for today, what you've spent today, and its status at a glance.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .description("Today's safe spending for your active budget, at a glance.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 

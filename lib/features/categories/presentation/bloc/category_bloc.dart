@@ -8,6 +8,7 @@ import '../../domain/usecases/load_categories_usecase.dart';
 import '../../domain/usecases/save_category_usecase.dart';
 import 'category_event.dart';
 import 'category_state.dart';
+import '../category_failure_copy.dart';
 
 /// Manages the category list and its edits.
 ///
@@ -64,7 +65,9 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         emit(
           state.copyWith(
             status: CategoryBlocStatus.loaded,
-            errorMessage: failure.message,
+            errorMessage: failure.shown(
+              "Couldn't save the category. Try again.",
+            ),
           ),
         );
     }
@@ -91,7 +94,9 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         emit(
           state.copyWith(
             status: CategoryBlocStatus.loaded,
-            errorMessage: failure.message,
+            errorMessage: failure.shown(
+              "Couldn't change the category. Try again.",
+            ),
           ),
         );
     }
@@ -113,7 +118,9 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         emit(
           state.copyWith(
             status: CategoryBlocStatus.loaded,
-            errorMessage: failure.message,
+            errorMessage: failure.shown(
+              "Couldn't delete the category. Try again.",
+            ),
           ),
         );
     }
@@ -134,7 +141,9 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         emit(
           state.copyWith(
             status: CategoryBlocStatus.error,
-            errorMessage: failure.message,
+            errorMessage: failure.shown(
+              "Couldn't load your categories. Try again.",
+            ),
           ),
         );
     }

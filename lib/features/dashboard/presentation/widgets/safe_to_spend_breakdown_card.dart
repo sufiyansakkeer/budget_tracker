@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../../core/theme/contrast.dart';
-import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_forecast.dart';
 import 'dashboard_info.dart';
 import 'safe_to_spend_copy.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 
 /// "Free to spend": how the active budget's remaining money becomes the
 /// amount that is free to spend until its end date, followed by the
@@ -25,7 +27,15 @@ import 'safe_to_spend_copy.dart';
 class SafeToSpendBreakdownCard extends StatefulWidget {
   final SafeToSpendEntity safeToSpend;
 
-  const SafeToSpendBreakdownCard({super.key, required this.safeToSpend});
+  /// Shown right after the "= Free to spend" row, before the forecast: the
+  /// Home sheet continues the working there down to today's amount.
+  final Widget? afterFreeToSpend;
+
+  const SafeToSpendBreakdownCard({
+    super.key,
+    required this.safeToSpend,
+    this.afterFreeToSpend,
+  });
 
   @override
   State<SafeToSpendBreakdownCard> createState() =>
@@ -42,83 +52,85 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
     final cur = e.currency;
     final forecast = e.forecast;
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Flexible(
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    'Free to spend',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+    // Flat: it is shown in a sheet (Home) or on a sunken surface (a budget
+    // that has not started), never as a bordered card of its own.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Semantics(
+                header: true,
+                child: Text(
+                  'Free to spend',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              InfoIcon(content: DashboardInfo.freeToSpend(cur)),
-            ],
-          ),
-          _BreakdownRow(
-            label: 'Remaining in budget',
-            value: SafeToSpendCopy.amount(e.availableBalance, cur),
-            semanticsLabel:
-                'Remaining in budget, '
-                '${SafeToSpendCopy.amount(e.availableBalance, cur)}',
-          ),
-          ..._billsRows(context, e),
-          _BreakdownRow(
-            operator: '−',
-            label: 'Kept aside',
-            value: e.reservedAmount == null
-                ? 'Not set'
-                : SafeToSpendCopy.amount(e.reservedAmount!, cur),
-            muted: e.reservedAmount == null,
-            semanticsLabel: e.reservedAmount == null
-                ? 'Kept aside, not set'
-                : 'Kept aside, minus '
-                      '${SafeToSpendCopy.amount(e.reservedAmount!, cur)}',
-          ),
-          _BreakdownRow(
-            operator: '−',
-            label: 'Savings goal',
-            value: e.remainingSavingsTarget == null
-                ? 'Not set'
-                : SafeToSpendCopy.amount(e.remainingSavingsTarget!, cur),
-            muted: e.remainingSavingsTarget == null,
-            semanticsLabel: e.remainingSavingsTarget == null
-                ? 'Savings goal, not set'
-                : 'Savings goal, minus '
-                      '${SafeToSpendCopy.amount(e.remainingSavingsTarget!, cur)}',
-          ),
+            ),
+            InfoIcon(content: DashboardInfo.freeToSpend(cur)),
+          ],
+        ),
+        BreakdownRow(
+          label: 'Remaining in budget',
+          value: SafeToSpendCopy.amount(e.availableBalance, cur),
+          semanticsLabel:
+              'Remaining in budget, '
+              '${SafeToSpendCopy.amount(e.availableBalance, cur)}',
+        ),
+        ..._billsRows(context, e),
+        BreakdownRow(
+          operator: '−',
+          label: 'Kept aside',
+          value: e.reservedAmount == null
+              ? 'Not set'
+              : SafeToSpendCopy.amount(e.reservedAmount!, cur),
+          muted: e.reservedAmount == null,
+          semanticsLabel: e.reservedAmount == null
+              ? 'Kept aside, not set'
+              : 'Kept aside, minus '
+                    '${SafeToSpendCopy.amount(e.reservedAmount!, cur)}',
+        ),
+        BreakdownRow(
+          operator: '−',
+          label: 'Savings goal',
+          value: e.remainingSavingsTarget == null
+              ? 'Not set'
+              : SafeToSpendCopy.amount(e.remainingSavingsTarget!, cur),
+          muted: e.remainingSavingsTarget == null,
+          semanticsLabel: e.remainingSavingsTarget == null
+              ? 'Savings goal, not set'
+              : 'Savings goal, minus '
+                    '${SafeToSpendCopy.amount(e.remainingSavingsTarget!, cur)}',
+        ),
+        Divider(height: AppSpacing.md, color: theme.colorScheme.outlineVariant),
+        BreakdownRow(
+          operator: '=',
+          label: SafeToSpendCopy.freeToSpendLabel(e),
+          value: SafeToSpendCopy.freeToSpendValue(e),
+          emphasized: true,
+          // A shortfall is money the bills need and the budget does not
+          // have: already gone, so critical.
+          valueColor: e.shortfall > 0
+              ? context.tone(AppTone.critical).accent
+              : null,
+          semanticsLabel:
+              'Free to spend until ${SafeToSpendCopy.spokenDate(e.endDate)}, '
+              '${SafeToSpendCopy.freeToSpendValue(e)}',
+        ),
+        ?widget.afterFreeToSpend,
+        if (forecast != null) ...[
           Divider(
-            height: AppSpacing.md,
+            height: AppSpacing.lg,
             color: theme.colorScheme.outlineVariant,
           ),
-          _BreakdownRow(
-            operator: '=',
-            label: SafeToSpendCopy.freeToSpendLabel(e),
-            value: SafeToSpendCopy.freeToSpendValue(e),
-            emphasized: true,
-            valueColor: e.shortfall > 0 ? context.appColors.error : null,
-            semanticsLabel:
-                'Free to spend until ${SafeToSpendCopy.spokenDate(e.endDate)}, '
-                '${SafeToSpendCopy.freeToSpendValue(e)}',
-          ),
-          if (forecast != null) ...[
-            Divider(
-              height: AppSpacing.lg,
-              color: theme.colorScheme.outlineVariant,
-            ),
-            _ForecastSection(entity: e, forecast: forecast),
-          ],
+          _ForecastSection(entity: e, forecast: forecast),
         ],
-      ),
+      ],
     );
   }
 
@@ -126,7 +138,7 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
     final cur = e.currency;
     if (!e.commitmentsAvailable) {
       return const [
-        _BreakdownRow(
+        BreakdownRow(
           operator: '−',
           label: 'Bills due',
           value: 'Unavailable',
@@ -138,7 +150,7 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
     if (e.commitments.isEmpty) {
       final zero = SafeToSpendCopy.amount(0, cur);
       return [
-        _BreakdownRow(
+        BreakdownRow(
           operator: '−',
           label: 'No bills due this period',
           value: zero,
@@ -166,7 +178,7 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
         child: InkWell(
           onTap: toggle,
           borderRadius: AppSpacing.borderRadiusSm,
-          child: _BreakdownRow(
+          child: BreakdownRow(
             operator: '−',
             label: SafeToSpendCopy.billsDueLabel(e),
             value: total,
@@ -182,7 +194,7 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
           ),
         ),
       ),
-      AnimatedSize(
+      AppAnimatedSize(
         duration: duration,
         curve: AppMotion.standardCurve,
         alignment: Alignment.topCenter,
@@ -216,7 +228,11 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
 
 /// One line of the breakdown: operator, label, value. At least 48dp tall so
 /// the expandable bills row is a full-size tap target.
-class _BreakdownRow extends StatelessWidget {
+///
+/// The value hugs the right edge and the label takes the rest of the row.
+/// At large text sizes the value moves under its label instead, so neither
+/// is cut short.
+class BreakdownRow extends StatelessWidget {
   final String? operator;
   final String label;
   final String value;
@@ -226,7 +242,8 @@ class _BreakdownRow extends StatelessWidget {
   final Color? valueColor;
   final Widget? trailing;
 
-  const _BreakdownRow({
+  const BreakdownRow({
+    super.key,
     this.operator,
     required this.label,
     required this.value,
@@ -241,6 +258,7 @@ class _BreakdownRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final typography = context.appTypography;
     final labelStyle =
         (emphasized ? theme.textTheme.titleSmall : theme.textTheme.bodyMedium)
             ?.copyWith(
@@ -249,47 +267,97 @@ class _BreakdownRow extends StatelessWidget {
                   : colorScheme.onSurfaceVariant,
             );
     final valueStyle =
-        (emphasized ? theme.textTheme.titleMedium : theme.textTheme.bodyMedium)
-            ?.copyWith(
-              color: valueColor != null
-                  ? Contrast.ensureContrast(valueColor!, colorScheme.surface)
-                  : (muted
-                        ? colorScheme.onSurfaceVariant
-                        : colorScheme.onSurface),
-              fontWeight: emphasized ? FontWeight.w600 : null,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            );
-    final row = ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 48),
-      child: Row(
-        children: [
-          SizedBox(
-            width: AppSpacing.lg,
-            child: Text(operator ?? '', style: labelStyle),
-          ),
-          Expanded(
-            child: Text(
-              label,
-              style: labelStyle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: AlignmentDirectional.centerEnd,
-              child: Text(value, style: valueStyle, maxLines: 1),
-            ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: AppSpacing.xs),
-            trailing!,
-          ],
-        ],
-      ),
+        (emphasized ? typography.moneyTitle : typography.moneyBody).copyWith(
+          color:
+              valueColor ??
+              (muted ? colorScheme.onSurfaceVariant : colorScheme.onSurface),
+          fontWeight: muted ? FontWeight.w500 : null,
+        );
+    final operatorBox = SizedBox(
+      width: AppSpacing.lg,
+      child: Text(operator ?? '', style: labelStyle),
     );
+    final valueText = Text(
+      value,
+      style: valueStyle,
+      maxLines: 1,
+      textAlign: TextAlign.end,
+    );
+    // Roughly 1.5× text: past it a label and a value no longer share a
+    // line comfortably on a phone.
+    final stacked = MediaQuery.textScalerOf(context).scale(16) > 24;
+
+    final Widget row;
+    if (stacked) {
+      row = Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            operatorBox,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(label, style: labelStyle),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: valueText,
+                        ),
+                      ),
+                      if (trailing != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        trailing!,
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      row = ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              operatorBox,
+              Expanded(
+                child: Text(
+                  label,
+                  style: labelStyle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * 0.45,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: valueText,
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: AppSpacing.xs),
+                trailing!,
+              ],
+            ],
+          ),
+        ),
+      );
+    }
     if (semanticsLabel == null) return row;
     return Semantics(
       container: true,
@@ -402,26 +470,27 @@ class _ForecastSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         title,
-        _BreakdownRow(
+        BreakdownRow(
           label: 'Average a day so far',
           value: average,
           semanticsLabel: 'Average a day so far, $average',
         ),
-        _BreakdownRow(
+        BreakdownRow(
           label: 'Projected spending by $end',
           value: projected,
           semanticsLabel: 'Projected spending by $spokenEnd, $projected',
         ),
         endBalance >= 0
-            ? _BreakdownRow(
+            ? BreakdownRow(
                 label: 'Projected left on $end',
                 value: endText,
                 semanticsLabel: 'Projected left on $spokenEnd, $endText',
               )
-            : _BreakdownRow(
+            : BreakdownRow(
                 label: 'Projected short on $end',
                 value: '$endText short',
-                valueColor: context.appColors.error,
+                // A projection, not money already gone: caution.
+                valueColor: context.tone(AppTone.caution).accent,
                 semanticsLabel: 'Projected short on $spokenEnd, $endText',
               ),
         if (exhaustion != null) ...[

@@ -1,27 +1,25 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
 import '../../core/di/injection.dart';
-import '../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../budget/domain/repository/budget_repository.dart';
 import '../dashboard/domain/entities/budget_daily_limit_entity.dart';
 import '../dashboard/domain/usecases/get_spending_targets_usecase.dart';
+import '../settings/domain/entities/color_palette_entity.dart';
+import '../settings/presentation/bloc/theme/theme_bloc.dart';
+import 'home_widget_payload.dart';
 
-/// Keys used to store widget data in SharedPreferences.
+/// Keys used to store widget data in the shared widget store
+/// (SharedPreferences on Android, the App Group's UserDefaults on iOS).
 /// Native widgets read these keys directly.
 class WidgetDataKeys {
   WidgetDataKeys._();
 
-  static const String dailySafeSpending = 'home_widget_daily_safe';
-  static const String spentToday = 'home_widget_spent_today';
-  static const String status = 'home_widget_status';
-  static const String remainingBudget = 'home_widget_remaining';
-  static const String remainingDays = 'home_widget_remaining_days';
-  static const String currency = 'home_widget_currency';
-  static const String lastUpdated = 'home_widget_last_updated';
-  static const String hasActiveBudget = 'home_widget_has_budget';
+  /// The whole widget state as one JSON string ([HomeWidgetPayload]).
+  static const String payload = 'home_widget_payload';
   static const String quickActionPayload = 'home_widget_quick_action';
 }
 
@@ -60,171 +58,145 @@ String? resolveWidgetUriToRoute(Uri? uri) {
 /// Service that bridges the existing budget/expense architecture with
 /// home-screen widgets.
 ///
-/// The widget shows the ACTIVE budget only: its Today's Safe Spending, Spent
-/// Today, Remaining Budget and remaining days. Amounts are never combined
-/// across budgets. All calculations come from the existing use cases — no
-/// new formulas.
+/// The widget shows the ACTIVE budget only: its Today's Safe Spending, what
+/// was spent and is left today, and the budget behind it. Amounts are never
+/// combined across budgets. All figures come from the existing use cases and
+/// are worded by [HomeWidgetPayload] with the app's own formatters — no new
+/// formulas, and no money formatting in native code.
 class HomeWidgetService {
   final BudgetRepository _budgetRepository;
   final GetSpendingTargetsUseCase _getSpendingTargetsUseCase;
+  final Future<ColorPalette> Function() _palette;
+
+  /// Updates run one after another, so a slow older update can never
+  /// overwrite a newer one.
+  Future<void> _queue = Future<void>.value();
 
   HomeWidgetService({
     required BudgetRepository budgetRepository,
     required GetSpendingTargetsUseCase getSpendingTargetsUseCase,
+    Future<ColorPalette> Function()? palette,
   }) : _budgetRepository = budgetRepository,
-       _getSpendingTargetsUseCase = getSpendingTargetsUseCase;
+       _getSpendingTargetsUseCase = getSpendingTargetsUseCase,
+       _palette = palette ?? (() async => ColorPalette.defaultPalette);
 
-  /// Creates an instance using getIt dependencies.
+  /// Creates an instance using getIt dependencies. The widget follows the
+  /// palette the user picked in the app.
   factory HomeWidgetService.fromDI() {
     return HomeWidgetService(
       budgetRepository: getIt<BudgetRepository>(),
       getSpendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
+      palette: () async {
+        // main() stops waiting for the saved theme after a second; the
+        // widget must still get the user's palette, not the default.
+        final themes = getIt<ThemeBloc>();
+        await themes.ready;
+        return themes.state.palette;
+      },
     );
   }
 
-  /// Computes current widget data from the existing budget architecture
-  /// and persists it via [HomeWidget.saveWidgetData].
+  /// Works out the widget's state from the existing budget architecture,
+  /// stores it and asks the native widgets to redraw.
   ///
   /// Does NOT duplicate any calculation — reuses [GetSpendingTargetsUseCase].
-  Future<void> updateWidgetData({DateTime? referenceDate}) async {
+  Future<void> updateWidgetData({DateTime? referenceDate}) {
+    final next = _queue.then((_) => _update(referenceDate));
+    _queue = next.catchError((Object _) {});
+    return next;
+  }
+
+  Future<void> _update(DateTime? referenceDate) async {
+    final now = referenceDate ?? DateTime.now();
+    Map<String, Object?> payload;
     try {
-      final now = referenceDate ?? DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-
-      // ── Determine which budgets are active today ──────────────────────
-      final activeId = await _budgetRepository.getActiveBudgetId();
-      if (activeId == null) {
-        await _writeNoBudgetState();
-        await _updateNativeWidgets();
-        return;
-      }
-
-      // ── Use existing GetSpendingTargetsUseCase for per-budget limits ──
-      final perBudgetResult = await _getSpendingTargetsUseCase.callPerBudget(
-        referenceDate: today,
-      );
-
-      if (perBudgetResult is PerBudgetSpendingTargetNoBudget) {
-        await _writeNoBudgetState();
-        await _updateNativeWidgets();
-        return;
-      }
-
-      if (perBudgetResult is PerBudgetSpendingTargetError) {
-        await _writeErrorState();
-        await _updateNativeWidgets();
-        return;
-      }
-
-      final success = perBudgetResult as PerBudgetSpendingTargetSuccess;
-      final budgetLimits = success.budgetLimits;
-
-      if (budgetLimits.isEmpty) {
-        await _writeNoBudgetState();
-        await _updateNativeWidgets();
-        return;
-      }
-
-      // ── Use the ACTIVE budget's limit only (never combined) ───────────
-      BudgetDailyLimitEntity? active;
-      for (final bl in budgetLimits) {
-        if (bl.budgetId == activeId) {
-          active = bl;
-          break;
-        }
-      }
-      if (active == null) {
-        // The active budget's period does not include today.
-        await _writeNoBudgetState();
-        await _updateNativeWidgets();
-        return;
-      }
-
-      final dailySafe = active.dailyLimit;
-      final spentToday = active.spentToday;
-      final remainingBudget = active.remainingBudget;
-      final remainingDays = active.remainingDays;
-      final currency = active.currency;
-
-      // ── Derive status ─────────────────────────────────────────────────
-      final status = statusFor(active);
-
-      // ── Write data to SharedPreferences via home_widget ───────────────
-      await _saveString(
-        WidgetDataKeys.dailySafeSpending,
-        dailySafe.toStringAsFixed(2),
-      );
-      await _saveString(
-        WidgetDataKeys.spentToday,
-        spentToday.toStringAsFixed(2),
-      );
-      await _saveString(WidgetDataKeys.status, status);
-      await _saveString(
-        WidgetDataKeys.remainingBudget,
-        remainingBudget.toStringAsFixed(2),
-      );
-      await _saveString(WidgetDataKeys.remainingDays, remainingDays.toString());
-      await _saveString(WidgetDataKeys.currency, currency);
-      await _saveString(
-        WidgetDataKeys.lastUpdated,
-        DateTime.now().toIso8601String(),
-      );
-      await _saveString(WidgetDataKeys.hasActiveBudget, 'true');
-
-      // ── Notify native widgets to refresh ──────────────────────────────
-      await _updateNativeWidgets();
+      payload = await buildPayload(now);
     } catch (e) {
       developer.log(
         '[HomeWidgetService] Error updating widget data: $e',
         name: 'HomeWidgetService',
       );
-      await _writeErrorState();
-      await _updateNativeWidgets();
+      payload = HomeWidgetPayload.error(
+        now: now,
+        palette: await _safePalette(),
+      );
+    }
+    try {
+      await HomeWidget.saveWidgetData<String>(
+        WidgetDataKeys.payload,
+        HomeWidgetPayload.encode(payload),
+      );
+    } catch (e) {
+      developer.log(
+        '[HomeWidgetService] Error saving widget data: $e',
+        name: 'HomeWidgetService',
+      );
+    }
+    await _updateNativeWidgets();
+  }
+
+  /// The payload for [now]: the active budget's figures when it runs today,
+  /// otherwise the no-budget or error state.
+  @visibleForTesting
+  Future<Map<String, Object?>> buildPayload(DateTime now) async {
+    final palette = await _safePalette();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final activeId = await _budgetRepository.getActiveBudgetId();
+    if (activeId == null) {
+      return HomeWidgetPayload.noBudget(now: now, palette: palette);
+    }
+
+    final result = await _getSpendingTargetsUseCase.callPerBudget(
+      referenceDate: today,
+    );
+    switch (result) {
+      case PerBudgetSpendingTargetNoBudget():
+        return HomeWidgetPayload.noBudget(now: now, palette: palette);
+      case PerBudgetSpendingTargetError():
+        return HomeWidgetPayload.error(now: now, palette: palette);
+      case PerBudgetSpendingTargetSuccess(:final budgetLimits):
+        // The ACTIVE budget's limit only (never combined).
+        BudgetDailyLimitEntity? active;
+        for (final limit in budgetLimits) {
+          if (limit.budgetId == activeId) {
+            active = limit;
+            break;
+          }
+        }
+        // Not running today: its period does not include today.
+        if (active == null) {
+          return HomeWidgetPayload.noBudget(now: now, palette: palette);
+        }
+        final engine = active.safeToSpend;
+        // Every running budget's limit carries the engine's result; without
+        // it there is no figure to show (Home shows its unavailable state).
+        if (engine == null) {
+          return HomeWidgetPayload.error(now: now, palette: palette);
+        }
+        return HomeWidgetPayload.ready(
+          engine,
+          budgetUtilization: active.budgetUtilization,
+          now: now,
+          palette: palette,
+        );
     }
   }
 
-  /// The status string the native widgets parse, for a budget running
-  /// today (taken from the safe-to-spend engine, never recomputed here):
-  /// - `short:<amount>` — over budget, or bills and money set aside exceed
-  ///   what is left (the daily amount is 0, so it is not "no budget");
-  /// - `over:<amount>` — spent more than today's safe amount;
-  /// - `careful` — spend carefully, or the budget is at risk;
-  /// - `on_track`.
-  ///
-  /// `no_budget` is written only when no budget is running today. Amounts
-  /// are rounded up to whole units, so a shortfall is never understated.
-  static String statusFor(BudgetDailyLimitEntity limit) {
-    final entity = limit.safeToSpend;
-    if (entity == null) {
-      // Legacy figures without an engine result.
-      if (limit.exceededToday > 0) {
-        return 'over:${_wholeUnits(limit.exceededToday)}';
-      }
-      return limit.dailyLimit > 0 ? 'on_track' : 'careful';
+  Future<ColorPalette> _safePalette() async {
+    try {
+      return await _palette();
+    } catch (_) {
+      return ColorPalette.defaultPalette;
     }
-    return switch (entity.status) {
-      SafeToSpendStatus.overBudget || SafeToSpendStatus.overcommitted =>
-        'short:${_wholeUnits(entity.shortfall)}',
-      SafeToSpendStatus.overDailyAllowance =>
-        'over:${_wholeUnits(entity.overToday)}',
-      SafeToSpendStatus.budgetAtRisk ||
-      SafeToSpendStatus.spendingCarefully => 'careful',
-      SafeToSpendStatus.onTrack => 'on_track',
-      // Not running today: callers write the no-budget state instead.
-      SafeToSpendStatus.notStarted ||
-      SafeToSpendStatus.periodEnded => 'no_budget',
-    };
-  }
-
-  static String _wholeUnits(double amount) {
-    // The epsilon keeps float noise (300.0000000001) from adding a unit.
-    final units = (amount - 1e-9).ceil();
-    return (units < 0 ? 0 : units).toString();
   }
 
   /// Saves the quick-action payload so the widget can trigger navigation.
   Future<void> setQuickActionPayload(String route) async {
-    await _saveString(WidgetDataKeys.quickActionPayload, route);
+    await HomeWidget.saveWidgetData<String>(
+      WidgetDataKeys.quickActionPayload,
+      route,
+    );
   }
 
   /// Clears the quick-action payload after it has been consumed.
@@ -238,40 +210,6 @@ class HomeWidgetService {
   /// Reads the quick-action payload that was set before app launch.
   Future<String?> getQuickActionPayload() async {
     return HomeWidget.getWidgetData<String>(WidgetDataKeys.quickActionPayload);
-  }
-
-  // ── Private helpers ──────────────────────────────────────────────────────
-
-  Future<void> _saveString(String key, String value) async {
-    await HomeWidget.saveWidgetData<String>(key, value);
-  }
-
-  Future<void> _writeNoBudgetState() async {
-    await _saveString(WidgetDataKeys.hasActiveBudget, 'false');
-    await _saveString(WidgetDataKeys.dailySafeSpending, '0');
-    await _saveString(WidgetDataKeys.spentToday, '0');
-    await _saveString(WidgetDataKeys.status, 'no_budget');
-    await _saveString(WidgetDataKeys.remainingBudget, '0');
-    await _saveString(WidgetDataKeys.remainingDays, '0');
-    await _saveString(WidgetDataKeys.currency, 'INR');
-    await _saveString(
-      WidgetDataKeys.lastUpdated,
-      DateTime.now().toIso8601String(),
-    );
-  }
-
-  Future<void> _writeErrorState() async {
-    await _saveString(WidgetDataKeys.hasActiveBudget, 'false');
-    await _saveString(WidgetDataKeys.dailySafeSpending, '0');
-    await _saveString(WidgetDataKeys.spentToday, '0');
-    await _saveString(WidgetDataKeys.status, 'error');
-    await _saveString(WidgetDataKeys.remainingBudget, '0');
-    await _saveString(WidgetDataKeys.remainingDays, '0');
-    await _saveString(WidgetDataKeys.currency, 'INR');
-    await _saveString(
-      WidgetDataKeys.lastUpdated,
-      DateTime.now().toIso8601String(),
-    );
   }
 
   Future<void> _updateNativeWidgets() async {

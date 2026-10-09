@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/money_input.dart';
 
 /// Large amount input with currency prefix, decimal support and inline
 /// validation. Autofocuses so adding an expense starts with the number.
@@ -17,6 +18,10 @@ class ExpenseAmountField extends StatefulWidget {
   final bool autofocus;
   final FocusNode? focusNode;
 
+  /// Decimals the amount may have: the currency's minor units, never fewer
+  /// than two ([MoneyInput.maxDecimals]).
+  final int maxDecimals;
+
   const ExpenseAmountField({
     super.key,
     required this.controller,
@@ -25,6 +30,7 @@ class ExpenseAmountField extends StatefulWidget {
     this.onChanged,
     this.autofocus = false,
     this.focusNode,
+    this.maxDecimals = 2,
   });
 
   @override
@@ -97,7 +103,9 @@ class _ExpenseAmountFieldState extends State<ExpenseAmountField> {
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textInputAction: TextInputAction.done,
         inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+          FilteringTextInputFormatter.allow(
+            MoneyInput.pattern(widget.maxDecimals),
+          ),
         ],
         style: amountStyle,
         decoration: InputDecoration(

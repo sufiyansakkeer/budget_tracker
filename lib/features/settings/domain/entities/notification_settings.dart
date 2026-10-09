@@ -7,15 +7,22 @@ class NotificationTime extends Equatable {
 
   const NotificationTime({required this.hour, required this.minute});
 
-  /// Parses a "HH:mm" string.
-  static NotificationTime fromString(String? value) {
-    if (value == null || value.isEmpty) {
-      return const NotificationTime(hour: 9, minute: 0);
-    }
+  /// Parses a "HH:mm" string, returning [fallback] when [value] is missing
+  /// or malformed.
+  ///
+  /// Each setting passes its own default as [fallback]: with one shared
+  /// default, an evening summary that was never stored came back as 9:00 AM
+  /// instead of its 8:00 PM default.
+  static NotificationTime fromString(
+    String? value, {
+    NotificationTime fallback = const NotificationTime(hour: 9, minute: 0),
+  }) {
+    if (value == null || value.isEmpty) return fallback;
     final parts = value.split(':');
-    if (parts.length != 2) return const NotificationTime(hour: 9, minute: 0);
-    final hour = int.tryParse(parts[0]) ?? 9;
-    final minute = int.tryParse(parts[1]) ?? 0;
+    if (parts.length != 2) return fallback;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return fallback;
     return NotificationTime(
       hour: hour.clamp(0, 23),
       minute: minute.clamp(0, 59),

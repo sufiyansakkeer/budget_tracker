@@ -1,0 +1,6 @@
+# Golden tests compare pixels, and font rasterisation differs between macOS
+# and the Linux CI runners, so they are tagged and run on macOS only (see
+# test/goldens/golden_harness.dart). Regenerate on a Mac with:
+#   flutter test --tags golden --update-goldens
+tags:
+  golden:

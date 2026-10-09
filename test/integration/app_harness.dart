@@ -16,6 +16,7 @@ import 'package:monivo/features/dashboard/data/datasource/dashboard_local_dataso
 import 'package:monivo/features/dashboard/data/repository/dashboard_repository_impl.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_spending_pace_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -174,6 +175,11 @@ class AppHarness {
     getSafeToSpendUseCase: getSafeToSpend,
     budgetRepository: budgetRepository,
     billRepository: billRepository,
+    getSpendingPaceUseCase: GetSpendingPaceUseCase(
+      repository: DashboardRepositoryImpl(
+        localDataSource: DashboardLocalDataSourceImpl(database: database),
+      ),
+    ),
     clock: clock,
   );
 

@@ -3,16 +3,28 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../domain/entities/report_period.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
-/// Horizontal period selector used to switch report periods.
+/// The one place a report's dates are chosen: "This Budget" (the active
+/// budget's own period), the calendar presets and Custom. The filter sheet
+/// on Reports offers no dates, so the range shown is always the range used.
 class PeriodSelector extends StatelessWidget {
   final ReportPeriod selected;
+
+  /// Whether "This Budget" is the current choice; the report then uses a
+  /// custom range under the hood, which must not light up "Custom".
+  final bool followsBudget;
   final ValueChanged<ReportPeriod> onSelected;
+
+  /// Chooses "This Budget"; null hides the chip.
+  final VoidCallback? onBudget;
 
   const PeriodSelector({
     super.key,
     required this.selected,
     required this.onSelected,
+    this.followsBudget = false,
+    this.onBudget,
   });
 
   @override
@@ -21,16 +33,36 @@ class PeriodSelector extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
+          if (onBudget != null)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: ChoiceChip(
+                key: const Key('period_thisBudget'),
+                label: const Text('This Budget'),
+                avatar: const Icon(Icons.account_balance_wallet_outlined),
+                showCheckmark: false,
+                selected: followsBudget,
+                onSelected: (_) {
+                  AppHaptics.selection();
+                  onBudget!();
+                },
+              ),
+            ),
           for (final period in ReportPeriod.values)
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.sm),
               child: ChoiceChip(
+                key: Key('period_${period.name}'),
                 label: Text(period.label),
                 avatar: period.isCustom
                     ? const Icon(Icons.date_range_rounded)
                     : null,
-                selected: period == selected,
-                onSelected: (_) => onSelected(period),
+                showCheckmark: false,
+                selected: !followsBudget && period == selected,
+                onSelected: (_) {
+                  AppHaptics.selection();
+                  onSelected(period);
+                },
               ),
             ),
         ],

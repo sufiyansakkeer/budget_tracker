@@ -1,3 +1,4 @@
+import '../../../../core/currency/money_input.dart';
 import '../../../../core/currency/money_math.dart';
 
 /// Reusable, pure validation logic for bill inputs.
@@ -19,8 +20,9 @@ class BillValidator {
     return null;
   }
 
-  /// Validates an amount string. Returns null if valid.
-  static String? validateAmount(String? input) {
+  /// Validates an amount string in [currency]. Returns null if valid.
+  /// Decimals follow the currency's minor units, never fewer than two.
+  static String? validateAmount(String? input, {String? currency}) {
     if (input == null || input.trim().isEmpty) {
       return 'Amount cannot be empty';
     }
@@ -37,11 +39,7 @@ class BillValidator {
     if (!MoneyMath.isWithinLimit(value)) {
       return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
     }
-    final decimalParts = input.trim().split('.');
-    if (decimalParts.length > 1 && decimalParts[1].length > 2) {
-      return 'Amount cannot have more than 2 decimal places';
-    }
-    return null;
+    return MoneyInput.decimalsError(input, currency);
   }
 
   /// Validates a double amount value.

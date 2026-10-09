@@ -278,6 +278,9 @@ class AppRouter {
                         create: (context) => getIt<ExpenseBloc>(),
                         child: ExpenseFormScreen(
                           copyFromId: state.uri.queryParameters['copy'],
+                          prefill: ExpensePrefill.fromQuery(
+                            state.uri.queryParameters,
+                          ),
                         ),
                       ),
                     ),

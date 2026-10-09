@@ -72,6 +72,18 @@ void main() {
     test('returns null for valid decimal amount', () {
       expect(BillValidator.validateAmount('10.99'), isNull);
     });
+
+    test('OMR takes three decimal places (fils), not four', () {
+      expect(BillValidator.validateAmount('12.125', currency: 'OMR'), isNull);
+      expect(
+        BillValidator.validateAmount('12.1255', currency: 'OMR'),
+        'Amount cannot have more than 3 decimal places',
+      );
+      expect(
+        BillValidator.validateAmount('12.125', currency: 'INR'),
+        isNotNull,
+      );
+    });
   });
 
   group('BillValidator.validateAmountValue', () {

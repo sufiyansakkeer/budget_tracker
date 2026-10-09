@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,12 +34,23 @@ void homeWidgetCallbackDispatcher(Uri? uri) {
   // Handle background widget taps if needed in the future.
 }
 
+/// The bundled Manrope font is under the SIL Open Font License, which asks
+/// for its notice to travel with the font; this lists it under Settings →
+/// About → Open source licenses. Read lazily, only when that page opens.
+void _registerFontLicense() {
+  LicenseRegistry.addLicense(() async* {
+    final text = await rootBundle.loadString('assets/fonts/manrope/OFL.txt');
+    yield LicenseEntryWithLineBreaks(const ['Manrope'], text);
+  });
+}
+
 /// Global widget refresh listener — keeps the home-screen widget current
 /// after every expense or budget change.
 WidgetRefreshListener? _widgetRefreshListener;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _registerFontLicense();
   await di.initDependencyInjection();
 
   // The saved palette and light/dark mode are a single preferences read;
@@ -75,6 +87,12 @@ Future<void> main() async {
   // ── Home Widget: listen for data changes and refresh widget ───────────
   _widgetRefreshListener = WidgetRefreshListener(
     widgetService: HomeWidgetService.fromDI(),
+    // The widget is drawn in the user's palette.
+    appearanceChanges: di
+        .getIt<ThemeBloc>()
+        .stream
+        .map((state) => state.palette)
+        .distinct(),
   )..startListening();
 
   runApp(const SmartBudgetApp());

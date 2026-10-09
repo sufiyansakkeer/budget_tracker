@@ -6,13 +6,16 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/events/refresh_bus.dart';
-import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_list.dart';
+import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -28,8 +31,12 @@ import 'bill_payment_dialogs.dart';
 import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/widgets/app_animated_size.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
-/// Detailed view of a single bill.
+/// One bill: what it is and the amount on one surface with its facts
+/// (paid from, due, repeats, reminder), then the pay actions together right
+/// under it, the payment history and delete.
 class BillDetailsScreen extends StatefulWidget {
   final String billId;
 
@@ -43,6 +50,9 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
   List<BillPaymentRecord> _payments = const [];
   bool _paymentsFailed = false;
   bool _deleting = false;
+
+  /// The bill couldn't be read (as opposed to no longer existing).
+  bool _openFailed = false;
   Map<String, BudgetEntity> _budgetsById = const {};
   bool _budgetsLoaded = false;
   StreamSubscription<void>? _budgetSubscription;
@@ -146,6 +156,7 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
       body: BlocConsumer<BillBloc, BillState>(
         listener: (context, state) {
           if (state.status == BillBlocStatus.success) {
+            AppHaptics.confirm();
             final wasDelete = _deleting;
             context.read<BillBloc>().add(const BillClearMessage());
             ScaffoldMessenger.of(context)
@@ -163,14 +174,26 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               _loadPayments();
             }
           } else if (state.status == BillBlocStatus.error) {
-            setState(() => _deleting = false);
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(state.message ?? 'Something went wrong'),
-                ),
-              );
+            // A failed read shows the error view with a retry, not "not
+            // found" and a toast.
+            final openFailed =
+                state.selectedBill == null &&
+                state.message == BillBloc.openFailedMessage;
+            setState(() {
+              _deleting = false;
+              _openFailed = openFailed;
+            });
+            if (!openFailed) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      state.message ?? "Couldn't finish that. Try again.",
+                    ),
+                  ),
+                );
+            }
             context.read<BillBloc>().add(const BillClearMessage());
           }
         },
@@ -179,6 +202,16 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
           if (state.status == BillBlocStatus.loading &&
               state.selectedBill == null) {
             child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
+          } else if (state.selectedBill == null && _openFailed) {
+            child = ErrorState(
+              key: const ValueKey('error'),
+              title: "Couldn't open this bill",
+              message: "It's still on this device. Try again in a moment.",
+              onRetry: () {
+                setState(() => _openFailed = false);
+                context.read<BillBloc>().add(BillLoadById(widget.billId));
+              },
+            );
           } else if (state.selectedBill == null) {
             child = EmptyState(
               key: const ValueKey('missing'),
@@ -257,29 +290,36 @@ class _Details extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = context.appColors;
     final status = bill.status;
     final color = BillVisuals.colorFor(context, status);
     final linked = bill.budgetId != null;
 
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
     return ListView(
       padding: AppSpacing.pagePadding,
       children: [
-        // Hero
-        AppCard(
-          padding: const EdgeInsets.all(AppSpacing.mlg),
+        // The bill and its facts on one surface.
+        AppSurface(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.mlg,
+            AppSpacing.mlg,
+            AppSpacing.mlg,
+            AppSpacing.sm,
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
                   IconTile(
                     icon: BillVisuals.iconFor(bill.category),
                     color: color,
-                    size: AppSizes.avatarLg,
                     animate: true,
                   ),
-                  const SizedBox(width: AppSpacing.md),
+                  const SizedBox(width: AppSpacing.smd),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,40 +330,21 @@ class _Details extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: AppSpacing.xxs),
-                        Text(
-                          bill.category.label,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
+                        Text(bill.category.label, style: muted),
+                        // Under the title rather than beside it, so a long
+                        // title keeps its width at large text sizes.
+                        const SizedBox(height: AppSpacing.xs),
+                        BillVisuals.chip(context, status),
                       ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        CurrencyFormatter.format(
-                          bill.amount,
-                          code: bill.currency,
-                        ),
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  BillVisuals.chip(context, status),
-                ],
+              AppMoney(
+                amount: bill.amount,
+                currency: bill.currency,
+                role: MoneyRole.display,
               ),
               const SizedBox(height: AppSpacing.xs),
               Row(
@@ -334,25 +355,16 @@ class _Details extends StatelessWidget {
                     color: color,
                   ),
                   const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    BillVisuals.dueText(bill),
-                    style: theme.textTheme.bodyMedium?.copyWith(color: color),
+                  Expanded(
+                    child: Text(
+                      BillVisuals.dueText(bill),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: color),
+                    ),
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Facts
-        AppCard(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          child: Column(
-            children: [
+              const SizedBox(height: AppSpacing.sm),
+              Divider(color: theme.colorScheme.outlineVariant),
               _FactRow(
                 key: const ValueKey('paidFrom'),
                 icon: linked
@@ -405,7 +417,7 @@ class _Details extends StatelessWidget {
                   icon: Icons.check_circle_outline_rounded,
                   label: 'Paid on',
                   value: DateFormat('EEE, d MMM yyyy').format(bill.paidDate!),
-                  valueColor: colors.success,
+                  valueColor: context.tone(AppTone.positive).accent,
                 ),
               if (bill.note != null && bill.note!.trim().isNotEmpty)
                 _FactRow(
@@ -416,68 +428,12 @@ class _Details extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: AppSpacing.md),
 
-        // Payment history
-        if (payments.isNotEmpty || paymentsFailed) ...[
-          const SizedBox(height: AppSpacing.md),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Payment history', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.sm),
-                if (paymentsFailed)
-                  Text(
-                    "Couldn't load payment history.",
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                else
-                  for (final payment in payments)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.xs,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            size: AppSizes.iconSm,
-                            color: colors.success,
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Text(
-                              DateFormat('d MMM yyyy').format(payment.paidDate),
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                          Text(
-                            CurrencyFormatter.format(
-                              payment.amount,
-                              code: payment.currency,
-                              decimalDigits: 0,
-                            ),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-              ],
-            ),
-          ),
-        ],
-
-        const SizedBox(height: AppSpacing.lg),
-
-        // Actions: the paid and unpaid sets cross-fade and the block
-        // resizes smoothly, so marking a bill paid feels like one change.
-        AnimatedSize(
+        // Paying, all in one place right under the bill. The paid and
+        // unpaid sets cross-fade and the block resizes smoothly, so marking
+        // a bill paid feels like one change.
+        AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,
@@ -491,7 +447,7 @@ class _Details extends StatelessWidget {
             layoutBuilder: (current, previous) => Stack(
               fit: StackFit.passthrough,
               alignment: Alignment.topCenter,
-              children: [...previous, if (current != null) current],
+              children: [...previous, ?current],
             ),
             child: bill.isPaid
                 ? OutlinedButton.icon(
@@ -540,23 +496,52 @@ class _Details extends StatelessWidget {
                   ),
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
-        OutlinedButton.icon(
-          onPressed: busy ? null : onDelete,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.error,
-            side: BorderSide(color: colors.error.withValues(alpha: 0.6)),
+
+        // Payment history
+        if (payments.isNotEmpty || paymentsFailed) ...[
+          const SizedBox(height: AppSpacing.xl),
+          AppSection(
+            title: 'Payment history',
+            child: paymentsFailed
+                ? Text("Couldn't load payment history.", style: muted)
+                : AppGroupedList(
+                    children: [
+                      for (final payment in payments)
+                        AppListRow(
+                          leading: Icon(
+                            Icons.check_circle_rounded,
+                            size: AppSizes.iconMd,
+                            color: context.tone(AppTone.positive).accent,
+                          ),
+                          title: DateFormat(
+                            'd MMM yyyy',
+                          ).format(payment.paidDate),
+                          trailing: AppMoney(
+                            amount: payment.amount,
+                            currency: payment.currency,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                    ],
+                  ),
           ),
-          icon: const Icon(Icons.delete_outline_rounded),
-          label: const Text('Delete bill'),
-        ),
+        ],
+
         const SizedBox(height: AppSpacing.lg),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            onPressed: busy ? null : onDelete,
+            style: TextButton.styleFrom(
+              foregroundColor: context.tone(AppTone.critical).accent,
+            ),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Delete bill'),
+          ),
+        ),
         Text(
           'Added ${DateFormat('d MMM yyyy').format(bill.createdAt)}',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          style: muted,
         ),
         const SizedBox(height: AppSpacing.md),
       ],

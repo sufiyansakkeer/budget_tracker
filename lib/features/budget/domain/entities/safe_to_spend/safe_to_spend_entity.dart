@@ -90,6 +90,18 @@ class SafeToSpendEntity extends Equatable {
   /// baselineDaily − dailySafeToSpend (never negative).
   final double allowanceReduction;
 
+  /// Tomorrow's safe amount if nothing more is spent today and nothing else
+  /// changes: raw spendable ÷ the days left after today. `null` on the last
+  /// day of the period and outside the running period. Informational: an
+  /// estimate the UI labels "about".
+  final double? tomorrowIfNoMoreSpending;
+
+  /// When today's discretionary spending is over today's amount, how much
+  /// lower each of the days after today is because of it: over today ÷ the
+  /// days left after today. `null` when not over, on the last day, or when
+  /// tomorrow's amount is already 0 (the spread would overstate the change).
+  final double? overTodayPerRemainingDay;
+
   /// `null` outside the running period.
   final SafeToSpendForecast? forecast;
 
@@ -140,6 +152,8 @@ class SafeToSpendEntity extends Equatable {
     required this.overToday,
     required this.baselineDaily,
     required this.allowanceReduction,
+    this.tomorrowIfNoMoreSpending,
+    this.overTodayPerRemainingDay,
     required this.forecast,
     required this.status,
     required this.reasons,
@@ -196,6 +210,8 @@ class SafeToSpendEntity extends Equatable {
     overToday,
     baselineDaily,
     allowanceReduction,
+    tomorrowIfNoMoreSpending,
+    overTodayPerRemainingDay,
     forecast,
     status,
     reasons,

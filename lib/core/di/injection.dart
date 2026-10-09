@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,6 +64,7 @@ import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_linkable_bills_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_spending_pace_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -131,14 +133,17 @@ import '../../features/currency_converter/presentation/bloc/currency_converter_b
 
 final GetIt getIt = GetIt.instance;
 
-Future<void> initDependencyInjection() async {
+/// Builds the app's object graph. [database] lets a widget test pass an
+/// in-memory database; the app always opens the on-device one.
+Future<void> initDependencyInjection({
+  @visibleForTesting AppDatabase? database,
+}) async {
   // 1. SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();
   getIt.registerSingleton<SharedPreferences>(sharedPreferences);
 
   // 2. Local Database
-  final database = AppDatabase();
-  getIt.registerSingleton<AppDatabase>(database);
+  getIt.registerSingleton<AppDatabase>(database ?? AppDatabase());
 
   // 2.5 Database Integrity Service
   getIt.registerLazySingleton<DatabaseIntegrityService>(
@@ -315,6 +320,10 @@ Future<void> initDependencyInjection() async {
     () => const BillOccurrenceEnumerator(),
   );
 
+  getIt.registerLazySingleton<GetSpendingPaceUseCase>(
+    () => GetSpendingPaceUseCase(repository: getIt<DashboardRepository>()),
+  );
+
   getIt.registerLazySingleton<GetSafeToSpendUseCase>(
     () => GetSafeToSpendUseCase(
       budgetRepository: getIt<BudgetRepository>(),
@@ -351,6 +360,7 @@ Future<void> initDependencyInjection() async {
       getSafeToSpendUseCase: getIt<GetSafeToSpendUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
       billRepository: getIt<BillRepository>(),
+      getSpendingPaceUseCase: getIt<GetSpendingPaceUseCase>(),
     ),
   );
 
@@ -498,6 +508,7 @@ Future<void> initDependencyInjection() async {
     () => ReportsBloc(
       getReportDataUseCase: getIt<GetReportDataUseCase>(),
       insightGenerator: getIt<ReportInsightGenerator>(),
+      budgetRepository: getIt<BudgetRepository>(),
     ),
   );
 

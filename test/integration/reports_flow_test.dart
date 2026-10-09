@@ -219,4 +219,30 @@ void main() {
     expect(filtered.data!.overview.totalSpending, 1200);
     expect(filtered.data!.categorySlices.single.categoryName, 'Travel');
   });
+
+  test(
+    'every period carries the active budget currency, not only this month',
+    () async {
+      final now = DateTime.now();
+      await app.addBudget(
+        currency: 'OMR',
+        amount: 500,
+        startDate: DateTime(now.year, now.month - 1, 1),
+        endDate: DateTime(now.year, now.month + 1, 0),
+      );
+
+      final reports = app.reportsBloc();
+      addTearDown(reports.close);
+
+      // Last month has no budget context, but its amounts are still OMR.
+      // Before the fix the currency was taken from that context, so every
+      // amount fell back to ₹.
+      final lastMonth = await loadReport(reports, ReportPeriod.lastMonth);
+      expect(lastMonth.data!.currentBudget, isNull);
+      expect(lastMonth.data!.currency, 'OMR');
+
+      final thisMonth = await loadReport(reports, ReportPeriod.thisMonth);
+      expect(thisMonth.data!.currency, 'OMR');
+    },
+  );
 }

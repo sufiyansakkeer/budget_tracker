@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:monivo/core/navigation/animated_bottom_navigation.dart';
 import 'package:monivo/core/navigation/app_nav_destinations.dart';
-import 'package:monivo/core/navigation/nav_icon_mode.dart';
 import 'package:monivo/core/router/app_shell.dart';
 
 void main() {
@@ -30,12 +29,7 @@ void main() {
         ],
       );
 
-      // The Rive runtime cannot run inside `flutter test`; render Material
-      // icons instead. Everything else about the bar is exercised for real.
-      return NavIconMode(
-        renderer: NavIconRenderer.material,
-        child: MaterialApp.router(routerConfig: router),
-      );
+      return MaterialApp.router(routerConfig: router);
     }
 
     AnimatedBottomNavigation bar(WidgetTester tester) =>

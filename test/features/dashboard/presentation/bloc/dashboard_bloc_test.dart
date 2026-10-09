@@ -250,6 +250,13 @@ class MockDashboardRepository implements DashboardRepository {
     required List<BudgetEntity> budgets,
     required DateTime today,
   }) async => {for (final b in budgets) b.id: CommittedSpending.zero};
+
+  @override
+  Future<Map<DateTime, double>> getDailyDiscretionarySpending({
+    required String budgetId,
+    required DateTime start,
+    required DateTime end,
+  }) async => const {};
 }
 
 class FakeBillRepository implements BillRepository {

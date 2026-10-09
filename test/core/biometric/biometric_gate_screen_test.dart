@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:monivo/core/biometric/app_lock_bloc.dart';
 import 'package:monivo/core/biometric/app_lock_event.dart';
+import 'package:monivo/core/biometric/app_lock_state.dart';
 import 'package:monivo/core/biometric/biometric_gate_screen.dart';
 
 import 'app_lock_bloc_test.mocks.dart';
@@ -110,4 +111,45 @@ void main() {
     expect(find.text('app content'), findsOneWidget);
     expect(_AppState.mounts, 1);
   });
+
+  testWidgets(
+    'no spinner while the prompt is open; Unlock rests, then returns',
+    (tester) async {
+      final (:bloc, :widget) = harness();
+      await tester.pumpWidget(widget);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      ButtonStyleButton unlock() => tester.widget<ButtonStyleButton>(
+        find.ancestor(
+          of: find.text('Unlock'),
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+        ),
+      );
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text("Confirm it's you"), findsOneWidget);
+      expect(unlock().onPressed, isNull);
+
+      // A dismissed or failed prompt (driven through the bloc, as the
+      // prompt's future lives outside the test zone): the button comes back
+      // with a plain note.
+      bloc.add(const AppAuthFailed());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Unlock to continue'), findsOneWidget);
+      expect(
+        find.text('Not unlocked. Tap Unlock to try again.'),
+        findsOneWidget,
+      );
+      expect(unlock().onPressed, isNotNull);
+      expect(bloc.state.status, AppLockStatus.locked);
+
+      final semantics = tester.ensureSemantics();
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      semantics.dispose();
+    },
+  );
 }

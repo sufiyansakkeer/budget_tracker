@@ -83,15 +83,20 @@ class AppMotion {
 
   /// True when the platform asks to reduce motion.
   ///
-  /// Reads the nearest [MediaQuery]; above the app's [MediaQuery] (e.g. in
-  /// `MaterialApp` construction) it falls back to the platform setting.
+  /// Two platform signals count. `disableAnimations` (Android's "Remove
+  /// animations", and what tests set through [MediaQuery]) is read from the
+  /// nearest [MediaQuery], falling back to the platform setting above the
+  /// app's [MediaQuery] (e.g. in `MaterialApp` construction). iOS reports
+  /// Settings → Accessibility → Motion → Reduce Motion as a separate
+  /// `reduceMotion` flag that [MediaQuery] does not carry, so it is read from
+  /// the platform directly.
   static bool isReduced(BuildContext context) {
-    return MediaQuery.maybeDisableAnimationsOf(context) ??
-        WidgetsBinding
-            .instance
-            .platformDispatcher
-            .accessibilityFeatures
-            .disableAnimations;
+    final features =
+        WidgetsBinding.instance.platformDispatcher.accessibilityFeatures;
+    final disabled =
+        MediaQuery.maybeDisableAnimationsOf(context) ??
+        features.disableAnimations;
+    return disabled || features.reduceMotion;
   }
 
   /// Returns [duration] or [Duration.zero] when the platform asks to reduce

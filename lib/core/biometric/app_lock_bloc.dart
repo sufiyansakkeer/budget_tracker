@@ -17,6 +17,10 @@ import 'biometric_initializer.dart';
 ///
 /// A concurrency guard prevents multiple simultaneous authentication prompts.
 class AppLockBloc extends Bloc<AppLockEvent, AppLockState> {
+  /// Shown after a failed or dismissed prompt; dismissing is not an error,
+  /// so the copy only says what happened and what to do.
+  static const _notUnlocked = 'Not unlocked. Tap Unlock to try again.';
+
   final BiometricInitializer _biometricInitializer;
 
   /// Whether an authentication prompt is currently in flight.
@@ -110,7 +114,7 @@ class AppLockBloc extends Bloc<AppLockEvent, AppLockState> {
         emit(
           const AppLockState(
             status: AppLockStatus.locked,
-            errorMessage: 'Authentication failed. Please try again.',
+            errorMessage: _notUnlocked,
           ),
         );
       }
@@ -135,7 +139,7 @@ class AppLockBloc extends Bloc<AppLockEvent, AppLockState> {
     emit(
       const AppLockState(
         status: AppLockStatus.locked,
-        errorMessage: 'Authentication failed. Please try again.',
+        errorMessage: _notUnlocked,
       ),
     );
   }

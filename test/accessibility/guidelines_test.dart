@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/navigation/animated_bottom_navigation.dart';
 import 'package:monivo/core/navigation/app_nav_destinations.dart';
-import 'package:monivo/core/navigation/nav_icon_mode.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/theme/contrast.dart';
 import 'package:monivo/features/categories/domain/usecases/archive_category_usecase.dart';
@@ -24,8 +23,6 @@ import 'package:monivo/features/expenses/presentation/history/widgets/expense_hi
 
 import '../features/categories/domain/usecases/category_usecases_test.dart'
     show FakeCategoryRepository, cat;
-import '../features/dashboard/presentation/widgets/safe_spending_hero_test.dart'
-    show limit;
 import '../features/dashboard/presentation/widgets/safe_to_spend_fixtures.dart';
 
 /// Runs Flutter's built-in accessibility guidelines over representative
@@ -33,12 +30,9 @@ import '../features/dashboard/presentation/widgets/safe_to_spend_fixtures.dart';
 /// found by hand: unlabelled controls, tap targets under the platform
 /// minimum, and text that cannot be read against its background.
 void main() {
-  Widget wrap(Widget child, {ThemeData? theme}) => NavIconMode(
-    renderer: NavIconRenderer.material,
-    child: MaterialApp(
-      theme: theme ?? AppTheme.lightTheme,
-      home: Scaffold(body: SingleChildScrollView(child: child)),
-    ),
+  Widget wrap(Widget child, {ThemeData? theme}) => MaterialApp(
+    theme: theme ?? AppTheme.lightTheme,
+    home: Scaffold(body: SingleChildScrollView(child: child)),
   );
 
   group('bottom navigation', () {
@@ -51,17 +45,14 @@ void main() {
         (tester) async {
           final handle = tester.ensureSemantics();
           await tester.pumpWidget(
-            NavIconMode(
-              renderer: NavIconRenderer.material,
-              child: MaterialApp(
-                theme: theme,
-                home: Scaffold(
-                  body: const SizedBox.expand(),
-                  bottomNavigationBar: AnimatedBottomNavigation(
-                    destinations: appNavDestinations,
-                    selectedIndex: 0,
-                    onDestinationSelected: (_) {},
-                  ),
+            MaterialApp(
+              theme: theme,
+              home: Scaffold(
+                body: const SizedBox.expand(),
+                bottomNavigationBar: AnimatedBottomNavigation(
+                  destinations: appNavDestinations,
+                  selectedIndex: 0,
+                  onDestinationSelected: (_) {},
                 ),
               ),
             ),
@@ -183,7 +174,7 @@ void main() {
       for (final theme in [AppTheme.lightTheme, AppTheme.darkTheme]) {
         final handle = tester.ensureSemantics();
         await tester.pumpWidget(
-          wrap(SafeSpendingHero(limit: limit()), theme: theme),
+          wrap(SafeSpendingHero(limit: limitFor(safeToSpend())), theme: theme),
         );
         await tester.pumpAndSettle();
         await expectLater(tester, meetsGuideline(textContrastGuideline));

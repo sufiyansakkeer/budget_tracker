@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 
-/// Shared frame for every chart on the reports screen: title, optional
-/// one-line answer ("what does this chart tell me"), info icon and body.
+/// Shared frame for every chart on the reports screen: a section title,
+/// an optional one-line answer ("what does this chart tell me"), an
+/// optional info icon and the chart itself. Flat, like every other section
+/// in the redesign: the report reads as one page, not a stack of cards.
 class ChartCard extends StatelessWidget {
   final String title;
   final String? caption;
@@ -26,45 +27,42 @@ class ChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          title,
-                          style: theme.textTheme.titleSmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (info != null) InfoIcon(content: info!),
-                  ],
-                ),
-              ),
-              if (trailing != null) trailing!,
-            ],
-          ),
-          if (caption != null) ...[
-            Text(
-              caption!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  if (info != null) InfoIcon(content: info!),
+                ],
               ),
             ),
+            ?trailing,
           ],
-          const SizedBox(height: AppSpacing.md),
-          child,
-        ],
-      ),
+        ),
+        if (caption != null)
+          Text(
+            caption!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        const SizedBox(height: AppSpacing.md),
+        child,
+      ],
     );
   }
 }

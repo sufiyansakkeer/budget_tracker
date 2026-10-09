@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
-import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/widgets/app_list.dart';
+import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
@@ -14,17 +15,23 @@ import '../../domain/entities/budget_error.dart';
 import '../../domain/entities/budget_list_summary_entity.dart';
 import '../../domain/usecases/get_budget_list_summary_usecase.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
-import '../widgets/budget_card.dart';
+import '../widgets/budget_list_items.dart';
 import '../widgets/budget_list_summary_card.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
 
-/// Lists all budgets, grouped by where they are in their lifecycle, with the
-/// active budget marked. Each budget stays independent.
+/// Lists all budgets. The active budget leads as the one raised card (the
+/// budget Home, Expenses and Reports follow); the others are compact rows
+/// grouped by where they are in their period. "Total remaining" is a quiet
+/// per-currency footer, so nothing looks pooled.
 class BudgetListScreen extends StatefulWidget {
   const BudgetListScreen({super.key});
+
+  /// "Now" for periods and day counts; replaced in golden tests.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
 
   @override
   State<BudgetListScreen> createState() => _BudgetListScreenState();
@@ -89,7 +96,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = "Couldn't load your budgets.";
+        _error = "They're still on this device. Try again in a moment.";
         _loading = false;
       });
     }
@@ -133,6 +140,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     if (_error != null) {
       return ErrorState(
         key: const ValueKey('error'),
+        title: "Couldn't load your budgets",
         message: _error!,
         onRetry: _load,
       );
@@ -153,18 +161,18 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       );
     }
 
-    final now = DateTime.now();
+    final now = BudgetListScreen.clock();
+    BudgetEntity? active;
     final groups = <BudgetPhase, List<BudgetEntity>>{};
     for (final b in budgets) {
+      if (b.id == _activeBudgetId) {
+        active = b;
+        continue;
+      }
       groups.putIfAbsent(b.phaseOn(now), () => []).add(b);
     }
-    // Active budget first within its group.
     for (final list in groups.values) {
-      list.sort((a, b) {
-        if (a.id == _activeBudgetId) return -1;
-        if (b.id == _activeBudgetId) return 1;
-        return a.startDate.compareTo(b.startDate);
-      });
+      list.sort((a, b) => a.startDate.compareTo(b.startDate));
     }
 
     const order = [
@@ -182,31 +190,46 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.pagePaddingWithFab,
         children: [
-          if (_summary != null && _summary!.activeBudgetCount > 0) ...[
+          // The active budget is the one raised surface.
+          if (active != null) ...[
             FadeSlideIn(
               index: index++,
-              child: BudgetListSummaryCard(summary: _summary!),
+              child: ActiveBudgetCard(
+                budget: active,
+                now: now,
+                onTap: () => context.pushUnique('/app/budgets/${active!.id}'),
+              ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.xl),
           ],
           for (final (phase, title, subtitle) in order)
             if (groups[phase] case final list? when list.isNotEmpty) ...[
-              SectionHeader(title: title, subtitle: subtitle),
-              for (final budget in list)
-                // Keyed by id: switching the active budget re-sorts the
-                // list without replaying entrances.
-                FadeSlideIn(
-                  key: ValueKey('budget_${budget.id}'),
-                  index: index++,
-                  child: BudgetCard(
-                    budget: budget,
-                    isActive: budget.id == _activeBudgetId,
-                    onTap: () =>
-                        context.pushUnique('/app/budgets/${budget.id}'),
+              FadeSlideIn(
+                index: index++,
+                child: AppSection(
+                  title: active != null && phase == BudgetPhase.running
+                      ? 'Also running today'
+                      : title,
+                  subtitle: subtitle,
+                  child: AppGroupedList(
+                    dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                    children: [
+                      for (final budget in list)
+                        BudgetRow(
+                          budget: budget,
+                          now: now,
+                          onTap: () =>
+                              context.pushUnique('/app/budgets/${budget.id}'),
+                        ),
+                    ],
                   ),
                 ),
-              const SizedBox(height: AppSpacing.sm),
+              ),
+              const SizedBox(height: AppSpacing.lg),
             ],
+          // Last and quiet: a reference figure, never a pooled budget.
+          if (_summary != null && _summary!.activeBudgetCount > 0)
+            BudgetListSummaryCard(summary: _summary!),
         ],
       ),
     );

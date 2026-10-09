@@ -15,6 +15,7 @@ import '../widgets/budget_step_widget.dart';
 import '../widgets/confirmation_step_widget.dart';
 import '../widgets/currency_step_widget.dart';
 import '../widgets/welcome_step_widget.dart';
+import '../../../../core/currency/money_input.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -152,15 +153,8 @@ class _OnboardingViewState extends State<_OnboardingView> {
                           onContinue: _nextPage,
                           onBack: _previousPage,
                         ),
-                        BudgetStepWidget(
-                          initialValue: state.monthlyBudgetInput,
-                          currencySymbol: state.selectedCurrency.symbol,
-                          errorMessage: state.budgetValidationError,
-                          onChanged: (val) =>
-                              bloc.add(OnboardingBudgetInputChangedEvent(val)),
-                          onContinue: _nextPage,
-                          onBack: _previousPage,
-                        ),
+                        // Currency first, so the amount step shows its symbol
+                        // and decimals.
                         CurrencyStepWidget(
                           selectedCurrency: state.selectedCurrency,
                           onSelected: (curr) => bloc.add(
@@ -169,6 +163,18 @@ class _OnboardingViewState extends State<_OnboardingView> {
                               symbol: curr.symbol,
                             ),
                           ),
+                          onContinue: _nextPage,
+                          onBack: _previousPage,
+                        ),
+                        BudgetStepWidget(
+                          initialValue: state.monthlyBudgetInput,
+                          currencySymbol: state.selectedCurrency.symbol,
+                          maxDecimals: MoneyInput.maxDecimals(
+                            state.selectedCurrency.code,
+                          ),
+                          errorMessage: state.budgetValidationError,
+                          onChanged: (val) =>
+                              bloc.add(OnboardingBudgetInputChangedEvent(val)),
                           onContinue: _nextPage,
                           onBack: _previousPage,
                         ),

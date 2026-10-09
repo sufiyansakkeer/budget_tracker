@@ -21,24 +21,61 @@ class CurrencyFormatter {
 
   /// Formats [amount] using the symbol resolved from [code].
   ///
-  /// [decimalDigits] controls how many decimal places are shown. When [amount]
-  /// is a whole value and [decimalDigits] is not specified, decimals are
-  /// omitted to avoid rendering values like `₹1,428.570000`.
+  /// [decimalDigits] controls how many decimal places are shown. When it is
+  /// not specified, a whole amount shows none (never `₹1,428.570000` or
+  /// `₹250.00`) and a fractional one shows as many as amounts in [code] may
+  /// be entered with: OMR 7.125 → 3, ₹249.5 → 2.
   static String format(double amount, {String? code, int? decimalDigits}) {
     final symbol = symbolFor(code);
-    final digits = decimalDigits ?? _defaultDigits(amount);
+    final digits = decimalDigits ?? _defaultDigits(amount, code);
     return NumberFormat.currency(
-      symbol: symbol,
+      symbol: _beforeNumber(symbol),
       decimalDigits: digits,
     ).format(amount);
   }
 
-  /// Chooses a sensible default decimal count: 0 for whole amounts, 2 for
-  /// fractional amounts where the fraction is meaningful.
-  static int _defaultDigits(double amount) {
-    final abs = amount.abs();
-    if (abs == abs.roundToDouble()) return 0;
-    return 2;
+  // ── The Omani rial sign ──────────────────────────────────────────────────
+
+  /// U+20C4 OMANI RIAL SIGN, introduced by the Central Bank of Oman in 2025
+  /// (Unicode 18.0). No system font draws it yet: the app bundles the glyph
+  /// as the `MonivoOmaniRial` fallback font (see
+  /// `AppTypography.fontFamilyFallback`), and text that the operating system
+  /// draws goes through [forSystemText].
+  static const String omaniRialSign = '\u20C4';
+
+  /// What stands in for [omaniRialSign] where the app's fonts can't reach:
+  /// the abbreviation used before the sign, with the left-to-right mark that
+  /// keeps it in front of the digits.
+  static const String omaniRialFallback = 'ر.ع.\u200E';
+
+  /// [text] for surfaces the operating system draws with its own fonts
+  /// (notifications), which can't draw [omaniRialSign] yet: the sign and its
+  /// space become [omaniRialFallback].
+  static String forSystemText(String text) => text
+      .replaceAll('$omaniRialSign\u00A0', omaniRialFallback)
+      .replaceAll(omaniRialSign, omaniRialFallback);
+
+  /// [text] for a screen reader: speech engines don't know [omaniRialSign]
+  /// yet and would skip it, so it is read as the currency code.
+  static String forSpeech(String text) => text
+      .replaceAll('$omaniRialSign\u00A0', 'OMR ')
+      .replaceAll(omaniRialSign, 'OMR ');
+
+  /// [symbol] as written in front of a number. The Omani rial sign takes
+  /// the space its guidelines require ("⃄ 10.500"), a no-break space so the
+  /// two never wrap apart; Arabic-script symbols get the mark from
+  /// [_isolateRtl].
+  static String _beforeNumber(String symbol) =>
+      symbol == omaniRialSign ? '$symbol\u00A0' : _isolateRtl(symbol);
+
+  /// 0 when [amount] is whole at the precision amounts in [code] are
+  /// entered with (the currency's minor units, never fewer than two, as
+  /// `MoneyInput.maxDecimals`), otherwise that precision.
+  static int _defaultDigits(double amount, String? code) {
+    final digits = math.max(decimalDigitsFor(code ?? ''), 2);
+    final factor = math.pow(10, digits).toDouble();
+    final units = (amount.abs() * factor).round();
+    return units % factor.toInt() == 0 ? 0 : digits;
   }
 
   // ── Any-currency helpers (currency converter) ────────────────────────────
@@ -50,7 +87,7 @@ class CurrencyFormatter {
 
   /// Display symbol for any ISO 4217 [code].
   ///
-  /// Order: the app's own symbol for its settings currencies (so ₹, A$, ر.ع.
+  /// Order: the app's own symbol for its settings currencies (so ₹, A$, ⃄
   /// look the same everywhere), then the provider's [providerSymbol] unless a
   /// settings currency already owns it (AUD must not borrow USD's bare `$`;
   /// it becomes `AU$`), then the code itself.
@@ -76,6 +113,19 @@ class CurrencyFormatter {
   static int decimalDigitsFor(String code) =>
       currencyFractionDigits[code.toUpperCase()] ??
       currencyFractionDigits['DEFAULT']!;
+
+  /// Decimals to show an exact [amount] with: [code]'s minor units when the
+  /// amount has a fraction at that precision, otherwise 0.
+  ///
+  /// ₹250 → 0 ("₹250"), ₹249.5 → 2 ("₹249.50"), OMR 10.6 → 3 ("10.600"),
+  /// JPY 120 → 0. Unlike the default of [format], fractions are never
+  /// rounded away and whole amounts never gain ".00".
+  static int exactDisplayDigits(double amount, {required String code}) {
+    final digits = decimalDigitsFor(code);
+    final factor = math.pow(10, digits).toDouble();
+    final units = (amount.abs() * factor).round();
+    return units % factor.toInt() == 0 ? 0 : digits;
+  }
 
   // ── "Safe" amounts (safe-to-spend) ───────────────────────────────────────
   //
@@ -138,7 +188,7 @@ class CurrencyFormatter {
     required int decimalDigits,
   }) {
     final formatter = NumberFormat.currency(
-      symbol: _isolateRtl(symbol),
+      symbol: _beforeNumber(symbol),
       decimalDigits: 0,
     );
     final fixed = amount.toStringAsFixed(decimalDigits);
@@ -181,10 +231,11 @@ class CurrencyFormatter {
     r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
   );
 
-  /// Arabic-script symbols (ر.ع., د.إ) would otherwise pull the digits that
-  /// follow them into their right-to-left run, so `ر.ع.1.000` would render
-  /// as `1.000ر.ع.`. A left-to-right mark after the symbol keeps the digits
-  /// in reading order. Invisible, and only added to RTL symbols.
+  /// Arabic-script symbols (د.إ) would otherwise pull the digits that follow
+  /// them into their right-to-left run, so `د.إ1,000` would render as
+  /// `1,000د.إ`, in every sentence that contains it. A left-to-right mark
+  /// after the symbol keeps the digits in reading order. Invisible, and only
+  /// added to RTL symbols.
   static String _isolateRtl(String symbol) =>
       _rtlChars.hasMatch(symbol) ? '$symbol\u200E' : symbol;
 

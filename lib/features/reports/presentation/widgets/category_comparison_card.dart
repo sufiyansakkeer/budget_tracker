@@ -168,40 +168,60 @@ class _ComparisonRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                AnimatedAmount(
-                  amount: item.currentAmount,
-                  currency: currency,
-                  decimalDigits: 0,
-                  textAlign: TextAlign.end,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                AnimatedSwitcher(
-                  duration: AppMotion.respectReducedMotion(
-                    context,
-                    AppMotion.fast,
-                  ),
-                  child: Row(
-                    key: ValueKey(deltaText),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(deltaIcon, size: AppSizes.iconXs, color: deltaColor),
-                      const SizedBox(width: AppSpacing.xxs),
-                      Text(
-                        deltaText,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: deltaColor,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+            // The figures may take up to ~45% of the row; with large text
+            // the amount scales down and the change wraps, never overflows.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.45,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: AnimatedAmount(
+                      amount: item.currentAmount,
+                      currency: currency,
+                      decimalDigits: 0,
+                      textAlign: TextAlign.end,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                  AnimatedSwitcher(
+                    duration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.fast,
+                    ),
+                    child: Row(
+                      key: ValueKey(deltaText),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          deltaIcon,
+                          size: AppSizes.iconXs,
+                          color: deltaColor,
+                        ),
+                        const SizedBox(width: AppSpacing.xxs),
+                        Flexible(
+                          child: Text(
+                            deltaText,
+                            textAlign: TextAlign.end,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: deltaColor,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

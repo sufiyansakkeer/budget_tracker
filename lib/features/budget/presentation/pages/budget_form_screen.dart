@@ -25,11 +25,16 @@ import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/widgets/app_animated_size.dart';
+import '../../../../core/widgets/app_disclosure.dart';
+import '../../../../core/currency/money_input.dart';
+import '../../../../core/feedback/app_haptics.dart';
 
 /// Create or edit a budget.
 ///
 /// Order of fields follows what the user needs to decide: name → amount and
-/// currency → period → optional money set aside → optional look and notes.
+/// currency → period → optional money set aside, which shapes Today's Safe
+/// Spending → "More options" (icon, colour, notes), folded on a new budget.
 /// The save action is pinned to the bottom so it is never hidden behind the
 /// keyboard.
 ///
@@ -68,6 +73,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   bool _saving = false;
   bool _loading = false;
   bool _notFound = false;
+
+  /// The budget couldn't be read (as opposed to no longer existing).
+  bool _loadFailed = false;
   String? _dateError;
   String? _saveError;
 
@@ -95,7 +103,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   }
 
   Future<void> _loadBudget() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+    });
     try {
       final budget = await _manageBudget.getById(widget.budgetId!);
       if (!mounted) return;
@@ -125,11 +136,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         _loading = false;
       });
       _loadLinkedBills(budget.id);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading budget ${widget.budgetId}: $e');
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _notFound = true;
+        _loadFailed = true;
       });
     }
   }
@@ -165,7 +177,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     if (budgetAmount != null && budgetAmount > 0 && amount > budgetAmount) {
       return "This can't be more than the budget amount.";
     }
-    return null;
+    return MoneyInput.decimalsError(text, _currency);
   }
 
   /// Inline warning when the kept-aside amount and savings goal together
@@ -199,9 +211,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         "and won't be counted until you update ${count == 1 ? 'it' : 'them'}.";
   }
 
-  String _formatAmount(double amount) => amount == amount.roundToDouble()
-      ? amount.toStringAsFixed(0)
-      : amount.toStringAsFixed(2);
+  /// Every saved decimal, so an OMR amount keeps its fils when edited.
+  String _formatAmount(double amount) => MoneyInput.forInput(amount);
 
   @override
   void dispose() {
@@ -333,7 +344,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       }
       RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
-      HapticFeedback.lightImpact();
+      AppHaptics.confirm();
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -359,6 +370,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final title = _isEditing ? 'Edit budget' : 'New budget';
+
+    if (_loadFailed) {
+      return Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: ErrorState(
+          title: "Couldn't open this budget",
+          message: "It's still on this device. Try again in a moment.",
+          onRetry: _loadBudget,
+        ),
+      );
+    }
 
     if (_notFound) {
       return Scaffold(
@@ -421,7 +443,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                             textInputAction: TextInputAction.done,
                             inputFormatters: [
                               FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d{0,2}'),
+                                MoneyInput.pattern(
+                                  MoneyInput.maxDecimals(_currency),
+                                ),
                               ),
                             ],
                             style: theme.textTheme.titleLarge?.copyWith(
@@ -450,7 +474,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                                 return 'Enter an amount less than '
                                     '${MoneyMath.maxAmountLabel}.';
                               }
-                              return null;
+                              // E.g. after switching from OMR to INR.
+                              return MoneyInput.decimalsError(
+                                value ?? '',
+                                _currency,
+                              );
                             },
                           ),
                         ),
@@ -535,39 +563,51 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
 
-                    // Look
-                    Text('Look', style: theme.textTheme.titleSmall),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Optional. Helps you tell budgets apart in lists.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _IconAndColorPicker(
-                      selectedIcon: _icon,
-                      selectedColor: _color,
-                      onIconSelected: (icon) =>
-                          setState(() => _icon = _icon == icon ? null : icon),
-                      onColorSelected: (color) => setState(
-                        () => _color = _color == color ? null : color,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Notes
-                    TextFormField(
-                      controller: _notesController,
-                      maxLines: 3,
-                      minLines: 1,
-                      keyboardType: TextInputType.multiline,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'Notes',
-                        hintText: 'Anything to remember about this budget',
-                        alignLabelWithHint: true,
-                        prefixIcon: Icon(Icons.notes_rounded),
+                    // Look and notes: optional, folded away on a new
+                    // budget and open when editing one.
+                    AppDisclosure(
+                      key: const ValueKey('budgetMoreOptions'),
+                      title: 'More options',
+                      summary: 'Icon, colour and notes',
+                      initiallyExpanded: _isEditing,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Look', style: theme.textTheme.titleSmall),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'Optional. Helps you tell budgets apart in lists.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          _IconAndColorPicker(
+                            selectedIcon: _icon,
+                            selectedColor: _color,
+                            onIconSelected: (icon) => setState(
+                              () => _icon = _icon == icon ? null : icon,
+                            ),
+                            onColorSelected: (color) => setState(
+                              () => _color = _color == color ? null : color,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          TextFormField(
+                            controller: _notesController,
+                            maxLines: 3,
+                            minLines: 1,
+                            keyboardType: TextInputType.multiline,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              labelText: 'Notes',
+                              hintText:
+                                  'Anything to remember about this budget',
+                              alignLabelWithHint: true,
+                              prefixIcon: Icon(Icons.notes_rounded),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     if (_saveError != null) ...[
@@ -635,7 +675,9 @@ class _SetAsideSection extends StatelessWidget {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textInputAction: TextInputAction.next,
       inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+        FilteringTextInputFormatter.allow(
+          MoneyInput.pattern(MoneyInput.maxDecimals(currency)),
+        ),
       ],
       decoration: InputDecoration(
         labelText: label,
@@ -670,7 +712,7 @@ class _SetAsideSection extends StatelessWidget {
           helper: 'Money you want left unspent at the end of the period',
           icon: Icons.flag_outlined,
         ),
-        AnimatedSize(
+        AppAnimatedSize(
           duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
           curve: AppMotion.standardCurve,
           alignment: Alignment.topCenter,

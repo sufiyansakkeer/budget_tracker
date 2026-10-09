@@ -302,4 +302,30 @@ void main() {
       );
     });
   });
+
+  group('More options', () {
+    testWidgets('icon, colour and notes are folded on a new budget', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      expect(field('Notes'), findsNothing);
+      expect(
+        find.text('Icon, colour and notes', skipOffstage: false),
+        findsOne,
+      );
+
+      final more = find.text('More options', skipOffstage: false);
+      await tester.ensureVisible(more);
+      await tester.pumpAndSettle();
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(field('Notes'), findsOneWidget);
+    });
+
+    testWidgets('they are open when editing a budget', (tester) async {
+      budgets.budgets.add(augustBudget());
+      await pumpForm(tester, budgetId: 'aug');
+      expect(field('Notes'), findsOneWidget);
+    });
+  });
 }

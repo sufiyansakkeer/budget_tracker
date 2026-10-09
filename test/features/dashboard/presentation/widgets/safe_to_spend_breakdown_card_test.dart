@@ -152,7 +152,7 @@ void main() {
       );
 
       expect(find.text('Forecast'), findsOneWidget);
-      expect(find.text('Forecast after 2 more days'), findsOneWidget);
+      expect(find.text('Ready after 2 more days of spending'), findsOneWidget);
       expect(find.textContaining('Average a day'), findsNothing);
     });
 
@@ -162,7 +162,7 @@ void main() {
       await tester.pumpWidget(harness(safeToSpend()));
 
       expect(
-        find.text('Forecast appears after your first expense in this budget.'),
+        find.text('Ready after your first expense in this budget.'),
         findsOneWidget,
       );
     });

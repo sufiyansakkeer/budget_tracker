@@ -171,7 +171,12 @@ class ReportInsightGenerator {
   }
 
   String _money(double amount, ReportData data) {
-    final currency = currencyByCode(data.currentBudget?.currency).code;
+    // The report's own currency: set for every period, unlike the budget
+    // snapshot, which is only attached for the current month (the same ₹
+    // fallback the report's figures had before).
+    final currency = currencyByCode(
+      data.currency ?? data.currentBudget?.currency,
+    ).code;
     return CurrencyFormatter.format(amount, code: currency, decimalDigits: 0);
   }
 

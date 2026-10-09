@@ -68,8 +68,13 @@ class DashboardLocalDataSourceImpl implements DashboardLocalDataSource {
       );
     }
 
+    // `date` is the calendar day; `time` orders expenses within a day, the
+    // same way the Expenses tab does.
     query
-      ..orderBy([(expense) => OrderingTerm.desc(expense.date)])
+      ..orderBy([
+        (expense) => OrderingTerm.desc(expense.date),
+        (expense) => OrderingTerm.desc(expense.time),
+      ])
       ..limit(limit);
 
     final expenses = await query.get();
@@ -85,6 +90,12 @@ class DashboardLocalDataSourceImpl implements DashboardLocalDataSource {
 
     return expenses.map((expense) {
       final category = categoryMap[expense.categoryId];
+      // `date` is stored at midnight and `time` holds the time of day (its own
+      // date part can differ on imported rows), so take the day from one and
+      // the clock time from the other. Passing `date` alone showed every
+      // recent expense at 12:00 AM.
+      final day = expense.date;
+      final clock = expense.time;
       return RecentExpenseEntity(
         id: expense.id,
         amount: expense.amount,
@@ -93,7 +104,7 @@ class DashboardLocalDataSourceImpl implements DashboardLocalDataSource {
         categoryIcon: category?.icon ?? 'help_outline',
         categoryColorHex: category?.colorHex ?? '#8395A7',
         note: expense.note,
-        date: expense.date,
+        date: DateTime(day.year, day.month, day.day, clock.hour, clock.minute),
         createdAt: expense.createdAt,
       );
     }).toList();
@@ -124,6 +135,32 @@ class DashboardLocalDataSourceImpl implements DashboardLocalDataSource {
       );
     }
     return result;
+  }
+
+  @override
+  Future<Map<DateTime, double>> getDailyDiscretionarySpending({
+    required String budgetId,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final query = database.selectOnly(database.expenses)
+      ..addColumns([database.expenses.date, database.expenses.amount])
+      ..where(
+        database.expenses.budgetId.equals(budgetId) &
+            database.expenses.billId.isNull() &
+            database.expenses.date.isBiggerOrEqualValue(_startOfDay(start)) &
+            database.expenses.date.isSmallerOrEqualValue(_endOfDay(end)),
+      );
+    final rows = await query.get();
+    // Grouped by calendar day here rather than in SQL: older rows can carry
+    // a time of day in `date`, which would split one day into several.
+    final byDay = <DateTime, double>{};
+    for (final row in rows) {
+      final date = row.read(database.expenses.date)!;
+      final day = DateTime(date.year, date.month, date.day);
+      byDay[day] = (byDay[day] ?? 0) + row.read(database.expenses.amount)!;
+    }
+    return byDay;
   }
 
   /// SUM of a budget's committed expenses (`bill_id` set) in [start, end],

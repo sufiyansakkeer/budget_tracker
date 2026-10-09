@@ -79,13 +79,17 @@ class GetReportDataUseCase {
       }).toList();
       final categories = await repository.getCategories();
 
-      // Current-month budget context only when the range covers the current
-      // month; otherwise budget cards are omitted.
+      // The active budget is read for every period: its currency labels
+      // every amount (the expenses are this budget's). Its budget context is
+      // attached only when the range covers the current month; otherwise the
+      // budget cards are omitted. Before, a period outside the current month
+      // carried no currency at all and every amount fell back to ₹.
+      final activeBudget = await repository.getCurrentBudget();
       BudgetEntity? currentBudget;
       var currentMonthSpent = 0.0;
       var currentMonthBudget = 0.0;
       if (range.coversCurrentMonth) {
-        currentBudget = await repository.getCurrentBudget();
+        currentBudget = activeBudget;
         currentMonthSpent = await repository.getCurrentMonthSpent();
         if (currentBudget != null) {
           currentMonthBudget = currentBudget.monthlyAmount;
@@ -98,6 +102,7 @@ class GetReportDataUseCase {
         categories: categories,
         filter: boundedFilter,
         comparisonExpenses: comparisonExpenses,
+        currency: activeBudget?.currency,
         currentBudget: currentBudget,
         currentMonthSpent: currentMonthSpent,
         currentMonthBudget: currentMonthBudget,

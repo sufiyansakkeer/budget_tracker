@@ -7,6 +7,7 @@ import '../../../domain/entities/quick_date_preset.dart';
 
 export '../../../domain/entities/quick_date_preset.dart';
 import '../../widgets/category_visuals.dart';
+import '../../../../../core/feedback/app_haptics.dart';
 
 /// Quick-select chips for common filter shortcuts.
 ///
@@ -93,7 +94,10 @@ class QuickFilterChips extends StatelessWidget {
         avatar: Icon(icon, size: AppSizes.iconSm),
         selected: selected,
         showCheckmark: false,
-        onSelected: (_) => onTap(),
+        onSelected: (_) {
+          AppHaptics.selection();
+          onTap();
+        },
       ),
     );
   }

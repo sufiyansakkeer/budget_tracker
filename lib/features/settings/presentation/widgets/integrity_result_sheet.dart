@@ -88,7 +88,7 @@ class _IntegrityResultBody extends StatelessWidget {
                     dense: true,
                     leading: const Icon(Icons.error_outline_rounded),
                     title: Text(issue.description),
-                    subtitle: Text('${issue.table} · ${issue.entityId}'),
+                    subtitle: Text(_recordLabel(issue)),
                   );
                 },
               ),
@@ -99,4 +99,19 @@ class _IntegrityResultBody extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Expense · 3f2a9c1e": the kind of record in words and the start of its
+/// id, instead of the table name and the full id.
+String _recordLabel(IntegrityIssue issue) {
+  final kind = switch (issue.table) {
+    'expenses' => 'Expense',
+    'budgets' => 'Budget',
+    'bills' => 'Bill',
+    'billPayments' => 'Bill payment',
+    'recurringExpenses' => 'Recurring expense',
+    final other => other,
+  };
+  final id = issue.entityId;
+  return '$kind · ${id.length > 8 ? id.substring(0, 8) : id}';
 }

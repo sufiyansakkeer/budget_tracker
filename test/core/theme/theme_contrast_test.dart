@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_colors_extension.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/theme/app_tone.dart';
 import 'package:monivo/core/theme/contrast.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 
@@ -139,6 +140,19 @@ void main() {
             'inversePrimary (snackbar action)',
             where,
           );
+        });
+
+        test('every status tone is legible on its own container', () {
+          for (final tone in AppTone.values) {
+            final t = tokens.tone(tone);
+            expectRatio(
+              t.onContainer,
+              t.container,
+              4.5,
+              'on${tone.name}Container',
+              where,
+            );
+          }
         });
 
         test('disabled buttons stay understandable', () {

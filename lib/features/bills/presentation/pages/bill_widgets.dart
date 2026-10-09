@@ -4,9 +4,10 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/currency/money_math.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/status_chip.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
@@ -74,12 +75,50 @@ class BillVisuals {
     BillStatus.upcoming => 'Upcoming',
   };
 
-  /// Chip combining icon + label + colour for a status.
+  /// Chip combining icon + label + colour for a status. The label wraps
+  /// rather than overflowing at large text sizes.
   static StatusChip chip(BuildContext context, BillStatus status) => StatusChip(
     label: statusLabel(status),
     color: colorFor(context, status),
     icon: statusIcon(status),
+    wrapLabel: true,
   );
+
+  /// Unpaid bills due within this many days (today included) are "Due
+  /// soon" in the list; later ones are "Later".
+  static const int dueSoonDays = 7;
+
+  /// Whether an unpaid, not-overdue [bill] is due within [dueSoonDays] of
+  /// [now]'s calendar day.
+  static bool isDueSoon(BillEntity bill, DateTime now) {
+    if (bill.isPaid || bill.status == BillStatus.overdue) return false;
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(
+      bill.dueDate.year,
+      bill.dueDate.month,
+      bill.dueDate.day,
+    );
+    return due.isBefore(
+      DateTime(today.year, today.month, today.day + dueSoonDays),
+    );
+  }
+
+  /// The amounts of [bills] per currency, summed exactly in whole minor
+  /// units and sorted by code. Different currencies are never added.
+  static Map<String, double> totalsByCurrency(Iterable<BillEntity> bills) {
+    final byCode = <String, List<double>>{};
+    for (final b in bills) {
+      (byCode[b.currency] ??= []).add(b.amount);
+    }
+    final codes = byCode.keys.toList()..sort();
+    return {
+      for (final code in codes)
+        code: () {
+          final math = MoneyMath.forCurrency(code);
+          return math.toAmount(math.sumUnits(byCode[code]!));
+        }(),
+    };
+  }
 
   /// Human-friendly due text, e.g. "Due tomorrow", "3 days overdue",
   /// "Due in 2 weeks", "Due 14 Oct".
@@ -109,7 +148,8 @@ class BillVisuals {
   }
 }
 
-/// A card widget displaying a single bill's summary information.
+/// One bill as a compact list row: category tile in its status colour, the
+/// title, when it is due, who pays it, the amount and a quick pay action.
 ///
 /// Paid/unpaid and due/overdue changes animate in place: the icon tint,
 /// strike-through title, status icon and amount all ease to the new state,
@@ -153,11 +193,8 @@ class BillCard extends StatelessWidget {
     final theme = Theme.of(context);
     final status = bill.status;
     final color = BillVisuals.colorFor(context, status);
-    final amount = CurrencyFormatter.format(
-      bill.amount,
-      code: bill.currency.isNotEmpty ? bill.currency : currency,
-      decimalDigits: 0,
-    );
+    final code = bill.currency.isNotEmpty ? bill.currency : currency;
+    final amount = AppMoney.format(bill.amount, currency: code);
     final dueText = BillVisuals.dueText(bill);
     final link = linkText;
     final linkSemantics = link == null
@@ -171,6 +208,7 @@ class BillCard extends StatelessWidget {
       AppMotion.standard,
     );
     final mutedColor = theme.colorScheme.onSurfaceVariant;
+    final large = MediaQuery.textScalerOf(context).scale(14) > 20;
     final titleStyle = (theme.textTheme.titleSmall ?? const TextStyle())
         .copyWith(
           decoration: muted ? TextDecoration.lineThrough : TextDecoration.none,
@@ -205,135 +243,156 @@ class BillCard extends StatelessWidget {
           ? {CustomSemanticsAction(label: markPaidLabel): onMarkPaid!}
           : null,
       excludeSemantics: true,
-      child: AppCard(
+      child: InkWell(
         onTap: onTap,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.smd,
-        ),
-        child: Row(
-          children: [
-            IconTile(
-              icon: BillVisuals.iconFor(bill.category),
-              color: color,
-              animate: true,
-            ),
-            const SizedBox(width: AppSpacing.smd),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        borderRadius: AppSpacing.borderRadiusSm,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppSizes.listRowHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Row(
+              children: [
+                IconTile(
+                  icon: BillVisuals.iconFor(bill.category),
+                  color: color,
+                  size: AppSizes.avatarSm,
+                  animate: true,
+                ),
+                const SizedBox(width: AppSpacing.smd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(
-                        child: AnimatedDefaultTextStyle(
-                          duration: duration,
-                          curve: AppMotion.standardCurve,
-                          style: titleStyle,
-                          child: Text(
-                            bill.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      if (bill.isRecurring) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        Icon(
-                          Icons.repeat_rounded,
-                          size: AppSizes.iconXs,
-                          color: mutedColor,
-                          semanticLabel: 'Recurring',
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Row(
-                    children: [
-                      AnimatedSwitcher(
-                        duration: duration,
-                        switchInCurve: AppMotion.enter,
-                        switchOutCurve: AppMotion.exit,
-                        transitionBuilder: scaleFade,
-                        child: Icon(
-                          BillVisuals.statusIcon(status),
-                          key: ValueKey(status),
-                          size: AppSizes.iconXs,
-                          color: color,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: AnimatedDefaultTextStyle(
-                          duration: duration,
-                          curve: AppMotion.standardCurve,
-                          style: dueStyle,
-                          child: Text(
-                            dueText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (link != null) ...[
-                    const SizedBox(height: AppSpacing.xxs),
-                    Row(
-                      children: [
-                        Icon(
-                          bill.budgetId == null
-                              ? Icons.link_off_rounded
-                              : Icons.account_balance_wallet_outlined,
-                          size: AppSizes.iconXs,
-                          color: mutedColor,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Flexible(
-                          child: Text(
-                            link,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: mutedColor,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: AnimatedDefaultTextStyle(
+                              duration: duration,
+                              curve: AppMotion.standardCurve,
+                              style: titleStyle,
+                              child: Text(
+                                bill.title,
+                                maxLines: large ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ),
+                          if (bill.isRecurring) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            Icon(
+                              Icons.repeat_rounded,
+                              size: AppSizes.iconXs,
+                              color: mutedColor,
+                              semanticLabel: 'Recurring',
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Row(
+                        children: [
+                          AnimatedSwitcher(
+                            duration: duration,
+                            switchInCurve: AppMotion.enter,
+                            switchOutCurve: AppMotion.exit,
+                            transitionBuilder: scaleFade,
+                            child: Icon(
+                              BillVisuals.statusIcon(status),
+                              key: ValueKey(status),
+                              size: AppSizes.iconXs,
+                              color: color,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Flexible(
+                            child: AnimatedDefaultTextStyle(
+                              duration: duration,
+                              curve: AppMotion.standardCurve,
+                              style: dueStyle,
+                              child: Text(
+                                dueText,
+                                maxLines: large ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (link != null) ...[
+                        const SizedBox(height: AppSpacing.xxs),
+                        Row(
+                          children: [
+                            Icon(
+                              bill.budgetId == null
+                                  ? Icons.link_off_rounded
+                                  : Icons.account_balance_wallet_outlined,
+                              size: AppSizes.iconXs,
+                              color: mutedColor,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Flexible(
+                              child: Text(
+                                link,
+                                maxLines: large ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: mutedColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            AnimatedDefaultTextStyle(
-              duration: duration,
-              curve: AppMotion.standardCurve,
-              style: amountStyle,
-              child: Text(amount),
-            ),
-            AnimatedSwitcher(
-              duration: duration,
-              switchInCurve: AppMotion.enter,
-              switchOutCurve: AppMotion.exit,
-              transitionBuilder: scaleFade,
-              child: onMarkPaid != null && !bill.isPaid
-                  ? Padding(
-                      key: const ValueKey('markPaid'),
-                      padding: const EdgeInsets.only(left: AppSpacing.xs),
-                      child: IconButton(
-                        tooltip: markPaidLabel,
-                        onPressed: onMarkPaid,
-                        icon: Icon(
-                          Icons.check_circle_outline_rounded,
-                          color: context.appColors.success,
+                      if (large) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        AppMoney(
+                          amount: bill.amount,
+                          currency: code,
+                          color: amountStyle.color,
                         ),
-                      ),
-                    )
-                  : const SizedBox.shrink(key: ValueKey('noAction')),
+                      ],
+                    ],
+                  ),
+                ),
+                // With large text the amount moves under the text above,
+                // so the bill keeps room for its name and due date.
+                if (!large) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width * 0.38,
+                    ),
+                    child: AppMoney(
+                      amount: bill.amount,
+                      currency: code,
+                      textAlign: TextAlign.end,
+                      color: amountStyle.color,
+                    ),
+                  ),
+                ],
+                AnimatedSwitcher(
+                  duration: duration,
+                  switchInCurve: AppMotion.enter,
+                  switchOutCurve: AppMotion.exit,
+                  transitionBuilder: scaleFade,
+                  child: onMarkPaid != null && !bill.isPaid
+                      ? Padding(
+                          key: const ValueKey('markPaid'),
+                          padding: const EdgeInsets.only(left: AppSpacing.xs),
+                          child: IconButton(
+                            tooltip: markPaidLabel,
+                            onPressed: onMarkPaid,
+                            icon: Icon(
+                              Icons.check_circle_outline_rounded,
+                              color: context.appColors.success,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('noAction')),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

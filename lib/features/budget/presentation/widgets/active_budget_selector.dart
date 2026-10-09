@@ -14,6 +14,7 @@ import '../../../../core/constants/app_motion.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/app_surface.dart';
 
 /// A tappable control that shows the active budget's name and period and
 /// opens the budget switcher.
@@ -121,9 +122,10 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                 'Tap to switch budget',
       onTap: () => ActiveBudgetSelector.open(context),
       excludeSemantics: true,
-      child: AppCard(
+      // A quiet, borderless row: a control, not a card among cards.
+      child: AppSurface(
+        level: SurfaceLevel.sunken,
         onTap: () => ActiveBudgetSelector.open(context),
-        borderRadius: AppSpacing.borderRadiusMd,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.smd,
           vertical: AppSpacing.sm,

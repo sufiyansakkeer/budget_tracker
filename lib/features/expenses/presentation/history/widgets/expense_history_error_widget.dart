@@ -19,7 +19,6 @@ class ExpenseHistoryErrorWidget extends StatelessWidget {
       key: const Key('historyRetry'),
       title: "Couldn't load expenses",
       message: message,
-      retryLabel: 'Retry',
       onRetry: onRetry,
     );
   }

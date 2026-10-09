@@ -275,7 +275,12 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(bloc.state.settings.biometricEnabled, false);
-      expect(bloc.state.errorMessage, 'save failed');
+      // The raw failure text stays out of sight; the message says what
+      // didn't happen.
+      expect(
+        bloc.state.errorMessage,
+        "Couldn't save the app lock setting. Try again.",
+      );
       expect(bloc.state.isBiometricBusy, false);
 
       await bloc.close();
@@ -334,7 +339,7 @@ void main() {
       bloc.add(const SettingsRestoreEvent('/backup.json'));
       await Future<void>.delayed(Duration.zero);
 
-      expect(bloc.state.infoMessage, 'Restored.');
+      expect(bloc.state.infoMessage, 'Backup restored.');
       expect(counts, {'budgets': 1, 'expenses': 1, 'bills': 1});
       await bloc.close();
     });
@@ -354,7 +359,10 @@ void main() {
       bloc.add(const SettingsRestoreEvent('/backup.json'));
       await Future<void>.delayed(Duration.zero);
 
-      expect(bloc.state.errorMessage, 'Bad');
+      expect(
+        bloc.state.errorMessage,
+        "Couldn't restore the backup. Try again.",
+      );
       expect(counts, {'budgets': 0, 'expenses': 0, 'bills': 0});
       await bloc.close();
     });
@@ -447,8 +455,44 @@ void main() {
       bloc.add(const SettingsImportEvent(path: '/data.json', json: true));
       await Future<void>.delayed(Duration.zero);
 
-      expect(bloc.state.infoMessage, 'Imported 12 items.');
+      // A JSON import returns the file's schema version, not a count.
+      expect(bloc.state.infoMessage, 'Import complete.');
       expect(counts, {'budgets': 1, 'expenses': 1, 'bills': 1});
+      await bloc.close();
+    });
+
+    test('a CSV import says how many expenses it added', () async {
+      when(
+        importDataUseCase.call('/data.csv', json: false),
+      ).thenAnswer((_) async => const SettingsSuccess(12));
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsImportEvent(path: '/data.csv'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.infoMessage, 'Imported 12 expenses.');
+      await bloc.close();
+    });
+
+    test('an unreadable file explains what can be imported', () async {
+      when(importDataUseCase.call('/data.json', json: true)).thenAnswer(
+        (_) async => const SettingsError(
+          SettingsFailure(
+            type: SettingsErrorType.invalidData,
+            message: 'Corrupted JSON file: FormatException: Unexpected end',
+          ),
+        ),
+      );
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsImportEvent(path: '/data.json', json: true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        bloc.state.errorMessage,
+        startsWith("This file couldn't be imported."),
+      );
+      expect(bloc.state.errorMessage, isNot(contains('FormatException')));
       await bloc.close();
     });
 
@@ -467,7 +511,7 @@ void main() {
       bloc.add(const SettingsImportEvent(path: '/data.json', json: true));
       await Future<void>.delayed(Duration.zero);
 
-      expect(bloc.state.errorMessage, 'Bad');
+      expect(bloc.state.errorMessage, "Couldn't import the file. Try again.");
       expect(counts, {'budgets': 0, 'expenses': 0, 'bills': 0});
       await bloc.close();
     });

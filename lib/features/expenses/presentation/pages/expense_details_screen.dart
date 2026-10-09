@@ -6,12 +6,14 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
-import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
@@ -21,11 +23,16 @@ import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
 import '../widgets/category_visuals.dart';
-import '../widgets/delete_expense_dialog.dart';
+import '../widgets/expense_undo.dart';
 import '../widgets/move_expense_sheet.dart';
 import '../../../../core/navigation/push_unique.dart';
 
-/// Detail page for a single expense.
+/// One expense on one surface: what it was and the amount, then its facts
+/// (budget, date, time, category, note, tags) and the receipt. Below it,
+/// duplicate, move and delete.
+///
+/// Delete asks nothing: the screen closes and "Undo" is offered for a few
+/// seconds, the same as swiping a row away in the list.
 class ExpenseDetailsScreen extends StatefulWidget {
   final String expenseId;
 
@@ -39,6 +46,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   late final ManageBudgetUseCase _manageBudget = getIt<ManageBudgetUseCase>();
   List<BudgetEntity> _budgets = const [];
   bool _deleting = false;
+
+  /// The expense couldn't be read (as opposed to no longer existing).
+  bool _openFailed = false;
+
+  /// Name of the budget a move is heading to, for its confirmation.
+  String? _movingTo;
 
   @override
   void initState() {
@@ -75,16 +88,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     return null;
   }
 
-  Future<void> _confirmDelete(ExpenseEntity expense, String? currency) async {
-    final confirmed = await showDeleteExpenseDialog(
-      context,
-      amount: expense.amount,
-      currency: currency ?? '',
-    );
-    if (confirmed && mounted) {
-      setState(() => _deleting = true);
-      context.read<ExpenseBloc>().add(ExpenseDelete(expense.id));
-    }
+  void _delete(ExpenseEntity expense) {
+    AppHaptics.threshold();
+    setState(() => _deleting = true);
+    context.read<ExpenseBloc>().add(ExpenseDelete(expense.id));
   }
 
   Future<void> _moveToAnotherBudget(ExpenseEntity expense) async {
@@ -94,11 +101,70 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       budgets: _budgets,
     );
     if (selected == null || !mounted) return;
+    _movingTo = selected.name;
     context.read<ExpenseBloc>().add(
       ExpenseUpdate(
         expense.copyWith(budgetId: selected.id, updatedAt: DateTime.now()),
       ),
     );
+  }
+
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/app/expenses');
+    }
+  }
+
+  void _onState(BuildContext context, ExpenseState state) {
+    final messenger = ScaffoldMessenger.of(context);
+    if (state.status == ExpenseBlocStatus.success) {
+      context.read<ExpenseBloc>().add(const ExpenseClearMessage());
+      if (state.lastAction == ExpenseAction.deleted) {
+        final deleted = state.lastDeleted;
+        _leave();
+        if (deleted != null) {
+          ExpenseUndo.offer(messenger, deleted);
+        } else {
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('Expense deleted')));
+        }
+        return;
+      }
+      if (state.lastAction == ExpenseAction.updated && _movingTo != null) {
+        final name = _movingTo;
+        _movingTo = null;
+        AppHaptics.confirm();
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text('Moved to $name')));
+      }
+    } else if (state.status == ExpenseBlocStatus.error) {
+      // A failed read shows the error view with a retry, not "not found"
+      // and a toast.
+      final openFailed =
+          state.expense == null &&
+          state.message == ExpenseBloc.openFailedMessage;
+      setState(() {
+        _deleting = false;
+        _movingTo = null;
+        _openFailed = openFailed;
+      });
+      if (!openFailed) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                state.message ?? "Couldn't finish that. Try again.",
+              ),
+            ),
+          );
+      }
+      context.read<ExpenseBloc>().add(const ExpenseClearMessage());
+    }
   }
 
   @override
@@ -127,38 +193,25 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         ],
       ),
       body: BlocConsumer<ExpenseBloc, ExpenseState>(
-        listener: (context, state) {
-          if (state.status == ExpenseBlocStatus.success) {
-            final wasDelete = _deleting;
-            context.read<ExpenseBloc>().add(const ExpenseClearMessage());
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.message ?? (wasDelete ? 'Expense deleted' : 'Saved'),
-                  ),
-                ),
-              );
-            if (wasDelete && context.canPop()) context.pop();
-          } else if (state.status == ExpenseBlocStatus.error) {
-            setState(() => _deleting = false);
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(state.message ?? 'Something went wrong'),
-                ),
-              );
-            context.read<ExpenseBloc>().add(const ExpenseClearMessage());
-          }
-        },
+        listener: _onState,
         builder: (context, state) {
           final Widget child;
-          if (state.status == ExpenseBlocStatus.loading &&
-              state.expense == null) {
+          final expense = state.expense;
+          if (state.status == ExpenseBlocStatus.loading && expense == null) {
             child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
-          } else if (state.expense == null) {
+          } else if (expense == null && _openFailed) {
+            child = ErrorState(
+              key: const ValueKey('error'),
+              title: "Couldn't open this expense",
+              message: "It's still on this device. Try again in a moment.",
+              onRetry: () {
+                setState(() => _openFailed = false);
+                context.read<ExpenseBloc>().add(
+                  ExpenseLoadById(widget.expenseId),
+                );
+              },
+            );
+          } else if (expense == null) {
             child = EmptyState(
               key: const ValueKey('missing'),
               icon: Icons.receipt_long_outlined,
@@ -166,28 +219,22 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               message: 'It may have been deleted on another screen.',
               actionLabel: 'Back to expenses',
               actionIcon: Icons.arrow_back_rounded,
-              onAction: () => context.canPop()
-                  ? context.pop()
-                  : context.go('/app/expenses'),
+              onAction: _leave,
             );
           } else {
             child = _Details(
               key: const ValueKey('details'),
-              expense: state.expense!,
-              category: _categoryFor(
-                state.categories,
-                state.expense!.categoryId,
-              ),
-              budget: _budgetFor(state.expense!),
+              expense: expense,
+              category: _categoryFor(state.categories, expense.categoryId),
+              budget: _budgetFor(expense),
               canMove: _budgets.any(
-                (b) => b.id != state.expense!.budgetId && !b.isArchived,
+                (b) => b.id != expense.budgetId && !b.isArchived,
               ),
-              busy: state.isBusy,
-              onMove: () => _moveToAnotherBudget(state.expense!),
-              onDelete: () => _confirmDelete(
-                state.expense!,
-                _budgetFor(state.expense!)?.currency,
-              ),
+              busy: state.isBusy || _deleting,
+              onDuplicate: () =>
+                  context.pushUnique('/app/expenses/add?copy=${expense.id}'),
+              onMove: () => _moveToAnotherBudget(expense),
+              onDelete: () => _delete(expense),
             );
           }
           return AppStateSwitcher(child: child);
@@ -197,12 +244,16 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   }
 }
 
+/// Notes up to this long show whole as the title.
+const int _titleNoteLength = 80;
+
 class _Details extends StatelessWidget {
   final ExpenseEntity expense;
   final ExpenseCategory? category;
   final BudgetEntity? budget;
   final bool canMove;
   final bool busy;
+  final VoidCallback onDuplicate;
   final VoidCallback onMove;
   final VoidCallback onDelete;
 
@@ -213,6 +264,7 @@ class _Details extends StatelessWidget {
     required this.budget,
     required this.canMove,
     required this.busy,
+    required this.onDuplicate,
     required this.onMove,
     required this.onDelete,
   });
@@ -220,7 +272,6 @@ class _Details extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = context.appColors;
     final color = category != null
         ? CategoryVisuals.adaptiveColor(context, category!.colorHex)
         : theme.colorScheme.onSurfaceVariant;
@@ -228,139 +279,100 @@ class _Details extends StatelessWidget {
         ? CategoryVisuals.iconFor(category!.icon)
         : Icons.category_rounded;
     final categoryName = category?.name ?? 'Uncategorised';
-    final hasNote = expense.note != null && expense.note!.trim().isNotEmpty;
+    final note = expense.note?.trim();
+    final hasNote = note != null && note.isNotEmpty;
     final receiptPath = expense.receiptImagePath;
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final critical = context.tone(AppTone.critical).accent;
 
     return ListView(
       padding: AppSpacing.pagePadding,
       children: [
-        // Hero: amount + category
-        AppCard(
-          padding: const EdgeInsets.all(AppSpacing.mlg),
+        AppSurface(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.mlg,
+            AppSpacing.mlg,
+            AppSpacing.mlg,
+            AppSpacing.sm,
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  IconTile(icon: icon, color: color, size: AppSizes.avatarLg),
-                  const SizedBox(width: AppSpacing.md),
+                  IconTile(icon: icon, color: color),
+                  const SizedBox(width: AppSpacing.smd),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          hasNote ? expense.note!.trim() : categoryName,
+                          hasNote ? note : categoryName,
                           style: theme.textTheme.titleMedium,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: AppSpacing.xxs),
-                        Text(
-                          hasNote
-                              ? categoryName
-                              : DateFormat('EEEE, d MMM').format(expense.date),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
+                        // The category sits under a note; without one the title is
+                        // the category. The date is a fact below.
+                        if (hasNote) ...[
+                          const SizedBox(height: AppSpacing.xxs),
+                          Text(categoryName, style: muted),
+                        ],
                       ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  CurrencyFormatter.format(
-                    expense.amount,
-                    code: budget?.currency,
-                  ),
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
+              AppMoney(
+                amount: expense.amount,
+                currency: budget?.currency,
+                role: MoneyRole.display,
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Facts
-        AppCard(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          child: Column(
-            children: [
-              _FactRow(
-                icon: Icons.account_balance_wallet_outlined,
-                label: 'Budget',
-                value: budget?.name ?? 'Unknown budget',
-                valueColor: theme.colorScheme.primary,
-              ),
-              _FactRow(
-                icon: Icons.calendar_today_outlined,
+              const SizedBox(height: AppSpacing.md),
+              Divider(color: theme.colorScheme.outlineVariant),
+              _Fact(label: 'Budget', value: budget?.name ?? 'Unknown budget'),
+              _Fact(
                 label: 'Date',
                 value: DateFormat('EEE, d MMM yyyy').format(expense.date),
               ),
-              _FactRow(
-                icon: Icons.access_time_rounded,
-                label: 'Time',
-                value: DateFormat('h:mm a').format(expense.time),
-              ),
-              _FactRow(
-                icon: Icons.category_outlined,
-                label: 'Category',
-                value: categoryName,
-              ),
-              if (hasNote)
-                _FactRow(
-                  icon: Icons.notes_rounded,
-                  label: 'Note',
-                  value: expense.note!.trim(),
-                ),
+              _Fact(label: 'Time', value: DateFormat.jm().format(expense.time)),
+              // A short note is already the title; only a long one, which
+              // the title may cut short, is repeated here in full.
+              if (hasNote && note.length > _titleNoteLength)
+                _Fact(label: 'Note', value: note),
               if (expense.tags.isNotEmpty)
-                _FactRow(
-                  icon: Icons.sell_outlined,
+                _Fact(
                   label: 'Tags',
                   child: Wrap(
                     spacing: AppSpacing.xs,
                     runSpacing: AppSpacing.xs,
                     children: [
                       for (final tag in expense.tags)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm,
-                            vertical: AppSpacing.xxs,
-                          ),
+                        DecoratedBox(
                           decoration: BoxDecoration(
-                            color: colors.tertiary.withValues(alpha: 0.12),
+                            color: theme.colorScheme.surfaceContainerHigh,
                             borderRadius: AppSpacing.borderRadiusXs,
                           ),
-                          child: Text(
-                            '#$tag',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: colors.tertiary,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xxs,
+                            ),
+                            child: Text(
+                              '#$tag',
+                              style: theme.textTheme.labelMedium,
                             ),
                           ),
                         ),
                     ],
                   ),
                 ),
-            ],
-          ),
-        ),
-
-        // Receipt
-        if (receiptPath != null) ...[
-          const SizedBox(height: AppSpacing.md),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              if (receiptPath != null) ...[
+                Divider(color: theme.colorScheme.outlineVariant),
+                const SizedBox(height: AppSpacing.sm),
                 Text('Receipt', style: theme.textTheme.titleSmall),
                 const SizedBox(height: AppSpacing.sm),
                 if (File(receiptPath).existsSync())
@@ -370,7 +382,7 @@ class _Details extends StatelessWidget {
                       File(receiptPath),
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      errorBuilder: (_, __, ___) =>
+                      errorBuilder: (_, _, _) =>
                           const Text('Receipt unavailable'),
                     ),
                   )
@@ -380,60 +392,58 @@ class _Details extends StatelessWidget {
                       Icon(
                         Icons.error_outline_rounded,
                         size: AppSizes.iconSm,
-                        color: theme.colorScheme.error,
+                        color: critical,
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        'Receipt file is missing',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.error,
+                      Expanded(
+                        child: Text(
+                          'Receipt file is missing',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: critical,
+                          ),
                         ),
                       ),
                     ],
                   ),
+                const SizedBox(height: AppSpacing.sm),
               ],
-            ),
+            ],
           ),
-        ],
-
-        const SizedBox(height: AppSpacing.lg),
-
-        // Actions
-        if (canMove) ...[
-          OutlinedButton.icon(
-            key: const Key('moveExpenseBudgetButton'),
-            onPressed: busy ? null : onMove,
-            icon: const Icon(Icons.swap_horiz_rounded),
-            label: const Text('Move to another budget'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        OutlinedButton.icon(
-          key: const Key('deleteExpenseButton'),
-          onPressed: busy ? null : onDelete,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.error,
-            side: BorderSide(color: colors.error.withValues(alpha: 0.6)),
-          ),
-          icon: busy
-              ? const SizedBox(
-                  width: AppSizes.iconSm,
-                  height: AppSizes.iconSm,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.delete_outline_rounded),
-          label: const Text('Delete expense'),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
 
-        // Metadata
+        // Actions sit on the page, quietest first.
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          children: [
+            TextButton.icon(
+              key: const Key('duplicateExpenseButton'),
+              onPressed: busy ? null : onDuplicate,
+              icon: const Icon(Icons.copy_rounded),
+              label: const Text('Duplicate'),
+            ),
+            if (canMove)
+              TextButton.icon(
+                key: const Key('moveExpenseBudgetButton'),
+                onPressed: busy ? null : onMove,
+                icon: const Icon(Icons.swap_horiz_rounded),
+                label: const Text('Move to another budget'),
+              ),
+            TextButton.icon(
+              key: const Key('deleteExpenseButton'),
+              onPressed: busy ? null : onDelete,
+              style: TextButton.styleFrom(foregroundColor: critical),
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Delete expense'),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
         Text(
           'Added ${DateFormat('d MMM yyyy, h:mm a').format(expense.createdAt)}'
           '${expense.updatedAt.difference(expense.createdAt).inMinutes > 0 ? ' · Edited ${DateFormat('d MMM yyyy, h:mm a').format(expense.updatedAt)}' : ''}',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          textAlign: TextAlign.center,
+          style: muted,
         ),
         const SizedBox(height: AppSpacing.md),
       ],
@@ -441,57 +451,47 @@ class _Details extends StatelessWidget {
   }
 }
 
-class _FactRow extends StatelessWidget {
-  final IconData icon;
+/// One fact: the label on the left, the value beside it; stacked when the
+/// text is too large to share a line.
+class _Fact extends StatelessWidget {
   final String label;
   final String? value;
   final Widget? child;
-  final Color? valueColor;
 
-  const _FactRow({
-    required this.icon,
-    required this.label,
-    this.value,
-    this.child,
-    this.valueColor,
-  });
+  const _Fact({required this.label, this.value, this.child});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            size: AppSizes.iconMd,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppSpacing.smd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                child ??
-                    Text(
-                      value ?? '',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: valueColor,
-                      ),
-                    ),
-              ],
-            ),
-          ),
-        ],
+    final labelText = Text(
+      label,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+    final valueWidget =
+        child ?? Text(value ?? '', style: theme.textTheme.bodyLarge);
+    final stacked = MediaQuery.textScalerOf(context).scale(14) > 20;
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  labelText,
+                  const SizedBox(height: AppSpacing.xxs),
+                  valueWidget,
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 96, child: labelText),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(child: valueWidget),
+                ],
+              ),
       ),
     );
   }

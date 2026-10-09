@@ -100,7 +100,7 @@ void main() {
 
     expect(state.isBusy, isFalse);
     expect(state.integrityResult, isNull);
-    expect(state.errorMessage, contains('Database check failed'));
+    expect(state.errorMessage, "Couldn't check the database. Try again.");
   });
 
   test('without a service the check reports that it is unavailable', () async {
