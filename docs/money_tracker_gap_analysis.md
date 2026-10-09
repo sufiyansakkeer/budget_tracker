@@ -14,7 +14,8 @@ This document was written as an audit and a plan before any code changed. It is
 kept as the record of *why* each decision was taken. What follows is what
 shipped, so the plan and the code do not drift apart.
 
-**Shipped** — released as 1.3.0, see [`CHANGELOG.md`](../CHANGELOG.md):
+**Shipped** — originally as 1.3.0; version numbers were later reset, so it is now part of
+1.0.0. See [`CHANGELOG.md`](../CHANGELOG.md):
 
 | From the plan | Where it lives |
 | --- | --- |
@@ -384,7 +385,7 @@ Each phase ends with `flutter analyze` + `flutter test` green and a commit on `f
 1. **Income tracking: not implemented.** Reason in §4. If wanted, the recommended shape is an
    `income` transaction type that *optionally* tops up the linked budget's amount, with the
    safe-spending formula unchanged — a separate, scoped piece of work.
-   *Note (Smart Safe-to-Spend, after 1.3.0):* the safe-spending formula has since changed. It
+   *Note (Smart Safe-to-Spend, later in 1.0.0):* the safe-spending formula has since changed. It
    now deducts the budget's commitments before dividing: unpaid bills linked to the budget,
    an optional kept-aside amount and an optional savings goal. Bill payments that settle
    money set aside are not counted against today's amount. See

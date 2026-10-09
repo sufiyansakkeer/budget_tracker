@@ -1,660 +1,381 @@
 # Monivo — Smart Budget Tracker
 
-Monivo is an offline-first personal budgeting app for Android and iOS, built with
-Flutter. It is designed around a single idea: a budget is a fixed amount of money
-for a specific stretch of time, and the most useful number is how much you can
-safely spend **today** without running that amount out early.
+**Know what you can spend today.**
 
-**Current version:** `1.0.0+1` (source of truth: [`pubspec.yaml`](pubspec.yaml))
-**Repository:** <https://github.com/sufiyansakkeer/budget_tracker>
+Monivo is an offline-first budgeting app for Android and iOS, built with Flutter. You give
+each budget an amount and your own start and end dates. Monivo then works out one daily
+number, **Today's Safe Spending**: how much you can spend today and still make the money
+last to the end of the period, after upcoming bills, money you've kept aside and your
+savings goal are protected.
 
----
+![Flutter](https://img.shields.io/badge/Flutter-3.32-02569B?logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-3.8-0175C2?logo=dart&logoColor=white)
+![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555555)
+![State](https://img.shields.io/badge/state-BLoC-2C7BE5)
+![Storage](https://img.shields.io/badge/storage-Drift%20%2F%20SQLite-003B57?logo=sqlite&logoColor=white)
 
-## Overview
-
-Most budgeting apps assume a calendar month. Monivo does not. You create as many
-budgets as you need, each with its own amount, currency and start/end dates — a
-salary cycle, a two-week trip, a wedding fund — and each one tracks its own
-expenses and its own daily safe spending independently.
-
-The problem it solves is pacing. Knowing you have money left is not the same as
-knowing whether you can spend today. Monivo continuously recomputes, per budget:
-
-```
-Today's Safe Spending = (Budget Amount − Total Spent + Spent Today) ÷ Remaining Days
-```
-
-Because Spent Today is added back before dividing, the figure is stable for the
-whole day: it tells you what you may spend today, and it does not shrink as you
-record expenses during that day. It is recalculated from scratch each new day.
-
-Everything runs on the device. There is no account, no sync service and no
-analytics backend. The only network request the app makes is an optional check
-against the GitHub Releases API to see whether a newer build exists.
-
-### Multiple budgets, explained
-
-This is the core concept, so it is worth stating precisely.
-
-Each budget is **independent** and owns:
-
-| Property | Scope |
-| --- | --- |
-| Amount | Per budget |
-| Currency | Per budget |
-| Start date / end date | Per budget |
-| Expenses | Per budget (every expense belongs to exactly one budget) |
-| Remaining Budget | Per budget |
-| Today's Safe Spending | Per budget |
-| Budget progress / status | Per budget |
-
-**Amounts are never combined across budgets.** There is no aggregate daily limit
-and no merged remaining balance. The Dashboard shows the Active Budget in full and
-lists other budgets running today separately, each with its own figures.
-
-The one place where budgets appear together is the **Combined Expense View** in
-the Expenses tab. That is a *viewing and aggregation* feature only: it lists the
-expense rows from the budgets you select in a single chronological list so you can
-compare them. It does not merge the budgets, their amounts, their periods or their
-safe-spending calculations.
+**Repository:** <https://github.com/sufiyansakkeer/budget_tracker> ·
+**Version:** `1.0.0+1` ([`pubspec.yaml`](pubspec.yaml)) ·
+**Status:** in active development; not yet published to an app store or as a GitHub
+Release, so build it from source ([Getting started](#getting-started)).
 
 ---
 
-## Features
+## Preview
 
-### Budget Management
+<p align="center">
+  <img src="test/goldens/goldens/home_tablet.light.1x.png" width="560"
+       alt="Monivo Home on a tablet: Today's Safe Spending hero with an At risk status, free-to-spend breakdown, bills not linked notice, upcoming bills, spending pace chart, other budgets and recent expenses">
+  <br>
+  <sub><b>Home</b> (two-column tablet layout): Today's Safe Spending with its status,
+  what's free to spend after bills and a savings goal, upcoming bills, spending pace and
+  other budgets running today.</sub>
+</p>
 
-- Create any number of budgets, each with a name, amount, currency and an explicit
-  start and end date. Periods may overlap.
-- One budget is the **Active Budget** at a time. The Dashboard, Reports and the
-  home screen widget follow it; switching is done from the Dashboard, the budget
-  list or Settings.
-- Per budget: Remaining Budget, overall progress, days passed, remaining days,
-  average daily spending, projected period-end spending, projected savings and
-  projected overspending.
-- Budget status is classified as under budget, near limit or over budget from a
-  configurable utilization threshold.
-- Budgets can be edited and archived. Archived budgets keep their expenses.
-- **The Budgets screen** leads with the Active Budget as one card (what is
-  left, a bar with a tick for today, the day of the period, and "Home, Expenses
-  and Reports follow this budget"). Other budgets are compact rows grouped as
-  running, starting later, ended and archived. "Total remaining" is a quiet
-  footer with one figure per currency.
-- **A budget's screen** offers "Add expense" only when it is the Active Budget,
-  since that is where new expenses go; any other budget offers "Make active".
-- Budget and bill forms show what must be decided first; icon, colour and notes
-  (budgets) or category, repeat, reminder and note (bills) sit under "More
-  options", folded for a new item and open when editing.
-- **Change active budget amount** (Settings) rewrites only the amount; dates and
-  expenses stay as they are, and the remaining amount is recomputed from what has
-  already been spent.
-- **Start new budget period** (Settings) archives the Active Budget and creates
-  exactly one fresh 31-day budget starting today, carrying over the amount and
-  currency. The operation runs in a single database transaction.
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="test/goldens/goldens/onboarding_confirmation.dark.1x.png" width="190" alt="Onboarding confirmation in dark mode showing the first day's safe spending"></td>
+    <td align="center" width="25%"><img src="test/goldens/goldens/quick_add.dark.1x.png" width="190" alt="Quick-add expense sheet in dark mode with number pad and category chips"></td>
+    <td align="center" width="25%"><img src="test/goldens/goldens/budget_details.light.1x.png" width="190" alt="Budget details screen showing amount left, progress and spending"></td>
+    <td align="center" width="25%"><img src="test/goldens/goldens/currency_converter.light.1x.png" width="190" alt="Currency converter showing a USD to INR conversion with rate source and date"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Onboarding</b>: previews the first day's safe amount before the budget is created</sub></td>
+    <td align="center"><sub><b>Quick add</b>: amount pad, most-used categories, Today / Yesterday</sub></td>
+    <td align="center"><sub><b>Budget details</b>: what's left, day of the period, spent today</sub></td>
+    <td align="center"><sub><b>Currency converter</b>: cached daily reference rates that keep working offline</sub></td>
+  </tr>
+</table>
 
-### Expense Management
+<sub>These images are rendered by the project's golden-test suite
+([`test/goldens/`](test/goldens/)) from fixed sample data. They show the real app widgets and
+bundled fonts, without device chrome. Every screen is checked in light and dark, at 100%
+and 200% text size.</sub>
 
-- Add, edit and delete expenses. Each expense records amount, category, optional
-  note, date, time, optional tags and an optional receipt image.
-- **Quick add.** The Add expense button opens a sheet: type the amount on a
-  number pad, tap one of your five most used categories (the last 90 days, bill
-  payments left out) and Today, Yesterday or another day. It goes to the active
-  budget. "More details" opens the full form with what you entered, for the
-  note, budget, time, tags and receipt. The home-screen widget's button still
-  opens the full form.
-- **Checked when you save.** Neither form flags anything while you type; Add
-  says what is missing. Leaving the full form with unsaved input asks before
-  discarding it. A save closes the form at once with a short confirmation.
-- **Swipe left to delete, with Undo.** Deleting is immediate and a snackbar offers
-  Undo for a few seconds; undo restores the same row, so budgets, reports and the
-  widget stay consistent either way. No confirmation dialog stands in the way.
-- **Press and hold a row** for contextual actions: Edit, Duplicate, Move to another
-  budget, Delete. Duplicate opens the form pre-filled from that expense, dated now.
-  An expense's own screen offers the same, and deleting there also closes with
-  Undo rather than a confirmation.
-- Moving an expense between budgets credits the budget it left and debits the one
-  it joins, inside a single transaction.
-- 13 built-in categories (Food, Grocery, Fuel, Shopping, Rent, EMI, Bills, Travel,
-  Entertainment, Health, Education, Salary Adjustment, Others), each with its own
-  icon and colour.
-- **Your own categories.** Settings → Expenses & tools → Categories adds, renames and
-  restyles categories (43 icons, 16 colours), archives ones you no longer use and
-  deletes custom ones that no expense references. Built-in categories can be
-  renamed and restyled but not deleted. Archived categories disappear from pickers
-  while history keeps its labels.
-- Receipt images are captured with the camera or picked from the photo library and
-  stored locally.
-- **Expense history** groups entries by the device's local calendar date, with a
-  running summary, incremental paging and text search.
-- Six sort options: newest first, oldest first, highest amount, lowest amount,
-  category, alphabetical. Category sort keeps ordering stable within each day group.
-- Filters: category, date range, minimum/maximum amount, tags, and receipt-only.
-  Filters combine, and active filters are shown as removable chips.
-- Date presets — Today, Yesterday, This week, Last week, This month, Last month,
-  This year — as quick chips and in the filter sheet. A custom range reads as a
-  single chip ("12 Mar – 15 Mar").
-- **Combined Expense View**: from the budget menu under the Expenses title, select
-  multiple budgets and see their expenses in one list. Each row carries a
-  budget-name tag, and an info sheet shows that budget's details. When the
-  budgets use different currencies, the summary gives one total per currency and
-  days that mix them show no total. See
-  [Multiple budgets, explained](#multiple-budgets-explained).
-- All amounts are formatted through a single currency formatter using the budget's
-  currency code and symbol.
+<!--
+TODO(screenshots): add real device captures, e.g. under docs/screenshots/:
+  - Android and iOS home-screen widgets on a home screen (the native widgets have no golden)
+  - Home on a phone, cropped to the first screen (home.light.1x.png is 720×4000)
+  - Reports (charts) and the Color palette screen, cropped to one screen height
+  - Optional: a short GIF of quick add → Home updating
+-->
 
-### Dashboard
+---
 
-- **Today's Safe Spending** hero card for the Active Budget, with Spent Today,
-  either "Left today" or "Over by", and a quiet weekly line showing what has been
-  spent against this week's share of the budget.
-- Budget overview card — how much of the budget is left (or how far over it you
-  are), the percentage used, and your position in the budget period (day N of M,
-  with the date range).
-- **Other budgets today** — a separate section listing every other budget whose
-  period includes today, each with its own safe amount. Nothing is summed.
-- **Smart Insights** — up to three prioritised observations (see below).
-- **Recent expenses** for the Active Budget, with a shortcut to the full history.
-- **Upcoming bills** — the next three unpaid bills due today or later, soonest
-  first.
-- **Quick actions** — Add bill, Bills, Budgets, Reports.
-- When no budget covers today, the Dashboard shows a create-budget state instead.
+## Why Monivo
 
-### Reports
+Most expense trackers answer *"what did I spend?"* Monivo answers *"what can I spend
+today?"*, the question you have at the till.
 
-Reports are scoped to the **Active Budget's** expenses.
+- **Built for real budget periods.** A budget runs on your dates, not the calendar month:
+  a salary cycle, a two-week trip, a household month. Several can run at once, and their
+  money is never pooled.
+- **One number that already accounts for what's coming.** Today's Safe Spending sets aside
+  bills due before the period ends, money you've kept aside and your savings goal. It stays
+  fixed for the day, so recording a coffee doesn't make the target move.
+- **It explains itself.** A status (*On track*, *Spend carefully*, *At risk*,
+  *Over budget*…), a "How it's worked out" breakdown and a forecast show where the number
+  comes from.
+- **Private by default.** No account, no backend, no analytics. Everything is stored on the
+  device. The only network calls are an optional update check and the optional currency
+  converter.
 
-- Period selector: **This Budget** (the Active Budget's own period, from its start
-  to today), This Week, Last Week, This Month, Last Month, This Year, Custom
-  range. Dates are chosen there only; the filter sheet narrows by category,
-  amount, tags and receipts.
-- **The total first**: what was spent, and how that compares with the same
-  number of days just before ("12% more than the 9 days before (22 – 30 Sep)").
-  No sentence when there was no spending to compare with. Then the daily
-  average, the number of expenses and the biggest one.
-- **Planned vs actual** for This Budget: spent against the budget amount, on a
-  bar with a tick for today. Facts only, no status word.
-- **Where it went**: every category ranked by amount with a bar of its share;
-  tap one to list those expenses.
-- **Categories vs previous period** — which categories moved most against the
-  equal-length window immediately before the selected range, with the change in
-  money and percent, and a "New" marker for categories with no earlier spending.
-- Day by day: one column per day (real totals, never smoothed) with a dashed
-  line at the daily average; tap a day to see its total.
-- Bar chart of weekly buckets (month views) or monthly buckets (year views), shown
-  when the range produces more than one bucket.
-- Weekly rhythm: spending by day of the week, the heaviest day, and the weekend
-  share.
-- Report insights, only those that add something the figures and charts don't
-  already show.
-- Export the report as **CSV** or **PDF** from the menu, through the system share
-  sheet.
-- A refresh that fails keeps the last report on screen with a Retry.
+It is aimed at people who budget a fixed amount over a fixed period and want a daily
+guide rather than a month-end report.
 
-Charts are drawn with `fl_chart`.
+---
 
-### Bills & Reminders
+## Key features
 
-- Create bills with a title, optional note, amount, currency, category, due date and
-  optional due time.
-- 14 bill categories (Rent, Utilities, Electricity, Water, Internet, Phone, EMI,
-  Insurance, Subscription, Education, Healthcare, Government, Credit Card, Other).
-- Recurrence: one-time, weekly, monthly or yearly, with a configurable interval.
-- Status is derived from the due date and payment state — Upcoming, Due Today,
-  Overdue or Paid. It is computed, never stored.
-- Mark a bill paid or unpaid. Marking a recurring bill paid advances it to its next
-  occurrence instead of closing it permanently, and writes a payment-history record.
-  The payment record and the bill update are written atomically.
-- The list groups bills as **Overdue**, **Due soon** (today and the next six
-  days), **Later** and **Paid**, each with a count and its unpaid total per
-  currency; amounts in different currencies are never added together.
-- List filters: All, Upcoming, Due Today, Overdue, Paid, Recurring, Not linked.
-- Per-bill reminders with a configurable lead time in days, delivered as local
-  notifications on a dedicated channel. Reminders are never scheduled for a time in
-  the past, and reminder IDs are derived from the bill ID so they can be reliably
-  cancelled and rescheduled.
+**Budgets**
+- Any number of budgets, each with its own amount, currency and start/end dates; periods
+  may overlap. One **active budget** drives Home, Expenses, Reports and the widget.
+- Optional **kept aside** amount and **savings goal** per budget, both protected in the
+  daily figure.
+- Edit, duplicate, archive (keeps its expenses) or delete (removes them).
+  **Start new budget period**
+  archives the active budget and creates a fresh 31-day one in a single transaction. It
+  carries over the settings and re-links the old budget's unpaid bills.
 
-### Smart Insights
+**Expenses**
+- **Quick add** from a bottom sheet: number pad, five category shortcuts led by the ones
+  you used most in the last 90 days, and Today / Yesterday / another day. "More details" opens the full form, which has note, time,
+  tags and a receipt photo (camera or gallery).
+- **Swipe to delete with Undo**, plus press-and-hold for Edit, Duplicate, Move to another
+  budget, Delete. A move updates both budgets atomically.
+- History grouped by day, with search, paging, six sort orders, combinable filters
+  (category, dates, amount range, tags, has receipt) and date presets.
+- **Combined view** lists several budgets' expenses together without merging the budgets.
+  When their currencies differ, it shows one total per currency.
+- 13 built-in categories plus your own (icon and colour, rename, archive, delete when
+  unused).
 
-Smart Insights are **rule-based and deterministic** — there is no AI and no network
-call. They are produced by a pure domain service from the Active Budget's summary
-and the per-budget daily limits, and at most three are shown, ordered by severity:
+**Bills and reminders**
+- One-time or recurring bills (weekly, monthly or yearly, with an interval). Status
+  (*Upcoming*, *Due today*, *Overdue*, *Paid*) is derived from dates, never stored.
+- **Link a bill to a budget** and its upcoming occurrences are set aside in that budget's
+  safe amount. **Mark paid & record expense** writes the payment, the expense and the next
+  due date in one transaction.
+- Grouped as Overdue / Due soon / Later / Paid, with unpaid totals per currency. Each bill
+  can have a local reminder on the due date or 1, 2, 3 or 7 days before.
 
-1. Per-budget over-limit and near-limit warnings for today.
-2. Critical overspending on the Active Budget.
-3. Projected period-end overspending at the current daily average.
-4. Per-budget weekly-share overspending.
-5. Per-budget progress (percentage used, days remaining).
-6. Overspending against Today's Safe Spending.
-7. Daily and weekly spending-target status.
-8. Spending pace relative to the safe allowance.
-9. Overall budget progress.
-10. Positive outcomes — projected leftover, or simply being within budget.
+**Reports**
+- Periods: *This Budget*, this/last week, this/last month, this year or a custom range.
+- Total spent compared with the same number of days just before; planned vs actual;
+  category ranking and biggest movers; day-by-day columns; weekly or monthly buckets;
+  spending by weekday.
+- Export the report as **CSV or PDF** through the system share sheet.
 
-Every message quotes real figures from local data. When no budget amount is set, a
-single informational message is shown instead. Reports carries its own separate
-insight generator for the period being viewed.
+**Home-screen widgets** (Android App Widget, iOS WidgetKit small/medium/large)
+- Shows the active budget's safe amount and status. Depending on size it also shows
+  today's progress, what's left, and an **Add expense** button that opens the form
+  directly.
+- Fits its slot: Android chooses among eleven layouts, measured at the current font size,
+  and iOS uses `ViewThatFits`, so larger text gets a simpler layout instead of clipped
+  figures. After midnight it shows "Tap to update" rather than yesterday's amount.
 
-### Notifications
+**Everything else**
+- **Notifications:** a morning Today's Safe Spending (one line per running budget) and an
+  evening summary, under one switch with adjustable times, plus bill reminders. They survive
+  device restarts.
+- **Appearance:** Light, Dark or System mode and eight colour palettes, all meeting WCAG AA
+  contrast (enforced by tests). Material 3 throughout, motion that respects the platform's
+  reduced-motion setting, and a two-column Home on wide screens.
+- **Currencies:** ten app currencies (INR, USD, EUR, AED, OMR, GBP, CAD, AUD, JPY, SGD),
+  formatted by one central formatter. That includes the new Omani rial sign (U+20C4),
+  shipped as a bundled fallback font because system fonts don't have it yet.
+- **Currency converter:** cache-first, using [Frankfurter](https://frankfurter.dev/) daily
+  reference rates. It shows the rate date and source and keeps working offline with the
+  last saved rate.
+- **Security and data:** optional biometric app lock; CSV/JSON export and import; full
+  JSON backup and restore (restore runs in one transaction); an on-demand database health
+  check.
+- **Home insights:** up to two rule-based observations ("Worth knowing"), computed on the
+  device from your own figures.
+- **Onboarding:** seven steps, ending with a preview of the first day's safe amount.
 
-Two local notification channels, both scheduled in the device's local timezone:
+---
 
-| Channel | Notifications |
-| --- | --- |
-| `budget_reminders` | Morning "Today's Safe Spending" (one line per budget running today) and an evening summary |
-| `bill_reminders` | Per-bill reminders based on each bill's lead time |
+## How Safe to Spend works
 
-- Permission is requested once at app startup. A denial never blocks launch — the
-  rest of the app stays fully usable.
-- Morning and evening notifications can each be toggled and re-timed in Settings,
-  under a master "Daily notifications" switch.
-- Schedules survive device restarts via a boot receiver.
-- In **debug builds only**, an extra test notification is scheduled one minute after
-  launch to verify permission, channel and delivery.
-
-### Security
-
-- Optional biometric app lock (fingerprint / Face ID / device credential), toggled
-  in Settings and backed by `local_auth`.
-- When enabled, a full-screen gate covers the app until authentication succeeds.
-  The system back button is intercepted while locked, and a persistent
-  "Re-authenticate" action is always available.
-- The app re-locks when it is backgrounded. Dismissing the native biometric prompt
-  does not cause an immediate re-lock.
-- Lock state is owned by a BLoC, not by the gate widget, and the gate is themed with
-  the user's palette and brightness.
-- A widget deep link tapped while the app is locked is stashed and replayed only
-  after a successful unlock.
-
-### Home Screen Widget
-
-Available on **Android** (App Widgets) and **iOS** (WidgetKit).
-
-The widget shows the **Active Budget only** — never a total across budgets:
-
-- Today's Safe Spending
-- Spent Today
-- Status (on track, or how much over)
-- Remaining Budget and remaining days
-
-Interactions: tapping the widget body opens the Dashboard; tapping "+ Add Expense"
-opens the Add Expense screen directly, on both cold and warm start.
-
-Data is computed by the same use cases the Dashboard uses — no duplicated formulas —
-and written to shared storage (`SharedPreferences` on Android, an App Group's
-`UserDefaults` on iOS). It refreshes when an expense or budget changes, on app
-startup, and on the platform's own hourly refresh cycle. When no budget covers
-today, the widget shows an empty state.
-
-Sizes: Android declares a 4×2 target cell and is resizable horizontally and
-vertically; iOS supports the `systemSmall` and `systemMedium` families.
-
-See [`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) for the
-full data contract and platform setup.
-
-### Theme
-
-- Light, Dark and System modes.
-- Eight colour palettes: Default, Blossom Vapor, Mahogany Blaze, Ocean, Forest,
-  Sunset, Violet, Rose.
-- Material 3 (`useMaterial3: true`) with one shape and typography language across
-  cards, sheets, buttons, inputs and chips. The dark theme uses its own surface
-  hierarchy rather than a straight inversion of light.
-- Switching mode or palette interpolates every colour in place — no restart and no
-  flash — and the system status-bar style follows the active brightness.
-- Theme mode and palette are persisted and restored on launch.
-
-### Motion
-
-A single set of motion tokens drives the whole app: micro press feedback (~120 ms),
-component transitions (~250 ms), screen transitions (~300–350 ms) and emphasized
-reveals (~450 ms) for number count-ups, progress sweeps and chart reveals. Route
-transitions use shared-axis and fade-through patterns; bottom-navigation branches
-cross-fade. Every animation goes through a reduced-motion helper, so the app
-degrades gracefully when the platform requests reduced motion.
-
-**Animated bottom navigation.** The four tabs sit on a Material 3 bar. Selecting a
-tab cross-fades its outlined icon into the filled one and plays a short pulse, while
-the bar draws the steady selected state — indicator, tint, label weight — from the
-current index, so it is always correct after navigating, after returning from a pushed
-screen and after a cold start. Nothing loops, and under reduced motion every change is
-instant. Details and how to change the tabs:
-[docs/architecture/navigation.md](docs/architecture/navigation.md).
-
-### Currency
-
-Ten selectable currencies — INR, USD, EUR, AED, OMR, GBP, CAD, AUD, JPY, SGD. A
-currency is chosen during onboarding, can be changed in Settings for new budgets and
-app-wide display, and each budget also stores its own currency code. All formatting
-goes through one central formatter.
-
-### Currency Converter
-
-**Settings → Expenses & tools → Currency converter** converts an amount between any two of
-the ~160 currencies published by [Frankfurter](https://frankfurter.dev/)
-(`https://api.frankfurter.dev/v2/`, HTTPS only, no API key). Frankfurter serves
-daily **reference rates** from central banks and other official sources — not
-real-time trading rates — and the screen always shows the rate date and where
-the rate came from (online, saved, offline, or calculated from the reverse pair).
-
-How it avoids network calls:
+Each budget is calculated on its own; amounts are never combined across budgets.
 
 ```text
-request pair → saved rate (direct, or 1/x of the reverse) fresh? ──yes──▶ convert locally
-                        │ no / stale / "Refresh rate"
-                        ▼
-                 GET /v2/rate/{base}/{quote} ──ok──▶ save rate ──▶ convert locally
-                        │ fails
-                        ▼
-          newest saved rate (flagged offline / couldn't update)
-                        │ none
-                        ▼
-          "An internet connection is required …" + Try again
+A  Remaining      = budget amount − spent so far this period
+B  Bills          = unpaid occurrences of bills linked to this budget, due by its end date
+C  Kept aside     = optional amount reserved in the budget
+D  Savings goal   = optional savings target for the period
+
+Spendable         = A − B − C − D
+Safe today        = max(0, (Spendable + today's discretionary spending) ÷ days left, today included)
+Left today        = Safe today − today's discretionary spending
 ```
 
-- **What is stored:** the rate itself per pair (`OMR_INR`), as exact decimal
-  text, with the provider's rate date, the local fetch time and the provider —
-  never a converted amount. Tables `exchange_rates` and `converter_currencies`.
-- **Freshness:** a rate whose reference day is today (UTC) is used as is; an
-  older one is re-checked at most every 6 hours. The currency list is cached
-  for 7 days.
-- **Amount changes, swapping back, reopening the screen and theme changes never
-  call the API.** Concurrent lookups of one pair share one request.
-- **Offline:** conversion keeps working with the newest saved rate. With none
-  saved, the screen explains that a connection is needed for that pair.
-- **Refresh rate** forces a fetch; if it fails the saved rate stays.
-- **Reverse pairs** are derived as `1 / rate` only from rates ≥ 1: Frankfurter
-  quotes those to ~5 significant digits (249.33) but rounds rates below 1 to
-  ~5 decimal places (0.00401), so the inverse of the strong direction is the
-  more precise number.
-- **Precision:** conversion uses `ExactDecimal` (`lib/core/currency/`), exact
-  BigInt arithmetic with a single final rounding to the target currency's
-  ISO 4217 decimals (OMR 3, INR 2, JPY 0).
+*Discretionary* means today's spending minus payments of bills this budget had already set
+aside.
 
-### App Updates
+**Rules that shape the number**
 
-Monivo checks the GitHub Releases API
-(`https://api.github.com/repos/sufiyansakkeer/budget_tracker/releases/latest`) for a
-newer release. The check runs after the first frame renders, so a slow network never
-blocks launch, and the request times out after 10 seconds.
+- **Fixed for the day.** Today's discretionary spending is added back before dividing, so
+  the limit doesn't shrink with every purchase; today's spending is measured against it.
+  At midnight it is recalculated from what is actually left: unspent money raises
+  tomorrow's figure, overspending lowers it.
+- **Paying a planned bill doesn't cost today's allowance.** The payment moves from B into
+  spending, so Spendable is unchanged.
+- **Never optimistic by accident.** If bills can't be read, the breakdown says
+  *Unavailable* (not ₹0) and the status is capped at *Spend carefully*. Displayed safe
+  amounts are rounded **down** to the currency's minor unit, so the app never shows more
+  than is there.
+- **The forecast is informational.** It uses completed days only, needs at least three of
+  them, and never changes today's amount. It projects the end balance and, when spending is
+  too fast, the date the money runs out.
 
-Versions are compared semantically after stripping a leading `v` and any `+build`
-suffix. When a newer release is found, a dialog is shown once per launch; the check
-can also be run manually from Settings, and the release page opens in the browser.
+**Example.** A ₹30,000 budget for 1–30 Aug. On 9 Aug (22 days left, today included):
+₹6,000 has been spent, ₹300 of it today. A ₹2,200 electricity bill linked to the budget is
+due on 15 Aug, ₹1,000 is kept aside and the savings goal is ₹2,000.
 
-### Data Management
-
-- Export all data as **CSV** or **JSON** via the system share sheet.
-- Import from a CSV or JSON file.
-- Create a full local **backup** (a versioned JSON file covering every table) and
-  restore from one.
-- Backups are validated against the expected schema before being applied, and
-  imports are validated before committing. Restore replaces everything inside one
-  transaction, so a failure leaves the existing data untouched.
-- A CSV export re-imports losslessly: the importer matches columns by header name
-  rather than position, so a spreadsheet you rearranged still works, and unknown
-  categories fall back to "Others" instead of failing.
-- **Database health** — an on-demand integrity check (orphaned rows, impossible
-  date ranges, invalid amounts) with the result in a sheet.
-
-See [docs/architecture/backup_restore.md](docs/architecture/backup_restore.md).
-
-### Onboarding
-
-A seven-step first-launch flow: welcome, budget name, budget amount, currency,
-start date, end date, and a confirmation summary. Completion is persisted, and the router
-redirects to onboarding until it is done.
-
----
-
-## Tech Stack
-
-Every entry below was verified against [`pubspec.yaml`](pubspec.yaml) and the source.
-
-| Area | Package / technology |
+| Step | Value |
 | --- | --- |
-| Framework | Flutter (Dart SDK `^3.8.1`) |
-| State management | `flutter_bloc`, `equatable` |
-| Navigation | `go_router` (`StatefulShellRoute` for the bottom-nav tabs) |
-| Dependency injection | `get_it` |
-| Reactive UI helper | `provider` (currency `ChangeNotifier`) |
-| Database | `drift`, `drift_flutter`, `sqlite3_flutter_libs` |
-| Key-value storage | `shared_preferences` |
-| File system paths | `path_provider`, `path` |
-| Charts | `fl_chart` |
-| Formatting / i18n | `intl` |
-| Notifications | `flutter_local_notifications`, `timezone`, `flutter_timezone` |
-| Biometrics | `local_auth` (+ `local_auth_android`, `local_auth_darwin`, `local_auth_windows`) |
-| Receipts | `image_picker` |
-| Import / export | `file_picker`, `csv`, `pdf`, `share_plus` |
-| Home screen widget | `home_widget` |
-| Networking | `http` |
-| App metadata | `package_info_plus` |
-| External links | `url_launcher` |
-| IDs | `uuid` |
+| Remaining (A) | 30,000 − 6,000 = ₹24,000 |
+| Spendable | 24,000 − 2,200 − 1,000 − 2,000 = ₹18,800 |
+| **Safe today** | (18,800 + 300) ÷ 22 = **₹868.18** |
+| Left today | 868.18 − 300 = ₹568.18 |
+| Without bills, kept aside and savings | (24,000 + 300) ÷ 22 = ₹1,104.55 |
 
-**Dev dependencies:** `flutter_test`, `flutter_lints`, `build_runner`, `drift_dev`,
-`bloc_test`, `mockito`, `sqlite3` (migration tests), `flutter_launcher_icons`.
+If the bill is paid today with *Mark paid & record expense*, Safe today stays ₹868.18.
 
-Linting uses `package:flutter_lints/flutter.yaml` with no project-specific overrides.
+The status is the first rule that matches: *Not started*, *Ended*, *Over budget*,
+*Overcommitted* (bills and reserves exceed what's left), *Over today's amount*, *At risk*
+(forecast ends short), *Spend carefully*, *On track*.
 
-> **Note on code generation.** The only generated file in the project is
-> `lib/core/database/app_database.g.dart` (Drift). Entities are hand-written and use
-> `Equatable` for value equality.
+Every formula, edge case and threshold is documented in
+[`CALCULATION_RULES.md`](lib/features/budget/CALCULATION_RULES.md); the design reasoning is
+in [`docs/architecture/safe_spending.md`](docs/architecture/safe_spending.md). Monivo does
+arithmetic on the figures you enter; it does not give financial advice.
 
 ---
 
 ## Architecture
 
-Monivo follows Clean Architecture with a feature-first layout. Each feature owns its
-own presentation, domain and data layers.
+Monivo uses Clean Architecture with a feature-first layout: each feature under
+`lib/features/` has its own `data/`, `domain/` and `presentation/` layers. BLoCs are the
+only place UI state is produced, and the domain layer is plain Dart.
 
+```mermaid
+flowchart TB
+    subgraph Presentation
+        UI["Screens and widgets"] -- events --> BLOC["BLoCs (flutter_bloc)"]
+    end
+    subgraph Domain["Domain (pure Dart)"]
+        UC["Use cases"] --> ENGINE["SafeToSpendCalculator<br/>BudgetCalculationService"]
+        UC --> REPO["Repository interfaces"]
+    end
+    subgraph Data
+        IMPL["Repository implementations"] --> LOCAL["Local data sources"]
+        IMPL --> REMOTE["Remote data sources<br/>(GitHub Releases, Frankfurter)"]
+    end
+    BLOC -- calls --> UC
+    IMPL -. implements .-> REPO
+    LOCAL --> DB[("Drift / SQLite")]
+    LOCAL --> PREFS[("SharedPreferences")]
+    BUS{{"RefreshBuses: expenses, budgets, bills"}} -. reload .-> BLOC
+    BUS -. reload .-> NATIVE["Home-screen widget<br/>and notifications"]
+    NATIVE --> UC
 ```
-Presentation  (Screens, Widgets)
-      ↓  events
-BLoC          (flutter_bloc — the only place UI state is produced)
-      ↓  calls
-Use Cases     (one responsibility each, pure Dart)
-      ↓  depends on abstractions
-Repositories  (interface in domain/, implementation in data/)
-      ↓
-Data Sources  (local, Drift-backed; one remote source for GitHub releases)
-      ↓
-Drift / SQLite  +  SharedPreferences
-```
 
-Principles actually applied in the codebase:
+### Engineering decisions
 
-- **Separation of concerns.** All budget arithmetic lives in
-  `BudgetCalculationService`, a pure class with no Flutter, UI or database imports.
-  Smart Insights and report insights are likewise pure domain services. The UI only
-  renders what these produce.
-- **BLoC state management.** Screens dispatch events; BLoCs invoke use cases and emit
-  immutable states. Cross-feature refresh is coordinated through one lightweight
-  broadcast channel — `RefreshBuses.expenses`, `.budgets` and `.bills` in
-  [`lib/core/events/refresh_bus.dart`](lib/core/events/refresh_bus.dart) — which also
-  keeps the home screen widget and the scheduled notifications in sync. A bus carries
-  no payload: every listener re-reads from its repository, so nobody acts on a stale
-  copy.
-- **Repository pattern.** Domain layers depend on repository interfaces only;
-  implementations translate between Drift rows/models and domain entities.
-- **Domain use cases.** Each meaningful operation is its own use case class, which is
-  what makes the business rules directly unit-testable.
-- **Typed failures.** Operations return sealed result types — `BudgetResult`,
-  `ExpenseResult`, `BillResult`, `SettingsResult`, `ReportResult` — each with
-  success and failure variants, rather than letting exceptions cross layers.
-- **Offline-first.** Every read and write goes to the local database or local
-  preferences. No feature depends on connectivity; the GitHub update check is the
-  single network call and fails silently.
-- **Memoization.** `BudgetCalculationService` caches its last summary and analytics
-  keyed by the input, so repeated Dashboard rebuilds do not recompute.
-- **Atomic writes.** Expense creation/update/deletion, budget amount changes, the
-  new-period reset and bill payments all run inside database transactions.
+- **One engine for every money figure.** `SafeToSpendCalculator` and
+  `BudgetCalculationService` are pure classes with no Flutter, database or clock
+  dependencies. The Home hero, "Other budgets today", the morning notification, the
+  home-screen widget and the onboarding preview all read their result through use cases.
+  No other code divides a remaining amount by remaining days, so every screen shows the
+  same number.
+- **Money as integers.** `MoneyMath` converts amounts to integer minor units once, and all
+  sums and comparisons run on integers (with `BigInt` for long-period products). This
+  avoids floating-point drift: 0.1 + 0.2 is exactly 0.3. The converter uses an exact
+  decimal type with a single final rounding.
+- **Calendar-correct dates.** Day counts compare calendar dates in UTC, so a 23-hour
+  daylight-saving day still counts as one day.
+- **Decoupled refresh.** Features don't call each other. A write notifies a payload-free
+  `RefreshBus`, and every listener (BLoCs, the widget, notification scheduling) re-reads
+  from its repository, so nothing acts on a stale copy.
+- **Typed results instead of thrown exceptions.** Use cases return sealed result types
+  (`BudgetResult`, `ExpenseResult`, `BillResult`, …) with success and failure variants.
+  Presentation maps failures to plain-language messages.
+- **The database does the heavy lifting.** Foreign keys are enforced, aggregates are SQL
+  `SUM`/`COUNT` over a `(budget_id, date)` index, multi-row writes run in transactions, and
+  schema migrations (v1 → v8) are tested against fixture databases.
+- **The widget shows the same numbers as the app.** Dart formats every figure into one
+  JSON payload; Kotlin (RemoteViews) and Swift (WidgetKit) only lay it out.
+- **Accessibility is guarded by tests.** Palette contrast is checked, tap-target and
+  contrast guideline tests exist, screens are golden-tested at 200% text, and amounts have
+  spoken forms for screen readers.
 
-### Dependency injection
+More detail: [`docs/architecture/`](docs/architecture/README.md) explains why this stack
+(Drift, BLoC, Clean Architecture, get_it), along with multiple budgets, offline-first,
+notifications, navigation and backup/restore.
 
-`lib/core/di/injection.dart` registers around 90 dependencies with `get_it` —
-database, data sources, repositories, use cases, services, and BLoCs — using
-lazy singletons for shared state and factories for per-screen BLoCs.
+---
 
-### Database
+## Tech stack
 
-Drift over SQLite, database name `smart_monivo_db`, **schema version 8**.
-
-Foreign keys are **enforced** (`PRAGMA foreign_keys = ON` on every connection), and
-the default categories are seeded by the database itself, so an expense can always
-be written and can never point at a budget or category that does not exist.
-
-| # | Table | Purpose |
+| Area | Technology | Role |
 | --- | --- | --- |
-| 1 | `budgets` | Budget definitions (amount, currency, start/end dates, archive flag, optional `reserved_amount` (kept aside) and `savings_target`; null = not set) |
-| 2 | `categories` | Expense categories, built-in and user-created, with an archive flag |
-| 3 | `expenses` | Expenses, indexed on date, category, budget and `(budget, date)`; `bill_id` (nullable, no foreign key) marks a payment of a bill that this budget had set aside |
-| 4 | `settings` | Key/value application settings |
-| 5 | `recurring_expenses` | Defined in the schema; not used by any feature |
-| 6 | `savings_goals` | Defined in the schema; not used by any feature |
-| 7 | `bills` | Bills, indexed on due date and on `budget_id` (nullable, references `budgets`: the budget the bill is paid from) |
-| 8 | `bill_payments` | Payment history for recurring bills |
-| 9 | `exchange_rates` | Currency converter: cached provider rate per pair (`OMR_INR`) |
-| 10 | `converter_currencies` | Currency converter: cached supported-currency list |
+| Framework | Flutter 3.32, Dart `^3.8.1` | Single codebase for Android and iOS; Material 3 UI |
+| State management | `flutter_bloc`, `equatable` | Event-driven BLoCs with immutable, value-equal states (14 BLoCs) |
+| Navigation | `go_router` | Declarative routes; `StatefulShellRoute` keeps each bottom tab's stack |
+| Dependency injection | `get_it` | Wires data sources, repositories, use cases and BLoCs |
+| Persistence | `drift`, `sqlite3_flutter_libs` | Typed SQLite with versioned, tested migrations |
+| Preferences | `shared_preferences` | Small flags such as the active budget id and onboarding state |
+| Charts | `fl_chart` | Day-by-day, weekly/monthly and spending-pace charts |
+| Notifications | `flutter_local_notifications`, `timezone`, `flutter_timezone` | Local reminders scheduled in the device's time zone |
+| Home-screen widget | `home_widget`, Kotlin, SwiftUI | Shares one payload with native widgets via an App Group / shared prefs |
+| Security | `local_auth` | Optional biometric app lock |
+| Import / export | `csv`, `pdf`, `file_picker`, `share_plus` | CSV/JSON/PDF export, import and backups |
+| Networking | `http` | GitHub Releases update check and Frankfurter rates |
+| Other | `intl`, `image_picker`, `uuid`, `provider`, `package_info_plus`, `url_launcher` | Formatting, receipts, ids, currency notifier, app info, links |
+| Testing | `flutter_test`, `bloc_test`, `mockito`, `sqlite3` | Unit, BLoC, widget, integration, migration and golden tests |
 
-Migrations:
-
-- **v1 → v2** — adds `expenses.time`.
-- **v2 → v3** — the single-budget (month/year) to multi-budget (date range) move:
-  adds `name`, `startDate`, `endDate`, `isArchived`, `color`, `icon`, `notes` to
-  `budgets` and `budgetId` to `expenses`, then backfills existing budgets to
-  first-of-month → last-of-month ranges and assigns existing expenses to the first
-  budget.
-- **v3 → v4** — creates the `bills` and `bill_payments` tables. No backfill.
-- **v4 → v5** — hardens the schema so foreign keys can be switched on safely:
-  repairs databases whose v3 migration wrote camelCase columns, creates every index
-  (older upgrades missed some) plus the composite `(budget_id, date)` index that
-  every budget statistic uses, adds `categories.isArchived`, seeds any missing
-  default categories, and re-points expenses whose budget or category reference had
-  gone dangling. Covered by
-  [`test/core/database/app_database_migration_test.dart`](test/core/database/app_database_migration_test.dart),
-  which runs a real v4 database through the upgrade.
-- **v5 → v6** — re-runs the idempotent `categories.is_archived` step for
-  databases created by the first v5 build, and normalises budget dates a broken
-  earlier heal left in milliseconds.
-- **v6 → v7** — creates the currency converter's `exchange_rates` and
-  `converter_currencies` cache tables. Nothing existing is touched; covered by a
-  v6 fixture and the schema-parity test.
-- **v7 → v8** — Safe-to-spend links. It adds four nullable columns: `bills.budget_id`
-  (`REFERENCES budgets(id)`, plus the `index_bills_budget` index),
-  `expenses.bill_id`, `budgets.reserved_amount` and `budgets.savings_target`.
-  Each column is added only if it is missing. This matters because a database
-  coming from v3 or earlier gets `bills` created from the current definition, which already
-  has `budget_id`. No existing row is changed, and every new value starts as
-  null. Covered by v7 and v3 fixtures (`test/fixtures/schema_v7.sql`,
-  `schema_v3.sql`), the schema-parity test, and a check that the `bills → budgets`
-  foreign key exists on both fresh and upgraded databases. See
-  [docs/architecture/safe_spending.md](docs/architecture/safe_spending.md).
-
-Aggregates (a budget's total and today's spend, bill totals) are computed with SQL
-`SUM`/`COUNT` over the indexed columns rather than by loading rows into Dart.
-
-On opening an existing database, `PRAGMA integrity_check` is run and the result is
-logged. Settings → Data → Check database health runs a deeper application-level check on
-demand.
+Code generation is limited to Drift (`app_database.g.dart`) and Mockito mocks. Entities
+are hand-written with `Equatable`; the project does not use Freezed or json_serializable.
 
 ---
 
-## Project Structure
+## Project structure
 
-```
+```text
 lib/
-├── main.dart                      App bootstrap, home-widget wiring, root widget
+├── main.dart                  Bootstrap, DI, widget deep links, root widget
 ├── core/
-│   ├── biometric/                 App lock BLoC + full-screen gate
-│   ├── constants/                 Motion tokens, spacing, GitHub/Frankfurter config
-│   ├── currency/                  Central formatter, ExactDecimal, currency ChangeNotifier
-│   ├── data/models/               Shared budget model
-│   ├── database/                  Drift schema, migrations, generated code
-│   ├── di/                        get_it registrations
-│   ├── domain/                    Shared entities + database integrity service
-│   ├── events/                    Refresh buses (expenses, budgets, bills)
-│   ├── navigation/                Animated bottom navigation
-│   ├── notifications/             Startup + rescheduling notification BLoC
-│   ├── router/                    GoRouter config, shell, page transitions
-│   ├── theme/                     Material 3 themes, palettes, colour tokens
-│   └── widgets/                   Shared UI primitives (cards, dialogs, states)
+│   ├── database/              Drift schema (v8), migrations, generated code
+│   ├── currency/              CurrencyFormatter, MoneyMath, ExactDecimal
+│   ├── di/                    get_it registrations
+│   ├── events/                Refresh buses (expenses, budgets, bills)
+│   ├── router/                GoRouter config, tab shell, page transitions
+│   ├── theme/                 Material 3 themes, palettes, colour tokens
+│   ├── biometric/             App-lock BLoC and gate
+│   ├── notifications/         Notification scheduling BLoC
+│   └── widgets/               Shared UI components
 └── features/
-    ├── app_update/                GitHub release check
-    ├── bills/                     Bills & Reminders
-    ├── budget/                    Budgets and the calculation engine
-    ├── categories/                Category management (create, archive, delete)
-    ├── currency_converter/        Cache-first currency converter (Frankfurter)
-    ├── dashboard/                 Dashboard + Smart Insights
-    ├── expenses/                  Expenses and expense history (incl. combined view)
-    ├── onboarding/                First-launch flow
-    ├── reports/                   Reports, analytics and exports
-    ├── settings/                  Settings, theme, backup/export/import, services
-    └── widgets/                   Home-screen widget service + refresh listener
+    ├── budget/                Budgets and the calculation engine (CALCULATION_RULES.md)
+    ├── dashboard/             Home: Safe to Spend, bill enumeration, insights
+    ├── expenses/              Expenses, quick add, history, combined view
+    ├── bills/                 Bills, recurrence, payments, reminders
+    ├── reports/               Analytics, charts, CSV/PDF export
+    ├── categories/            Custom categories
+    ├── currency_converter/    Cache-first converter (Frankfurter)
+    ├── onboarding/            First-launch flow
+    ├── settings/              Settings, theme, backup/restore, import/export
+    ├── app_update/            GitHub Releases check
+    └── widgets/               Home-screen widget payload and refresh
 
-android/app/src/main/kotlin/com/example/monivo/
-    HomeScreenWidgetProvider.kt    Android App Widget provider
-ios/MonivoWidget/
-    MonivoWidget.swift             iOS WidgetKit extension
-test/                              Mirrors lib/ (69 test files)
-docs/
-    home_screen_widget_setup.md    Widget architecture and platform setup
-    CI_CD.md                       Pipeline, secrets and release process
+android/app/src/main/kotlin/com/example/monivo/   Android App Widget (provider, renderer, payload)
+ios/MonivoWidget/                                iOS WidgetKit extension (SwiftUI)
+test/                                            Mirrors lib/, plus integration, goldens, accessibility
+docs/                                            Architecture notes, widget docs, CI/CD
 ```
 
-Each feature directory follows the same shape:
-
-```
-features/<feature>/
-├── data/          datasource/, models/, repository/
-├── domain/        entities/, repository/, usecases/, validators/, services/
-└── presentation/  bloc/, pages/, widgets/
-```
+Most features follow the same shape: `data/` (data sources, models, repository
+implementations), `domain/` (entities, repository interfaces, use cases) and
+`presentation/` (BLoCs, pages, widgets).
 
 ---
 
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
-- Flutter SDK — CI pins **3.32.8**; use that version or a compatible newer stable.
-- Dart SDK `^3.8.1` (bundled with Flutter).
-- Android: Android Studio with a JDK 11-compatible toolchain and NDK `29.0.14206865`
-  (r29). NDK r28 or newer is required so native libraries are linked for 16 KB
-  memory pages; see [16 KB page-size compatibility](#16-kb-page-size-compatibility).
-- iOS: Xcode with CocoaPods, on macOS.
+- Flutter **3.32.8** (the version CI pins) or a compatible newer stable, with Dart `^3.8.1`.
+- **Android:** Android Studio / Android SDK with NDK `29.0.14206865`, as set in
+  `android/app/build.gradle.kts`. `minSdk` is 23.
+- **iOS (macOS only):** Xcode and CocoaPods; the deployment target is iOS 15.0. Swift Package
+  Manager must be off for now, because `home_widget` 0.9.2+1 ships an incomplete Swift
+  package (see [`TODO.md`](TODO.md#ios-builds)):
+  `flutter config --no-enable-swift-package-manager`.
 
-### Installation
+### Install and run
 
 ```bash
 git clone https://github.com/sufiyansakkeer/budget_tracker.git
 cd budget_tracker
 flutter pub get
+flutter run
 ```
 
-### Code generation
-
-Only required after changing the Drift schema in `lib/core/database/app_database.dart`:
+Generated files are committed, so no build step is needed to run the app. After changing
+the Drift schema in `lib/core/database/app_database.dart`, regenerate:
 
 ```bash
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-Generated files are committed; CI verifies they are up to date.
-
-### Run
-
-```bash
-flutter run
-```
-
-### Verify
+### Check
 
 ```bash
 dart format --output=none --set-exit-if-changed .
 flutter analyze
 flutter test
-flutter test --coverage      # writes coverage/lcov.info
 ```
 
 ### Build
@@ -665,298 +386,226 @@ flutter build appbundle --release
 flutter build ios --release --no-codesign   # macOS only
 ```
 
-Android release signing reads `android/key.properties` (`keyAlias`, `keyPassword`,
-`storeFile`, `storePassword`). When that file is absent, release builds fall back to
-the debug signing config, which is fine for local testing but not for distribution.
+Android release signing reads `android/key.properties` (git-ignored). Without it, release
+builds fall back to the debug key, which is fine for local testing but not for
+distribution.
 
 ---
 
-## Android Setup
+## Testing and code quality
 
-| Item | Value |
+The suite has **151 test files**. On 9 Oct 2026 it ran **1,779 tests**, and
+`flutter test` passed on macOS with Flutter 3.32.8; `flutter analyze` reported no issues.
+Everything runs on the host, with no device or emulator needed.
+
+| Layer | What is covered |
 | --- | --- |
-| Application ID | `com.example.monivo` |
-| Namespace | `com.example.monivo` |
-| `minSdk` | 23 — required by `home_widget`'s `androidx.work` dependency |
-| `compileSdk` / `targetSdk` | Flutter defaults |
-| Java / Kotlin target | 11, with core library desugaring enabled |
-| NDK | `29.0.14206865` (r29) — see [16 KB page-size compatibility](#16-kb-page-size-compatibility) |
+| Domain | Safe-to-spend calculator, bill occurrence enumeration, budget analytics, insights, money arithmetic and rounding |
+| Use cases and validators | Budgets, expenses, bills, categories, settings, onboarding, app update |
+| BLoCs | Every feature BLoC, using `bloc_test` |
+| Data | Repositories, transaction safety, backup/restore validation, CSV round trip, and schema migrations run on real fixture databases (v3 to v7) |
+| Integration | Real data sources, repositories, use cases and BLoCs on an in-memory database: expense lifecycle, budget switching, safe spending across days, new period, reports refresh |
+| Goldens | 19 screens × light/dark × 100%/200% text (76 images), using real fonts |
+| Accessibility | Flutter's tap-target and text-contrast guidelines; WCAG AA palette contrast |
 
-**Permissions declared** in `android/app/src/main/AndroidManifest.xml`:
+Golden tests run on macOS only (font rasterisation differs on Linux CI) and are skipped
+elsewhere. Regenerate them on a Mac with `flutter test --tags golden --update-goldens`.
 
-| Permission | Used for |
-| --- | --- |
-| `INTERNET` | GitHub release check |
-| `CAMERA` | Receipt capture |
-| `USE_BIOMETRIC`, `USE_FINGERPRINT` | Biometric app lock |
-| `POST_NOTIFICATIONS`, `VIBRATE` | Local notifications (runtime prompt on Android 13+) |
-| `RECEIVE_BOOT_COMPLETED` | Restoring scheduled notifications after a restart |
-
-The manifest also registers the `HomeScreenWidgetProvider` receiver, the
-`flutter_local_notifications` scheduled and boot receivers, and a `monivo://`
-deep-link intent filter on `MainActivity`.
-
-### 16 KB page-size compatibility
-
-Android 15+ devices can run with 16 KB memory pages, and Google Play requires
-apps that ship native code to be 16 KB compatible. The release APK and AAB are
-genuinely aligned — no `android:pageSizeCompat` or other compatibility mode is
-used.
-
-The app has no native code of its own. The native libraries in the build come
-from Flutter (`libflutter.so`, `libapp.so`), `sqlite3_flutter_libs`
-(`libsqlite3.so`) and `shared_preferences_android` via AndroidX DataStore
-(`libdatastore_shared_counter.so`). All of them are prebuilt with 16 KB
-alignment, so no Gradle settings are needed. The app still builds with NDK r29,
-which links with 16 KB-aligned `LOAD` segments by default.
-
-Until October 2026 the build also carried `rive_common`'s `librive_text.so`,
-which was compiled from source with NDK 25 and needed two `gradle.properties`
-overrides (`rive.ndk.version` and `android.ndk.suppressMinSdkVersionError`).
-Both went with the Rive dependency when the navigation icons moved to Material
-icons.
-
-AGP 8.7.3 already stores native libraries uncompressed and 16 KB zip-aligned,
-and writes `PAGE_ALIGNMENT_16K` into the bundle configuration.
-
-To verify a build (paths assume the default SDK location on macOS):
-
-```bash
-# ELF LOAD segment alignment of every native library in the APK
-unzip -o -d /tmp/apk build/app/outputs/flutter-apk/app-release.apk 'lib/*'
-for f in /tmp/apk/lib/*/*.so; do
-  printf '%-50s ' "${f#/tmp/apk/}"
-  ~/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readelf -l "$f"     | awk '/LOAD/{print $NF}' | sort -u | tr '
-' ' '; echo
-done            # every 64-bit library must show 0x4000 or 0x10000
-
-# Zip alignment of the APK for 16 KB pages
-~/Library/Android/sdk/build-tools/35.0.0/zipalign -c -P 16 -v 4 build/app/outputs/flutter-apk/app-release.apk
-
-# Bundle configuration (needs bundletool)
-java -jar bundletool.jar dump config --bundle=build/app/outputs/bundle/release/app-release.aab
-#   "uncompressNativeLibraries": { "enabled": true, "alignment": "PAGE_ALIGNMENT_16K" }
-
-# A 16 KB emulator (Android Studio: an "ps16k" system image) reports
-adb shell getconf PAGE_SIZE   # 16384
-```
-
-The 32-bit `armeabi-v7a` and `x86` copies of `libsqlite3.so` remain 4 KB
-aligned. The 16 KB page-size requirement applies to
-64-bit ABIs only: 16 KB devices are 64-bit and load the `arm64-v8a` libraries.
-
-No additional Android Studio configuration is needed for the home screen widget —
-the provider, layout and `appwidget-provider` XML are all in the repository. To add
-it: long-press the home screen → Widgets → Monivo → drag to place.
+Linting uses `flutter_lints`. CI (GitHub Actions) checks that generated code is committed,
+then runs the format check, `flutter analyze` and `flutter test --coverage` on every pull
+request. Coverage is uploaded as a build artifact; no coverage percentage is tracked.
 
 ---
 
-## iOS Setup
+## Limitations
 
-> **Minimum iOS version is 15.0.** The `home_widget` plugin and the
-> `MonivoWidget` extension both require iOS 14, and current Xcode refuses to
-> build below 15.0, so the Podfile sets 15.0 and pulls every pod up to it.
->
-> **Building for iOS needs Swift Package Manager disabled**
-> (`flutter config --no-enable-swift-package-manager`) until `home_widget` can
-> be upgraded past 0.9.2+1, whose Swift package references a directory it does
-> not ship. See [`TODO.md`](TODO.md#ios-builds).
-
-| Item | Value |
-| --- | --- |
-| Display name | Monivo |
-| Widget extension | `ios/MonivoWidget/` (WidgetKit, SwiftUI) |
-| Supported widget families | `systemSmall`, `systemMedium` |
-| App Group | `group.com.sufiyan.monivo` |
-| Deep link scheme | `monivo://` |
-
-**Usage descriptions** in `ios/Runner/Info.plist`:
-
-| Key | Reason |
-| --- | --- |
-| `NSCameraUsageDescription` | Capturing expense receipts |
-| `NSPhotoLibraryUsageDescription` | Attaching receipts from the library |
-| `NSFaceIDUsageDescription` | Unlocking the app with Face ID |
-
-**App Group.** Both `ios/Runner/Runner.entitlements` and
-`ios/MonivoWidget/MonivoWidget.entitlements` declare
-`group.com.sufiyan.monivo`, and `main.dart` calls
-`HomeWidget.setAppGroupId('group.com.sufiyan.monivo')` at startup — this must happen
-before any widget data is written, or iOS sharing fails silently. Xcode
-auto-provisions the App Group for development; for distribution it must be registered
-in the Apple Developer portal.
-
-`ios/Podfile` declares a separate `MonivoWidget` target alongside `Runner`.
-[`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) recommends
-testing the widget on a physical device rather than the Simulator.
-
-Notification permission is requested at runtime by `flutter_local_notifications`;
-no additional capability needs to be enabled for the local-notification flow used
-here.
-
----
-
-## Testing
-
-Tests live under [`test/`](test/), mirroring the `lib/` structure. Every test runs
-on the host with `flutter test` — no device or emulator is needed, including the
-integration flows. Coverage is concentrated where correctness matters most:
-
-- **Domain services** — budget calculations, analytics (including the category
-  comparison), Smart Insights, report insight generation.
-- **Use cases** — budget, expense, category, bill, settings, onboarding and
-  app-update use cases, plus validators.
-- **BLoCs** — dashboard, budget, expense, expense history (including combined
-  mode), categories, bills, reports, settings, theme, app lock, notifications.
-- **Repositories and data integrity** — expense transaction safety (including that
-  moving an expense recomputes both budgets), budget amount changes, the
-  **v4 → v5 schema migration** against a captured schema fixture, integrity checks,
-  backup/restore validation, CSV round trip.
-- **Widgets** — the animated bottom navigation, expense and history widgets,
-  category management and its form sheet, the safe-spending hero, the category
-  comparison card, settings tiles, theme and currency selectors, update dialog,
-  budget form.
-- **Integration flows** ([`test/integration/`](test/integration/)) — the real
-  datasources, repositories, use cases and BLoCs wired against an in-memory
-  database by `app_harness.dart`, covering: create / edit / delete / undo an
-  expense, move it between budgets, search; create and switch budgets, safe
-  spending across days, delete a budget, start a new period, change the amount;
-  build a report, filter it, and watch it refresh after a delete.
-
-`test/helpers/in_memory_database.dart` provides an in-memory Drift database. Mocks
-are generated with `mockito`; BLoC assertions use `bloc_test`.
-
-Golden (screenshot) tests live in `test/goldens/`. They load the real Manrope and
-Material Icons fonts, render light and dark at 1.0 and 2.0 text scale, and run on
-macOS only, because font rasterisation differs on the Linux CI runners. Regenerate
-them on a Mac with `flutter test --tags golden --update-goldens`.
-
-```bash
-flutter test                      # everything, including integration flows
-flutter test test/integration     # just the end-to-end flows
-flutter test --coverage           # with coverage
-```
-
----
-
-## CI/CD
-
-Four GitHub Actions workflows, all pinning Flutter **3.32.8**:
-
-| Workflow | Trigger | Does |
-| --- | --- | --- |
-| `ci.yml` | Pull requests, pushes to `developer` | pub get, regenerate sources, verify generated files are committed, format check, analyze, test, upload coverage |
-| `android-release.yml` | Pushes to `developer`, manual dispatch | Android development APK and AAB |
-| `ios-release.yml` | Pushes to `developer`, manual dispatch | Unsigned iOS development build (`--no-codesign`) |
-| `release.yml` | Pushes to `main` | Calculates the next patch version and build number, validates, builds a signed APK/AAB, commits the new `pubspec.yaml` version, tags it, and creates or updates the GitHub Release |
-
-The version commit created by `release.yml` contains `[skip ci]`, so a release cannot
-trigger another release. Full details, including the required repository secrets, are
-in [`docs/CI_CD.md`](docs/CI_CD.md).
-
----
-
-## Known Limitations
-
-These are current, verified gaps. They are listed so the documentation matches the
-code rather than the intent.
-
-- **`recurring_expenses` and `savings_goals` tables have no feature.** They exist in
-  the Drift schema and are covered by backup and export, but no screen, BLoC or use
-  case reads or writes them.
-- **Unused notification preference fields.** `NotificationSettings` still carries
-  `overspendingAlertsEnabled`, `noExpenseReminderEnabled` and the quiet-hours fields.
-  No scheduling logic implements them and the toggles were removed from Settings.
-- **Receipt images are not included in backups or exports.** Only the stored file
-  path is, so a restore on another device shows "Receipt file is missing".
-- **No currency conversion.** Each budget stores its own currency and amounts are
-  formatted in it; amounts are never converted between currencies.
-- **No income tracking.** A budget's amount is the money available; there is no
-  income ledger. Topping up means editing the budget amount.
-- **Android application ID is still `com.example.monivo`**, the Flutter template
-  default.
-- **iOS widget distribution requires manual portal setup.** The App Group
-  `group.com.sufiyan.monivo` must be registered in the Apple Developer portal for
-  non-development builds.
-- **Debug-only test notification.** Debug builds schedule an extra notification one
-  minute after launch. Release builds do not.
-- **No `LICENSE` file** is present in the repository.
-
----
+- **Not yet distributed.** There is no store listing or published release, and the Android
+  application id is still the template `com.example.monivo`.
+- **Spending only.** There is no income ledger (topping up means editing the budget
+  amount), no recurring *expenses* (recurring *bills* are supported), and no tracking of
+  savings contributions: the savings goal is reserved in full. The `recurring_expenses` and
+  `savings_goals` tables exist in the schema but are unused.
+- **No conversion between budgets.** Each budget keeps its own currency and totals are
+  shown per currency. The converter is a standalone tool.
+- **Receipt photos are not in backups.** Only their file path is exported.
+- **Platform caveats.** The Android widget shows `ر.ع.` instead of the new rial sign until
+  system fonts support it. iOS builds need Swift Package Manager disabled, and widget
+  distribution requires registering the App Group in the Apple Developer portal.
 
 ## Roadmap
 
-### Completed
+Ideas under consideration, not commitments:
 
-| Feature | Notes |
-| --- | --- |
-| Multiple independent budgets with custom date ranges | Schema v3 migration |
-| Per-budget Today's Safe Spending | Never combined across budgets |
-| Expense tracking with categories, tags and receipts | |
-| Expense history: grouping, search, filters, six sort options, paging | |
-| Combined Expense View | Viewing/aggregation only |
-| Reports with charts, time analytics and CSV/PDF export | Scoped to the Active Budget |
-| Bills & Reminders with recurrence and payment history | |
-| Smart Insights | Rule-based, on-device |
-| Local notifications | Morning, evening and bill reminders |
-| Biometric app lock | |
-| Home screen widget | Android + iOS |
-| Light / Dark / System theme with eight palettes | |
-| App update checker | GitHub Releases |
-| Backup, restore, export and import | |
-| Motion system with reduced-motion support | |
-| Animated bottom navigation | Material 3 bar, outlined-to-filled icons, reduced-motion aware |
-| User-created categories | Create, rename, restyle, archive, delete |
-| Undo after deleting an expense | Restores the same row |
-| Contextual row actions | Edit, Duplicate, Move, Delete on press-and-hold |
-| Date presets and a single custom-range chip | Shared by quick filters and the filter sheet |
-| Categories vs previous period report | Biggest movers against the preceding window |
-| Database health check | On-demand integrity report in Settings |
-| Integration tests and a schema migration test | Run on the host, no device needed |
-
-### In progress
-
-| Item | State |
-| --- | --- |
-| Database integrity service | Implemented and tested, but not yet invoked from any app flow |
-
-### Planned
-
-No dated commitments. Candidate areas, none of them started:
-
-- Surfacing database integrity checks in the app.
-- Removing or implementing the unused schema tables and notification preference fields.
-- A distribution-ready Android application ID and an iOS signing/distribution pipeline.
-
----
-
-## Contributing
-
-1. Fork the repository and create a feature branch
-   (`git checkout -b feature/your-feature`).
-2. Keep business logic out of widgets — new rules belong in a use case or domain
-   service, with unit tests.
-3. Run the full verification set before opening a pull request:
-   ```bash
-   dart format --output=none --set-exit-if-changed .
-   flutter analyze
-   flutter test
-   ```
-4. Update `CHANGELOG.md` for user-visible changes.
-5. Open a pull request. CI validates every pull request; pushes to `developer`
-   produce development builds, and a push to `main` cuts a production release.
+- A signed public release with a distribution-ready application id.
+- Income and top-ups, and savings contributions so the goal can show progress.
+- Recurring expenses on top of the existing schema table.
+- Receipt images included in backups.
+- Device screenshots and a short demo recording in this README.
 
 ---
 
 ## Documentation
 
-| File | Contents |
+| Document | Contents |
 | --- | --- |
-| [`CHANGELOG.md`](CHANGELOG.md) | Full version history |
-| [`RELEASE_NOTES.md`](RELEASE_NOTES.md) | User-facing notes for the current release |
-| [`docs/architecture/`](docs/architecture/README.md) | Why this stack, safe spending, multiple budgets, navigation, offline-first, notifications, backup/restore |
-| [`docs/design/monivo-design-direction.html`](docs/design/monivo-design-direction.html) | The premium redesign: audit, research, design principles, design system and phase plan |
-| [`lib/features/budget/CALCULATION_RULES.md`](lib/features/budget/CALCULATION_RULES.md) | Every budget formula and its edge cases |
-| [`docs/money_tracker_gap_analysis.md`](docs/money_tracker_gap_analysis.md) | Feature/architecture comparison against the Money-Tracker reference app and the decisions taken from it |
-| [`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) | Home screen widget architecture, data keys and platform setup |
-| [`docs/CI_CD.md`](docs/CI_CD.md) | Pipeline, required secrets, versioning and release process |
+| [`CALCULATION_RULES.md`](lib/features/budget/CALCULATION_RULES.md) | Every budget formula, status rule and edge case |
+| [`docs/architecture/`](docs/architecture/README.md) | Stack decisions, safe spending, multiple budgets, offline-first, navigation, notifications, backup/restore |
+| [`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md) | Widget architecture, payload and platform setup |
+| [`docs/home_screen_widget_test_plan.md`](docs/home_screen_widget_test_plan.md) | Widget test matrix, results and device checks |
+| [`docs/design/monivo-design-direction.html`](docs/design/monivo-design-direction.html) | UI redesign: audit, research, principles and design system |
+| [`docs/CI_CD.md`](docs/CI_CD.md) | Pipelines, required secrets, versioning and releases |
+| [`docs/money_tracker_gap_analysis.md`](docs/money_tracker_gap_analysis.md) | Feature and architecture comparison with a reference app, and the decisions taken |
+| [`CHANGELOG.md`](CHANGELOG.md) · [`RELEASE_NOTES.md`](RELEASE_NOTES.md) | Version history and user-facing notes |
+
+---
+
+## Developer reference
+
+<details>
+<summary><b>Database schema and migrations</b></summary>
+
+Drift over SQLite, database `smart_monivo_db`, **schema version 8**. Foreign keys are
+enforced (`PRAGMA foreign_keys = ON` on every connection), default categories are seeded
+by the database, and `PRAGMA integrity_check` runs when an existing database is opened.
+
+| Table | Purpose |
+| --- | --- |
+| `budgets` | Amount, currency, start/end dates, archive flag, optional `reserved_amount` and `savings_target` |
+| `categories` | Built-in and user-created categories, with an archive flag |
+| `expenses` | Indexed on date, category, budget and `(budget_id, date)`; `bill_id` marks payment of a bill this budget set aside |
+| `settings` | Key/value app settings (covered by backup) |
+| `bills` | Bills, indexed on due date and `budget_id` (the budget the bill is paid from) |
+| `bill_payments` | Payment history for bills |
+| `exchange_rates`, `converter_currencies` | Currency-converter cache |
+| `recurring_expenses`, `savings_goals` | Defined but not used by any feature |
+
+Migrations:
+
+- **v1 → v2:** adds `expenses.time`.
+- **v2 → v3:** single monthly budget → multiple date-range budgets; backfills existing data.
+- **v3 → v4:** `bills` and `bill_payments`.
+- **v4 → v5:** hardening so foreign keys can be enabled: repairs column names, creates
+  missing indexes, adds `categories.is_archived`, re-points dangling references.
+- **v5 → v6:** re-runs the archive step for early v5 databases; normalises dates stored in
+  milliseconds.
+- **v6 → v7:** currency-converter cache tables.
+- **v7 → v8:** safe-to-spend links: `bills.budget_id` (foreign key), `expenses.bill_id`,
+  `budgets.reserved_amount`, `budgets.savings_target`, each added only if missing.
+
+Covered by [`app_database_migration_test.dart`](test/core/database/app_database_migration_test.dart)
+with fixture databases in [`test/fixtures/`](test/fixtures/) and a schema-parity check
+between fresh and upgraded databases.
+
+</details>
+
+<details>
+<summary><b>Android setup</b></summary>
+
+| Item | Value |
+| --- | --- |
+| Application id / namespace | `com.example.monivo` |
+| `minSdk` | 23 (required by `home_widget`'s WorkManager dependency) |
+| `compileSdk` / `targetSdk` | Flutter defaults |
+| Java / Kotlin target | 11, with core library desugaring |
+| NDK | `29.0.14206865` (r29) |
+
+Permissions in `AndroidManifest.xml`: `INTERNET` (update check, converter), `CAMERA`
+(receipts), `USE_BIOMETRIC` / `USE_FINGERPRINT` (app lock), `POST_NOTIFICATIONS` /
+`VIBRATE` (notifications), `RECEIVE_BOOT_COMPLETED` (restore schedules after a restart).
+The manifest also registers the widget provider, the notification receivers and a
+`monivo://` deep link.
+
+The widget needs no extra setup: long-press the home screen → Widgets → Monivo.
+
+### 16 KB page-size compatibility
+
+Android 15+ devices can use 16 KB memory pages, and Google Play requires apps with native
+code to support them. Monivo's release APK and AAB are genuinely aligned; no
+`android:pageSizeCompat` mode is used.
+
+The app has no native code of its own. The native libraries come from Flutter
+(`libflutter.so`, `libapp.so`), `sqlite3_flutter_libs` (`libsqlite3.so`) and AndroidX
+DataStore (`libdatastore_shared_counter.so`), all prebuilt with 16 KB alignment, and the
+app builds with NDK r29, which links 16 KB-aligned `LOAD` segments by default. AGP 8.7.3
+stores native libraries uncompressed and 16 KB zip-aligned. The 32-bit `armeabi-v7a` and
+`x86` copies of `libsqlite3.so` stay 4 KB aligned; the requirement applies to 64-bit ABIs
+only.
+
+To verify a release build (with `ANDROID_HOME` pointing at your Android SDK):
+
+```bash
+# ELF LOAD alignment of every native library: 64-bit ones must show 0x4000 or 0x10000
+unzip -o -d /tmp/apk build/app/outputs/flutter-apk/app-release.apk 'lib/*'
+for f in /tmp/apk/lib/*/*.so; do
+  echo "$f: $("$ANDROID_HOME"/ndk/29.0.14206865/toolchains/llvm/prebuilt/*/bin/llvm-readelf -l "$f" | awk '/LOAD/{print $NF}' | sort -u | paste -sd' ' -)"
+done
+
+# Zip alignment for 16 KB pages
+"$ANDROID_HOME"/build-tools/35.0.0/zipalign -c -P 16 -v 4 build/app/outputs/flutter-apk/app-release.apk
+
+# On a 16 KB emulator image
+adb shell getconf PAGE_SIZE   # 16384
+```
+
+</details>
+
+<details>
+<summary><b>iOS setup</b></summary>
+
+| Item | Value |
+| --- | --- |
+| Minimum iOS | 15.0 (Podfile and project) |
+| Bundle id | `com.sufiyan.monivo` |
+| Widget extension | `ios/MonivoWidget/` (WidgetKit, SwiftUI): small, medium, large |
+| App Group | `group.com.sufiyan.monivo` |
+| Deep link scheme | `monivo://` |
+
+Usage descriptions: camera and photo library (receipts) and Face ID (app lock).
+
+Both `Runner.entitlements` and `MonivoWidget.entitlements` declare the App Group, and
+`main.dart` calls `HomeWidget.setAppGroupId` before any widget data is written; without it,
+iOS sharing fails silently. Xcode auto-provisions the group for development; for
+distribution it must be registered in the Apple Developer portal. See
+[`docs/home_screen_widget_setup.md`](docs/home_screen_widget_setup.md).
+
+</details>
+
+<details>
+<summary><b>CI/CD</b></summary>
+
+GitHub Actions workflows, all pinned to Flutter 3.32.8:
+
+| Workflow | Trigger | Does |
+| --- | --- | --- |
+| `ci.yml` | Pull requests; pushes to `developer` | Regenerate code and check it's committed, format check, analyze, test with coverage |
+| `android-release.yml` | Pushes to `developer`; manual | Development APK and AAB |
+| `ios-release.yml` | Pushes to `developer`; manual | Unsigned iOS build (`--no-codesign`) |
+| `release.yml` | Pushes to `main` | Bumps the patch version, validates, builds signed APK/AAB, tags and creates a GitHub Release |
+
+The version commit made by `release.yml` contains `[skip ci]`, so a release cannot trigger
+another. Secrets and the release process are in [`docs/CI_CD.md`](docs/CI_CD.md).
+
+</details>
+
+<details>
+<summary><b>Contributing</b></summary>
+
+1. Create a feature branch (`git checkout -b feature/your-change`).
+2. Keep business rules out of widgets: they belong in a use case or domain service, with
+   unit tests.
+3. Run `dart format --output=none --set-exit-if-changed .`, `flutter analyze` and
+   `flutter test`.
+4. Add user-visible changes to `CHANGELOG.md` and open a pull request.
+
+</details>
+
+---
+
+## Author
+
+Built by **[@sufiyansakkeer](https://github.com/sufiyansakkeer)**.
+
+## License
+
+No license file has been added yet, so all rights are reserved by default. The bundled
+Manrope font is under the SIL Open Font License ([`OFL.txt`](assets/fonts/manrope/OFL.txt)).

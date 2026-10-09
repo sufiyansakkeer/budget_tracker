@@ -7,11 +7,219 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses), 5
-(Budgets and Bills), 6 (Reports), 7 (Settings) and 8 (Polish). Direction and
-plan: `docs/design/monivo-design-direction.html`.
+## [1.0.0] - 2026-10-09
+
+The first release of Monivo. On top of everything listed here it brings the
+premium redesign — the design system, Home, Expenses, Budgets and Bills,
+Reports, Settings and a final polish (direction and plan:
+`docs/design/monivo-design-direction.html`) — redesigned palettes, a rebuilt
+home-screen widget and the Omani rial sign. Earlier version numbers were
+retired; everything they shipped is part of this entry.
+
+### Added
+- **A large home-screen widget on iOS**, next to the small and medium ones:
+  the budget and days left, today's figure and status, spent and left today,
+  the budget left with its track, and Add expense.
+- **The Omani rial sign.** OMR amounts use the sign the Central Bank of Oman
+  introduced in November 2025 (U+20C4), to the left of the figures with a
+  space, as its guidelines ask: "⃄ 7.600". No phone font has it yet, so the
+  app bundles it, and the iOS widget registers the same font. Notifications
+  and the Android widget are drawn by the system, so they show "ر.ع." until
+  system fonts include the sign; screen readers say "OMR".
+- **Smart Safe-to-Spend.** Today's Safe Spending now protects the money a
+  budget still needs before it says what can be spent today:
+  `max(0, (A − B − C − D + today's discretionary spending) ÷ remaining days)`.
+  - A is what is left in the budget.
+  - B is the unpaid bills linked to it that are due by its end, overdue ones
+    included.
+  - C is an optional "Kept aside" amount.
+  - D is an optional "Savings goal".
+
+  The figure still stays fixed for the whole day. With none of these set it
+  is exactly the old figure. Formulas:
+  `lib/features/budget/CALCULATION_RULES.md`. Design:
+  `docs/architecture/safe_spending.md`.
+  - **Bills link to a budget.** The bill form has a new "Paid from" picker,
+    with "Not linked" as the default. Bill cards and bill details show "Paid
+    from {budget}" or "Not linked", and the bills list has a "Not linked"
+    filter. Picking a budget in another currency switches the bill to that
+    currency; when editing a bill, this asks for confirmation first.
+  - **"Mark paid & record expense".** One transaction writes the payment
+    record, advances the bill (or marks it paid) and records the expense. The
+    expense goes to the bill's budget if it is running today and in the same
+    currency; otherwise to the active budget under the same conditions;
+    otherwise nothing is written and the user is told why. If the money had
+    been set aside in that budget, paying it does not lower today's amount.
+  - **"Paid outside this budget"** is a separate action for linked bills. It
+    explains that the budget's safe-to-spend will go up when that budget is
+    setting the bill aside; otherwise it asks with the plain "Mark as paid"
+    wording. "Mark as unpaid" now names the recorded expense it removes, and
+    removes it, found by the bill it paid rather than its date.
+  - **"Set aside (optional)" on the budget form.** "Keep aside" and "Savings
+    goal" fields, each between 0 and the budget amount. Saving is not
+    blocked, but a warning appears when together they leave nothing free to
+    spend. An empty field means "Not set", which is different from 0.
+  - **Dashboard.**
+    - The hero has a status chip (On track, Spend carefully, Over today's
+      amount, At risk, Overcommitted, Over budget, Not started, Ended) and
+      one explanation line.
+    - A new "Free to spend" breakdown card shows: Remaining in budget −
+      Bills due (an expandable list of exactly the deducted bills) − Kept
+      aside − Savings goal = Free to spend. It also has a forecast: average
+      a day, projected spending, projected balance, and when the free money
+      runs out at the current pace.
+    - Notices cover bills that could not be read (with a retry), bills not
+      linked to any budget (with a **Link bills** sheet), and linked bills
+      in another currency.
+  - **One number everywhere.** The hero, "Other budgets today", the morning
+    notification and the home-screen widget all read the same engine result
+    (`GetSafeToSpendUseCase`). Budgets are never pooled.
+- `MoneyMath` (integer-unit money arithmetic),
+  `CurrencyFormatter.floorToDigits` / `floorForDisplay` / `formatFloored`, and
+  `BudgetCalculationService.calendarDaysBetween`.
+- **Display rounding.** Safe amounts (today's amount, left today, free to
+  spend) are floored to the digits shown, so they are never displayed higher
+  than they are. For example, OMR 7.6 shows as "⃄ 7.600", not "8".
+- **Currency converter** (Settings → Expenses & tools → Currency converter). Converts any
+  amount between the ~160 currencies published by
+  [Frankfurter](https://frankfurter.dev/) (`https://api.frankfurter.dev/v2/`,
+  HTTPS, no API key). Frankfurter serves daily *reference* rates from central
+  banks and official sources, and the screen says so; it never claims live
+  market pricing.
+  - **Cache-first rates.** The exchange rate itself (never a converted amount)
+    is stored per pair (`OMR_INR`) with the provider's rate date, the local
+    fetch time and the provider name. A rate whose reference day is today
+    (UTC) is used without a request; an older one is re-checked at most every
+    6 hours (weekends and holidays keep yesterday's rate as the latest). The
+    amount is converted locally, so typing 1 → 10 → 50 → 100 never calls the
+    API, and neither do swapping back and forth, reopening the screen or
+    theme changes. Concurrent requests for one pair share a single call.
+  - **Offline.** When a fetch fails, the newest saved rate is used and labelled
+    ("Offline — using saved rate from …" / "Couldn't update. Using saved
+    rate from …"). With nothing saved, the screen explains that an internet
+    connection is needed for that pair instead of a generic error, and offers
+    a retry.
+  - **Refresh rate** forces a fetch; a failed refresh keeps the saved rate.
+  - **Reverse pairs** (INR → OMR from a saved OMR → INR) are derived as
+    `1 / rate` and marked "Calculated from the OMR → INR rate". Only rates of
+    1 or more are inverted: Frankfurter quotes those to about five significant
+    digits (249.33) but rounds rates below 1 to about five decimal places
+    (0.00401), so 1 / 249.33 is *more* precise than the provider's own reverse
+    rate, while inverting 0.00401 would give 249.38.
+  - **Exact money arithmetic.** Rates are stored as exact decimal text and the
+    conversion runs on a new `ExactDecimal` (BigInt-backed, no new package),
+    rounding once, half away from zero, to the target currency's ISO 4217
+    decimals (OMR 3, INR 2, JPY 0). 24,933 INR converts back to exactly
+    100.000 OMR.
+  - Searchable currency picker with code, name and symbol; the supported list
+    is cached for 7 days and falls back to the saved list (or the app's ten
+    built-in currencies) when offline. The last pair and amount are restored
+    on the next visit (first launch: OMR → INR).
+  - Input validation (empty, zero, negative, above 1 trillion, more than 8
+    decimals, invalid characters), subtle swap and result animations that
+    respect Reduce Motion, and no animation per keystroke.
+- `CurrencyFormatter.resolveSymbol`, `decimalDigitsFor`, `formatDecimal` and
+  `formatRate` format any ISO currency exactly. `symbolFor` still falls back
+  to ₹ for app-wide amounts; the converter never uses that fallback, so an
+  unknown currency shows its code, not a rupee sign.
+- Migration tests for the first-v5-build schema (`test/fixtures/
+  schema_v5_pre_category_archive.sql`, captured from a real device), a schema
+  parity check that fails when a column is added without a migration step, and
+  a file-backed persistence suite (`test/integration/persistence_test.dart`)
+  that closes and reopens the database between steps like an app restart.
+- **Category management.** Settings → Expenses & tools → Categories creates, renames and
+  restyles categories from a catalogue of 43 icons and 16 colours, archives ones
+  you no longer use, and deletes custom categories that no expense references.
+  Built-in categories can be renamed and restyled but not deleted. Archived
+  categories disappear from pickers and quick filters while history keeps its
+  labels. New `isArchived` column on `categories`.
+- **Undo after deleting an expense.** Swiping a row deletes it immediately and
+  offers Undo in a snackbar for a few seconds; undoing restores the same row, so
+  budgets, reports and the widget stay consistent either way. The confirmation
+  dialog on swipe is gone; the details screen still confirms.
+- **Press and hold an expense** for Edit, Duplicate, Move to another budget and
+  Delete. Duplicate opens the form pre-filled from that expense, dated now.
+- **Date presets** — Today, Yesterday, This week, Last week, This month, Last
+  month, This year — as quick chips and in the filter sheet. A custom range now
+  reads as one chip ("12 Mar – 15 Mar") instead of a From/To pair.
+- **Animated bottom navigation** using Rive icons on the Material 3 bar. The
+  selected tab plays a short one-shot animation while the bar draws the steady
+  selected state from the current index, so it is correct after navigating,
+  after returning from a screen and after a restart. Nothing loops, the icon
+  falls back to its Material glyph if the asset cannot load, and reduced motion
+  skips the animation. New `lib/core/navigation/` module and `rive` dependency.
+- **Categories vs previous period** report card: which categories moved most
+  against the equal-length window before the selected range, with the change in
+  money and percent and a "New" marker.
+- **A weekly line on the safe-spending hero** — what has been spent against this
+  week's share of the budget.
+- **Database health check** in Settings → Data, which runs the previously unwired
+  `DatabaseIntegrityService` and reports orphaned rows, impossible date ranges and
+  invalid amounts in a sheet.
+- **Architecture documentation** in `docs/architecture/`: why Drift, BLoC, Clean
+  Architecture and GetIt; how safe spending is calculated; how multiple budgets
+  work; how the Rive navigation works; the offline-first data contract; the
+  notification architecture; and what backup, restore, export and import cover.
+- **Integration tests** (`test/integration/`) that wire the real datasources,
+  repositories, use cases and BLoCs against an in-memory database and drive whole
+  flows end to end, plus a v4 → v5 schema migration test against a captured
+  schema fixture.
+- Eight selectable colour palettes (Default, Blossom Vapor, Mahogany Blaze,
+	Ocean, Forest, Sunset, Violet, Rose) with a dedicated palette selection
+	screen in Settings. The palette is persisted and applies to both light and
+	dark themes.
+- A shared motion system: central motion tokens (`AppMotion`), consistent page
+	transitions (`AppPageTransitions`), animated dialogs (`AppDialog`), an
+	animated floating action button (`AppFab`), chart reveal animations
+	(`ChartReveal`) and staggered list entrances (`FadeSlideIn`). Every
+	animation honours the platform's reduced-motion setting.
+- A dedicated monochrome notification icon and brand accent colour for Android
+	notifications, applied to both budget and bill reminder channels.
+- Combined expense history mode that lets users view and compare expenses
+	across multiple budgets in a single unified list, with budget name chips
+	on each expense tile.
+- Budget selection sheet for choosing which budgets to include in combined
+	mode, with support for selecting, deselecting, and searching budgets.
+- Sort-by-amount support in expense history for ordering expenses
+	ascending or descending by amount.
+- Home-screen widget for Android and iOS with the active budget's Today's
+	Safe Spending and an Add expense button.
+- `HomeWidgetService` for managing widget data updates and lifecycle events.
+- `WidgetRefreshListener` to keep widget data in sync with app state changes.
+- Database Integrity Service for comprehensive data integrity checks,
+	including orphaned record detection, referential integrity validation,
+	and automatic repair capabilities.
+- Per-budget daily spending limits with individual daily and weekly targets for
+	each active budget, displayed in a dedicated dashboard section.
+- Bill management improvements for tracking due dates, payment status, recurring
+	bills, and payment reminders.
+- An app update checker that reports new GitHub releases and opens their release
+	page from the Settings screen.
+- Explanations for analytics cards so users can see how each metric is
+	calculated.
+- Notification management with morning reminders, evening summaries,
+	overspending alerts, no-expense reminders, and quiet hours.
+- Currency selection when creating or editing a budget.
 
 ### Changed
+- **The home-screen widget is rebuilt.** It uses the space it is given: on
+  Android it picks one of eleven layouts as you resize it, from just the
+  amount in the smallest slot to the budget, today's progress, what is left
+  and Add expense at 4×3; on iOS each size steps down the same way. Larger
+  text and display sizes switch to a simpler layout instead of cutting text
+  off, and the amount is never truncated.
+  - It shows exactly what Home shows: the same amount (₹852.34, not ₹852),
+    the same status words ("At risk", not "Spend carefully") and each
+    currency's own symbol and decimals.
+  - It is drawn in your palette and follows the system's light and dark mode.
+  - After midnight it says "Tap to update" instead of showing yesterday's
+    amount as today's.
+  - On Android it can be resized from 2×1 upwards (it could not go below 4×2).
+- **The eight palettes are redesigned.** Calmer, with every colour readable
+  as it ships (AA contrast by construction) and the same status colours (on
+  track, caution, over) in every palette. Light pages are neutral instead of
+  tinted pink or peach, and Settings → Appearance → Color palette shows each
+  palette in light and dark.
 - **Onboarding asks for the currency before the amount**, so the amount step
   shows the right symbol and decimals. The last step leads with the first
   day's Today's Safe Spending, then the budget's facts.
@@ -142,284 +350,6 @@ plan: `docs/design/monivo-design-direction.html`.
   14 dp, and buttons, fields and menus 10 dp.
 - **Reduced motion** now also follows iOS Settings → Accessibility → Motion →
   Reduce Motion.
-
-### Fixed
-- A JSON import said "Imported 8 items." using the file's schema version as
-  the count; it now says "Import complete." (CSV imports still give the
-  number of expenses added).
-- Retry on a failed load of the expense form saved the form instead of
-  loading it again.
-- Moving an expense when the budgets couldn't be read said "There is no
-  other budget to move to".
-- The home-screen widget showed different figures on Android (rounded) and
-  iOS (truncated); amounts left now round down and amounts spent round up
-  on both, so the widget never promises more than Home.
-- The converter's amount field could stay empty when the saved amount was
-  restored before the screen opened, and its "From" label broke mid-word at
-  large text sizes.
-- The Updates section showed "Current version —" before a check; the
-  version is in About.
-- **A failed Reports refresh replaced the whole screen** with raw error text.
-  The last report now stays, with "Couldn't update the report" and Retry.
-- **Reports could show one range and use another**: dates set in the filter
-  sheet silently overrode the selected period. Dates now come from the period
-  only.
-- **Custom ranges over 62 days drew monthly bars labelled "week".** The label
-  now follows the bars.
-- **Report insights outside the current month labelled amounts in ₹** whatever
-  the budget's currency.
-- **Bars no longer change colour at 80% used**, so Reports can't call a budget
-  "on track" while Home says "at risk": the threshold colour helper is gone.
-- **Amounts in Omani rials could not be entered to the fils.** Every amount
-  field and its check (expenses, quick add, bills, budgets, set-aside
-  amounts, onboarding) stopped at two decimals. Each now follows its
-  currency's minor units, never fewer than two: OMR takes three (7.125), INR
-  two, and JPY keeps the two it had. Editing shows every saved decimal
-  instead of rounding 7.125 to 7.13, and amounts on screens not yet redesigned
-  show the fils too.
-- **"Add expense" on a budget's screen recorded into the active budget**, not
-  the budget on screen. It now appears only on the active budget; any other
-  budget offers "Make active" instead.
-- **The bills summary added amounts in different currencies** under the first
-  bill's symbol. Each group now totals each currency separately.
-- **Expenses showed every amount in ₹.** The list now uses the active
-  budget's currency, so an OMR budget's expenses read in rials.
-- **A combined view of budgets in different currencies added them up** under
-  one symbol. It now gives one total per currency.
-- **Recent expenses on Home all showed "12:00 AM".** They now show the time
-  each expense was recorded for, and expenses on the same day are listed by
-  time.
-- **The evening summary defaulted to 9:00 AM** on an install that had never
-  saved notification settings. It now defaults to 8:00 PM, as intended.
-- **Reports outside the current month showed amounts in ₹** whatever the
-  budget's currency. Every period now uses the active budget's currency.
-
-### Removed
-- The `rive` dependency, `assets/rive/` and the two NDK overrides in
-  `android/gradle.properties` that only its native library needed.
-- The budget overview card and the quick actions on Home. Their content is in
-  the hero, Coming up and the Add expense button.
-- The Active budget / Combined switch on Expenses (now in the budget menu)
-  and the delete confirmation on an expense's screen (now Undo).
-- The budget card grid, the bill status tiles and "Next up" card, and the
-  80%-used colour change on budget bars.
-- On Reports: the pie chart, the smoothed daily line, the week-over-week
-  card, the time analytics card, the budget utilisation card and the export
-  buttons; `AppProgress` and the unused `InsightCard`.
-
-### Added (for developers)
-- `AppTypography` (money roles with tabular figures), `AppTone` and tone
-  container tokens, and the components `AppMoney`, `AppMetric`, `AppSection`,
-  `AppListRow`/`AppGroupedList`, `AppTrack`, `StatusChip.tone` and
-  `AppHaptics`.
-- Golden tests in `test/goldens/` (light and dark, 1.0 and 2.0 text scale),
-  run on macOS only.
-- `SafeToSpendEntity.tomorrowIfNoMoreSpending` and
-  `overTodayPerRemainingDay`, computed by `SafeToSpendCalculator` with the
-  same single division as today's amount. Both are informational and change
-  no figure.
-- `GetSpendingPaceUseCase` with `SpendingPaceBuilder` and
-  `DashboardRepository.getDailyDiscretionarySpending` (bill payments
-  excluded), feeding `DashboardLoaded.spendingPace`.
-- `AppSurface` (raised and sunken), `AppNotice`, `DelayedReveal` and
-  `AppAnimatedSize` (skips animating under reduced motion).
-- `RankCategoriesByUseUseCase` (read-only ranking for the quick-add
-  shortcuts), `ExpenseLoadQuickAdd`, `AppAmountPad`, `TransactionRow` (shared
-  by Home and Expenses), `ExpenseUndo`, `ExpensePrefill` and
-  `ExpenseHistoryState.budgetCurrency` / `summaryByCurrency`.
-- `ActiveBudgetCard`, `BudgetRow`, `BudgetUsageTrack`, `BudgetPeriodCopy`,
-  `BillVisuals.totalsByCurrency` / `isDueSoon` and `AppDisclosure`.
-- `ReportsBudgetPeriodSelected` and `ReportsState.followsBudget` / `budget`
-  ("This Budget" is a custom range the bloc re-reads from the active budget on
-  every load); `ReportTotal`, `PlannedVsActual`, `CategoryRanking`,
-  `DailyColumnsChart`, `WeekdayRhythm`, `ReportExport`, `ReportCopy`;
-  `FilterBottomSheet(showDates:)`.
-- `MoneyInput` (`lib/core/currency/money_input.dart`): the decimals an amount
-  may have per currency, the typing pattern, the decimals message and
-  unrounded edit text. `ExpenseValidator.validateAmount` and
-  `BillValidator.validateAmount` take an optional `currency`.
-- `initDependencyInjection(database:)` lets a widget test use an in-memory
-  database; the app smoke test now does, which fixes its intermittent failure.
-
-## [1.0.0] - 2026-10-08
-
-### Added
-- **Smart Safe-to-Spend.** Today's Safe Spending now protects the money a
-  budget still needs before it says what can be spent today:
-  `max(0, (A − B − C − D + today's discretionary spending) ÷ remaining days)`.
-  - A is what is left in the budget.
-  - B is the unpaid bills linked to it that are due by its end, overdue ones
-    included.
-  - C is an optional "Kept aside" amount.
-  - D is an optional "Savings goal".
-
-  The figure still stays fixed for the whole day. With none of these set it
-  is exactly the old figure. Formulas:
-  `lib/features/budget/CALCULATION_RULES.md`. Design:
-  `docs/architecture/safe_spending.md`.
-  - **Bills link to a budget.** The bill form has a new "Paid from" picker,
-    with "Not linked" as the default. Bill cards and bill details show "Paid
-    from {budget}" or "Not linked", and the bills list has a "Not linked"
-    filter. Picking a budget in another currency switches the bill to that
-    currency; when editing a bill, this asks for confirmation first.
-  - **"Mark paid & record expense".** One transaction writes the payment
-    record, advances the bill (or marks it paid) and records the expense. The
-    expense goes to the bill's budget if it is running today and in the same
-    currency; otherwise to the active budget under the same conditions;
-    otherwise nothing is written and the user is told why. If the money had
-    been set aside in that budget, paying it does not lower today's amount.
-  - **"Paid outside this budget"** is a separate action for linked bills. It
-    explains that the budget's safe-to-spend will go up when that budget is
-    setting the bill aside; otherwise it asks with the plain "Mark as paid"
-    wording. "Mark as unpaid" now names the recorded expense it removes, and
-    removes it, found by the bill it paid rather than its date.
-  - **"Set aside (optional)" on the budget form.** "Keep aside" and "Savings
-    goal" fields, each between 0 and the budget amount. Saving is not
-    blocked, but a warning appears when together they leave nothing free to
-    spend. An empty field means "Not set", which is different from 0.
-  - **Dashboard.**
-    - The hero has a status chip (On track, Spend carefully, Over today's
-      amount, At risk, Overcommitted, Over budget, Not started, Ended) and
-      one explanation line.
-    - A new "Free to spend" breakdown card shows: Remaining in budget −
-      Bills due (an expandable list of exactly the deducted bills) − Kept
-      aside − Savings goal = Free to spend. It also has a forecast: average
-      a day, projected spending, projected balance, and when the free money
-      runs out at the current pace.
-    - Notices cover bills that could not be read (with a retry), bills not
-      linked to any budget (with a **Link bills** sheet), and linked bills
-      in another currency.
-  - **One number everywhere.** The hero, "Other budgets today", the morning
-    notification and the home-screen widget all read the same engine result
-    (`GetSafeToSpendUseCase`). Budgets are never pooled.
-- `MoneyMath` (integer-unit money arithmetic),
-  `CurrencyFormatter.floorToDigits` / `floorForDisplay` / `formatFloored`, and
-  `BudgetCalculationService.calendarDaysBetween`.
-- **Display rounding.** Safe amounts (today's amount, left today, free to
-  spend) are floored to the digits shown, so they are never displayed higher
-  than they are. For example, OMR 7.6 shows as "ر.ع.7.600", not "8".
-- **Currency converter** (Settings → Tools → Currency converter). Converts any
-  amount between the ~160 currencies published by
-  [Frankfurter](https://frankfurter.dev/) (`https://api.frankfurter.dev/v2/`,
-  HTTPS, no API key). Frankfurter serves daily *reference* rates from central
-  banks and official sources, and the screen says so; it never claims live
-  market pricing.
-  - **Cache-first rates.** The exchange rate itself (never a converted amount)
-    is stored per pair (`OMR_INR`) with the provider's rate date, the local
-    fetch time and the provider name. A rate whose reference day is today
-    (UTC) is used without a request; an older one is re-checked at most every
-    6 hours (weekends and holidays keep yesterday's rate as the latest). The
-    amount is converted locally, so typing 1 → 10 → 50 → 100 never calls the
-    API, and neither do swapping back and forth, reopening the screen or
-    theme changes. Concurrent requests for one pair share a single call.
-  - **Offline.** When a fetch fails, the newest saved rate is used and labelled
-    ("Offline — using saved rate from …" / "Couldn't update. Using saved
-    rate from …"). With nothing saved, the screen explains that an internet
-    connection is needed for that pair instead of a generic error, and offers
-    a retry.
-  - **Refresh rate** forces a fetch; a failed refresh keeps the saved rate.
-  - **Reverse pairs** (INR → OMR from a saved OMR → INR) are derived as
-    `1 / rate` and marked "Calculated from the OMR → INR rate". Only rates of
-    1 or more are inverted: Frankfurter quotes those to about five significant
-    digits (249.33) but rounds rates below 1 to about five decimal places
-    (0.00401), so 1 / 249.33 is *more* precise than the provider's own reverse
-    rate, while inverting 0.00401 would give 249.38.
-  - **Exact money arithmetic.** Rates are stored as exact decimal text and the
-    conversion runs on a new `ExactDecimal` (BigInt-backed, no new package),
-    rounding once, half away from zero, to the target currency's ISO 4217
-    decimals (OMR 3, INR 2, JPY 0). 24,933 INR converts back to exactly
-    100.000 OMR.
-  - Searchable currency picker with code, name and symbol; the supported list
-    is cached for 7 days and falls back to the saved list (or the app's ten
-    built-in currencies) when offline. The last pair and amount are restored
-    on the next visit (first launch: OMR → INR).
-  - Input validation (empty, zero, negative, above 1 trillion, more than 8
-    decimals, invalid characters), subtle swap and result animations that
-    respect Reduce Motion, and no animation per keystroke.
-- `CurrencyFormatter.resolveSymbol`, `decimalDigitsFor`, `formatDecimal` and
-  `formatRate` format any ISO currency exactly. `symbolFor` still falls back
-  to ₹ for app-wide amounts; the converter never uses that fallback, so an
-  unknown currency shows its code, not a rupee sign.
-- Migration tests for the first-v5-build schema (`test/fixtures/
-  schema_v5_pre_category_archive.sql`, captured from a real device), a schema
-  parity check that fails when a column is added without a migration step, and
-  a file-backed persistence suite (`test/integration/persistence_test.dart`)
-  that closes and reopens the database between steps like an app restart.
-- **Category management.** Settings → Expenses → Categories creates, renames and
-  restyles categories from a catalogue of 43 icons and 16 colours, archives ones
-  you no longer use, and deletes custom categories that no expense references.
-  Built-in categories can be renamed and restyled but not deleted. Archived
-  categories disappear from pickers and quick filters while history keeps its
-  labels. New `isArchived` column on `categories`.
-- **Undo after deleting an expense.** Swiping a row deletes it immediately and
-  offers Undo in a snackbar for a few seconds; undoing restores the same row, so
-  budgets, reports and the widget stay consistent either way. The confirmation
-  dialog on swipe is gone; the details screen still confirms.
-- **Press and hold an expense** for Edit, Duplicate, Move to another budget and
-  Delete. Duplicate opens the form pre-filled from that expense, dated now.
-- **Date presets** — Today, Yesterday, This week, Last week, This month, Last
-  month, This year — as quick chips and in the filter sheet. A custom range now
-  reads as one chip ("12 Mar – 15 Mar") instead of a From/To pair.
-- **Animated bottom navigation** using Rive icons on the Material 3 bar. The
-  selected tab plays a short one-shot animation while the bar draws the steady
-  selected state from the current index, so it is correct after navigating,
-  after returning from a screen and after a restart. Nothing loops, the icon
-  falls back to its Material glyph if the asset cannot load, and reduced motion
-  skips the animation. New `lib/core/navigation/` module and `rive` dependency.
-- **Categories vs previous period** report card: which categories moved most
-  against the equal-length window before the selected range, with the change in
-  money and percent and a "New" marker.
-- **A weekly line on the safe-spending hero** — what has been spent against this
-  week's share of the budget.
-- **Database health check** in Settings → Data, which runs the previously unwired
-  `DatabaseIntegrityService` and reports orphaned rows, impossible date ranges and
-  invalid amounts in a sheet.
-- **Architecture documentation** in `docs/architecture/`: why Drift, BLoC, Clean
-  Architecture and GetIt; how safe spending is calculated; how multiple budgets
-  work; how the Rive navigation works; the offline-first data contract; the
-  notification architecture; and what backup, restore, export and import cover.
-- **Integration tests** (`test/integration/`) that wire the real datasources,
-  repositories, use cases and BLoCs against an in-memory database and drive whole
-  flows end to end, plus a v4 → v5 schema migration test against a captured
-  schema fixture.
-- Eight selectable colour palettes (Default, Blossom Vapor, Mahogany Blaze,
-	Ocean, Forest, Sunset, Violet, Rose) with a dedicated palette selection
-	screen in Settings. The palette is persisted and applies to both light and
-	dark themes.
-- A shared motion system: central motion tokens (`AppMotion`), consistent page
-	transitions (`AppPageTransitions`), animated dialogs (`AppDialog`), an
-	animated floating action button (`AppFab`), chart reveal animations
-	(`ChartReveal`) and staggered list entrances (`FadeSlideIn`). Every
-	animation honours the platform's reduced-motion setting.
-- A dedicated monochrome notification icon and brand accent colour for Android
-	notifications, applied to both budget and bill reminder channels.
-- Combined expense history mode that lets users view and compare expenses
-	across multiple budgets in a single unified list, with budget name chips
-	on each expense tile.
-- Budget selection sheet for choosing which budgets to include in combined
-	mode, with support for selecting, deselecting, and searching budgets.
-- Sort-by-amount support in expense history for ordering expenses
-	ascending or descending by amount.
-- Home screen widget for Android and iOS that displays a spending overview
-	with budget summaries directly on the device home screen.
-- `HomeWidgetService` for managing widget data updates and lifecycle events.
-- `WidgetRefreshListener` to keep widget data in sync with app state changes.
-- Database Integrity Service for comprehensive data integrity checks,
-	including orphaned record detection, referential integrity validation,
-	and automatic repair capabilities.
-- Per-budget daily spending limits with individual daily and weekly targets for
-	each active budget, displayed in a dedicated dashboard section.
-- Bill management improvements for tracking due dates, payment status, recurring
-	bills, and payment reminders.
-- An app update checker that reports new GitHub releases and opens their release
-	page from the Settings screen.
-- Explanations for analytics cards so users can see how each metric is
-	calculated.
-- Notification management with morning reminders, evening summaries,
-	overspending alerts, no-expense reminders, and quiet hours.
-- Currency selection when creating or editing a budget.
-
-### Changed
 - **Database schema v8.** Adds four nullable columns:
   - `bills.budget_id` (`REFERENCES budgets(id)`, indexed by
     `index_bills_budget`);
@@ -444,10 +374,6 @@ plan: `docs/design/monivo-design-direction.html`.
   that is based on the forecast.
 - **The weekly line on the hero is gone** for budgets with a safe-to-spend
   result.
-- **Home-screen widget statuses.** `short:<amount>` ("{amount} short") is used
-  when the budget is over or overcommitted, and `careful` ("Spend carefully")
-  covers both careful and at-risk. Status amounts are rounded up. On Android,
-  an unknown status now reads "Open app to refresh" instead of "On Track".
 - **Morning notification when nothing is free.** If the daily amount is 0,
   the notification says why: over budget, overcommitted, or everything set
   aside.
@@ -607,6 +533,66 @@ plan: `docs/design/monivo-design-direction.html`.
 - **Icons**: Updated app icons for better visual consistency and clarity. Optimized for all device resolutions and themes.
 
 ### Fixed
+- **Release builds crashed whenever a reminder fired** ("no valid small
+  icon"): shrinking the app removed the notification icon. It is now kept.
+- **Symbols written in Arabic script appeared after the amount in
+  sentences**, for example in the budget line on Home ("1,000د.إ"). Every
+  amount now keeps its symbol in front.
+- **The home-screen widget cut off its own content** at its default size,
+  and more so with larger text.
+- **The widget showed OMR amounts in rupees and without fils** ("₹4" for 4.250
+  rials), rounded amounts that Home shows with decimals, used different
+  status words from Home, and kept showing yesterday's amount after midnight.
+- **The iOS widget did not build for iOS 15 and 16**, and the small widget's
+  "Add Expense" button only opened Home (iOS sends every tap on a small
+  widget to one link).
+- **The widget used the Default palette** when the app was slow to start.
+- A JSON import said "Imported 8 items." using the file's schema version as
+  the count; it now says "Import complete." (CSV imports still give the
+  number of expenses added).
+- Retry on a failed load of the expense form saved the form instead of
+  loading it again.
+- Moving an expense when the budgets couldn't be read said "There is no
+  other budget to move to".
+- The converter's amount field could stay empty when the saved amount was
+  restored before the screen opened, and its "From" label broke mid-word at
+  large text sizes.
+- The Updates section showed "Current version —" before a check; the
+  version is in About.
+- **A failed Reports refresh replaced the whole screen** with raw error text.
+  The last report now stays, with "Couldn't update the report" and Retry.
+- **Reports could show one range and use another**: dates set in the filter
+  sheet silently overrode the selected period. Dates now come from the period
+  only.
+- **Custom ranges over 62 days drew monthly bars labelled "week".** The label
+  now follows the bars.
+- **Report insights outside the current month labelled amounts in ₹** whatever
+  the budget's currency.
+- **Bars no longer change colour at 80% used**, so Reports can't call a budget
+  "on track" while Home says "at risk": the threshold colour helper is gone.
+- **Amounts in Omani rials could not be entered to the fils.** Every amount
+  field and its check (expenses, quick add, bills, budgets, set-aside
+  amounts, onboarding) stopped at two decimals. Each now follows its
+  currency's minor units, never fewer than two: OMR takes three (7.125), INR
+  two, and JPY keeps the two it had. Editing shows every saved decimal
+  instead of rounding 7.125 to 7.13, and amounts on screens not yet redesigned
+  show the fils too.
+- **"Add expense" on a budget's screen recorded into the active budget**, not
+  the budget on screen. It now appears only on the active budget; any other
+  budget offers "Make active" instead.
+- **The bills summary added amounts in different currencies** under the first
+  bill's symbol. Each group now totals each currency separately.
+- **Expenses showed every amount in ₹.** The list now uses the active
+  budget's currency, so an OMR budget's expenses read in rials.
+- **A combined view of budgets in different currencies added them up** under
+  one symbol. It now gives one total per currency.
+- **Recent expenses on Home all showed "12:00 AM".** They now show the time
+  each expense was recorded for, and expenses on the same day are listed by
+  time.
+- **The evening summary defaulted to 9:00 AM** on an install that had never
+  saved notification settings. It now defaults to 8:00 PM, as intended.
+- **Reports outside the current month showed amounts in ₹** whatever the
+  budget's currency. Every period now uses the active budget's currency.
 - **"Mark paid & add expense" was not atomic and could count a bill twice.**
   - It marked the bill paid and then added the expense in a separate step,
     through a new `ExpenseBloc` that was never closed.
@@ -790,6 +776,17 @@ plan: `docs/design/monivo-design-direction.html`.
   repaint cannot escape into the rest of the bar.
 
 ### Removed
+- The `rive` dependency, `assets/rive/` and the two NDK overrides in
+  `android/gradle.properties` that only its native library needed.
+- The budget overview card and the quick actions on Home. Their content is in
+  the hero, Coming up and the Add expense button.
+- The Active budget / Combined switch on Expenses (now in the budget menu)
+  and the delete confirmation on an expense's screen (now Undo).
+- The budget card grid, the bill status tiles and "Next up" card, and the
+  80%-used colour change on budget bars.
+- On Reports: the pie chart, the smoothed daily line, the week-over-week
+  card, the time analytics card, the budget utilisation card and the export
+  buttons; `AppProgress` and the unused `InsightCard`.
 - The orphaned `ResetMonthUseCase`, which was not registered anywhere and would
   have created a zero-amount budget.
 - Two dead dashboard widgets, the onboarding re-export files, and the empty
@@ -800,6 +797,58 @@ plan: `docs/design/monivo-design-direction.html`.
   had no effect.
 
 ### Technical
+- `HomeWidgetPayload`: the widget's whole state as one JSON string, worded
+  and formatted by `AppMoney` and `SafeToSpendCopy`, so native code never
+  formats money. `HomeWidgetService` waits for the saved palette and runs
+  updates one at a time.
+- Android widget: `MonivoWidgetRenderer` measures every layout in-process at
+  the current font and display size and gives the launcher a size map
+  (Android 12+) plus the richest layout for each size it reports. Drawing runs
+  on its own thread; one inexact alarm a day redraws it after midnight. Debug
+  builds include `WidgetPreviewActivity`, which renders every layout at many
+  sizes and font scales and flags clipped or cut-off text. Test plan:
+  `docs/home_screen_widget_test_plan.md`.
+- `MonivoOmaniRial` (`assets/fonts/omani_rial/`, built by `build_font.py`
+  from the Central Bank's public-domain artwork, with Manrope's metrics) as
+  `AppTypography.fontFamilyFallback`; `CurrencyFormatter.omaniRialSign`,
+  `forSystemText` and `forSpeech`. `CurrencyFormatter.format` adds the
+  left-to-right mark after Arabic-script symbols itself.
+- `android/app/src/main/res/raw/keep.xml` keeps resources that the Dart side
+  names only as strings.
+- The palette design contract in `test/core/theme/color_palette_test.dart`
+  and the `omani_rial` golden test.
+- `AppTypography` (money roles with tabular figures), `AppTone` and tone
+  container tokens, and the components `AppMoney`, `AppMetric`, `AppSection`,
+  `AppListRow`/`AppGroupedList`, `AppTrack`, `StatusChip.tone` and
+  `AppHaptics`.
+- Golden tests in `test/goldens/` (light and dark, 1.0 and 2.0 text scale),
+  run on macOS only.
+- `SafeToSpendEntity.tomorrowIfNoMoreSpending` and
+  `overTodayPerRemainingDay`, computed by `SafeToSpendCalculator` with the
+  same single division as today's amount. Both are informational and change
+  no figure.
+- `GetSpendingPaceUseCase` with `SpendingPaceBuilder` and
+  `DashboardRepository.getDailyDiscretionarySpending` (bill payments
+  excluded), feeding `DashboardLoaded.spendingPace`.
+- `AppSurface` (raised and sunken), `AppNotice`, `DelayedReveal` and
+  `AppAnimatedSize` (skips animating under reduced motion).
+- `RankCategoriesByUseUseCase` (read-only ranking for the quick-add
+  shortcuts), `ExpenseLoadQuickAdd`, `AppAmountPad`, `TransactionRow` (shared
+  by Home and Expenses), `ExpenseUndo`, `ExpensePrefill` and
+  `ExpenseHistoryState.budgetCurrency` / `summaryByCurrency`.
+- `ActiveBudgetCard`, `BudgetRow`, `BudgetUsageTrack`, `BudgetPeriodCopy`,
+  `BillVisuals.totalsByCurrency` / `isDueSoon` and `AppDisclosure`.
+- `ReportsBudgetPeriodSelected` and `ReportsState.followsBudget` / `budget`
+  ("This Budget" is a custom range the bloc re-reads from the active budget on
+  every load); `ReportTotal`, `PlannedVsActual`, `CategoryRanking`,
+  `DailyColumnsChart`, `WeekdayRhythm`, `ReportExport`, `ReportCopy`;
+  `FilterBottomSheet(showDates:)`.
+- `MoneyInput` (`lib/core/currency/money_input.dart`): the decimals an amount
+  may have per currency, the typing pattern, the decimals message and
+  unrounded edit text. `ExpenseValidator.validateAmount` and
+  `BillValidator.validateAmount` take an optional `currency`.
+- `initDependencyInjection(database:)` lets a widget test use an in-memory
+  database; the app smoke test now does, which fixes its intermittent failure.
 - Budget amount updates now run inside a database transaction and recompute the
 	stored remaining amount from the persisted expenses within that same
 	transaction, so a concurrent write cannot leave a stale balance.
