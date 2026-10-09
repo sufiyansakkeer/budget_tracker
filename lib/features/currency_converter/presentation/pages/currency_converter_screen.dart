@@ -3,14 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_surface.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../../settings/presentation/widgets/currency_selector.dart';
 import '../bloc/currency_converter_bloc.dart';
-import '../widgets/conversion_result_card.dart';
+import '../widgets/conversion_result.dart';
 import '../widgets/converter_amount_field.dart';
 import '../widgets/converter_copy.dart';
-import '../widgets/currency_pair_card.dart';
-import '../widgets/rate_info_card.dart';
+import '../widgets/currency_field.dart';
+import '../widgets/rate_info.dart';
 
 /// Converts an amount between any two currencies the rate provider supports.
 ///
@@ -126,12 +127,40 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _amountSection(bloc),
-                      const SizedBox(height: AppSpacing.md),
-                      _pairSection(bloc),
-                      const SizedBox(height: AppSpacing.md),
-                      _resultSection(bloc),
-                      const SizedBox(height: AppSpacing.md),
+                      // One surface for the conversion itself: from, the
+                      // amount, swap, to and the answer, read top to bottom.
+                      AppSurface(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.sm,
+                          AppSpacing.sm,
+                          AppSpacing.sm,
+                          AppSpacing.md,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _currencyField(bloc, source: true),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm,
+                              ),
+                              child: _amountSection(bloc),
+                            ),
+                            _swapSection(bloc),
+                            _currencyField(bloc, source: false),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.smd,
+                                AppSpacing.xs,
+                                AppSpacing.smd,
+                                0,
+                              ),
+                              child: _resultSection(bloc),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
                       _rateSection(bloc),
                     ],
                   ),
@@ -158,19 +187,25 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
     );
   }
 
-  Widget _pairSection(CurrencyConverterBloc bloc) {
+  Widget _currencyField(CurrencyConverterBloc bloc, {required bool source}) {
     return BlocBuilder<CurrencyConverterBloc, CurrencyConverterState>(
       buildWhen: (prev, curr) =>
-          prev.source != curr.source ||
-          prev.target != curr.target ||
-          prev.swapCount != curr.swapCount,
-      builder: (context, state) => CurrencyPairCard(
-        source: state.source,
-        target: state.target,
+          source ? prev.source != curr.source : prev.target != curr.target,
+      builder: (context, state) => CurrencyField(
+        key: Key(source ? 'converterSourceField' : 'converterTargetField'),
+        label: source ? 'From' : 'To',
+        currency: source ? state.source : state.target,
+        onTap: () => _pickCurrency(source: source),
+      ),
+    );
+  }
+
+  Widget _swapSection(CurrencyConverterBloc bloc) {
+    return BlocBuilder<CurrencyConverterBloc, CurrencyConverterState>(
+      buildWhen: (prev, curr) => prev.swapCount != curr.swapCount,
+      builder: (context, state) => SwapDivider(
         swapCount: state.swapCount,
-        onPickSource: () => _pickCurrency(source: true),
-        onPickTarget: () => _pickCurrency(source: false),
-        onSwap: () => bloc.add(const CurrencyConverterSwapped()),
+        onPressed: () => bloc.add(const CurrencyConverterSwapped()),
       ),
     );
   }
@@ -184,7 +219,7 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
           prev.rateFailure != curr.rateFailure ||
           prev.source != curr.source ||
           prev.target != curr.target,
-      builder: (context, state) => ConversionResultCard(
+      builder: (context, state) => ConversionResult(
         source: state.source,
         target: state.target,
         amount: state.amount,
@@ -207,7 +242,7 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
       builder: (context, state) {
         final lookup = state.rate;
         if (lookup == null) return const SizedBox.shrink();
-        return RateInfoCard(
+        return RateInfo(
           lookup: lookup,
           target: state.target,
           isRefreshing: state.isRefreshing,

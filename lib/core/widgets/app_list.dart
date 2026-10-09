@@ -164,11 +164,12 @@ class AppGroupedList extends StatelessWidget {
       ],
     );
     if (!filled) return column;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: AppSpacing.borderRadiusMd,
-      ),
+    // A Material rather than a decorated box, so row ink shows on the fill
+    // and is clipped to its corners.
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusMd),
+      clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
         child: column,

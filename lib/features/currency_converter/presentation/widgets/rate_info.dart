@@ -3,15 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
-import '../../../../core/theme/app_colors_extension.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/status_chip.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/entities/rate_lookup.dart';
 import 'converter_copy.dart';
 
-/// "1 OMR = ₹249.33", where that rate came from, and "Refresh rate".
-class RateInfoCard extends StatelessWidget {
+/// "1 OMR = ₹249.33", where that rate came from, and "Refresh rate", as a
+/// section on the page under the converter.
+class RateInfo extends StatelessWidget {
   final RateLookup lookup;
   final CurrencyEntity target;
   final bool isRefreshing;
@@ -20,7 +22,7 @@ class RateInfoCard extends StatelessWidget {
   /// Injectable for tests; defaults to the current time.
   final DateTime? now;
 
-  const RateInfoCard({
+  const RateInfo({
     super.key,
     required this.lookup,
     required this.target,
@@ -33,7 +35,6 @@ class RateInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final colors = context.appColors;
     final now = this.now ?? DateTime.now();
     final rate = lookup.rate;
     final isIdentity = lookup.origin == RateOrigin.identity;
@@ -41,25 +42,25 @@ class RateInfoCard extends StatelessWidget {
     final rateText =
         '1 ${rate.baseCurrency} = ${CurrencyFormatter.formatRate(rate.rate, symbol: target.symbol, code: target.code)}';
 
-    final (chipColor, chipIcon) = switch (lookup) {
+    final (chipTone, chipIcon) = switch (lookup) {
       RateLookup(fallbackReason: final reason?) when reason.isOffline => (
-        colors.warning,
+        AppTone.caution,
         Icons.wifi_off_rounded,
       ),
       RateLookup(fallbackReason: _?) => (
-        colors.warning,
+        AppTone.caution,
         Icons.sync_problem_rounded,
       ),
       RateLookup(origin: RateOrigin.online) => (
-        colors.success,
+        AppTone.positive,
         Icons.cloud_done_rounded,
       ),
       RateLookup(origin: RateOrigin.cached) => (
-        colors.info,
+        AppTone.info,
         Icons.save_rounded,
       ),
       RateLookup(origin: RateOrigin.identity) => (
-        colors.info,
+        AppTone.neutral,
         Icons.drag_handle_rounded,
       ),
     };
@@ -68,29 +69,11 @@ class RateInfoCard extends StatelessWidget {
       color: scheme.onSurfaceVariant,
     );
 
-    return AppCard(
-      key: const Key('converterRateCard'),
+    return AppSection(
+      title: 'Exchange rate',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Exchange rate',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              StatusChip(
-                label: ConverterCopy.sourceLabel(lookup),
-                color: chipColor,
-                icon: chipIcon,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
           // A refresh that lands a new rate or date re-keys this block, so
           // the update is visible even when the number barely moves.
           AnimatedSwitcher(
@@ -111,11 +94,16 @@ class RateInfoCard extends StatelessWidget {
                 Text(
                   rateText,
                   key: const Key('converterRateText'),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: context.appTypography.moneyTitle,
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.sm),
+                StatusChip.tone(
+                  label: ConverterCopy.sourceLabel(lookup),
+                  tone: chipTone,
+                  icon: chipIcon,
+                  wrapLabel: true,
+                ),
+                const SizedBox(height: AppSpacing.sm),
                 Text(
                   ConverterCopy.sourceDetail(lookup, now),
                   key: const Key('converterRateSource'),

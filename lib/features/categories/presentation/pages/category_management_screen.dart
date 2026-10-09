@@ -4,7 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_fab.dart';
-import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/widgets/app_list.dart';
+import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -210,54 +211,68 @@ class _CategoryList extends StatelessWidget {
     return ListView(
       padding: AppSpacing.pagePaddingWithFab,
       children: [
-        SectionHeader(
+        AppSection(
           title: 'Available',
           subtitle:
               '${active.length} ${active.length == 1 ? 'category' : 'categories'}',
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        for (final c in active)
-          FadeSlideIn(
-            key: ValueKey('enter_${c.id}'),
-            index: index++,
-            child: CategoryListTile(
-              category: c,
-              onTap: () => onEdit(c),
-              onArchive: () => onArchive(c, true),
-              onDelete: c.isSystem ? null : () => onDelete(c),
-            ),
+          child: AppGroupedList(
+            filled: true,
+            dividerIndent: CategoryListTile.dividerIndent,
+            children: [
+              for (final c in active)
+                FadeSlideIn(
+                  key: ValueKey('enter_${c.id}'),
+                  index: index++,
+                  child: CategoryListTile(
+                    category: c,
+                    onTap: () => onEdit(c),
+                    onArchive: () => onArchive(c, true),
+                    onDelete: c.isSystem ? null : () => onDelete(c),
+                  ),
+                ),
+            ],
           ),
+        ),
         if (archived.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
-          SectionHeader(
+          AppSection(
             title: 'Archived',
             subtitle: 'Hidden from the expense form; history is kept',
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          for (final c in archived)
-            FadeSlideIn(
-              key: ValueKey('enter_${c.id}'),
-              index: index++,
-              child: CategoryListTile(
-                category: c,
-                onTap: () => onEdit(c),
-                onRestore: () => onArchive(c, false),
-                onDelete: c.isSystem ? null : () => onDelete(c),
-              ),
+            child: AppGroupedList(
+              filled: true,
+              dividerIndent: CategoryListTile.dividerIndent,
+              children: [
+                for (final c in archived)
+                  FadeSlideIn(
+                    key: ValueKey('enter_${c.id}'),
+                    index: index++,
+                    child: CategoryListTile(
+                      category: c,
+                      onTap: () => onEdit(c),
+                      onRestore: () => onArchive(c, false),
+                      onDelete: c.isSystem ? null : () => onDelete(c),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ],
     );
   }
 }
 
-/// One category row with its actions in an overflow menu.
+/// One dense category row: the icon tile, the name and its kind, with the
+/// actions in an overflow menu. Tapping the row edits the category.
 class CategoryListTile extends StatelessWidget {
   final ExpenseCategory category;
   final VoidCallback onTap;
   final VoidCallback? onArchive;
   final VoidCallback? onRestore;
   final VoidCallback? onDelete;
+
+  /// Hairlines between rows start under the name, past the icon tile.
+  static const double dividerIndent = AppSizes.avatarSm + AppSpacing.smd;
 
   const CategoryListTile({
     super.key,
@@ -277,104 +292,119 @@ class CategoryListTile extends StatelessWidget {
       if (category.isArchived) 'Archived',
     ].join(' · ');
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: AppCard(
-        key: Key('category_row_${category.id}'),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        onTap: onTap,
-        child: Row(
-          children: [
-            Opacity(
-              opacity: category.isArchived ? 0.55 : 1,
-              child: IconTile(
-                icon: CategoryVisuals.iconFor(category.icon),
-                color: color,
-                size: AppSizes.avatarMd,
-                animate: true,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    category.name,
-                    style: theme.textTheme.titleSmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuButton<_CategoryAction>(
-              key: Key('category_menu_${category.id}'),
-              tooltip: 'More options',
-              onSelected: (action) {
-                switch (action) {
-                  case _CategoryAction.edit:
-                    onTap();
-                  case _CategoryAction.archive:
-                    onArchive?.call();
-                  case _CategoryAction.restore:
-                    onRestore?.call();
-                  case _CategoryAction.delete:
-                    onDelete?.call();
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: _CategoryAction.edit,
-                  child: ListTile(
-                    leading: Icon(Icons.edit_outlined),
-                    title: Text('Edit'),
+    return Row(
+      key: Key('category_row_${category.id}'),
+      children: [
+        Expanded(
+          child: Semantics(
+            button: true,
+            label: '${category.name}, $subtitle',
+            hint: 'Edit',
+            onTap: onTap,
+            excludeSemantics: true,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: AppSpacing.borderRadiusSm,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: AppSizes.listRowHeight,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  child: Row(
+                    children: [
+                      Opacity(
+                        opacity: category.isArchived ? 0.55 : 1,
+                        child: IconTile(
+                          icon: CategoryVisuals.iconFor(category.icon),
+                          color: color,
+                          size: AppSizes.avatarSm,
+                          animate: true,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.smd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              category.name,
+                              style: theme.textTheme.titleSmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              subtitle,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (onArchive != null)
-                  const PopupMenuItem(
-                    value: _CategoryAction.archive,
-                    child: ListTile(
-                      leading: Icon(Icons.archive_outlined),
-                      title: Text('Archive'),
-                    ),
-                  ),
-                if (onRestore != null)
-                  const PopupMenuItem(
-                    value: _CategoryAction.restore,
-                    child: ListTile(
-                      leading: Icon(Icons.unarchive_outlined),
-                      title: Text('Restore'),
-                    ),
-                  ),
-                if (onDelete != null)
-                  PopupMenuItem(
-                    value: _CategoryAction.delete,
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.delete_outline_rounded,
-                        color: theme.colorScheme.error,
-                      ),
-                      title: Text(
-                        'Delete',
-                        style: TextStyle(color: theme.colorScheme.error),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
+          ),
+        ),
+        PopupMenuButton<_CategoryAction>(
+          key: Key('category_menu_${category.id}'),
+          tooltip: 'More options',
+          onSelected: (action) {
+            switch (action) {
+              case _CategoryAction.edit:
+                onTap();
+              case _CategoryAction.archive:
+                onArchive?.call();
+              case _CategoryAction.restore:
+                onRestore?.call();
+              case _CategoryAction.delete:
+                onDelete?.call();
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: _CategoryAction.edit,
+              child: ListTile(
+                leading: Icon(Icons.edit_outlined),
+                title: Text('Edit'),
+              ),
+            ),
+            if (onArchive != null)
+              const PopupMenuItem(
+                value: _CategoryAction.archive,
+                child: ListTile(
+                  leading: Icon(Icons.archive_outlined),
+                  title: Text('Archive'),
+                ),
+              ),
+            if (onRestore != null)
+              const PopupMenuItem(
+                value: _CategoryAction.restore,
+                child: ListTile(
+                  leading: Icon(Icons.unarchive_outlined),
+                  title: Text('Restore'),
+                ),
+              ),
+            if (onDelete != null)
+              PopupMenuItem(
+                value: _CategoryAction.delete,
+                child: ListTile(
+                  leading: Icon(
+                    Icons.delete_outline_rounded,
+                    color: theme.colorScheme.error,
+                  ),
+                  title: Text(
+                    'Delete',
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ),
+              ),
           ],
         ),
-      ),
+      ],
     );
   }
 }

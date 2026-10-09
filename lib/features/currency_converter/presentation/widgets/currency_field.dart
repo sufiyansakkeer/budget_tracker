@@ -2,96 +2,60 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/widgets/app_card.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 
-/// From / swap / To.
-class CurrencyPairCard extends StatelessWidget {
-  final CurrencyEntity source;
-  final CurrencyEntity target;
-
-  /// Each swap adds half a turn to the swap icon.
+/// A hairline across the converter with the swap button in the middle.
+class SwapDivider extends StatelessWidget {
+  /// Each swap adds half a turn to the icon.
   final int swapCount;
-  final VoidCallback onPickSource;
-  final VoidCallback onPickTarget;
-  final VoidCallback onSwap;
+  final VoidCallback onPressed;
 
-  const CurrencyPairCard({
+  const SwapDivider({
     super.key,
-    required this.source,
-    required this.target,
     required this.swapCount,
-    required this.onPickSource,
-    required this.onPickTarget,
-    required this.onSwap,
+    required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AppCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: AppSpacing.xs,
-      ),
-      child: Column(
-        children: [
-          _CurrencyField(
-            key: const Key('converterSourceField'),
-            label: 'From',
-            currency: source,
-            onTap: onPickSource,
-          ),
-          Row(
-            children: [
-              Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
-              _SwapButton(turns: swapCount / 2, onPressed: onSwap),
-              Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
-            ],
-          ),
-          _CurrencyField(
-            key: const Key('converterTargetField'),
-            label: 'To',
-            currency: target,
-            onTap: onPickTarget,
-          ),
-        ],
-      ),
+    final line = Expanded(
+      child: Divider(color: Theme.of(context).colorScheme.outlineVariant),
     );
-  }
-}
-
-class _SwapButton extends StatelessWidget {
-  final double turns;
-  final VoidCallback onPressed;
-
-  const _SwapButton({required this.turns, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      child: IconButton.filledTonal(
-        key: const Key('converterSwapButton'),
-        tooltip: 'Swap currencies',
-        onPressed: onPressed,
-        icon: AnimatedRotation(
-          turns: turns,
-          duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
-          curve: AppMotion.emphasizedCurve,
-          child: const Icon(Icons.swap_vert_rounded),
+    final turns = swapCount / 2;
+    return Row(
+      children: [
+        line,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: IconButton.filledTonal(
+            key: const Key('converterSwapButton'),
+            tooltip: 'Swap currencies',
+            onPressed: onPressed,
+            icon: AnimatedRotation(
+              turns: turns,
+              duration: AppMotion.respectReducedMotion(
+                context,
+                AppMotion.medium,
+              ),
+              curve: AppMotion.emphasizedCurve,
+              child: const Icon(Icons.swap_vert_rounded),
+            ),
+          ),
         ),
-      ),
+        line,
+      ],
     );
   }
 }
 
-class _CurrencyField extends StatelessWidget {
+/// A currency the converter converts from or to: its label, symbol, code
+/// and name, with a tap that opens the currency picker.
+class CurrencyField extends StatelessWidget {
   final String label;
   final CurrencyEntity currency;
   final VoidCallback onTap;
 
-  const _CurrencyField({
+  const CurrencyField({
     super.key,
     required this.label,
     required this.currency,

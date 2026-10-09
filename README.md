@@ -117,7 +117,7 @@ safe-spending calculations.
 - 13 built-in categories (Food, Grocery, Fuel, Shopping, Rent, EMI, Bills, Travel,
   Entertainment, Health, Education, Salary Adjustment, Others), each with its own
   icon and colour.
-- **Your own categories.** Settings → Expenses → Categories adds, renames and
+- **Your own categories.** Settings → Expenses & tools → Categories adds, renames and
   restyles categories (43 icons, 16 colours), archives ones you no longer use and
   deletes custom ones that no expense references. Built-in categories can be
   renamed and restyled but not deleted. Archived categories disappear from pickers
@@ -329,7 +329,7 @@ goes through one central formatter.
 
 ### Currency Converter
 
-**Settings → Tools → Currency converter** converts an amount between any two of
+**Settings → Expenses & tools → Currency converter** converts an amount between any two of
 the ~160 currencies published by [Frankfurter](https://frankfurter.dev/)
 (`https://api.frankfurter.dev/v2/`, HTTPS only, no API key). Frankfurter serves
 daily **reference rates** from central banks and other official sources — not
@@ -555,7 +555,7 @@ Aggregates (a budget's total and today's spend, bill totals) are computed with S
 `SUM`/`COUNT` over the indexed columns rather than by loading rows into Dart.
 
 On opening an existing database, `PRAGMA integrity_check` is run and the result is
-logged. Settings → Data → Database health runs a deeper application-level check on
+logged. Settings → Data → Check database health runs a deeper application-level check on
 demand.
 
 ---

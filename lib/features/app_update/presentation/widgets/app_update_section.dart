@@ -24,7 +24,6 @@ class AppUpdateSection extends StatelessWidget {
     final theme = Theme.of(context);
     return SettingsSection(
       title: 'Updates',
-      icon: Icons.system_update_outlined,
       description:
           'Compares your installed version with the latest GitHub release. '
           'Nothing installs automatically.',

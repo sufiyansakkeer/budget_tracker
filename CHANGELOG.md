@@ -8,10 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Premium redesign, Phases 2 (the design system), 3 (Home), 4 (Expenses), 5
-(Budgets and Bills) and 6 (Reports). Direction and plan:
+(Budgets and Bills), 6 (Reports) and 7 (Settings). Direction and plan:
 `docs/design/monivo-design-direction.html`.
 
 ### Changed
+- **Settings opens with your current choices**: currency, theme and palette,
+  reminder times and the app lock, at a glance. Below, every group is one
+  borderless list and every row has the same shape: icon, name, a line of
+  help, the current value and a chevron where it opens something.
+- **Theme is a segmented control** (System, Light, Dark) and each palette is
+  previewed as two small screens, in light and dark.
+- **Export and Import open a sheet that explains each format** (a spreadsheet
+  to open in Excel or Google Sheets, or a data file for other apps or Monivo)
+  instead of bare "CSV" and "JSON" buttons. **Restore from backup** is styled
+  as destructive, and the data rows wait while an export or restore runs.
+- **Reminder times use the device's time format everywhere**; the 24-hour time
+  pills next to 12-hour text are gone.
+- **Categories** is a dense list; **the currency converter** puts from, the
+  amount, swap, to and the answer on one surface, with the rate and where it
+  came from below.
+- The privacy note in About now also names the converter's exchange-rate
+  requests, which it left out.
 - **Reports leads with the answer**: what was spent, and how that compares with
   the same number of days just before. Then planned vs actual for the new
   **This Budget** period (the active budget from its start to today), every

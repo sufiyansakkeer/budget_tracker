@@ -5,7 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/di/injection.dart' as di;
-import '../../../../core/theme/color_palettes.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -21,15 +21,16 @@ import '../bloc/settings_event.dart';
 import '../bloc/settings_state.dart';
 import '../bloc/theme/theme_bloc.dart';
 import '../bloc/theme/theme_event.dart';
-import '../widgets/about_card.dart';
+import '../widgets/about_section.dart';
 import '../widgets/biometric_tile.dart';
 import '../widgets/currency_selector.dart';
-import '../widgets/data_management_card.dart';
+import '../widgets/data_format_sheet.dart';
 import '../widgets/integrity_result_sheet.dart';
 import '../widgets/notification_time_tile.dart';
 import '../widgets/notification_toggle.dart';
 import '../widgets/reset_confirmation_dialog.dart';
 import '../widgets/settings_section.dart';
+import '../widgets/settings_summary.dart';
 import '../widgets/settings_tile.dart';
 import '../widgets/theme_selector.dart';
 import '../../../../core/router/app_router.dart';
@@ -256,6 +257,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return TimeOfDay(hour: time.hour, minute: time.minute).format(context);
   }
 
+  Future<void> _export(BuildContext context, SettingsBloc bloc) async {
+    final format = await DataFormatSheet.showExport(context);
+    if (format == null) return;
+    bloc.add(SettingsExportEvent(csv: format == DataFormat.csv));
+  }
+
+  Future<void> _import(BuildContext context, SettingsBloc bloc) async {
+    final format = await DataFormatSheet.showImport(context);
+    if (format == null || !context.mounted) return;
+    await _pickAndImport(context, bloc, json: format == DataFormat.json);
+  }
+
   Widget _buildContent(
     BuildContext context,
     SettingsState state,
@@ -264,6 +277,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = state.settings;
     final notifications = settings.notifications;
     final themeState = context.watch<ThemeBloc>().state;
+    final themeLabel = themeOptions
+        .firstWhere(
+          (o) => o.mode == themeState.mode,
+          orElse: () => themeOptions.first,
+        )
+        .label;
+    final paletteLabel = paletteOptions
+        .firstWhere(
+          (o) => o.palette == themeState.palette,
+          orElse: () => paletteOptions.first,
+        )
+        .label;
+    final morning = _formatTime(context, notifications.morningReminderTime);
+    final evening = _formatTime(context, notifications.eveningSummaryTime);
+    final dataEnabled = !state.isBusy;
 
     return RefreshIndicator(
       key: const ValueKey('content'),
@@ -277,41 +305,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.pagePadding,
         children: [
-          // Appearance
+          SettingsSummary(
+            key: const Key('settingsSummary'),
+            currency: settings.currencyCode,
+            theme: '$themeLabel · $paletteLabel',
+            reminders: notifications.notificationsEnabled
+                ? '$morning · $evening'
+                : 'Off',
+            lock: settings.biometricEnabled ? 'On' : 'Off',
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
           SettingsSection(
             title: 'Appearance',
-            icon: Icons.palette_outlined,
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.smd),
                 child: ThemeSelector(
                   selectedMode: themeState.mode,
                   onChanged: (AppThemeMode mode) =>
                       context.read<ThemeBloc>().add(ThemeChanged(mode)),
                 ),
               ),
-              _PaletteTile(selectedPalette: themeState.palette),
-            ],
-          ),
-
-          // Security
-          SettingsSection(
-            title: 'Security',
-            icon: Icons.security_outlined,
-            children: [
-              BiometricTile(
-                enabled: settings.biometricEnabled,
-                isBusy: state.isBiometricBusy,
-                message: state.biometricMessage,
-                onChanged: (v) => bloc.add(SettingsUpdateBiometricEvent(v)),
+              SettingsTile(
+                leading: _PaletteSwatch(palette: themeState.palette),
+                title: 'Color palette',
+                value: paletteLabel,
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.pushUnique(AppRouter.palettePath),
               ),
             ],
           ),
 
-          // Budget
           SettingsSection(
-            title: 'Budget',
-            icon: Icons.account_balance_wallet_outlined,
+            title: 'Budgets & bills',
             children: [
               SettingsTile(
                 icon: Icons.account_balance_wallet_outlined,
@@ -321,38 +348,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => context.pushUnique('/app/budgets'),
               ),
               SettingsTile(
+                icon: Icons.receipt_long_outlined,
+                title: 'Bills',
+                subtitle:
+                    'Due dates, recurring bills and reminders. Reminders '
+                    'are set on each bill.',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.pushUnique('/app/bills'),
+              ),
+              SettingsTile(
+                icon: Icons.payments_outlined,
+                title: 'Currency',
+                subtitle: 'Default for new budgets',
+                value: '${settings.currencySymbol} ${settings.currencyCode}',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () =>
+                    _showCurrencyPicker(context, settings.currencyCode),
+              ),
+              SettingsTile(
                 icon: Icons.replay_rounded,
                 title: 'Start new budget period',
                 subtitle:
                     'Archive the active budget and start a fresh 31-day one '
                     'with the same amount',
-                trailing: const Icon(Icons.chevron_right),
                 onTap: () => _startNewPeriod(context, bloc),
               ),
               SettingsTile(
                 icon: Icons.tune_rounded,
                 title: 'Change active budget amount',
                 subtitle: 'Dates and expenses stay as they are',
-                trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showBudgetAmountDialog(context, bloc),
-              ),
-              SettingsTile(
-                icon: Icons.currency_exchange_rounded,
-                title: 'Currency',
-                subtitle:
-                    '${settings.currencySymbol} ${settings.currencyCode} · '
-                    'default for new budgets',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    _showCurrencyPicker(context, settings.currencyCode),
               ),
             ],
           ),
 
-          // Expenses
           SettingsSection(
-            title: 'Expenses',
-            icon: Icons.receipt_long_outlined,
+            title: 'Expenses & tools',
             children: [
               SettingsTile(
                 key: const Key('settingsCategoriesTile'),
@@ -362,45 +393,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.pushUnique('/app/categories'),
               ),
-            ],
-          ),
-
-          // Tools
-          SettingsSection(
-            title: 'Tools',
-            icon: Icons.handyman_outlined,
-            children: [
               SettingsTile(
                 key: const Key('settingsCurrencyConverterTile'),
                 icon: Icons.currency_exchange_rounded,
                 title: 'Currency converter',
                 subtitle:
-                    'Convert between currencies with daily reference rates. '
-                    'Works offline with saved rates.',
+                    'Daily reference rates. Works offline with saved rates.',
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () =>
                     context.pushUnique(AppRouter.currencyConverterPath),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
 
-          // Notifications
           SettingsSection(
             title: 'Notifications',
-            icon: Icons.notifications_outlined,
             description:
                 'Notification permission must be allowed in your device '
                 'settings.',
             children: [
               NotificationToggle(
                 title: 'Daily notifications',
-                subtitle: notifications.notificationsEnabled
-                    ? 'Morning at '
-                          '${_formatTime(context, notifications.morningReminderTime)}'
-                          ' · Evening at '
-                          '${_formatTime(context, notifications.eveningSummaryTime)}'
-                    : 'Morning safe-spending reminder and evening summary',
+                subtitle: 'Morning safe-spending reminder and evening summary',
                 value: notifications.notificationsEnabled,
                 onChanged: (v) => bloc.add(
                   SettingsUpdateNotificationsEvent(
@@ -435,123 +449,126 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
 
-          // Bills & reminders
           SettingsSection(
-            title: 'Bills & Reminders',
-            icon: Icons.event_repeat_outlined,
+            title: 'Security',
             children: [
-              SettingsTile(
-                icon: Icons.receipt_long_outlined,
-                title: 'Bills',
-                subtitle:
-                    'Due dates, recurring bills and per-bill reminders. '
-                    'Reminders are set on each bill.',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.pushUnique('/app/bills'),
+              BiometricTile(
+                enabled: settings.biometricEnabled,
+                isBusy: state.isBiometricBusy,
+                message: state.biometricMessage,
+                onChanged: (v) => bloc.add(SettingsUpdateBiometricEvent(v)),
               ),
             ],
           ),
 
-          // Data
           SettingsSection(
             title: 'Data',
-            icon: Icons.folder_open_outlined,
+            busy: state.isBusy,
             children: [
-              DataManagementCard(
-                isBusy: state.isBusy,
-                onExportCsv: () =>
-                    bloc.add(const SettingsExportEvent(csv: true)),
-                onExportJson: () =>
-                    bloc.add(const SettingsExportEvent(csv: false)),
-                onImportCsv: () => _pickAndImport(context, bloc, json: false),
-                onImportJson: () => _pickAndImport(context, bloc, json: true),
-                onBackup: () => bloc.add(const SettingsBackupEvent()),
-                onRestore: () => _pickAndRestore(context, bloc),
-                onCheckIntegrity: bloc.integrityService == null
-                    ? null
-                    : () => bloc.add(const SettingsCheckIntegrityEvent()),
+              SettingsTile(
+                key: const Key('settingsExportTile'),
+                icon: Icons.ios_share_rounded,
+                title: 'Export',
+                subtitle: 'Your expenses as a spreadsheet or a data file',
+                trailing: const Icon(Icons.chevron_right),
+                enabled: dataEnabled,
+                onTap: () => _export(context, bloc),
               ),
+              SettingsTile(
+                key: const Key('settingsImportTile'),
+                icon: Icons.download_rounded,
+                title: 'Import',
+                subtitle: 'Merge expenses from a spreadsheet or a data file',
+                trailing: const Icon(Icons.chevron_right),
+                enabled: dataEnabled,
+                onTap: () => _import(context, bloc),
+              ),
+              SettingsTile(
+                key: const Key('settingsBackupTile'),
+                icon: Icons.backup_outlined,
+                title: 'Back up',
+                subtitle:
+                    'One file with all your budgets, expenses, bills and '
+                    'settings',
+                enabled: dataEnabled,
+                onTap: () => bloc.add(const SettingsBackupEvent()),
+              ),
+              SettingsTile(
+                key: const Key('settingsRestoreTile'),
+                icon: Icons.settings_backup_restore_rounded,
+                title: 'Restore from backup',
+                subtitle: 'Replaces everything on this device with a backup',
+                destructive: true,
+                enabled: dataEnabled,
+                onTap: () => _pickAndRestore(context, bloc),
+              ),
+              if (bloc.integrityService != null)
+                SettingsTile(
+                  key: const Key('checkIntegrityButton'),
+                  icon: Icons.health_and_safety_outlined,
+                  title: 'Check database health',
+                  subtitle:
+                      'Looks for expenses, bills or budgets that no longer '
+                      'link up correctly',
+                  enabled: dataEnabled,
+                  onTap: () => bloc.add(const SettingsCheckIntegrityEvent()),
+                ),
             ],
           ),
 
-          // Updates
           BlocProvider<AppUpdateBloc>.value(
             value: di.getIt<AppUpdateBloc>(),
             child: const AppUpdateSection(),
           ),
 
-          // About
-          const SettingsSection(
-            title: 'About',
-            icon: Icons.info_outline_rounded,
-            children: [
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: AboutCard(),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
+          const AboutSection(),
         ],
       ),
     );
   }
 }
 
-/// A tile that shows the current palette and navigates to the palette screen.
-class _PaletteTile extends StatelessWidget {
-  final ColorPalette selectedPalette;
+/// The palette's primary, secondary and tertiary colours as three
+/// overlapping dots, at the size of a row's icon tile.
+class _PaletteSwatch extends StatelessWidget {
+  final ColorPalette palette;
 
-  const _PaletteTile({required this.selectedPalette});
+  const _PaletteSwatch({required this.palette});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currentOption = paletteOptions.firstWhere(
-      (o) => o.palette == selectedPalette,
-      orElse: () => paletteOptions.first,
-    );
-    final colors = getPaletteColors(selectedPalette);
-    final scheme = theme.brightness == Brightness.dark
-        ? colors.darkScheme
-        : colors.lightScheme;
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      onTap: () => context.pushUnique(AppRouter.palettePath),
-      leading: SizedBox(
-        width: AppSizes.avatarSm,
-        height: AppSizes.avatarSm,
-        child: Stack(
-          children: [
-            for (final (i, c) in [
-              scheme.primary,
-              scheme.secondary,
-              scheme.tertiary,
-            ].indexed)
-              Positioned(
-                left: i * 8.0,
-                top: 6,
-                child: Container(
-                  width: AppSizes.iconLg,
-                  height: AppSizes.iconLg,
-                  decoration: BoxDecoration(
-                    color: c,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: theme.cardTheme.color ?? scheme.surface,
-                      width: 2,
-                    ),
+    final tokens = AppColorTokens.fromPalette(palette, theme.brightness);
+    const dot = 20.0;
+    const step = (AppSizes.avatarSm - dot) / 2;
+    return SizedBox(
+      width: AppSizes.avatarSm,
+      height: AppSizes.avatarSm,
+      child: Stack(
+        children: [
+          for (final (i, color) in [
+            tokens.primary,
+            tokens.secondary,
+            tokens.tertiary,
+          ].indexed)
+            PositionedDirectional(
+              start: i * step,
+              top: step,
+              child: Container(
+                width: dot,
+                height: dot,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    width: 2,
                   ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
-      title: Text('Color palette', style: theme.textTheme.titleSmall),
-      subtitle: Text(currentOption.label),
-      trailing: const Icon(Icons.chevron_right),
-      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSm),
     );
   }
 }
