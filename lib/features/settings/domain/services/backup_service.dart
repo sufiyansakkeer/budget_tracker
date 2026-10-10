@@ -557,7 +557,6 @@ class BackupService {
     await _database.transaction(() async {
       // Clear in dependency order (children before parents).
       await (_database.delete(_database.billPayments)).go();
-      await (_database.delete(_database.billPayments)).go();
       await (_database.delete(_database.expenses)).go();
       await (_database.delete(_database.bills)).go();
       await (_database.delete(_database.recurringExpenses)).go();

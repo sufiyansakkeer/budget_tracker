@@ -13,6 +13,7 @@ savings goal are protected.
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555555)
 ![State](https://img.shields.io/badge/state-BLoC-2C7BE5)
 ![Storage](https://img.shields.io/badge/storage-Drift%20%2F%20SQLite-003B57?logo=sqlite&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **Repository:** <https://github.com/sufiyansakkeer/budget_tracker> ·
 **Version:** `1.0.0+1` ([`pubspec.yaml`](pubspec.yaml)) ·
@@ -577,9 +578,9 @@ GitHub Actions workflows, all pinned to Flutter 3.32.8:
 
 | Workflow | Trigger | Does |
 | --- | --- | --- |
-| `ci.yml` | Pull requests; pushes to `developer` | Regenerate code and check it's committed, format check, analyze, test with coverage |
-| `android-release.yml` | Pushes to `developer`; manual | Development APK and AAB |
-| `ios-release.yml` | Pushes to `developer`; manual | Unsigned iOS build (`--no-codesign`) |
+| `ci.yml` | Pull requests | Regenerate code and check it's committed, format check, analyze, test with coverage |
+| `android-release.yml` | Pull requests into `main`; manual | Development APK and AAB, uploaded as artifacts |
+| `ios-release.yml` | Pull requests into `main`; manual | Unsigned iOS build (`--no-codesign`), uploaded as an artifact |
 | `release.yml` | Pushes to `main` | Bumps the patch version, validates, builds signed APK/AAB, tags and creates a GitHub Release |
 
 The version commit made by `release.yml` contains `[skip ci]`, so a release cannot trigger
@@ -607,5 +608,5 @@ Built by **[@sufiyansakkeer](https://github.com/sufiyansakkeer)**.
 
 ## License
 
-No license file has been added yet, so all rights are reserved by default. The bundled
-Manrope font is under the SIL Open Font License ([`OFL.txt`](assets/fonts/manrope/OFL.txt)).
+Released under the [MIT License](LICENSE). The bundled Manrope font is under the SIL Open
+Font License ([`OFL.txt`](assets/fonts/manrope/OFL.txt)).

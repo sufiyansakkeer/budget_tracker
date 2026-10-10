@@ -1,8 +1,8 @@
 name: iOS Development Build
 
 on:
-  push:
-    branches: [developer]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

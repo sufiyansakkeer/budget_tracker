@@ -2,8 +2,6 @@ name: Flutter CI
 
 on:
   pull_request:
-  push:
-    branches: [developer]
 
 permissions:
   contents: read

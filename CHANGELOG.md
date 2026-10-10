@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The project is released under the MIT License (`LICENSE`).
+
+### Changed
+- The Android and iOS development builds run on every pull request into
+  `main`, and on demand, instead of on pushes to a `developer` branch that
+  did not exist. `ci.yml` runs on pull requests only.
+
+### Fixed
+- Production releases build again on CI. `android/gradle.properties` pinned
+  `org.gradle.java.home` to a JDK path that exists only on one Mac, so every
+  Android release build on the runner failed before compiling. JDK selection
+  now stays out of the repository (CI: `actions/setup-java`; locally:
+  `flutter config --jdk-dir`).
+- Restoring a backup cleared the bill payments table twice. Harmless, now
+  once.
+
 ## [1.0.0] - 2026-10-09
 
 The first release of Monivo. On top of everything listed here it brings the
