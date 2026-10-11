@@ -66,13 +66,28 @@ jobs:
           IFS=. read -r major minor patch <<< "$current_version"
           next_version="$major.$minor.$((patch + 1))"
           next_build=$((current_build + 1))
+          bump_version=false
+          current_tag="v$current_version"
           latest_commit_message=$(git log -1 --format=%s)
           if [[ "$latest_commit_message" == *"[skip ci]"* ]]; then
-            tag="v$current_version"
+            tag="$current_tag"
             git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || {
               echo "Version commit exists without its expected tag $tag. Resolve this release manually."
               exit 1
             }
+            next_version="$current_version"
+            next_build="$current_build"
+            already_published=true
+          elif ! git rev-parse --verify --quiet "refs/tags/$current_tag" >/dev/null; then
+            # pubspec.yaml names a version that was never released (the first
+            # release, or a version set by hand): release it as written.
+            tag="$current_tag"
+            next_version="$current_version"
+            next_build="$current_build"
+            already_published=false
+          elif [[ "$(git rev-parse "$current_tag^{commit}")" == "$(git rev-parse HEAD)" ]]; then
+            # Rerun of a release that tagged this commit without a version commit.
+            tag="$current_tag"
             next_version="$current_version"
             next_build="$current_build"
             already_published=true
@@ -82,12 +97,14 @@ jobs:
               echo "Tag $tag already exists before its version commit; refusing an inconsistent release."
               exit 1
             fi
+            bump_version=true
             already_published=false
           fi
           {
             echo "version=$next_version"
             echo "build=$next_build"
             echo "tag=$tag"
+            echo "bump_version=$bump_version"
             echo "already_published=$already_published"
           } >> "$GITHUB_OUTPUT"
           echo "Next version: $next_version+$next_build"
@@ -134,15 +151,21 @@ jobs:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_BUILD: ${{ steps.version.outputs.build }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          BUMP_VERSION: ${{ steps.version.outputs.bump_version }}
         run: |
-          sed -i -E "s/^version: .*/version: ${RELEASE_VERSION}+${RELEASE_BUILD}/" pubspec.yaml
-          grep -qx "version: ${RELEASE_VERSION}+${RELEASE_BUILD}" pubspec.yaml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add pubspec.yaml
-          git commit -m "chore: bump version to ${RELEASE_VERSION} [skip ci]"
-          git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
-          git push origin HEAD:main "$RELEASE_TAG"
+          if [[ "$BUMP_VERSION" == "true" ]]; then
+            sed -i -E "s/^version: .*/version: ${RELEASE_VERSION}+${RELEASE_BUILD}/" pubspec.yaml
+            grep -qx "version: ${RELEASE_VERSION}+${RELEASE_BUILD}" pubspec.yaml
+            git add pubspec.yaml
+            git commit -m "chore: bump version to ${RELEASE_VERSION} [skip ci]"
+            git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+            git push origin HEAD:main "$RELEASE_TAG"
+          else
+            git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+            git push origin "$RELEASE_TAG"
+          fi
 
       - name: Create GitHub Release
         env:

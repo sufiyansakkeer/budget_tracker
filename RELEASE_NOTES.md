@@ -18,8 +18,9 @@ phone, and supports several budgets in different currencies.
 - Go over today's amount and it tells you what that costs ("about ₹21.76 less
   on each of the next 30 days"). **How it's worked out** shows the whole
   calculation, ending with tomorrow's amount if you spend nothing more today.
-- **Coming up** lists the next bills and who pays them, and a **spending pace**
-  chart compares your spending with an even pace once a few days have passed.
+- **Coming up** lists overdue bills first, then the next bills and who pays
+  them, and a **spending pace** chart compares your spending with an even pace
+  once a few days have passed.
 - On a tablet, Home uses two columns.
 
 ### Add an expense in seconds
@@ -83,10 +84,19 @@ phone, and supports several budgets in different currencies.
   expenses keep their labels.
 
 ### Your data
-- Back up and restore, export your expenses as a spreadsheet or a data file,
-  and import from either. **Settings → Data → Check database health** checks
-  that budgets, expenses and bills still link up.
-- Optional app lock with your fingerprint or face.
+- **Back up** asks where the file goes: save it on your phone, in a folder you
+  pick, or share it (to Drive, for example). Monivo says it is done only when
+  the file has really arrived, and **Restore** reads it back.
+- Export your expenses as a spreadsheet or a data file, and import from
+  either. Import tells you what it added and what it skipped, and why, so
+  importing the same file twice adds nothing twice. Pick an export in Restore
+  and Monivo points you to Import instead.
+- **Settings → Data → Check database health** checks that budgets, expenses
+  and bills still link up.
+- Optional **app lock** with your fingerprint, your face, or your phone's PIN,
+  pattern or password. It opens only once it has confirmed it's you, takes
+  effect as soon as you switch it, and doesn't lock you out while you save a
+  backup or take a receipt photo.
 
 ## Fixes
 
@@ -96,7 +106,18 @@ phone, and supports several budgets in different currencies.
   add up amounts in different currencies under one symbol.
 - Symbols written in Arabic script stay in front of the amount in every
   sentence.
-- Moving an expense to another budget corrects both budgets.
+- Moving an expense to another budget corrects both budgets. It can't move to
+  a budget in another currency by mistake: amounts aren't converted, so the
+  editor asks first.
+- Changing the currency of a budget that already has expenses warns you that
+  nothing is converted, and asks before saving.
+- Home and the widget move on to the new day when you come back after
+  midnight.
+- The Expenses list shows the right currency symbol when you view several
+  budgets together.
+- PDF reports use the report's own currency and draw every symbol, the rial
+  sign included.
+- Data files with tagged expenses import correctly.
 - Today's Safe Spending is the same on every screen, in the notification and
   on the widget.
 - CSV files exported by Monivo can be imported back.

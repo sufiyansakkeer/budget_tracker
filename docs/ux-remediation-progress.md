@@ -2,8 +2,8 @@
 
 Tracks the fixes for the issues in [`docs/design/ux-audit-2026-10-10.md`](design/ux-audit-2026-10-10.md). The audit report itself is not edited.
 
-- **Branch:** `fix/monivo-ux-p0-critical`, from `main` at `c8fa6e1b`.
-- **Nothing is committed, staged or pushed.**
+- **Branch:** `fix/monivo-ux-p0-critical`, from `main` at `c8fa6e1b`. P0 is committed in `3aa6ce2e`.
+- **Release:** the P0 fixes ship in **1.0.0**, listed in `CHANGELOG.md` and `RELEASE_NOTES.md`.
 - **Phase:** P0 (UX-001 to UX-012) is implemented. P1 has not started and waits for review.
 
 ## Status key
