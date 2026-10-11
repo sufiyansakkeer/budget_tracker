@@ -292,6 +292,20 @@ class FakeBillRepository implements BillRepository {
   }
 
   @override
+  Future<List<BillEntity>> getOverdueBills({
+    required DateTime today,
+    int limit = 3,
+  }) async {
+    final start = DateTime(today.year, today.month, today.day);
+    final overdue =
+        (await getBills())
+            .where((b) => !b.isPaid && b.dueDate.isBefore(start))
+            .toList()
+          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return overdue.take(limit).toList();
+  }
+
+  @override
   Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
   @override
   Future<double> getMonthlyRecurringBillsTotal() async => 0;

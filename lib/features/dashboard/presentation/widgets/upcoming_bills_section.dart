@@ -8,11 +8,16 @@ import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
+import '../../../bills/domain/entities/bill_enums.dart';
 import '../../../bills/presentation/pages/bill_widgets.dart';
 
-/// "Coming up": the next unpaid bills as compact rows, each saying when it
-/// is due and which budget pays it. Bills stay one tap away even when there
-/// are none.
+/// "Coming up": overdue bills first, then the next unpaid ones, as compact
+/// rows, each saying when it is due and which budget pays it. Bills stay one
+/// tap away even when there are none.
+///
+/// An overdue bill says so in words and in the critical tone, and the
+/// section names how many are overdue, so the most urgent bill is never
+/// missing from Home.
 ///
 /// Only a bill linked to the budget on screen reads "Set aside": a bill
 /// another budget pays names that budget, so the row never contradicts the
@@ -36,8 +41,14 @@ class UpcomingBillsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final overdue = bills.where((b) => b.status == BillStatus.overdue).length;
     return AppSection(
       title: 'Coming up',
+      subtitle: overdue == 0
+          ? null
+          : overdue == 1
+          ? '1 bill is overdue'
+          : '$overdue bills are overdue',
       action: TextButton(
         onPressed: () =>
             context.pushUnique(bills.isEmpty ? '/app/bills/add' : '/app/bills'),
@@ -106,6 +117,7 @@ class _BillRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final due = BillVisuals.dueText(bill);
+    final overdue = bill.status == BillStatus.overdue;
     return AppListRow(
       key: ValueKey('upcoming_${bill.id}'),
       leading: IconTile(
@@ -117,7 +129,17 @@ class _BillRow extends StatelessWidget {
       subtitleWidget: Text.rich(
         TextSpan(
           children: [
-            TextSpan(text: '$due · '),
+            TextSpan(
+              text: due,
+              // Money already owed: the critical tone, as on the Bills list.
+              style: overdue
+                  ? TextStyle(
+                      color: context.tone(AppTone.critical).accent,
+                      fontWeight: FontWeight.w600,
+                    )
+                  : null,
+            ),
+            const TextSpan(text: ' · '),
             TextSpan(
               text: link.text,
               style: TextStyle(

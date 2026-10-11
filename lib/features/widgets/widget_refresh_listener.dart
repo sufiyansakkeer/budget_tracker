@@ -14,6 +14,8 @@ import 'home_widget_service.dart';
 /// - Bill created / updated / deleted / paid / unpaid / linked (bills set
 ///   aside from a budget change its Today's Safe Spending)
 /// - Colour palette changed (the widget is drawn in the app's palette)
+/// - A new calendar day, seen when the app resumes (the widget would
+///   otherwise keep saying "Tap to update" after that tap)
 class WidgetRefreshListener {
   final HomeWidgetService _widgetService;
 
@@ -23,6 +25,7 @@ class WidgetRefreshListener {
   StreamSubscription<void>? _expenseSubscription;
   StreamSubscription<void>? _budgetSubscription;
   StreamSubscription<void>? _billSubscription;
+  StreamSubscription<void>? _daySubscription;
   StreamSubscription<Object?>? _appearanceSubscription;
 
   WidgetRefreshListener({
@@ -37,6 +40,7 @@ class WidgetRefreshListener {
     _expenseSubscription?.cancel();
     _budgetSubscription?.cancel();
     _billSubscription?.cancel();
+    _daySubscription?.cancel();
     _appearanceSubscription?.cancel();
 
     _expenseSubscription = RefreshBuses.expenses.changes.listen((_) {
@@ -51,6 +55,10 @@ class WidgetRefreshListener {
       _updateWidget('bill change');
     });
 
+    _daySubscription = RefreshBuses.day.changes.listen((_) {
+      _updateWidget('new day');
+    });
+
     _appearanceSubscription = _appearanceChanges?.listen((_) {
       _updateWidget('appearance change');
     });
@@ -61,10 +69,12 @@ class WidgetRefreshListener {
     _expenseSubscription?.cancel();
     _budgetSubscription?.cancel();
     _billSubscription?.cancel();
+    _daySubscription?.cancel();
     _appearanceSubscription?.cancel();
     _expenseSubscription = null;
     _budgetSubscription = null;
     _billSubscription = null;
+    _daySubscription = null;
     _appearanceSubscription = null;
   }
 

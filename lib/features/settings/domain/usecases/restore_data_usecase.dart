@@ -14,6 +14,13 @@ class RestoreDataUseCase {
         'Restored backup from ${metadata.createdAt.toIso8601String()} '
         '(schema v${metadata.schemaVersion}).',
       );
+    } on WrongFileKindException catch (e) {
+      return SettingsError(
+        SettingsFailure(
+          type: SettingsErrorType.wrongFileKind,
+          message: e.message,
+        ),
+      );
     } on FormatException catch (e) {
       return SettingsError(
         SettingsFailure(

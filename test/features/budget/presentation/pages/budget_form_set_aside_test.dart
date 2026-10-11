@@ -12,8 +12,11 @@ import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
 import 'package:monivo/features/bills/domain/usecases/get_bills_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/features/budget/presentation/pages/budget_form_screen.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
 
+import '../../../../helpers/bill_payment_fakes.dart';
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
 import 'budget_form_screen_test.dart' show FakeSettingsRepository;
@@ -300,6 +303,100 @@ void main() {
         find.byKey(const ValueKey('budgetCurrencyBillsWarning')),
         findsNothing,
       );
+    });
+  });
+
+  group('UX-004: a currency change never relabels expenses silently', () {
+    Future<void> pickCurrency(WidgetTester tester, String code) async {
+      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text('${CurrencyFormatter.symbolFor(code)}  $code').last,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    ExpenseEntity spent(String id) => ExpenseEntity(
+      id: id,
+      budgetId: 'aug',
+      amount: 500,
+      categoryId: 'food',
+      date: DateTime(2026, 8, 5),
+      time: DateTime(2026, 8, 5, 12),
+      createdAt: DateTime(2026, 8, 5, 12),
+      updatedAt: DateTime(2026, 8, 5, 12),
+    );
+
+    void registerExpenses(List<ExpenseEntity> expenses) {
+      getIt.registerSingleton<GetExpensesUseCase>(
+        GetExpensesUseCase(repository: InMemoryExpenseRepository(expenses)),
+      );
+    }
+
+    testWidgets('warns inline, asks before saving, and keeping the old '
+        'currency saves nothing', (tester) async {
+      budgets.budgets.add(augustBudget());
+      registerExpenses([spent('a'), spent('b')]);
+      await pumpForm(tester, budgetId: 'aug');
+
+      const inline =
+          'The 2 expenses in this budget keep their amounts and will be '
+          'counted in OMR. Nothing is converted.';
+      expect(find.text(inline), findsNothing);
+      await pickCurrency(tester, 'OMR');
+      expect(find.text(inline), findsOneWidget);
+
+      await save(tester, 'Save changes');
+      expect(find.text('Change currency to OMR?'), findsOneWidget);
+      expect(
+        find.textContaining('An expense of ₹500 will read'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Keep INR'));
+      await tester.pumpAndSettle();
+      expect(budgets.budgets.single.currency, 'INR', reason: 'not saved');
+      expect(find.text(inline), findsOneWidget, reason: 'still editing');
+
+      await save(tester, 'Save changes');
+      await tester.tap(find.text('Change currency'));
+      await tester.pumpAndSettle();
+      expect(budgets.budgets.single.currency, 'OMR');
+    });
+
+    testWidgets('a budget with no expenses changes currency without asking', (
+      tester,
+    ) async {
+      budgets.budgets.add(augustBudget());
+      registerExpenses(const []);
+      await pumpForm(tester, budgetId: 'aug');
+
+      await pickCurrency(tester, 'OMR');
+      expect(
+        find.byKey(const ValueKey('budgetCurrencyExpensesWarning')),
+        findsNothing,
+      );
+      await save(tester, 'Save changes');
+      expect(find.text('Change currency to OMR?'), findsNothing);
+      expect(budgets.budgets.single.currency, 'OMR');
+    });
+
+    testWidgets('when the expenses cannot be counted it still asks', (
+      tester,
+    ) async {
+      budgets.budgets.add(augustBudget());
+      await pumpForm(tester, budgetId: 'aug');
+
+      await pickCurrency(tester, 'OMR');
+      expect(
+        find.text(
+          'The expenses in this budget keep their amounts and will be '
+          'counted in OMR. Nothing is converted.',
+        ),
+        findsOneWidget,
+      );
+      await save(tester, 'Save changes');
+      expect(find.text('Change currency to OMR?'), findsOneWidget);
     });
   });
 

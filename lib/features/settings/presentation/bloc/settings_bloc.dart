@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../domain/entities/import_report.dart';
 import '../../domain/entities/settings_failure.dart';
 import '../../domain/services/biometric_service.dart';
+import '../../domain/services/file_delivery_service.dart';
 import '../../domain/usecases/backup_data_usecase.dart';
 import '../../domain/usecases/export_data_usecase.dart';
 import '../../domain/usecases/import_data_usecase.dart';
@@ -18,6 +20,7 @@ import 'settings_state.dart';
 import '../../../../core/domain/services/database_integrity_service.dart';
 import '../../../../core/errors/user_facing_error.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/platform/system_ui_session.dart';
 
 /// BLoC responsible for loading/saving app settings and managing data
 /// operations (export, import, backup, restore, reset).
@@ -38,6 +41,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   /// only when it is available.
   final DatabaseIntegrityService? integrityService;
 
+  /// Told when the app lock is turned on or off, so the lock takes effect at
+  /// once rather than at the next restart.
+  final void Function(bool enabled)? onLockPreferenceChanged;
+
   SettingsBloc({
     required this.loadSettingsUseCase,
     required this.updateCurrencyUseCase,
@@ -51,6 +58,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     required this.resetBudgetUseCase,
     required this.scheduleNotificationsUseCase,
     this.integrityService,
+    this.onLockPreferenceChanged,
   }) : super(const SettingsState()) {
     on<SettingsLoadEvent>(_onLoadSettings);
     on<SettingsUpdateCurrencyEvent>(_onUpdateCurrency);
@@ -254,25 +262,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
 
     emit(state.copyWith(isBiometricBusy: true, clearBiometricMessage: true));
 
-    // 1. Check device support / enrolled biometrics.
+    // 1. The lock accepts biometrics or the device's screen lock, so any
+    //    one of them is enough (a PIN-only phone was refused before).
     final availability = await biometricService.getAvailability();
-    if (!availability.isDeviceSupported) {
+    if (!availability.canAuthenticate) {
       emit(
         state.copyWith(
           isBiometricBusy: false,
           biometricMessage:
-              'Biometric authentication isn\'t available on this device.',
-        ),
-      );
-      return;
-    }
-    if (!availability.hasBiometrics) {
-      emit(
-        state.copyWith(
-          isBiometricBusy: false,
-          biometricMessage:
-              'Please set up fingerprint or face unlock on your '
-              'device first.',
+              'Set up a screen lock or fingerprint on your phone first.',
         ),
       );
       return;
@@ -282,10 +280,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     debugPrint(
       '[Biometric] Toggle requested: ${event.enabled ? "enable" : "disable"}',
     );
-    final authenticated = await biometricService.authenticate(
-      reason: event.enabled
-          ? 'Confirm to enable biometric lock'
-          : 'Confirm to disable biometric lock',
+    // The prompt takes the foreground on some phones; it must not lock the
+    // app in the middle of the toggle.
+    final authenticated = await SystemUiSession.run(
+      () => biometricService.authenticate(
+        reason: event.enabled
+            ? 'Confirm to enable biometric lock'
+            : 'Confirm to disable biometric lock',
+      ),
     );
     if (!authenticated) {
       // Cancelled or failed — keep the toggle unchanged. Surface the failure
@@ -304,6 +306,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     final result = await updateBiometricUseCase(event.enabled);
     switch (result) {
       case SettingsSuccess():
+        onLockPreferenceChanged?.call(event.enabled);
         emit(
           state.copyWith(
             settings: state.settings.copyWith(biometricEnabled: event.enabled),
@@ -367,16 +370,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         RefreshBuses.budgets.notifyChanged();
         RefreshBuses.expenses.notifyChanged();
         RefreshBuses.bills.notifyChanged();
-        // A CSV import returns how many expenses it added; a JSON import
-        // returns the file's schema version, not a count.
-        emit(
-          state.copyWith(
-            isBusy: false,
-            infoMessage: event.json
-                ? 'Import complete.'
-                : 'Imported $data ${data == 1 ? 'expense' : 'expenses'}.',
-          ),
-        );
+        emit(state.copyWith(isBusy: false, infoMessage: importMessage(data)));
       case SettingsError(:final failure):
         emit(
           state.copyWith(
@@ -394,15 +388,68 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     }
   }
 
+  /// What an import did, in one or two sentences: what was added or
+  /// updated, then what was skipped and why. A re-import that adds nothing
+  /// says so instead of reporting success.
+  @visibleForTesting
+  static String importMessage(ImportReport report) {
+    String count(int n, String one, [String? many]) =>
+        '$n ${n == 1 ? one : (many ?? '${one}s')}';
+
+    final String done;
+    if (report.imported > 0 && report.updated > 0) {
+      done =
+          'Imported ${count(report.imported, 'new expense')} and updated '
+          '${report.updated}.';
+    } else if (report.imported > 0) {
+      done = 'Imported ${count(report.imported, 'expense')}.';
+    } else if (report.updated > 0) {
+      done = 'Updated ${count(report.updated, 'expense')}. Nothing new to add.';
+    } else if (report.skipped > 0) {
+      done = 'Nothing new to import.';
+    } else {
+      done = 'Import complete. The file had no expenses.';
+    }
+
+    final reasons = [
+      if (report.duplicates > 0) '${report.duplicates} already on this device',
+      if (report.unreadable > 0) "${report.unreadable} couldn't be read",
+      if (report.otherCurrency > 0)
+        '${report.otherCurrency} in a currency none of your budgets use',
+    ];
+    if (reasons.isEmpty) return done;
+    final skipped = reasons.length == 1
+        ? reasons.single
+        : '${reasons.sublist(0, reasons.length - 1).join(', ')} and '
+              '${reasons.last}';
+    return '$done Skipped ${count(report.skipped, 'row')}: $skipped.';
+  }
+
   Future<void> _onBackup(
     SettingsBackupEvent event,
     Emitter<SettingsState> emit,
   ) async {
     emit(state.copyWith(isBusy: true, clearError: true, clearInfo: true));
-    final result = await backupDataUseCase();
+    final result = await backupDataUseCase(destination: event.destination);
     switch (result) {
-      case SettingsSuccess():
-        emit(state.copyWith(isBusy: false, infoMessage: 'Backup created.'));
+      case SettingsSuccess(:final data):
+        // Said only once the file reached the user: a backup left in the
+        // app's own storage could never be restored.
+        emit(
+          state.copyWith(
+            isBusy: false,
+            infoMessage: switch (data) {
+              FileDeliveryOutcome.saved =>
+                'Backup saved. Restore can open it from where you saved it.',
+              FileDeliveryOutcome.shared => 'Backup shared.',
+              FileDeliveryOutcome.handedOff =>
+                'Backup sent to the share sheet. Check it arrived where you '
+                    'sent it.',
+              FileDeliveryOutcome.cancelled =>
+                'Backup not saved. Nothing was kept on this device.',
+            },
+          ),
+        );
       case SettingsError(:final failure):
         emit(
           state.copyWith(
@@ -437,13 +484,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         emit(
           state.copyWith(
             isBusy: false,
-            errorMessage: failure.type == SettingsErrorType.invalidData
-                ? _shown(
-                    failure,
-                    "This file isn't a Monivo backup, or it is damaged. "
-                    'Nothing was changed.',
-                  )
-                : _shown(failure, "Couldn't restore the backup. Try again."),
+            errorMessage: switch (failure.type) {
+              // An export picked by mistake: say which action to use.
+              SettingsErrorType.wrongFileKind => failure.message,
+              SettingsErrorType.invalidData => _shown(
+                failure,
+                "This file isn't a Monivo backup, or it is damaged. "
+                'Nothing was changed.',
+              ),
+              _ => _shown(failure, "Couldn't restore the backup. Try again."),
+            },
           ),
         );
     }

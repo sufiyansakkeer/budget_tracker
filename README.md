@@ -133,7 +133,8 @@ guide rather than a month-end report.
   directly.
 - Fits its slot: Android chooses among eleven layouts, measured at the current font size,
   and iOS uses `ViewThatFits`, so larger text gets a simpler layout instead of clipped
-  figures. After midnight it shows "Tap to update" rather than yesterday's amount.
+  figures. After midnight it shows "Tap to update" rather than yesterday's amount, and
+  it refreshes as soon as the app is opened on the new day.
 
 **Everything else**
 - **Notifications:** a morning Today's Safe Spending (one line per running budget) and an
@@ -148,9 +149,10 @@ guide rather than a month-end report.
 - **Currency converter:** cache-first, using [Frankfurter](https://frankfurter.dev/) daily
   reference rates. It shows the rate date and source and keeps working offline with the
   last saved rate.
-- **Security and data:** optional biometric app lock; CSV/JSON export and import; full
-  JSON backup and restore (restore runs in one transaction); an on-demand database health
-  check.
+- **Security and data:** optional app lock (biometrics or the device PIN, pattern or
+  password; it never opens unconfirmed); CSV/JSON export and import that reports what it
+  added and skipped, without duplicating on re-import; full JSON backup, saved to a folder
+  you pick or shared, and restore (in one transaction); an on-demand database health check.
 - **Home insights:** up to two rule-based observations ("Worth knowing"), computed on the
   device from your own figures.
 - **Onboarding:** seven steps, ending with a preview of the first day's safe amount.
@@ -292,7 +294,7 @@ notifications, navigation and backup/restore.
 | Charts | `fl_chart` | Day-by-day, weekly/monthly and spending-pace charts |
 | Notifications | `flutter_local_notifications`, `timezone`, `flutter_timezone` | Local reminders scheduled in the device's time zone |
 | Home-screen widget | `home_widget`, Kotlin, SwiftUI | Shares one payload with native widgets via an App Group / shared prefs |
-| Security | `local_auth` | Optional biometric app lock |
+| Security | `local_auth` | Optional app lock (biometrics or device credential) |
 | Import / export | `csv`, `pdf`, `file_picker`, `share_plus` | CSV/JSON/PDF export, import and backups |
 | Networking | `http` | GitHub Releases update check and Frankfurter rates |
 | Other | `intl`, `image_picker`, `uuid`, `provider`, `package_info_plus`, `url_launcher` | Formatting, receipts, ids, currency notifier, app info, links |
@@ -581,9 +583,9 @@ GitHub Actions workflows, all pinned to Flutter 3.32.8:
 | `ci.yml` | Pull requests | Regenerate code and check it's committed, format check, analyze, test with coverage |
 | `android-release.yml` | Pull requests into `main`; manual | Development APK and AAB, uploaded as artifacts |
 | `ios-release.yml` | Pull requests into `main`; manual | Unsigned iOS build (`--no-codesign`), uploaded as an artifact |
-| `release.yml` | Pushes to `main` | Bumps the patch version, validates, builds signed APK/AAB, tags and creates a GitHub Release |
+| `release.yml` | Pushes to `main` | Releases the `pubspec.yaml` version (the next patch once that one is tagged), validates, builds signed APK/AAB, tags and creates a GitHub Release |
 
-The version commit made by `release.yml` contains `[skip ci]`, so a release cannot trigger
+A patch bump is committed by `release.yml` with `[skip ci]`, so a release cannot trigger
 another. Secrets and the release process are in [`docs/CI_CD.md`](docs/CI_CD.md).
 
 </details>

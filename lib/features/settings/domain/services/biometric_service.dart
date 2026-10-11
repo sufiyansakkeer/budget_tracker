@@ -1,5 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:local_auth/error_codes.dart' as auth_error;
 import 'package:local_auth/local_auth.dart';
+
+import '../../../../core/biometric/lock_auth_result.dart';
 
 /// Result of a biometric capability / authentication check.
 class BiometricAvailability {
@@ -14,6 +18,11 @@ class BiometricAvailability {
   });
 
   bool get hasBiometrics => availableTypes.isNotEmpty;
+
+  /// Whether the device can confirm the user at all: a screen lock (PIN,
+  /// pattern, password, passcode) or enrolled biometrics. Unlocking accepts
+  /// either, so the app lock needs only this.
+  bool get canAuthenticate => isDeviceSupported;
 }
 
 /// Wraps [LocalAuth] for biometric lock functionality.
@@ -75,6 +84,42 @@ class BiometricService {
     final availability = await getAvailability();
     return availability.isDeviceSupported && availability.hasBiometrics;
   }
+
+  /// Prompts the user to unlock the app with biometrics or the device's
+  /// screen lock, and says how it went. Never reports [LockAuthResult.success]
+  /// unless the platform confirmed the user.
+  Future<LockAuthResult> authenticateForUnlock({
+    String reason = 'Unlock Monivo',
+  }) async {
+    try {
+      final result = await _auth.authenticate(
+        localizedReason: reason,
+        options: const AuthenticationOptions(
+          biometricOnly: false,
+          stickyAuth: true,
+          useErrorDialogs: true,
+        ),
+      );
+      return result ? LockAuthResult.success : LockAuthResult.failed;
+    } on PlatformException catch (e, st) {
+      debugPrint('[Biometric] Unlock exception ${e.code}: $e\n$st');
+      return lockResultFor(e.code);
+    } catch (e, st) {
+      debugPrint('[Biometric] Unlock exception: $e\n$st');
+      return LockAuthResult.error;
+    }
+  }
+
+  /// The [LockAuthResult] for a `local_auth` error code.
+  @visibleForTesting
+  static LockAuthResult lockResultFor(String code) => switch (code) {
+    auth_error.notAvailable ||
+    auth_error.passcodeNotSet ||
+    auth_error.notEnrolled => LockAuthResult.unavailable,
+    auth_error.lockedOut ||
+    auth_error.permanentlyLockedOut => LockAuthResult.lockedOut,
+    _ => LockAuthResult.error,
+  };
 
   /// Prompts the user to authenticate with biometrics or device credentials.
   ///

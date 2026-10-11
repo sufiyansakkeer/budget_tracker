@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/settings/domain/services/file_delivery_service.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
@@ -222,6 +223,43 @@ void main() {
       await tester.pumpAndSettle();
       expect(settings.received, contains(const SettingsExportEvent(csv: true)));
       expect(find.text('Spreadsheet (CSV)'), findsNothing, reason: 'closed');
+    });
+
+    testWidgets('UX-002: Back up asks where the file goes before making it', (
+      tester,
+    ) async {
+      final (settings, _) = await pump(tester);
+
+      await tester.ensureVisible(find.text('Back up'));
+      await tester.tap(find.text('Back up'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save to this device'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
+      expect(find.textContaining('Restore can open it'), findsOneWidget);
+      expect(
+        settings.received.whereType<SettingsBackupEvent>(),
+        isEmpty,
+        reason: 'nothing is made until a destination is chosen',
+      );
+
+      await tester.tap(find.text('Save to this device'));
+      await tester.pumpAndSettle();
+      expect(
+        settings.received,
+        contains(const SettingsBackupEvent(FileDestination.device)),
+      );
+    });
+
+    testWidgets('UX-003: the JSON export says it is not a backup', (
+      tester,
+    ) async {
+      await pump(tester);
+
+      await tester.tap(find.text('Export'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Not a backup'), findsOneWidget);
     });
 
     testWidgets('the JSON export is its own choice', (tester) async {

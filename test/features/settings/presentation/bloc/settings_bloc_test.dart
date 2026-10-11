@@ -1,7 +1,9 @@
 import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:monivo/features/settings/domain/entities/app_settings.dart';
+import 'package:monivo/features/settings/domain/entities/import_report.dart';
 import 'package:monivo/features/settings/domain/entities/settings_failure.dart';
 import 'package:monivo/features/settings/domain/services/biometric_service.dart';
+import 'package:monivo/features/settings/domain/services/file_delivery_service.dart';
 import 'package:monivo/features/settings/domain/usecases/backup_data_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/export_data_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/import_data_usecase.dart';
@@ -48,8 +50,9 @@ void main() {
     late MockUpdateBiometricUseCase updateBiometricUseCase;
     late MockBiometricService biometricService;
 
-    SettingsBloc buildBloc() {
+    SettingsBloc buildBloc({void Function(bool)? onLockPreferenceChanged}) {
       return SettingsBloc(
+        onLockPreferenceChanged: onLockPreferenceChanged,
         loadSettingsUseCase: loadSettingsUseCase,
         updateCurrencyUseCase: MockUpdateCurrencyUseCase(),
         updateNotificationSettingsUseCase:
@@ -155,7 +158,7 @@ void main() {
         );
         verifyNever(updateBiometricUseCase.call(true));
         expect(bloc.state.settings.biometricEnabled, false);
-        expect(bloc.state.biometricMessage, contains('isn\'t available'));
+        expect(bloc.state.biometricMessage, contains('screen lock'));
         expect(bloc.state.isBiometricBusy, false);
 
         await bloc.close();
@@ -163,7 +166,8 @@ void main() {
     );
 
     test(
-      'enable with no enrolled biometric shows setup message and keeps OFF',
+      'UX-012: a screen lock without biometrics can enable the lock (the '
+      'prompt accepts the PIN), and the lock bloc is told at once (UX-011)',
       () async {
         when(biometricService.getAvailability()).thenAnswer(
           (_) async => const BiometricAvailability(
@@ -172,25 +176,38 @@ void main() {
             availableTypes: [],
           ),
         );
+        when(
+          updateBiometricUseCase.call(true),
+        ).thenAnswer((_) async => const SettingsSuccess(null));
+        final told = <bool>[];
 
-        final bloc = buildBloc();
+        final bloc = buildBloc(onLockPreferenceChanged: told.add);
         bloc.add(const SettingsUpdateBiometricEvent(true));
         await Future<void>.delayed(Duration.zero);
 
-        verifyNever(
-          biometricService.authenticate(
-            reason: anyNamed('reason'),
-            useErrorDialogs: anyNamed('useErrorDialogs'),
-          ),
-        );
-        verifyNever(updateBiometricUseCase.call(true));
-        expect(bloc.state.settings.biometricEnabled, false);
-        expect(bloc.state.biometricMessage, contains('set up'));
-        expect(bloc.state.isBiometricBusy, false);
+        verify(updateBiometricUseCase.call(true)).called(1);
+        expect(bloc.state.settings.biometricEnabled, true);
+        expect(told, [true]);
 
         await bloc.close();
       },
     );
+
+    test('UX-011: a failed save never tells the lock bloc', () async {
+      when(updateBiometricUseCase.call(true)).thenAnswer(
+        (_) async => const SettingsError(
+          SettingsFailure(type: SettingsErrorType.saveFailure, message: 'x'),
+        ),
+      );
+      final told = <bool>[];
+
+      final bloc = buildBloc(onLockPreferenceChanged: told.add);
+      bloc.add(const SettingsUpdateBiometricEvent(true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(told, isEmpty);
+      await bloc.close();
+    });
 
     test(
       'disable: authenticates, persists false, emits disabled state',
@@ -370,12 +387,22 @@ void main() {
   group('SettingsBloc - Import and change amount (review: no buses fired)', () {
     late MockImportDataUseCase importDataUseCase;
     late MockResetBudgetUseCase resetBudgetUseCase;
+    late MockBackupDataUseCase backupDataUseCase;
+    late MockRestoreDataUseCase restoreDataUseCase;
 
     setUp(() {
       provideDummy<SettingsResult<String>>(const SettingsSuccess(''));
       provideDummy<SettingsResult<int>>(const SettingsSuccess(0));
+      provideDummy<SettingsResult<ImportReport>>(
+        const SettingsSuccess(ImportReport()),
+      );
+      provideDummy<SettingsResult<FileDeliveryOutcome>>(
+        const SettingsSuccess(FileDeliveryOutcome.cancelled),
+      );
       importDataUseCase = MockImportDataUseCase();
       resetBudgetUseCase = MockResetBudgetUseCase();
+      backupDataUseCase = MockBackupDataUseCase();
+      restoreDataUseCase = MockRestoreDataUseCase();
     });
 
     SettingsBloc buildBloc() {
@@ -388,8 +415,8 @@ void main() {
         biometricService: MockBiometricService(),
         exportDataUseCase: MockExportDataUseCase(),
         importDataUseCase: importDataUseCase,
-        backupDataUseCase: MockBackupDataUseCase(),
-        restoreDataUseCase: MockRestoreDataUseCase(),
+        backupDataUseCase: backupDataUseCase,
+        restoreDataUseCase: restoreDataUseCase,
         resetBudgetUseCase: resetBudgetUseCase,
         scheduleNotificationsUseCase: MockScheduleNotificationsUseCase(),
       );
@@ -446,31 +473,115 @@ void main() {
     });
 
     test('a successful import tells every tab to re-read', () async {
-      when(
-        importDataUseCase.call('/data.json', json: true),
-      ).thenAnswer((_) async => const SettingsSuccess(12));
+      when(importDataUseCase.call('/data.json', json: true)).thenAnswer(
+        (_) async => const SettingsSuccess(ImportReport(imported: 12)),
+      );
       final counts = listenToBuses();
 
       final bloc = buildBloc();
       bloc.add(const SettingsImportEvent(path: '/data.json', json: true));
       await Future<void>.delayed(Duration.zero);
 
-      // A JSON import returns the file's schema version, not a count.
-      expect(bloc.state.infoMessage, 'Import complete.');
+      // A JSON import now counts what it added, like a CSV one.
+      expect(bloc.state.infoMessage, 'Imported 12 expenses.');
       expect(counts, {'budgets': 1, 'expenses': 1, 'bills': 1});
       await bloc.close();
     });
 
     test('a CSV import says how many expenses it added', () async {
-      when(
-        importDataUseCase.call('/data.csv', json: false),
-      ).thenAnswer((_) async => const SettingsSuccess(12));
+      when(importDataUseCase.call('/data.csv', json: false)).thenAnswer(
+        (_) async => const SettingsSuccess(ImportReport(imported: 12)),
+      );
 
       final bloc = buildBloc();
       bloc.add(const SettingsImportEvent(path: '/data.csv'));
       await Future<void>.delayed(Duration.zero);
 
       expect(bloc.state.infoMessage, 'Imported 12 expenses.');
+      await bloc.close();
+    });
+
+    group('UX-008: the import message counts what was skipped', () {
+      test('a re-import that adds nothing says so, not success', () {
+        expect(
+          SettingsBloc.importMessage(const ImportReport(duplicates: 22)),
+          'Nothing new to import. Skipped 22 rows: 22 already on this '
+          'device.',
+        );
+      });
+
+      test('added and skipped rows, each reason named', () {
+        expect(
+          SettingsBloc.importMessage(
+            const ImportReport(
+              imported: 3,
+              duplicates: 2,
+              unreadable: 1,
+              otherCurrency: 1,
+            ),
+          ),
+          "Imported 3 expenses. Skipped 4 rows: 2 already on this device, 1 "
+          "couldn't be read and 1 in a currency none of your budgets use.",
+        );
+      });
+
+      test('a data file that updated records says so', () {
+        expect(
+          SettingsBloc.importMessage(
+            const ImportReport(imported: 1, updated: 4),
+          ),
+          'Imported 1 new expense and updated 4.',
+        );
+        expect(
+          SettingsBloc.importMessage(const ImportReport(updated: 4)),
+          'Updated 4 expenses. Nothing new to add.',
+        );
+      });
+    });
+
+    group('UX-002: a backup is reported only once it reached the user', () {
+      for (final (outcome, message) in [
+        (
+          FileDeliveryOutcome.saved,
+          'Backup saved. Restore can open it from where you saved it.',
+        ),
+        (FileDeliveryOutcome.shared, 'Backup shared.'),
+        (
+          FileDeliveryOutcome.cancelled,
+          'Backup not saved. Nothing was kept on this device.',
+        ),
+      ]) {
+        test('$outcome', () async {
+          when(
+            backupDataUseCase.call(destination: FileDestination.device),
+          ).thenAnswer((_) async => SettingsSuccess(outcome));
+
+          final bloc = buildBloc();
+          bloc.add(const SettingsBackupEvent(FileDestination.device));
+          await Future<void>.delayed(Duration.zero);
+
+          expect(bloc.state.infoMessage, message);
+          expect(bloc.state.isBusy, isFalse);
+          await bloc.close();
+        });
+      }
+    });
+
+    test('UX-003: an export picked for Restore says to use Import', () async {
+      when(restoreDataUseCase.call('/export.json')).thenAnswer(
+        (_) async => const SettingsError(
+          SettingsFailure(
+            type: SettingsErrorType.wrongFileKind,
+            message: 'This is a Monivo export, not a backup.',
+          ),
+        ),
+      );
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsRestoreEvent('/export.json'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.errorMessage, 'This is a Monivo export, not a backup.');
       await bloc.close();
     });
 

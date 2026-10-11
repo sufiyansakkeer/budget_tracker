@@ -178,15 +178,25 @@ class ExpenseHistoryState extends Equatable {
   bool get isCombinedMode => viewMode == ExpenseViewMode.combined;
 
   /// The one currency every amount on screen is in: the active budget's, or
-  /// in a combined view the shared currency of the selected budgets. Null
-  /// when a combined view mixes currencies.
+  /// in a combined view the shared currency of the selected budgets. When
+  /// the selection mixes currencies but every visible expense shares one (a
+  /// search, a filter, or a budget with no expenses), that one. Null only
+  /// when the visible amounts really mix currencies.
+  ///
+  /// Falling back to null for the selection alone printed the summary and
+  /// day totals with the default symbol (₹) above rows in another currency.
   String? get displayCurrency {
     if (!isCombinedMode) return budgetCurrency;
-    final codes = {
+    final selected = {
       for (final id in selectedBudgetIds)
         if (budgetMap[id] != null) budgetMap[id]!.currency,
     };
-    return codes.length == 1 ? codes.single : null;
+    if (selected.length == 1) return selected.single;
+    final visible = {
+      for (final e in visibleExpenses) budgetMap[e.budgetId]?.currency,
+    };
+    if (visible.length == 1 && visible.single != null) return visible.single;
+    return null;
   }
 
   /// A combined view of budgets in different currencies.

@@ -200,6 +200,47 @@ void main() {
     expect(find.text('Across 2 budgets · 3 expenses'), findsOneWidget);
   });
 
+  testWidgets('UX-007: a combined INR + OMR view narrowed to OMR rows totals '
+      'them in OMR, never under ₹', (tester) async {
+    budgets.budgets['muscat'] = testBudget(
+      id: 'muscat',
+      name: 'Muscat',
+      currency: 'OMR',
+      start: DateTime(2026, 8, 1),
+      end: DateTime(2026, 8, 31),
+    );
+    seed([
+      _expense('a', 500),
+      _expense('c', 4.5, budgetId: 'muscat', note: 'Karak tea'),
+    ]);
+    await pump(
+      tester,
+      prepare: (history) async {
+        history.add(const ExpenseHistoryToggleViewMode());
+        await history.stream.firstWhere((s) => s.allBudgets.length == 2);
+        history.add(
+          const ExpenseHistorySetBudgetSelection(['personal', 'muscat']),
+        );
+        history.add(const ExpenseHistoryApplyCombinedView());
+        await history.stream.firstWhere(
+          (s) =>
+              s.status == ExpenseHistoryStatus.loaded &&
+              s.summaryByCurrency.length == 2,
+        );
+      },
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'karak');
+    await tester.pump(ExpenseHistoryBloc.searchDebounce);
+    await tester.pumpAndSettle();
+
+    final omr = AppMoney.format(4.5, currency: 'OMR');
+    // The summary total and the day's total are both in OMR.
+    expect(find.text(omr), findsWidgets);
+    expect(find.text('Spent $omr'), findsOneWidget);
+    expect(find.textContaining('₹'), findsNothing);
+  });
+
   for (final width in [320.0, 360.0]) {
     testWidgets('fits at ${width.toInt()}dp with 200% text', (tester) async {
       seed([

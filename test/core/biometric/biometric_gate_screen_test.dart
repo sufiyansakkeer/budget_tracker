@@ -7,7 +7,9 @@ import 'package:mockito/mockito.dart';
 import 'package:monivo/core/biometric/app_lock_bloc.dart';
 import 'package:monivo/core/biometric/app_lock_event.dart';
 import 'package:monivo/core/biometric/app_lock_state.dart';
+import 'package:monivo/core/biometric/lock_auth_result.dart';
 import 'package:monivo/core/biometric/biometric_gate_screen.dart';
+import 'package:monivo/core/platform/system_ui_session.dart';
 
 import 'app_lock_bloc_test.mocks.dart';
 
@@ -34,14 +36,14 @@ class _AppState extends State<_App> {
 
 void main() {
   late MockBiometricInitializer initializer;
-  late Completer<bool> prompt;
+  late Completer<LockAuthResult> prompt;
 
   setUp(() {
     _AppState.mounts = 0;
     initializer = MockBiometricInitializer();
-    when(initializer.isAvailable()).thenAnswer((_) async => true);
+    when(initializer.isLockEnabled()).thenAnswer((_) async => true);
     // The prompt never resolves on its own; tests drive the state directly.
-    prompt = Completer<bool>();
+    prompt = Completer<LockAuthResult>();
     when(initializer.authenticateNow()).thenAnswer((_) => prompt.future);
   });
 
@@ -52,7 +54,7 @@ void main() {
     final bloc = AppLockBloc(biometricInitializer: initializer);
     addTearDown(() {
       // close() waits for in-flight handlers; release the pending prompt.
-      if (!prompt.isCompleted) prompt.complete(false);
+      if (!prompt.isCompleted) prompt.complete(LockAuthResult.failed);
       return bloc.close();
     });
     return (
@@ -152,4 +154,80 @@ void main() {
       semantics.dispose();
     },
   );
+
+  group('system screens the app opens itself', () {
+    tearDown(() {
+      SystemUiSession.reset();
+      SystemUiSession.clock = DateTime.now;
+    });
+
+    Future<AppLockBloc> unlocked(WidgetTester tester) async {
+      final (:bloc, :widget) = harness();
+      await tester.pumpWidget(widget);
+      await tester.pump();
+      bloc.add(const AppAuthenticated());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(bloc.state.status, AppLockStatus.unlocked);
+      return bloc;
+    }
+
+    void lifecycle(WidgetTester tester, List<AppLifecycleState> states) {
+      for (final s in states) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+    }
+
+    testWidgets('a picker or share sheet does not lock the app', (
+      tester,
+    ) async {
+      final bloc = await unlocked(tester);
+      final picker = Completer<void>();
+      final session = SystemUiSession.run(() => picker.future);
+
+      lifecycle(tester, [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]);
+      await tester.pump();
+      expect(bloc.state.status, AppLockStatus.unlocked);
+
+      lifecycle(tester, [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]);
+      picker.complete();
+      await session;
+      await tester.pump();
+      expect(bloc.state.status, AppLockStatus.unlocked);
+
+      // Leaving the app afterwards locks as usual.
+      lifecycle(tester, [AppLifecycleState.inactive]);
+      await tester.pump();
+      expect(bloc.state.status, AppLockStatus.locked);
+    });
+
+    testWidgets('a system screen left open past the limit locks on return', (
+      tester,
+    ) async {
+      var now = DateTime(2026, 10, 10, 12);
+      SystemUiSession.clock = () => now;
+      final bloc = await unlocked(tester);
+      final picker = Completer<void>();
+      final session = SystemUiSession.run(() => picker.future);
+
+      lifecycle(tester, [AppLifecycleState.inactive]);
+      await tester.pump();
+      expect(bloc.state.status, AppLockStatus.unlocked);
+
+      now = now.add(SystemUiSession.maxDuration + const Duration(seconds: 1));
+      lifecycle(tester, [AppLifecycleState.resumed]);
+      picker.complete();
+      await session;
+      await tester.pump();
+      expect(bloc.state.status, AppLockStatus.locked);
+    });
+  });
 }

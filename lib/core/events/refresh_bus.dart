@@ -47,4 +47,9 @@ abstract final class RefreshBuses {
 
   /// Bill created, edited, deleted, paid or unpaid.
   static final RefreshBus bills = RefreshBus('bills');
+
+  /// The calendar day changed while the app stayed alive (seen on resume or
+  /// at midnight), so every "today" figure must be worked out again.
+  /// Notified by `DayChangeWatcher`.
+  static final RefreshBus day = RefreshBus('day');
 }

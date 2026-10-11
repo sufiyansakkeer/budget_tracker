@@ -10,6 +10,7 @@ import 'core/currency/currency_provider.dart';
 import 'core/notifications/notification_bloc.dart';
 import 'core/constants/app_motion.dart';
 import 'core/di/injection.dart' as di;
+import 'core/events/day_change_watcher.dart';
 import 'core/events/refresh_bus.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -179,6 +180,9 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
   late final AppUpdateBloc _appUpdateBloc;
   StreamSubscription<Uri?>? _widgetClickedSubscription;
 
+  /// Reloads every "today" figure when the app comes back on a new day.
+  final DayChangeWatcher _dayChangeWatcher = DayChangeWatcher();
+
   @override
   void initState() {
     super.initState();
@@ -188,6 +192,7 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
     // throw away every route's element tree on a currency change.
     _currencyProvider = di.getIt<CurrencyProvider>();
     _appUpdateBloc = di.getIt<AppUpdateBloc>();
+    _dayChangeWatcher.start();
 
     // Listen for widget clicks while app is in background/foreground (warm start).
     //
@@ -243,6 +248,7 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
   void dispose() {
     _widgetClickedSubscription?.cancel();
     _widgetRefreshListener?.stopListening();
+    _dayChangeWatcher.dispose();
     super.dispose();
   }
 

@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/core/database/default_categories.dart';
+import 'package:monivo/features/expenses/data/models/expense_model.dart';
+import 'package:monivo/features/settings/domain/entities/import_report.dart';
 import 'package:monivo/features/settings/domain/services/export_service.dart';
 import 'package:monivo/features/settings/domain/services/import_service.dart';
 
@@ -35,9 +37,9 @@ void main() {
           '250.0,grocery,Weekly,2024-01-11,\n',
         );
 
-        final count = await importService.importCsv(file.path);
+        final report = await importService.importCsv(file.path);
 
-        expect(count, 2);
+        expect(report.imported, 2);
         final expenses = await (database.select(database.expenses)).get();
         expect(expenses.length, 2);
         expect(expenses.first.amount, 100.0);
@@ -53,9 +55,11 @@ void main() {
           '200.0,food,Valid2,2024-01-13,\n',
         );
 
-        final count = await importService.importCsv(file.path);
+        final report = await importService.importCsv(file.path);
 
-        expect(count, 2);
+        expect(report.imported, 2);
+        // UX-008: the skipped rows are counted, not dropped silently.
+        expect(report.unreadable, 2);
         final expenses = await (database.select(database.expenses)).get();
         expect(expenses.length, 2);
       });
@@ -96,15 +100,19 @@ void main() {
 
         final file = File('${Directory.systemTemp.path}/round_trip.csv');
         await file.writeAsString(csv);
-        final count = await importService.importCsv(file.path);
+        final report = await importService.importCsv(file.path);
 
-        expect(count, 1);
+        expect(report.imported, 1);
         final imported = await (database.select(database.expenses)).get();
+        // The exported id is kept, so a later re-import recognises it.
+        expect(imported.single.id, 'exp-1');
         expect(imported.single.amount, 1250.5);
         expect(imported.single.categoryId, 'food');
         expect(imported.single.budgetId, 'budget-1');
         expect(imported.single.note, 'Lunch, with a comma');
-        expect(imported.single.tags, 'work,team');
+        // Comma-separated tags are stored as the JSON list the app reads;
+        // kept as plain text they never showed in the app.
+        expect(ExpenseModel.decodeTags(imported.single.tags), ['work', 'team']);
         expect(imported.single.date, DateTime(2024, 1, 10));
         expect(imported.single.time, now);
       });
@@ -120,9 +128,9 @@ void main() {
             '2024-02-03,Mystery,no-such-category,7\n',
           );
 
-          final count = await importService.importCsv(file.path);
+          final report = await importService.importCsv(file.path);
 
-          expect(count, 3);
+          expect(report.imported, 3);
           final expenses = await (database.select(database.expenses)).get();
           final byNote = {for (final e in expenses) e.note: e};
           expect(byNote['Groceries']!.categoryId, 'grocery');
@@ -134,6 +142,112 @@ void main() {
           expect(byNote['Mystery']!.categoryId, fallbackCategoryId);
         },
       );
+
+      Future<void> seedBudget(String id, String currency) => database
+          .into(database.budgets)
+          .insert(
+            BudgetsCompanion.insert(
+              id: id,
+              name: 'Budget $id',
+              monthlyAmount: 50000,
+              remainingAmount: 50000,
+              currency: currency,
+              startDate: DateTime(2024, 1, 1),
+              endDate: DateTime(2024, 1, 31),
+            ),
+          );
+
+      test('UX-008: importing the same Monivo export twice adds nothing the '
+          'second time, and says why', () async {
+        await seedBudget('budget-1', 'INR');
+        await database
+            .into(database.expenses)
+            .insert(
+              ExpensesCompanion.insert(
+                id: 'exp-1',
+                budgetId: 'budget-1',
+                amount: 300,
+                categoryId: 'food',
+                date: DateTime(2024, 1, 10),
+              ),
+            );
+        final rows = await ExportService(database: database).collectCsvRows();
+        final file = File('${Directory.systemTemp.path}/twice.csv');
+        await file.writeAsString(const ListToCsvConverter().convert(rows));
+
+        final report = await importService.importCsv(file.path);
+
+        expect(report, const ImportReport(duplicates: 1));
+        final expenses = await (database.select(database.expenses)).get();
+        expect(expenses, hasLength(1), reason: 'never doubled');
+      });
+
+      test('UX-008: the same id twice in one file is added once', () async {
+        await seedBudget('budget-1', 'INR');
+        final file = File('${Directory.systemTemp.path}/dupe_rows.csv');
+        await file.writeAsString(
+          'id,amount,categoryId,date,budgetId\n'
+          'r1,100,food,2024-01-10,budget-1\n'
+          'r1,100,food,2024-01-10,budget-1\n',
+        );
+
+        final report = await importService.importCsv(file.path);
+
+        expect(report, const ImportReport(imported: 1, duplicates: 1));
+      });
+
+      test('UX-008: a row whose currency differs from its budget is skipped, '
+          'never moved into another currency', () async {
+        await seedBudget('budget-1', 'INR');
+        final file = File('${Directory.systemTemp.path}/currency.csv');
+        await file.writeAsString(
+          'amount,currency,categoryId,date,budgetId\n'
+          '100,INR,food,2024-01-10,budget-1\n'
+          '4.5,OMR,food,2024-01-11,budget-1\n',
+        );
+
+        final report = await importService.importCsv(file.path);
+
+        expect(report, const ImportReport(imported: 1, otherCurrency: 1));
+        final expenses = await (database.select(database.expenses)).get();
+        expect(expenses.single.amount, 100);
+      });
+
+      test(
+        'UX-008: a row naming no budget goes to a budget in its currency',
+        () async {
+          await seedBudget('inr', 'INR');
+          await seedBudget('omr', 'OMR');
+          final file = File('${Directory.systemTemp.path}/orphan.csv');
+          await file.writeAsString(
+            'amount,currency,categoryId,date\n'
+            '4.5,OMR,food,2024-01-11\n'
+            '9,USD,food,2024-01-11\n',
+          );
+
+          final report = await importService.importCsv(file.path);
+
+          expect(report, const ImportReport(imported: 1, otherCurrency: 1));
+          final expenses = await (database.select(database.expenses)).get();
+          expect(expenses.single.budgetId, 'omr');
+        },
+      );
+
+      test('UX-008: with no budget yet, rows in a second currency are '
+          'skipped, not put in the budget made for the first', () async {
+        final file = File('${Directory.systemTemp.path}/no_budgets.csv');
+        await file.writeAsString(
+          'amount,currency,categoryId,date\n'
+          '4.5,OMR,food,2024-01-11\n'
+          '100,INR,food,2024-01-12\n',
+        );
+
+        final report = await importService.importCsv(file.path);
+
+        expect(report, const ImportReport(imported: 1, otherCurrency: 1));
+        final budgets = await (database.select(database.budgets)).get();
+        expect(budgets.single.currency, 'OMR');
+      });
 
       test('rejects a missing file', () async {
         expect(
@@ -181,9 +295,9 @@ void main() {
         final file = File('${Directory.systemTemp.path}/data.json');
         await file.writeAsString(jsonEncode(payload));
 
-        final schema = await importService.importJson(file.path);
+        final report = await importService.importJson(file.path);
 
-        expect(schema, 0);
+        expect(report, const ImportReport());
         final budgets = await (database.select(database.budgets)).get();
         expect(budgets.length, 1);
         expect(budgets.first.id, 'budget-x');
@@ -331,6 +445,108 @@ void main() {
         );
       });
 
+      group('UX-009: tags', () {
+        Map<String, Object?> payloadWithTags(Object? tags) => {
+          'budgets': [
+            {
+              'id': 'budget-x',
+              'name': 'Personal',
+              'monthlyAmount': 5000,
+              'remainingAmount': 5000,
+              'currency': 'INR',
+              'startDate': DateTime(2024, 1, 1).toIso8601String(),
+              'endDate': DateTime(2024, 1, 31).toIso8601String(),
+              'createdAt': DateTime(2024, 1, 1).toIso8601String(),
+              'updatedAt': DateTime(2024, 1, 1).toIso8601String(),
+            },
+          ],
+          'expenses': [
+            {
+              'id': 'tagged',
+              'budgetId': 'budget-x',
+              'amount': 250,
+              'categoryId': 'food',
+              'date': DateTime(2024, 1, 10).toIso8601String(),
+              'time': DateTime(2024, 1, 10, 13).toIso8601String(),
+              'tags': tags,
+              'createdAt': DateTime(2024, 1, 10).toIso8601String(),
+              'updatedAt': DateTime(2024, 1, 10).toIso8601String(),
+            },
+          ],
+        };
+
+        Future<List<String>> importAndReadTags(Object? tags) async {
+          final file = File('${Directory.systemTemp.path}/tags.json');
+          await file.writeAsString(jsonEncode(payloadWithTags(tags)));
+          await importService.importJson(file.path);
+          final row = await (database.select(
+            database.expenses,
+          )..where((e) => e.id.equals('tagged'))).getSingle();
+          return ExpenseModel.decodeTags(row.tags);
+        }
+
+        test('a Monivo export round-trips its tagged expenses', () async {
+          await seedTagged(database);
+          final data = await ExportService(
+            database: database,
+          ).collectJsonData();
+          await (database.delete(database.expenses)).go();
+          final file = File('${Directory.systemTemp.path}/round_trip.json');
+          await file.writeAsString(jsonEncode(data));
+
+          final report = await importService.importJson(file.path);
+
+          expect(report.imported, 1);
+          final row = await (database.select(database.expenses)).getSingle();
+          expect(ExpenseModel.decodeTags(row.tags), ['work', 'team']);
+        });
+
+        test('the stored JSON string (what an export writes)', () async {
+          expect(await importAndReadTags('["work","team"]'), ['work', 'team']);
+        });
+
+        test('a JSON list', () async {
+          expect(await importAndReadTags(['work', 'team']), ['work', 'team']);
+        });
+
+        test('comma-separated text', () async {
+          expect(await importAndReadTags('work, team'), ['work', 'team']);
+        });
+
+        test('none', () async {
+          expect(await importAndReadTags(null), isEmpty);
+        });
+
+        test(
+          'a malformed value is rejected before anything is written',
+          () async {
+            final file = File('${Directory.systemTemp.path}/bad_tags.json');
+            await file.writeAsString(jsonEncode(payloadWithTags(42)));
+
+            await expectLater(
+              importService.importJson(file.path),
+              throwsFormatException,
+            );
+            expect(await (database.select(database.expenses)).get(), isEmpty);
+            expect(await (database.select(database.budgets)).get(), isEmpty);
+          },
+        );
+
+        test(
+          're-importing the same file updates rather than duplicates',
+          () async {
+            await importAndReadTags(['a']);
+            final file = File('${Directory.systemTemp.path}/tags.json');
+            final report = await importService.importJson(file.path);
+            expect(report, const ImportReport(updated: 1));
+            expect(
+              await (database.select(database.expenses)).get(),
+              hasLength(1),
+            );
+          },
+        );
+      });
+
       test('rejects JSON with a newer schema version', () async {
         final payload = {
           'metadata': {'schemaVersion': 99},
@@ -360,4 +576,35 @@ void main() {
       });
     });
   });
+}
+
+/// One budget and one expense tagged "work" and "team", stored the way the
+/// app stores tags (a JSON list string).
+Future<void> seedTagged(AppDatabase database) async {
+  await database
+      .into(database.budgets)
+      .insert(
+        BudgetsCompanion.insert(
+          id: 'budget-1',
+          name: 'Personal',
+          monthlyAmount: 50000,
+          remainingAmount: 50000,
+          currency: 'INR',
+          startDate: DateTime(2024, 1, 1),
+          endDate: DateTime(2024, 1, 31),
+        ),
+      );
+  await database
+      .into(database.expenses)
+      .insert(
+        ExpensesCompanion.insert(
+          id: 'exp-1',
+          budgetId: 'budget-1',
+          amount: 1250.5,
+          categoryId: 'food',
+          date: DateTime(2024, 1, 10),
+          time: Value(DateTime(2024, 1, 10, 12, 30)),
+          tags: Value(ExpenseModel.encodeTags(['work', 'team'])),
+        ),
+      );
 }

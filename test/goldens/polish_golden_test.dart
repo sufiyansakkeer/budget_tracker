@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/biometric/app_lock_bloc.dart';
 import 'package:monivo/core/biometric/biometric_gate_screen.dart';
 import 'package:monivo/core/biometric/biometric_initializer.dart';
+import 'package:monivo/core/biometric/lock_auth_result.dart';
 import 'package:monivo/features/currency_converter/data/repository/currency_converter_repository_impl.dart';
 import 'package:monivo/features/currency_converter/domain/entities/converter_preferences.dart';
 import 'package:monivo/features/currency_converter/domain/usecases/converter_preferences_usecases.dart';
@@ -23,10 +24,10 @@ import 'golden_harness.dart';
 /// The system prompt was dismissed: the gate rests on "Unlock".
 class _DismissedPrompt implements BiometricInitializer {
   @override
-  Future<bool> isAvailable() async => true;
+  Future<bool?> isLockEnabled() async => true;
 
   @override
-  Future<bool> authenticateNow() async => false;
+  Future<LockAuthResult> authenticateNow() async => LockAuthResult.failed;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

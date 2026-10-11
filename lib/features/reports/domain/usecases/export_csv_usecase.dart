@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../entities/report_data.dart';
 import '../entities/report_failure.dart';
+import '../../../../core/platform/system_ui_session.dart';
 
 /// Exports the filtered expenses and summary statistics to a CSV file and
 /// opens the share sheet.
@@ -20,9 +21,11 @@ class ExportCsvUseCase {
       final file = File('${directory.path}/budget_report_$timestamp.csv');
       await file.writeAsString(csv);
 
-      await Share.shareXFiles([
-        XFile(file.path, mimeType: 'text/csv'),
-      ], text: 'Budget Report CSV');
+      await SystemUiSession.run(
+        () => Share.shareXFiles([
+          XFile(file.path, mimeType: 'text/csv'),
+        ], text: 'Budget Report CSV'),
+      );
       return ReportSuccess('CSV report exported.');
     } catch (e) {
       return ReportError(

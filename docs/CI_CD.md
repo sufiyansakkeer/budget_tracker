@@ -6,7 +6,7 @@
 
 Pull requests into `main` additionally run the Android and unsigned iOS development build workflows, which upload the APK/AAB and the unsigned `Runner.app` as build artifacts; both can also be started by hand (`workflow_dispatch`). Both Android workflows install NDK `29.0.14206865` with `sdkmanager` before building, because the release binaries must be linked for 16 KB memory pages (see the README's "16 KB page-size compatibility" section); the version must match `ndkVersion` in `android/app/build.gradle.kts`. There are no configured flavors, so each build uses the default Runner/Android release configuration. A pull request never creates a production release.
 
-Every push to `main` runs `release.yml`. A concurrency lock refreshes the latest `main`, calculates the next patch version and build number, validates, builds a signed Android APK/AAB with Flutter build overrides, then commits the new `pubspec.yaml` version, creates the matching tag, and creates or updates the GitHub Release. The version commit contains `[skip ci]`, so it cannot start another production release.
+Every push to `main` runs `release.yml`. A concurrency lock refreshes the latest `main` and picks the version: the one in `pubspec.yaml` if it has no tag yet, otherwise the next patch version and build number. It then validates, builds a signed Android APK/AAB with Flutter build overrides, commits the bumped `pubspec.yaml` version (only when it bumped), creates the matching tag, and creates or updates the GitHub Release. The version commit contains `[skip ci]`, so it cannot start another production release.
 
 ## Local checks
 
@@ -39,7 +39,7 @@ No repository or environment variables are required. The CI workflows pin `FLUTT
 
 ## Versioning and releases
 
-The version lives only in `pubspec.yaml` (`1.0.0+1` at the time of writing). Each successful `main` release increments the patch and build components: `1.0.0+1` becomes `1.0.1+2`. `pubspec.yaml` is the only version source. Flutter maps the name to Android `versionName`/iOS `CFBundleShortVersionString` and the build number to Android `versionCode`/iOS `CFBundleVersion`; the release build also passes both values explicitly to Flutter.
+The version lives only in `pubspec.yaml` (`1.0.0+1` at the time of writing). A version that has no `vX.Y.Z` tag yet is released exactly as written: merging with `1.0.0+1` publishes `v1.0.0`, tags the merge commit and makes no version commit. Once that tag exists, each later `main` release increments the patch and build components (`1.0.0+1` becomes `1.0.1+2`) and commits the new version. To ship a minor or major version, set it in `pubspec.yaml` in the pull request (for example `1.1.0+5`); the merge releases it as written. `pubspec.yaml` is the only version source. Flutter maps the name to Android `versionName`/iOS `CFBundleShortVersionString` and the build number to Android `versionCode`/iOS `CFBundleVersion`; the release build also passes both values explicitly to Flutter.
 
 Do not create release tags manually for normal production releases. The workflow creates `v1.0.3` from `1.0.3+3`:
 
@@ -56,7 +56,7 @@ Use feature branches for work, `main` for production-ready code, and `vX.Y.Z` ta
 
 1. Add the four Android signing secrets and create the `production` environment.
 2. Open a pull request from a feature branch into `main` and wait for CI and the development builds to pass.
-3. Merge the pull request. With `1.0.0+1` in `pubspec.yaml`, Actions builds `1.0.1+2`, commits that version, creates `v1.0.1`, and publishes the APK/AAB release.
+3. Make sure no `v1.0.0` tag or release exists (`git ls-remote --tags origin`, `gh release list`), then merge the pull request. With `1.0.0+1` in `pubspec.yaml`, Actions builds `1.0.0+1`, tags the merge commit `v1.0.0`, and publishes the APK/AAB release. The next merge releases `1.0.1+2`.
 4. Download the APK/AAB from the GitHub Release and verify the version shown by the installed app/store metadata.
 
 To test CI safely, open a pull request. To test production without merging application changes, use a temporary protected test repository or a disposable `main` branch; the production workflow intentionally creates a real version commit, tag, and release.
@@ -70,4 +70,4 @@ To test CI safely, open a pull request. To test production without merging appli
 - CocoaPods failures can require updating the lockfile or the runner image. Run `cd ios && pod install --deployment` locally on macOS.
 - If a release fails before the version commit, fix the cause and rerun the workflow; the repository version was not changed.
 - If a release fails after the tag was pushed, rerun the original workflow. It verifies the matching version/tag and updates the existing GitHub Release assets.
-- A tag/version mismatch stops the workflow rather than creating a duplicate or inconsistent release.
+- A tag/version mismatch stops the workflow rather than creating a duplicate or inconsistent release. "Tag vX.Y.Z already exists before its version commit" means the next patch's tag is left over from a retired release: delete that tag and its GitHub Release, or set a higher version in `pubspec.yaml`.

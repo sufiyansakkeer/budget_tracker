@@ -24,6 +24,16 @@ abstract class BillLocalDataSource {
   /// bill to sort and take three in Dart wasted the due-date index.
   Future<List<BillEntity>> getUpcomingBills({DateTime? from, int limit = 3});
 
+  /// Unpaid bills due before [today], the longest overdue first.
+  ///
+  /// Home lists these ahead of the upcoming ones: an overdue bill is the
+  /// one most in need of attention, and the safe-to-spend engine still sets
+  /// overdue occurrences of linked bills aside.
+  Future<List<BillEntity>> getOverdueBills({
+    required DateTime today,
+    int limit = 3,
+  });
+
   Future<double> getUpcomingBillsTotal({int withinDays = 30});
 
   Future<double> getMonthlyRecurringBillsTotal();

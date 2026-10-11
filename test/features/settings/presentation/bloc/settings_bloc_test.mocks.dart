@@ -3,16 +3,19 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i9;
+import 'dart:async' as _i10;
 
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i12;
+import 'package:mockito/src/dummies.dart' as _i13;
+import 'package:monivo/core/biometric/lock_auth_result.dart' as _i18;
 import 'package:monivo/features/settings/domain/entities/app_settings.dart'
-    as _i11;
+    as _i12;
+import 'package:monivo/features/settings/domain/entities/import_report.dart'
+    as _i21;
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart'
-    as _i15;
+    as _i16;
 import 'package:monivo/features/settings/domain/entities/settings_failure.dart'
-    as _i10;
+    as _i11;
 import 'package:monivo/features/settings/domain/repository/settings_repository.dart'
     as _i2;
 import 'package:monivo/features/settings/domain/services/backup_service.dart'
@@ -21,30 +24,32 @@ import 'package:monivo/features/settings/domain/services/biometric_service.dart'
     as _i3;
 import 'package:monivo/features/settings/domain/services/export_service.dart'
     as _i4;
+import 'package:monivo/features/settings/domain/services/file_delivery_service.dart'
+    as _i7;
 import 'package:monivo/features/settings/domain/services/import_service.dart'
     as _i5;
 import 'package:monivo/features/settings/domain/services/notification_service.dart'
-    as _i7;
-import 'package:monivo/features/settings/domain/usecases/backup_data_usecase.dart'
-    as _i19;
-import 'package:monivo/features/settings/domain/usecases/export_data_usecase.dart'
-    as _i17;
-import 'package:monivo/features/settings/domain/usecases/import_data_usecase.dart'
-    as _i18;
-import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart'
     as _i8;
-import 'package:monivo/features/settings/domain/usecases/reset_budget_usecase.dart'
-    as _i21;
-import 'package:monivo/features/settings/domain/usecases/restore_data_usecase.dart'
-    as _i20;
-import 'package:monivo/features/settings/domain/usecases/schedule_notifications_usecase.dart'
+import 'package:monivo/features/settings/domain/usecases/backup_data_usecase.dart'
     as _i22;
+import 'package:monivo/features/settings/domain/usecases/export_data_usecase.dart'
+    as _i19;
+import 'package:monivo/features/settings/domain/usecases/import_data_usecase.dart'
+    as _i20;
+import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart'
+    as _i9;
+import 'package:monivo/features/settings/domain/usecases/reset_budget_usecase.dart'
+    as _i24;
+import 'package:monivo/features/settings/domain/usecases/restore_data_usecase.dart'
+    as _i23;
+import 'package:monivo/features/settings/domain/usecases/schedule_notifications_usecase.dart'
+    as _i25;
 import 'package:monivo/features/settings/domain/usecases/update_biometric_usecase.dart'
-    as _i16;
+    as _i17;
 import 'package:monivo/features/settings/domain/usecases/update_currency_usecase.dart'
-    as _i13;
-import 'package:monivo/features/settings/domain/usecases/update_notification_settings_usecase.dart'
     as _i14;
+import 'package:monivo/features/settings/domain/usecases/update_notification_settings_usecase.dart'
+    as _i15;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -87,9 +92,15 @@ class _FakeBackupService_4 extends _i1.SmartFake implements _i6.BackupService {
     : super(parent, parentInvocation);
 }
 
-class _FakeNotificationService_5 extends _i1.SmartFake
-    implements _i7.NotificationService {
-  _FakeNotificationService_5(Object parent, Invocation parentInvocation)
+class _FakeFileDeliveryService_5 extends _i1.SmartFake
+    implements _i7.FileDeliveryService {
+  _FakeFileDeliveryService_5(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
+class _FakeNotificationService_6 extends _i1.SmartFake
+    implements _i8.NotificationService {
+  _FakeNotificationService_6(Object parent, Invocation parentInvocation)
     : super(parent, parentInvocation);
 }
 
@@ -97,7 +108,7 @@ class _FakeNotificationService_5 extends _i1.SmartFake
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockLoadSettingsUseCase extends _i1.Mock
-    implements _i8.LoadSettingsUseCase {
+    implements _i9.LoadSettingsUseCase {
   MockLoadSettingsUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -114,25 +125,25 @@ class MockLoadSettingsUseCase extends _i1.Mock
           as _i2.SettingsRepository);
 
   @override
-  _i9.Future<_i10.SettingsResult<_i11.AppSettings>> call() =>
+  _i10.Future<_i11.SettingsResult<_i12.AppSettings>> call() =>
       (super.noSuchMethod(
             Invocation.method(#call, []),
             returnValue:
-                _i9.Future<_i10.SettingsResult<_i11.AppSettings>>.value(
-                  _i12.dummyValue<_i10.SettingsResult<_i11.AppSettings>>(
+                _i10.Future<_i11.SettingsResult<_i12.AppSettings>>.value(
+                  _i13.dummyValue<_i11.SettingsResult<_i12.AppSettings>>(
                     this,
                     Invocation.method(#call, []),
                   ),
                 ),
           )
-          as _i9.Future<_i10.SettingsResult<_i11.AppSettings>>);
+          as _i10.Future<_i11.SettingsResult<_i12.AppSettings>>);
 }
 
 /// A class which mocks [UpdateCurrencyUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockUpdateCurrencyUseCase extends _i1.Mock
-    implements _i13.UpdateCurrencyUseCase {
+    implements _i14.UpdateCurrencyUseCase {
   MockUpdateCurrencyUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -149,24 +160,24 @@ class MockUpdateCurrencyUseCase extends _i1.Mock
           as _i2.SettingsRepository);
 
   @override
-  _i9.Future<_i10.SettingsResult<void>> call(String? code, String? symbol) =>
+  _i10.Future<_i11.SettingsResult<void>> call(String? code, String? symbol) =>
       (super.noSuchMethod(
             Invocation.method(#call, [code, symbol]),
-            returnValue: _i9.Future<_i10.SettingsResult<void>>.value(
-              _i12.dummyValue<_i10.SettingsResult<void>>(
+            returnValue: _i10.Future<_i11.SettingsResult<void>>.value(
+              _i13.dummyValue<_i11.SettingsResult<void>>(
                 this,
                 Invocation.method(#call, [code, symbol]),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<void>>);
+          as _i10.Future<_i11.SettingsResult<void>>);
 }
 
 /// A class which mocks [UpdateNotificationSettingsUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockUpdateNotificationSettingsUseCase extends _i1.Mock
-    implements _i14.UpdateNotificationSettingsUseCase {
+    implements _i15.UpdateNotificationSettingsUseCase {
   MockUpdateNotificationSettingsUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -183,26 +194,26 @@ class MockUpdateNotificationSettingsUseCase extends _i1.Mock
           as _i2.SettingsRepository);
 
   @override
-  _i9.Future<_i10.SettingsResult<void>> call(
-    _i15.NotificationSettings? settings,
+  _i10.Future<_i11.SettingsResult<void>> call(
+    _i16.NotificationSettings? settings,
   ) =>
       (super.noSuchMethod(
             Invocation.method(#call, [settings]),
-            returnValue: _i9.Future<_i10.SettingsResult<void>>.value(
-              _i12.dummyValue<_i10.SettingsResult<void>>(
+            returnValue: _i10.Future<_i11.SettingsResult<void>>.value(
+              _i13.dummyValue<_i11.SettingsResult<void>>(
                 this,
                 Invocation.method(#call, [settings]),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<void>>);
+          as _i10.Future<_i11.SettingsResult<void>>);
 }
 
 /// A class which mocks [UpdateBiometricUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockUpdateBiometricUseCase extends _i1.Mock
-    implements _i16.UpdateBiometricUseCase {
+    implements _i17.UpdateBiometricUseCase {
   MockUpdateBiometricUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -219,17 +230,17 @@ class MockUpdateBiometricUseCase extends _i1.Mock
           as _i2.SettingsRepository);
 
   @override
-  _i9.Future<_i10.SettingsResult<void>> call(bool? enabled) =>
+  _i10.Future<_i11.SettingsResult<void>> call(bool? enabled) =>
       (super.noSuchMethod(
             Invocation.method(#call, [enabled]),
-            returnValue: _i9.Future<_i10.SettingsResult<void>>.value(
-              _i12.dummyValue<_i10.SettingsResult<void>>(
+            returnValue: _i10.Future<_i11.SettingsResult<void>>.value(
+              _i13.dummyValue<_i11.SettingsResult<void>>(
                 this,
                 Invocation.method(#call, [enabled]),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<void>>);
+          as _i10.Future<_i11.SettingsResult<void>>);
 }
 
 /// A class which mocks [BiometricService].
@@ -241,28 +252,40 @@ class MockBiometricService extends _i1.Mock implements _i3.BiometricService {
   }
 
   @override
-  _i9.Future<_i3.BiometricAvailability> getAvailability() =>
+  _i10.Future<_i3.BiometricAvailability> getAvailability() =>
       (super.noSuchMethod(
             Invocation.method(#getAvailability, []),
-            returnValue: _i9.Future<_i3.BiometricAvailability>.value(
+            returnValue: _i10.Future<_i3.BiometricAvailability>.value(
               _FakeBiometricAvailability_1(
                 this,
                 Invocation.method(#getAvailability, []),
               ),
             ),
           )
-          as _i9.Future<_i3.BiometricAvailability>);
+          as _i10.Future<_i3.BiometricAvailability>);
 
   @override
-  _i9.Future<bool> canUseBiometrics() =>
+  _i10.Future<bool> canUseBiometrics() =>
       (super.noSuchMethod(
             Invocation.method(#canUseBiometrics, []),
-            returnValue: _i9.Future<bool>.value(false),
+            returnValue: _i10.Future<bool>.value(false),
           )
-          as _i9.Future<bool>);
+          as _i10.Future<bool>);
 
   @override
-  _i9.Future<bool> authenticate({
+  _i10.Future<_i18.LockAuthResult> authenticateForUnlock({
+    String? reason = 'Unlock Monivo',
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#authenticateForUnlock, [], {#reason: reason}),
+            returnValue: _i10.Future<_i18.LockAuthResult>.value(
+              _i18.LockAuthResult.success,
+            ),
+          )
+          as _i10.Future<_i18.LockAuthResult>);
+
+  @override
+  _i10.Future<bool> authenticate({
     String? reason = 'Unlock Monivo',
     bool? useErrorDialogs = true,
   }) =>
@@ -271,15 +294,15 @@ class MockBiometricService extends _i1.Mock implements _i3.BiometricService {
               #reason: reason,
               #useErrorDialogs: useErrorDialogs,
             }),
-            returnValue: _i9.Future<bool>.value(false),
+            returnValue: _i10.Future<bool>.value(false),
           )
-          as _i9.Future<bool>);
+          as _i10.Future<bool>);
 }
 
 /// A class which mocks [ExportDataUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockExportDataUseCase extends _i1.Mock implements _i17.ExportDataUseCase {
+class MockExportDataUseCase extends _i1.Mock implements _i19.ExportDataUseCase {
   MockExportDataUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -296,23 +319,23 @@ class MockExportDataUseCase extends _i1.Mock implements _i17.ExportDataUseCase {
           as _i4.ExportService);
 
   @override
-  _i9.Future<_i10.SettingsResult<String>> call({bool? csv = true}) =>
+  _i10.Future<_i11.SettingsResult<String>> call({bool? csv = true}) =>
       (super.noSuchMethod(
             Invocation.method(#call, [], {#csv: csv}),
-            returnValue: _i9.Future<_i10.SettingsResult<String>>.value(
-              _i12.dummyValue<_i10.SettingsResult<String>>(
+            returnValue: _i10.Future<_i11.SettingsResult<String>>.value(
+              _i13.dummyValue<_i11.SettingsResult<String>>(
                 this,
                 Invocation.method(#call, [], {#csv: csv}),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<String>>);
+          as _i10.Future<_i11.SettingsResult<String>>);
 }
 
 /// A class which mocks [ImportDataUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockImportDataUseCase extends _i1.Mock implements _i18.ImportDataUseCase {
+class MockImportDataUseCase extends _i1.Mock implements _i20.ImportDataUseCase {
   MockImportDataUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -329,26 +352,27 @@ class MockImportDataUseCase extends _i1.Mock implements _i18.ImportDataUseCase {
           as _i5.ImportService);
 
   @override
-  _i9.Future<_i10.SettingsResult<int>> call(
+  _i10.Future<_i11.SettingsResult<_i21.ImportReport>> call(
     String? path, {
     required bool? json,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#call, [path], {#json: json}),
-            returnValue: _i9.Future<_i10.SettingsResult<int>>.value(
-              _i12.dummyValue<_i10.SettingsResult<int>>(
-                this,
-                Invocation.method(#call, [path], {#json: json}),
-              ),
-            ),
+            returnValue:
+                _i10.Future<_i11.SettingsResult<_i21.ImportReport>>.value(
+                  _i13.dummyValue<_i11.SettingsResult<_i21.ImportReport>>(
+                    this,
+                    Invocation.method(#call, [path], {#json: json}),
+                  ),
+                ),
           )
-          as _i9.Future<_i10.SettingsResult<int>>);
+          as _i10.Future<_i11.SettingsResult<_i21.ImportReport>>);
 }
 
 /// A class which mocks [BackupDataUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockBackupDataUseCase extends _i1.Mock implements _i19.BackupDataUseCase {
+class MockBackupDataUseCase extends _i1.Mock implements _i22.BackupDataUseCase {
   MockBackupDataUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -365,24 +389,38 @@ class MockBackupDataUseCase extends _i1.Mock implements _i19.BackupDataUseCase {
           as _i6.BackupService);
 
   @override
-  _i9.Future<_i10.SettingsResult<String>> call() =>
+  _i7.FileDeliveryService get delivery =>
       (super.noSuchMethod(
-            Invocation.method(#call, []),
-            returnValue: _i9.Future<_i10.SettingsResult<String>>.value(
-              _i12.dummyValue<_i10.SettingsResult<String>>(
-                this,
-                Invocation.method(#call, []),
-              ),
+            Invocation.getter(#delivery),
+            returnValue: _FakeFileDeliveryService_5(
+              this,
+              Invocation.getter(#delivery),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<String>>);
+          as _i7.FileDeliveryService);
+
+  @override
+  _i10.Future<_i11.SettingsResult<_i7.FileDeliveryOutcome>> call({
+    required _i7.FileDestination? destination,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#call, [], {#destination: destination}),
+            returnValue:
+                _i10.Future<_i11.SettingsResult<_i7.FileDeliveryOutcome>>.value(
+                  _i13.dummyValue<_i11.SettingsResult<_i7.FileDeliveryOutcome>>(
+                    this,
+                    Invocation.method(#call, [], {#destination: destination}),
+                  ),
+                ),
+          )
+          as _i10.Future<_i11.SettingsResult<_i7.FileDeliveryOutcome>>);
 }
 
 /// A class which mocks [RestoreDataUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockRestoreDataUseCase extends _i1.Mock
-    implements _i20.RestoreDataUseCase {
+    implements _i23.RestoreDataUseCase {
   MockRestoreDataUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -399,87 +437,87 @@ class MockRestoreDataUseCase extends _i1.Mock
           as _i6.BackupService);
 
   @override
-  _i9.Future<_i10.SettingsResult<String>> call(String? path) =>
+  _i10.Future<_i11.SettingsResult<String>> call(String? path) =>
       (super.noSuchMethod(
             Invocation.method(#call, [path]),
-            returnValue: _i9.Future<_i10.SettingsResult<String>>.value(
-              _i12.dummyValue<_i10.SettingsResult<String>>(
+            returnValue: _i10.Future<_i11.SettingsResult<String>>.value(
+              _i13.dummyValue<_i11.SettingsResult<String>>(
                 this,
                 Invocation.method(#call, [path]),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<String>>);
+          as _i10.Future<_i11.SettingsResult<String>>);
 }
 
 /// A class which mocks [ResetBudgetUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockResetBudgetUseCase extends _i1.Mock
-    implements _i21.ResetBudgetUseCase {
+    implements _i24.ResetBudgetUseCase {
   MockResetBudgetUseCase() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  _i9.Future<_i10.SettingsResult<String>> resetBudgetAmount(
+  _i10.Future<_i11.SettingsResult<String>> resetBudgetAmount(
     double? newAmount,
   ) =>
       (super.noSuchMethod(
             Invocation.method(#resetBudgetAmount, [newAmount]),
-            returnValue: _i9.Future<_i10.SettingsResult<String>>.value(
-              _i12.dummyValue<_i10.SettingsResult<String>>(
+            returnValue: _i10.Future<_i11.SettingsResult<String>>.value(
+              _i13.dummyValue<_i11.SettingsResult<String>>(
                 this,
                 Invocation.method(#resetBudgetAmount, [newAmount]),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<String>>);
+          as _i10.Future<_i11.SettingsResult<String>>);
 
   @override
-  _i9.Future<_i10.SettingsResult<String>> resetCurrentMonth() =>
+  _i10.Future<_i11.SettingsResult<String>> resetCurrentMonth() =>
       (super.noSuchMethod(
             Invocation.method(#resetCurrentMonth, []),
-            returnValue: _i9.Future<_i10.SettingsResult<String>>.value(
-              _i12.dummyValue<_i10.SettingsResult<String>>(
+            returnValue: _i10.Future<_i11.SettingsResult<String>>.value(
+              _i13.dummyValue<_i11.SettingsResult<String>>(
                 this,
                 Invocation.method(#resetCurrentMonth, []),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<String>>);
+          as _i10.Future<_i11.SettingsResult<String>>);
 }
 
 /// A class which mocks [ScheduleNotificationsUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockScheduleNotificationsUseCase extends _i1.Mock
-    implements _i22.ScheduleNotificationsUseCase {
+    implements _i25.ScheduleNotificationsUseCase {
   MockScheduleNotificationsUseCase() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  _i7.NotificationService get notificationService =>
+  _i8.NotificationService get notificationService =>
       (super.noSuchMethod(
             Invocation.getter(#notificationService),
-            returnValue: _FakeNotificationService_5(
+            returnValue: _FakeNotificationService_6(
               this,
               Invocation.getter(#notificationService),
             ),
           )
-          as _i7.NotificationService);
+          as _i8.NotificationService);
 
   @override
-  _i9.Future<_i10.SettingsResult<void>> call(_i11.AppSettings? settings) =>
+  _i10.Future<_i11.SettingsResult<void>> call(_i12.AppSettings? settings) =>
       (super.noSuchMethod(
             Invocation.method(#call, [settings]),
-            returnValue: _i9.Future<_i10.SettingsResult<void>>.value(
-              _i12.dummyValue<_i10.SettingsResult<void>>(
+            returnValue: _i10.Future<_i11.SettingsResult<void>>.value(
+              _i13.dummyValue<_i11.SettingsResult<void>>(
                 this,
                 Invocation.method(#call, [settings]),
               ),
             ),
           )
-          as _i9.Future<_i10.SettingsResult<void>>);
+          as _i10.Future<_i11.SettingsResult<void>>);
 }

@@ -32,6 +32,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
 
   StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _budgetSwitchSubscription;
+  StreamSubscription<void>? _dayChangeSubscription;
 
   ReportsBloc({
     required this.getReportDataUseCase,
@@ -59,12 +60,20 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
         add(const ReportsRefresh());
       }
     });
+
+    // Periods such as "This week" end today, so a new day moves them.
+    _dayChangeSubscription = RefreshBuses.day.changes.listen((_) {
+      if (!isClosed) {
+        add(const ReportsRefresh());
+      }
+    });
   }
 
   @override
   Future<void> close() {
     _refreshSubscription?.cancel();
     _budgetSwitchSubscription?.cancel();
+    _dayChangeSubscription?.cancel();
     return super.close();
   }
 

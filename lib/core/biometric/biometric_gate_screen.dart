@@ -7,6 +7,7 @@ import '../../features/settings/presentation/bloc/theme/theme_state.dart';
 import '../../features/widgets/home_widget_service.dart';
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import '../platform/system_ui_session.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_animated_size.dart';
@@ -54,16 +55,39 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
     super.dispose();
   }
 
+  /// When a lock was skipped because the app had opened a system screen
+  /// itself (a file picker, the share sheet, the camera).
+  DateTime? _lockSkippedAt;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final bloc = context.read<AppLockBloc>();
     // When the app is backgrounded, request the BLoC to re-lock. The BLoC
-    // decides whether re-locking is appropriate (only when biometrics are
-    // enabled) and guards against concurrent prompts. Simply dismissing the
-    // native biometric prompt does NOT trigger this, so the app will not
+    // decides whether re-locking is appropriate (only when the lock is on)
+    // and guards against concurrent prompts. Simply dismissing the native
+    // biometric prompt does NOT trigger this, so the app will not
     // immediately re-lock after a successful authentication.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      context.read<AppLockBloc>().add(const AppLockRequested());
+      // A system screen the app opened itself is not leaving the app:
+      // locking there hid every export, import and restore result behind
+      // the gate.
+      if (SystemUiSession.isActive) {
+        _lockSkippedAt ??= SystemUiSession.now();
+        return;
+      }
+      bloc.add(const AppLockRequested());
+    } else if (state == AppLifecycleState.resumed) {
+      // A system screen left open longer than a session allows locks on
+      // return, so it is never a way around the lock.
+      final skipped = _lockSkippedAt;
+      _lockSkippedAt = null;
+      if (skipped != null &&
+          SystemUiSession.now().difference(skipped) >
+              SystemUiSession.maxDuration) {
+        bloc.add(const AppLockRequested());
+      }
+      bloc.add(const AppLockSyncRequested());
     }
   }
 

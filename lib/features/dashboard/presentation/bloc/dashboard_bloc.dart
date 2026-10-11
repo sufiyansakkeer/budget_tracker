@@ -71,17 +71,27 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         add(const DashboardRefresh());
       }
     });
+
+    // A new calendar day: today's amount, "Spent today" and the day count
+    // all move, even though no data changed.
+    _dayChangeSubscription = RefreshBuses.day.changes.listen((_) {
+      if (!isClosed) {
+        add(const DashboardRefresh());
+      }
+    });
   }
 
   StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _budgetSwitchSubscription;
   StreamSubscription<void>? _billRefreshSubscription;
+  StreamSubscription<void>? _dayChangeSubscription;
 
   @override
   Future<void> close() {
     _refreshSubscription?.cancel();
     _budgetSwitchSubscription?.cancel();
     _billRefreshSubscription?.cancel();
+    _dayChangeSubscription?.cancel();
     return super.close();
   }
 
@@ -298,15 +308,30 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
   }
 
-  /// The next few unpaid bills, soonest first; empty when bills cannot be
-  /// read (not critical for the dashboard).
+  /// Unpaid bills that are overdue (longest overdue first), then the next few
+  /// due from today. Overdue ones lead because they need attention most;
+  /// leaving them out let Home say "No bills due soon" while today's amount
+  /// still set one aside. Either list is empty when it cannot be read (not
+  /// critical for the dashboard).
   Future<List<BillEntity>> _upcomingBills(DateTime today) async {
-    try {
-      // Soonest first, straight from the due-date index.
-      return await billRepository.getUpcomingBills(from: today);
-    } catch (_) {
-      return const [];
+    Future<List<BillEntity>> read(
+      Future<List<BillEntity>> Function() query,
+    ) async {
+      try {
+        return await query();
+      } catch (_) {
+        return const [];
+      }
     }
+
+    final overdue = await read(
+      () => billRepository.getOverdueBills(today: today),
+    );
+    // Soonest first, straight from the due-date index.
+    final upcoming = await read(
+      () => billRepository.getUpcomingBills(from: today),
+    );
+    return [...overdue, ...upcoming];
   }
 
   /// Every running budget's daily limit (each carrying its safe-to-spend

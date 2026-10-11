@@ -7,31 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- The project is released under the MIT License (`LICENSE`).
-
-### Changed
-- The Android and iOS development builds run on every pull request into
-  `main`, and on demand, instead of on pushes to a `developer` branch that
-  did not exist. `ci.yml` runs on pull requests only.
-
-### Fixed
-- Production releases build again on CI. `android/gradle.properties` pinned
-  `org.gradle.java.home` to a JDK path that exists only on one Mac, so every
-  Android release build on the runner failed before compiling. JDK selection
-  now stays out of the repository (CI: `actions/setup-java`; locally:
-  `flutter config --jdk-dir`).
-- Restoring a backup cleared the bill payments table twice. Harmless, now
-  once.
-
-## [1.0.0] - 2026-10-09
+## [1.0.0] - 2026-10-11
 
 The first release of Monivo. On top of everything listed here it brings the
 premium redesign — the design system, Home, Expenses, Budgets and Bills,
 Reports, Settings and a final polish (direction and plan:
 `docs/design/monivo-design-direction.html`) — redesigned palettes, a rebuilt
-home-screen widget and the Omani rial sign. Earlier version numbers were
-retired; everything they shipped is part of this entry.
+home-screen widget, the Omani rial sign and the critical fixes from the UX
+audit of 2026-10-10 (UX-001 to UX-012: `docs/design/ux-audit-2026-10-10.md`,
+progress in `docs/ux-remediation-progress.md`). Earlier version numbers were
+retired, including the 1.0.1 that CI published on 2026-10-10; everything they
+shipped is part of this entry.
 
 ### Added
 - **A large home-screen widget on iOS**, next to the small and medium ones:
@@ -217,6 +203,7 @@ retired; everything they shipped is part of this entry.
 - Notification management with morning reminders, evening summaries,
 	overspending alerts, no-expense reminders, and quiet hours.
 - Currency selection when creating or editing a budget.
+- The project is released under the MIT License (`LICENSE`).
 
 ### Changed
 - **The home-screen widget is rebuilt.** It uses the space it is given: on
@@ -547,9 +534,72 @@ retired; everything they shipped is part of this entry.
 - Updated the notification dependency and Android configuration to improve
 	reminder handling.
 - Added automated Android and iOS build and release workflows.
+- The Android and iOS development builds run on every pull request into
+  `main`, and on demand, instead of on pushes to a `developer` branch that
+  did not exist. `ci.yml` runs on pull requests only.
+- `release.yml` releases the version in `pubspec.yaml` as written when it has
+  no tag yet (the first release, or a version set by hand), and bumps the
+  patch only when that version is already tagged. Before, it always bumped,
+  so `1.0.0+1` could only ever ship as `1.0.1+2`.
 - **Icons**: Updated app icons for better visual consistency and clarity. Optimized for all device resolutions and themes.
 
 ### Fixed
+- **Home and the widget kept yesterday's figures** after the app was left
+  open overnight or resumed on a new day. Home, the widget, Reports and
+  Expenses now reload on resume when the day has changed, and at midnight
+  while the app is open (UX-001).
+- **Back up made a file nobody could reach.** It wrote to the app's private
+  folder and said "Backup created." Back up now asks where the file goes:
+  "Save to this device" (the system save dialog) or "Share". The message says
+  what actually happened, and a cancelled save is never reported as saved
+  (UX-002).
+- **Restore called an export "damaged".** Exports are now marked and named as
+  exports (`monivo_export_*.json`, "Monivo export"). Restore recognises one,
+  including older unmarked exports, says it is not a backup and points to
+  Import, and changes nothing (UX-003).
+- **Changing a budget's currency silently relabelled its expenses.** With
+  expenses in the budget, the form warns that nothing is converted and asks
+  before saving ("₹500 will read ⃄ 500"). A budget with no expenses changes
+  without asking (UX-004).
+- **Moving an expense to a budget in another currency kept the number.** The
+  move sheet shows each budget's currency and won't move across currencies.
+  The editor, where the amount can be corrected in the same edit, asks first
+  (UX-005).
+- **Overdue bills disappeared from Home.** "Coming up" now lists unpaid
+  overdue bills first, longest overdue at the top, says how many there are and
+  shows "N days overdue" in the critical tone (UX-006).
+- **₹ appeared above rows in another currency** in the combined Expenses view.
+  When the selected budgets mix currencies but every visible row shares one,
+  that one is used (UX-007).
+- **Importing the same CSV twice doubled the expenses**, and unreadable rows
+  vanished without a word. Rows whose id is already on the phone, or repeats
+  in the file, are skipped. A row in a currency its budget doesn't use is
+  skipped, and rows that name no budget go to one in their currency. Import
+  then says what it added and what it skipped, and why (UX-008).
+- **A JSON import failed on any expense with tags.** Tags are accepted as a
+  list, the stored JSON text or comma-separated text, and anything else is
+  rejected before anything is written. Comma tags from a spreadsheet CSV now
+  show in the app (UX-009).
+- **The PDF report used the wrong currency and printed boxes.** It uses the
+  report's own currency and embeds Manrope with the Omani rial font, so ₹, €,
+  the rial sign and punctuation draw. OMR keeps its fils; a symbol the fonts
+  can't draw is written as its ISO code ("AED 10.50") (UX-010).
+- **Turning the app lock on or off needed a restart.** It takes effect at
+  once, and the setting is read again on every resume, so a restored backup is
+  honoured (UX-011).
+- **The app lock could open without confirming anyone.** With no fingerprint
+  or face enrolled the gate never appeared, and any error unlocked it. Now only
+  a confirmed unlock opens the app. The lock works with the phone's PIN,
+  pattern or password as well as biometrics, and each failure explains how to
+  recover. The app's own save, share, import, restore and receipt-camera
+  screens don't re-lock it behind them (up to 5 minutes) (UX-012).
+- Production releases build again on CI. `android/gradle.properties` pinned
+  `org.gradle.java.home` to a JDK path that exists only on one Mac, so every
+  Android release build on the runner failed before compiling. JDK selection
+  now stays out of the repository (CI: `actions/setup-java`; locally:
+  `flutter config --jdk-dir`).
+- Restoring a backup cleared the bill payments table twice. Harmless, now
+  once.
 - **Release builds crashed whenever a reminder fired** ("no valid small
   icon"): shrinking the app removed the notification icon. It is now kept.
 - **Symbols written in Arabic script appeared after the amount in
@@ -814,6 +864,13 @@ retired; everything they shipped is part of this entry.
   had no effect.
 
 ### Technical
+- From the UX audit fixes: `RefreshBuses.day`, fed by `DayChangeWatcher`
+  (`lib/core/events/`); `SystemUiSession` (`lib/core/platform/`), which every
+  picker, share and camera call goes through so the lock doesn't re-lock
+  behind it; `FileDeliveryService` and `BackupDestinationSheet`;
+  `ImportReport`; `LockAuthResult` (only `success` unlocks);
+  `SettingsErrorType.wrongFileKind`; `BillRepository.getOverdueBills`; and
+  `PdfFonts`, the fonts the PDF report embeds.
 - `HomeWidgetPayload`: the widget's whole state as one JSON string, worded
   and formatted by `AppMoney` and `SafeToSpendCopy`, so native code never
   formats money. `HomeWidgetService` waits for the saved palette and runs

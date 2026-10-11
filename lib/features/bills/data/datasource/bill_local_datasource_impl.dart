@@ -94,6 +94,22 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
   }
 
   @override
+  Future<List<BillEntity>> getOverdueBills({
+    required DateTime today,
+    int limit = 3,
+  }) async {
+    final start = DateTime(today.year, today.month, today.day);
+    final query = database.select(database.bills)
+      ..where(
+        (b) => b.isPaid.equals(false) & b.dueDate.isSmallerThanValue(start),
+      )
+      ..orderBy([(b) => OrderingTerm.asc(b.dueDate)])
+      ..limit(limit);
+    final rows = await query.get();
+    return rows.map(BillModel.toEntity).toList();
+  }
+
+  @override
   Future<double> getUpcomingBillsTotal({int withinDays = 30}) async {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);

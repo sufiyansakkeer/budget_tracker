@@ -40,3 +40,18 @@ class AppAuthFailed extends AppLockEvent {
 class AppLocked extends AppLockEvent {
   const AppLocked();
 }
+
+/// Settings turned the app lock on or off. Takes effect at once.
+class AppLockPreferenceChanged extends AppLockEvent {
+  final bool enabled;
+
+  const AppLockPreferenceChanged({required this.enabled});
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+/// Re-read the stored app-lock setting (dispatched on resume).
+class AppLockSyncRequested extends AppLockEvent {
+  const AppLockSyncRequested();
+}
