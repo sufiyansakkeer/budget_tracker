@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/notification_settings.dart';
+import '../../domain/services/file_delivery_service.dart';
 
 /// Base class for all settings events.
 abstract class SettingsEvent extends Equatable {
@@ -67,9 +68,14 @@ class SettingsImportEvent extends SettingsEvent {
   List<Object?> get props => [path, json];
 }
 
-/// Creates a local backup.
+/// Creates a backup and saves it to the device or shares it.
 class SettingsBackupEvent extends SettingsEvent {
-  const SettingsBackupEvent();
+  final FileDestination destination;
+
+  const SettingsBackupEvent(this.destination);
+
+  @override
+  List<Object?> get props => [destination];
 }
 
 /// Restores from a local backup.

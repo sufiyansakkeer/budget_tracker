@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/platform/system_ui_session.dart';
 
 /// Represents a generated export file.
 class ExportResult {
@@ -80,6 +81,9 @@ class ExportService {
     final settingsRows = await (_database.select(_database.settings)).get();
 
     return <String, Object?>{
+      // Marks an export, so Restore can tell it from a backup and point to
+      // Import instead.
+      'type': 'monivo_export',
       'schemaVersion': _database.schemaVersion,
       'exportedAt': DateTime.now().toIso8601String(),
       'budgets': budgets
@@ -148,29 +152,37 @@ class ExportService {
     final file = File('${directory.path}/budget_export_$timestamp.csv');
     await file.writeAsString(csv);
 
-    await Share.shareXFiles([
-      XFile(file.path, mimeType: 'text/csv'),
-    ], text: 'Monivo Export');
+    await SystemUiSession.run(
+      () => Share.shareXFiles([
+        XFile(file.path, mimeType: 'text/csv'),
+      ], text: 'Monivo export'),
+    );
 
     return ExportResult(filePath: file.path, message: 'CSV exported.');
   }
 
-  /// Exports the complete application data as a JSON backup and opens the
-  /// share sheet.
+  /// Exports budgets, categories, expenses and settings as a data file and
+  /// opens the share sheet.
+  ///
+  /// This is an export, not a backup: it leaves out bills and is meant for
+  /// other apps or Import. It used to be named and shared as "Monivo
+  /// Backup", which Restore then rejected as damaged.
   Future<ExportResult> exportJson() async {
     final data = await collectJsonData();
 
     final directory = await getTemporaryDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final file = File('${directory.path}/budget_backup_$timestamp.json');
+    final file = File('${directory.path}/monivo_export_$timestamp.json');
 
     const encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString(encoder.convert(data));
 
-    await Share.shareXFiles([
-      XFile(file.path, mimeType: 'application/json'),
-    ], text: 'Monivo Backup');
+    await SystemUiSession.run(
+      () => Share.shareXFiles([
+        XFile(file.path, mimeType: 'application/json'),
+      ], text: 'Monivo export'),
+    );
 
-    return ExportResult(filePath: file.path, message: 'JSON backup exported.');
+    return ExportResult(filePath: file.path, message: 'Data file exported.');
   }
 }

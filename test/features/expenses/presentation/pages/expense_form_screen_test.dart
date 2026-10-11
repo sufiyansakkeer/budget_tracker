@@ -242,6 +242,79 @@ void main() {
     expect(find.text('Discard changes?'), findsOneWidget);
   });
 
+  group('UX-005: changing an expense to a budget in another currency', () {
+    setUp(() {
+      final today = DateTime.now();
+      budgets.budgets['trip'] = testBudget(
+        id: 'trip',
+        name: 'Trip',
+        currency: 'USD',
+        start: DateTime(today.year, today.month, today.day - 20),
+        end: DateTime(today.year, today.month, today.day + 10),
+      );
+      final day = DateTime(today.year, today.month, today.day);
+      expenses.store['e1'] = ExpenseEntity(
+        id: 'e1',
+        budgetId: 'personal',
+        amount: 300,
+        categoryId: 'food',
+        date: day,
+        time: day.add(const Duration(hours: 9)),
+        createdAt: day,
+        updatedAt: day,
+      );
+    });
+
+    Future<void> pickTrip(WidgetTester tester) async {
+      await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Trip').last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('warns, asks before saving, and "Go back" saves nothing', (
+      tester,
+    ) async {
+      await pumpForm(tester, expenseId: 'e1');
+      expect(
+        find.byKey(const ValueKey('expenseCurrencyChangeWarning')),
+        findsNothing,
+      );
+
+      await pickTrip(tester);
+      expect(
+        find.text(
+          'Trip uses USD. The amount is not converted, so enter it in USD.',
+        ),
+        findsOneWidget,
+      );
+
+      await tapSave(tester);
+      expect(find.text('Count this in USD?'), findsOneWidget);
+      await tester.tap(find.text('Go back'));
+      await tester.pumpAndSettle();
+      expect(expenses.store['e1']!.budgetId, 'personal', reason: 'not saved');
+
+      await tapSave(tester);
+      await tester.tap(find.text('Save in USD'));
+      await tester.pumpAndSettle();
+      expect(expenses.store['e1']!.budgetId, 'trip');
+    });
+
+    testWidgets('the picker names each budget\'s currency when they differ', (
+      tester,
+    ) async {
+      await pumpForm(tester, expenseId: 'e1');
+      await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('· USD'), findsWidgets);
+      expect(find.textContaining('· INR'), findsWidgets);
+    });
+  });
+
   group('OMR budget', () {
     setUp(() {
       final today = DateTime.now();

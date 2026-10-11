@@ -34,6 +34,13 @@ abstract class BillRepository {
   /// bill to sort and take three in Dart wasted the due-date index.
   Future<List<BillEntity>> getUpcomingBills({DateTime? from, int limit = 3});
 
+  /// Unpaid bills due before [today], the longest overdue first. Home lists
+  /// them ahead of the upcoming bills.
+  Future<List<BillEntity>> getOverdueBills({
+    required DateTime today,
+    int limit = 3,
+  });
+
   Future<double> getUpcomingBillsTotal({int withinDays = 30});
 
   /// Returns the sum of all recurring bill amounts per month.

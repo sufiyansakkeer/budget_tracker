@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../../../core/platform/system_ui_session.dart';
 
 /// Handles local receipt image storage (capture or gallery).
 /// Stores only the local file path; never uploads anywhere.
@@ -25,9 +26,9 @@ class ReceiptStorageService {
 
   /// Captures a receipt from the camera.
   Future<String?> captureReceipt() async {
-    final file = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 70,
+    // The camera takes the foreground; keep the app lock from re-locking.
+    final file = await SystemUiSession.run(
+      () => _picker.pickImage(source: ImageSource.camera, imageQuality: 70),
     );
     if (file == null) return null;
     return _copyToLocal(file);
@@ -35,9 +36,8 @@ class ReceiptStorageService {
 
   /// Picks a receipt from the gallery.
   Future<String?> pickReceiptFromGallery() async {
-    final file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
+    final file = await SystemUiSession.run(
+      () => _picker.pickImage(source: ImageSource.gallery, imageQuality: 70),
     );
     if (file == null) return null;
     return _copyToLocal(file);

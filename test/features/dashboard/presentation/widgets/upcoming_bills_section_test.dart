@@ -65,6 +65,30 @@ void main() {
     expect(find.textContaining('Not linked', findRichText: true), findsOne);
   });
 
+  testWidgets('UX-006: an overdue bill says so in words, and the section '
+      'counts how many are overdue', (tester) async {
+    final overdue = bill(
+      'late',
+      budgetId: 'personal',
+    ).copyWith(dueDate: DateTime(today.year, today.month, today.day - 2));
+    await pump(tester, [overdue, bill('soon', budgetId: 'personal')]);
+
+    expect(find.text('1 bill is overdue'), findsOneWidget);
+    expect(
+      find.textContaining('2 days overdue', findRichText: true),
+      findsOneWidget,
+    );
+    // An overdue bill alone still lists, rather than "No bills due soon".
+    await pump(tester, [overdue]);
+    expect(find.textContaining('No bills due soon'), findsNothing);
+    expect(find.text('See all'), findsOneWidget);
+  });
+
+  testWidgets('no overdue bill, no overdue line', (tester) async {
+    await pump(tester, [bill('soon')]);
+    expect(find.textContaining('overdue'), findsNothing);
+  });
+
   testWidgets('reads the paying budget aloud', (tester) async {
     final handle = tester.ensureSemantics();
     await pump(tester, [bill('b', budgetId: 'household')]);

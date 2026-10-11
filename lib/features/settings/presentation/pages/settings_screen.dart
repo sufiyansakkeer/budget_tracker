@@ -22,6 +22,7 @@ import '../bloc/settings_state.dart';
 import '../bloc/theme/theme_bloc.dart';
 import '../bloc/theme/theme_event.dart';
 import '../widgets/about_section.dart';
+import '../widgets/backup_destination_sheet.dart';
 import '../widgets/biometric_tile.dart';
 import '../widgets/currency_selector.dart';
 import '../widgets/data_format_sheet.dart';
@@ -36,6 +37,7 @@ import '../widgets/theme_selector.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/platform/system_ui_session.dart';
 
 /// Settings, grouped by what the user is trying to change.
 class SettingsScreen extends StatefulWidget {
@@ -56,12 +58,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<String?> _pickFile({required bool json}) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: json ? ['json'] : ['csv'],
-      withData: false,
+    // The picker takes the foreground; the session keeps the app lock from
+    // treating it as leaving the app.
+    final result = await SystemUiSession.run(
+      () => FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: json ? ['json'] : ['csv'],
+        withData: false,
+      ),
     );
     return result?.files.single.path;
+  }
+
+  Future<void> _backUp(BuildContext context, SettingsBloc bloc) async {
+    final destination = await BackupDestinationSheet.show(context);
+    if (destination != null) bloc.add(SettingsBackupEvent(destination));
   }
 
   void _showCurrencyPicker(BuildContext context, String selectedCode) {
@@ -498,7 +509,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'One file with all your budgets, expenses, bills and '
                     'settings',
                 enabled: dataEnabled,
-                onTap: () => bloc.add(const SettingsBackupEvent()),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _backUp(context, bloc),
               ),
               SettingsTile(
                 key: const Key('settingsRestoreTile'),

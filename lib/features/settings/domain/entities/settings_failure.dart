@@ -9,6 +9,10 @@ enum SettingsErrorType {
   biometricUnavailable,
   notificationPermissionDenied,
   invalidData,
+
+  /// A Monivo file of the other kind: an export picked for Restore. Its
+  /// message is written for people and says which action to use instead.
+  wrongFileKind,
   unsupportedSchema,
   notFound,
 }

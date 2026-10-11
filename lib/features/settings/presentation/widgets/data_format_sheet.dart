@@ -45,7 +45,8 @@ class DataFormatSheet extends StatelessWidget {
               detail:
                   'Budgets, categories, expenses and settings in one '
                   'structured file, for other apps or to import into '
-                  'Monivo later.',
+                  'Monivo later. Not a backup: it leaves out bills, so use '
+                  'Back up to keep everything.',
             ),
           },
         ),
@@ -65,7 +66,9 @@ class DataFormatSheet extends StatelessWidget {
               detail:
                   'Needs a header row naming the date, amount and category '
                   'columns, in any order. A Monivo CSV export works as it '
-                  "is. Rows that can't be read are skipped.",
+                  'is. Rows already on this device, rows that can\'t be '
+                  'read and rows in a currency none of your budgets use '
+                  'are skipped, and counted.',
             ),
             DataFormat.json: (
               title: _jsonTitle,

@@ -22,6 +22,18 @@ class BackupMetadata {
   });
 }
 
+/// The file picked for Restore is a Monivo file, but not a backup: a data
+/// export, which leaves out bills and is meant for Import. Its [message] is
+/// written for people.
+class WrongFileKindException implements Exception {
+  final String message;
+
+  const WrongFileKindException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// Represents a validation error found during backup/restore validation.
 class ValidationError {
   final String field;
@@ -93,7 +105,10 @@ class BackupService {
     };
   }
 
-  /// Creates a full database backup file in the documents directory.
+  /// Writes a full database backup to a temporary file and returns its
+  /// path. The file still has to be delivered (saved or shared) to be of any
+  /// use: the app's own storage is invisible to the user and to the system
+  /// file picker Restore opens, and goes with an uninstall.
   Future<String> createBackup() async {
     final payload = await buildBackupPayload();
     final metadata = payload['metadata'] as Map<String, Object?>;
@@ -101,14 +116,30 @@ class BackupService {
         DateTime.tryParse(metadata['createdAt']?.toString() ?? '') ??
         DateTime.now();
 
-    final directory = await getApplicationDocumentsDirectory();
-    final timestamp = createdAt.millisecondsSinceEpoch;
-    final file = File('${directory.path}/backup_$timestamp.json');
+    final directory = await getTemporaryDirectory();
+    final file = File('${directory.path}/${backupFileName(createdAt)}');
 
     const encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString(encoder.convert(payload));
     return file.path;
   }
+
+  /// "monivo-backup-2026-10-10-1430.json": sorts by date in a folder and
+  /// says what it is.
+  static String backupFileName(DateTime at) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'monivo-backup-${at.year}-${two(at.month)}-${two(at.day)}-'
+        '${two(at.hour)}${two(at.minute)}.json';
+  }
+
+  /// Whether [payload] is a Monivo data export rather than a backup: marked
+  /// `monivo_export`, or (older exports) top-level records with no type.
+  static bool isExport(Map<String, Object?> payload) =>
+      payload['type'] == 'monivo_export' ||
+      (payload['type'] == null &&
+          payload['data'] == null &&
+          payload['exportedAt'] != null &&
+          (payload['expenses'] is List || payload['budgets'] is List));
 
   /// Validates a backup file without applying it. Returns a list of
   /// validation errors (empty if the backup is valid).
@@ -196,6 +227,7 @@ class BackupService {
   /// Validates the payload and schema before applying. Returns the metadata
   /// that was restored.
   Future<BackupMetadata> restore(String path) async {
+    await _rejectExport(path);
     // Validate first.
     final errors = await validateBackup(path);
     if (errors.isNotEmpty) {
@@ -246,6 +278,27 @@ class BackupService {
       appVersion: meta['appVersion']?.toString() ?? 'unknown',
       schemaVersion: (meta['schemaVersion'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  /// Throws [WrongFileKindException] when [path] holds a Monivo export, so
+  /// Restore can say which action to use instead of calling it damaged.
+  /// Anything unreadable is left to [validateBackup].
+  Future<void> _rejectExport(String path) async {
+    final file = File(path);
+    if (!await file.exists()) return;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(await file.readAsString());
+    } on FormatException {
+      return;
+    }
+    if (decoded is Map<String, Object?> && isExport(decoded)) {
+      throw const WrongFileKindException(
+        'This is a Monivo export, not a backup, so it has no bills and '
+        "can't replace your data. To add its records, use Import instead. "
+        'Nothing was changed.',
+      );
+    }
   }
 
   /// Validates budget records in the backup data.

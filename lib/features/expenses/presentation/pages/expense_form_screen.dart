@@ -10,6 +10,7 @@ import '../../../../core/currency/money_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -122,6 +123,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   List<BudgetEntity> _budgets = [];
   String? _selectedBudgetId;
+
+  /// The budget the expense being edited is saved in. Expenses carry no
+  /// currency of their own, so moving one to a budget in another currency
+  /// changes what its amount means.
+  String? _originalBudgetId;
   String? _budgetError;
   bool _loadingBudgets = true;
   bool _budgetsFailed = false;
@@ -274,8 +280,43 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _receiptPath = expense.receiptImagePath;
       _tags = List.of(expense.tags);
       _selectedBudgetId = expense.budgetId;
+      _originalBudgetId = expense.budgetId;
       _populated = true;
     });
+  }
+
+  /// The currency the edited expense is in now, when its budget is known.
+  String? get _originalCurrency {
+    for (final b in _budgets) {
+      if (b.id == _originalBudgetId) return b.currency;
+    }
+    return null;
+  }
+
+  /// Whether this edit moves the expense into a budget in another currency.
+  bool get _changesCurrency {
+    final from = _originalCurrency;
+    final to = _selectedBudget?.currency;
+    return _isEditing && from != null && to != null && from != to;
+  }
+
+  /// Asked before saving an edit that changes the expense's currency: the
+  /// amount is not converted, so the user confirms it is in the new one.
+  Future<bool> _confirmCurrencyChange(double amount) async {
+    if (!_changesCurrency) return true;
+    final budget = _selectedBudget!;
+    final shown = CurrencyFormatter.format(amount, code: budget.currency);
+    return ConfirmationDialog.show(
+      context: context,
+      title: 'Count this in ${budget.currency}?',
+      message:
+          '${budget.name} uses ${budget.currency}, so this expense will be '
+          'counted as $shown there. The amount is not converted; check it '
+          'is in ${budget.currency} before saving.',
+      confirmLabel: 'Save in ${budget.currency}',
+      cancelLabel: 'Go back',
+      icon: Icons.currency_exchange_rounded,
+    );
   }
 
   /// Every decimal the amount was saved with, so OMR 7.125 is not edited
@@ -296,7 +337,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     );
   }
 
-  void _save() {
+  Future<void> _save() async {
     FocusManager.instance.primaryFocus?.unfocus();
 
     final amountError = ExpenseValidator.validateAmount(
@@ -326,6 +367,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (budgetError != null) return _scrollTo(_budgetKey);
 
     final amount = double.parse(_amountController.text.trim());
+    if (!await _confirmCurrencyChange(amount)) return;
+    if (!mounted) return;
     final now = DateTime.now();
     final time = _time ?? TimeOfDay.now();
     final expenseDate = _date ?? now;
@@ -611,7 +654,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         ),
       );
     }
-    return DropdownButtonFormField<String>(
+    // With budgets in more than one currency, each says which it uses.
+    final showCurrency = _budgets.map((b) => b.currency).toSet().length > 1;
+    final picker = DropdownButtonFormField<String>(
       value: _budgets.any((b) => b.id == _selectedBudgetId)
           ? _selectedBudgetId
           : null,
@@ -626,7 +671,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           DropdownMenuItem(
             value: b.id,
             child: Text(
-              '${b.name} · ${formatShortDateRange(b.startDate, b.endDate)}',
+              '${b.name} · ${formatShortDateRange(b.startDate, b.endDate)}'
+              '${showCurrency ? ' · ${b.currency}' : ''}',
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -636,6 +682,26 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         _budgetError = null;
         _dateError = null;
       }),
+    );
+    // One structure either way, so showing the note never rebuilds the
+    // picker from scratch.
+    final budget = _selectedBudget;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        picker,
+        if (_changesCurrency && budget != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          StatusCard(
+            key: const ValueKey('expenseCurrencyChangeWarning'),
+            color: context.appColors.warning,
+            icon: Icons.currency_exchange_rounded,
+            message:
+                '${budget.name} uses ${budget.currency}. The amount is not '
+                'converted, so enter it in ${budget.currency}.',
+          ),
+        ],
+      ],
     );
   }
 

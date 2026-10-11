@@ -31,6 +31,7 @@ import '../notifications/notification_bloc.dart';
 import '../notifications/notification_initializer.dart';
 import '../biometric/biometric_initializer.dart';
 import '../biometric/app_lock_bloc.dart';
+import '../biometric/app_lock_event.dart';
 import '../../features/budget/data/datasource/budget_local_datasource.dart';
 import '../../features/budget/data/datasource/budget_local_datasource_impl.dart';
 import '../../features/budget/data/repository/budget_repository_impl.dart';
@@ -626,6 +627,10 @@ Future<void> initDependencyInjection({
       resetBudgetUseCase: getIt<ResetBudgetUseCase>(),
       scheduleNotificationsUseCase: getIt<ScheduleNotificationsUseCase>(),
       integrityService: getIt<DatabaseIntegrityService>(),
+      // The lock bloc is a singleton above the router; telling it here makes
+      // the toggle take effect without a restart.
+      onLockPreferenceChanged: (enabled) =>
+          getIt<AppLockBloc>().add(AppLockPreferenceChanged(enabled: enabled)),
     ),
   );
 

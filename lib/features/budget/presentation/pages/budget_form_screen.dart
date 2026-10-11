@@ -12,6 +12,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/app_header.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
@@ -20,6 +21,8 @@ import '../../../../core/widgets/primary_button.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/entities/bill_failure.dart';
 import '../../../bills/domain/usecases/get_bills_usecase.dart';
+import '../../../expenses/domain/entities/expense_failure.dart';
+import '../../../expenses/domain/usecases/get_expenses_usecase.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
@@ -83,6 +86,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// warning.
   List<BillEntity> _linkedBills = const [];
 
+  /// How many expenses the budget being edited holds, whatever their date;
+  /// null until read, or when it cannot be read. Expenses carry no currency
+  /// of their own, so a currency change relabels every one of them.
+  int? _expenseCount;
+
   final FocusNode _nameFocus = FocusNode();
 
   bool get _isEditing => _budget != null;
@@ -136,6 +144,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         _loading = false;
       });
       _loadLinkedBills(budget.id);
+      _loadExpenseCount(budget.id);
     } catch (e) {
       debugPrint('[error] Loading budget ${widget.budgetId}: $e');
       if (!mounted) return;
@@ -161,6 +170,63 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     } catch (_) {
       // No warning.
     }
+  }
+
+  /// Best effort: without a count the currency warning still shows, worded
+  /// without a number.
+  Future<void> _loadExpenseCount(String budgetId) async {
+    try {
+      if (!getIt.isRegistered<GetExpensesUseCase>()) return;
+      final result = await getIt<GetExpensesUseCase>()(budgetId: budgetId);
+      if (!mounted) return;
+      if (result case ExpenseSuccess(:final data)) {
+        setState(() => _expenseCount = data.length);
+      }
+    } catch (_) {
+      // Unknown count: the warning is worded without one.
+    }
+  }
+
+  /// Whether the edit changes the currency of a budget that may hold
+  /// expenses (none known to be absent).
+  bool get _relabelsExpenses {
+    final budget = _budget;
+    if (budget == null || _currency == budget.currency) return false;
+    return (_expenseCount ?? 1) > 0;
+  }
+
+  /// "Your 12 expenses keep their amounts and will be shown in OMR". The
+  /// same numbers in another currency: nothing is converted.
+  String get _relabelSentence {
+    final count = _expenseCount;
+    final what = count == null
+        ? 'The expenses in this budget'
+        : count == 1
+        ? 'The 1 expense in this budget'
+        : 'The $count expenses in this budget';
+    return '$what keep their amounts and will be counted in $_currency. '
+        'Nothing is converted.';
+  }
+
+  /// Asked before saving a currency change that relabels expenses. Never
+  /// silent: the user confirms that, say, ₹500 will read as 500 in the new
+  /// currency, or keeps the old one.
+  Future<bool> _confirmCurrencyChange() async {
+    if (!_relabelsExpenses) return true;
+    final from = _budget!.currency;
+    final example = CurrencyFormatter.format(500, code: from);
+    final after = CurrencyFormatter.format(500, code: _currency);
+    return ConfirmationDialog.show(
+      context: context,
+      title: 'Change currency to $_currency?',
+      message:
+          '$_relabelSentence An expense of $example will read $after. To '
+          'keep these amounts in $from, start a new budget in $_currency '
+          'instead.',
+      confirmLabel: 'Change currency',
+      cancelLabel: 'Keep $from',
+      icon: Icons.currency_exchange_rounded,
+    );
   }
 
   /// Parsed set-aside field: null when empty (not set).
@@ -293,6 +359,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       }
       return;
     }
+
+    if (_isEditing && !await _confirmCurrencyChange()) return;
+    if (!mounted) return;
 
     setState(() => _saving = true);
     final notes = _notesController.text.trim().isEmpty
@@ -527,6 +596,15 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                       ],
                     ),
+                    if (_relabelsExpenses) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      StatusCard(
+                        key: const ValueKey('budgetCurrencyExpensesWarning'),
+                        color: context.appColors.warning,
+                        icon: Icons.currency_exchange_rounded,
+                        message: _relabelSentence,
+                      ),
+                    ],
                     if (_currencyWarning != null) ...[
                       const SizedBox(height: AppSpacing.sm),
                       StatusCard(

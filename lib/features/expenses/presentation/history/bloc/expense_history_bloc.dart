@@ -52,6 +52,7 @@ class ExpenseHistoryBloc
 
   StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _budgetSwitchSubscription;
+  StreamSubscription<void>? _dayChangeSubscription;
 
   ExpenseHistoryBloc({
     required this.getExpensesUseCase,
@@ -95,6 +96,13 @@ class ExpenseHistoryBloc
         add(const ExpenseHistoryRefresh());
       }
     });
+
+    // "Today" and "Yesterday" headers and the date presets move at midnight.
+    _dayChangeSubscription = RefreshBuses.day.changes.listen((_) {
+      if (!isClosed) {
+        add(const ExpenseHistoryRefresh());
+      }
+    });
   }
 
   /// Incremented by every load. Loads run concurrently (a bus refresh can
@@ -108,6 +116,7 @@ class ExpenseHistoryBloc
     _searchTimer?.cancel();
     _refreshSubscription?.cancel();
     _budgetSwitchSubscription?.cancel();
+    _dayChangeSubscription?.cancel();
     return super.close();
   }
 

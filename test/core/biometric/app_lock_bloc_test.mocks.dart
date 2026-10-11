@@ -7,6 +7,7 @@ import 'dart:async' as _i3;
 
 import 'package:mockito/mockito.dart' as _i1;
 import 'package:monivo/core/biometric/biometric_initializer.dart' as _i2;
+import 'package:monivo/core/biometric/lock_auth_result.dart' as _i4;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -32,26 +33,20 @@ class MockBiometricInitializer extends _i1.Mock
   }
 
   @override
-  _i3.Future<bool> authenticateIfNeeded() =>
-      (super.noSuchMethod(
-            Invocation.method(#authenticateIfNeeded, []),
-            returnValue: _i3.Future<bool>.value(false),
-          )
-          as _i3.Future<bool>);
-
-  @override
-  _i3.Future<bool> authenticateNow() =>
+  _i3.Future<_i4.LockAuthResult> authenticateNow() =>
       (super.noSuchMethod(
             Invocation.method(#authenticateNow, []),
-            returnValue: _i3.Future<bool>.value(false),
+            returnValue: _i3.Future<_i4.LockAuthResult>.value(
+              _i4.LockAuthResult.success,
+            ),
           )
-          as _i3.Future<bool>);
+          as _i3.Future<_i4.LockAuthResult>);
 
   @override
-  _i3.Future<bool> isAvailable() =>
+  _i3.Future<bool?> isLockEnabled() =>
       (super.noSuchMethod(
-            Invocation.method(#isAvailable, []),
-            returnValue: _i3.Future<bool>.value(false),
+            Invocation.method(#isLockEnabled, []),
+            returnValue: _i3.Future<bool?>.value(),
           )
-          as _i3.Future<bool>);
+          as _i3.Future<bool?>);
 }

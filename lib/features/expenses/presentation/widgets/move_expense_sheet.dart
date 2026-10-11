@@ -12,6 +12,13 @@ import '../../domain/entities/expense_entity.dart';
 /// Lets the user pick another budget for [expense] and checks that the
 /// expense date falls inside that budget's period.
 ///
+/// Only budgets in the expense's currency can be picked. Expenses carry no
+/// currency of their own, so a move keeps the number and takes the target
+/// budget's currency: ₹300 moved to a dollar budget would count as $300.
+/// Budgets in another currency are listed, disabled, with the reason;
+/// changing an expense's budget and amount together is done in the editor,
+/// which asks first.
+///
 /// Returns the chosen budget, or null when cancelled or not allowed (the
 /// reason is shown in a SnackBar). Shared by the details screen and the
 /// long-press actions on the history list.
@@ -36,6 +43,10 @@ abstract final class MoveExpenseSheet {
       return null;
     }
 
+    final currency = _currencyOf(all, expense.budgetId);
+    bool sameCurrency(BudgetEntity b) =>
+        currency == null || b.currency == currency;
+
     final selected = await AppBottomSheet.show<BudgetEntity>(
       context: context,
       builder: (context) => Column(
@@ -43,7 +54,9 @@ abstract final class MoveExpenseSheet {
         children: [
           const AppSheetHeader(
             title: 'Move to budget',
-            subtitle: 'The expense date must fall inside the budget period.',
+            subtitle:
+                'The expense date must fall inside the budget period, and '
+                'the budget must use the same currency.',
           ),
           Flexible(
             child: ListView(
@@ -52,12 +65,19 @@ abstract final class MoveExpenseSheet {
                 for (final budget in candidates)
                   ListTile(
                     key: Key('moveTarget_${budget.id}'),
+                    enabled: sameCurrency(budget),
                     leading: const Icon(Icons.account_balance_wallet_outlined),
                     title: Text(budget.name),
                     subtitle: Text(
-                      formatDateRange(budget.startDate, budget.endDate),
+                      sameCurrency(budget)
+                          ? '${formatDateRange(budget.startDate, budget.endDate)}'
+                                ' · ${budget.currency}'
+                          : 'Uses ${budget.currency}. Amounts aren\'t '
+                                'converted, so this expense can\'t move here.',
                     ),
-                    onTap: () => Navigator.of(context).pop(budget),
+                    onTap: sameCurrency(budget)
+                        ? () => Navigator.of(context).pop(budget)
+                        : null,
                   ),
               ],
             ),
@@ -67,6 +87,15 @@ abstract final class MoveExpenseSheet {
       ),
     );
     if (selected == null || !context.mounted) return null;
+
+    if (!sameCurrency(selected)) {
+      _snack(
+        context,
+        "${selected.name} uses ${selected.currency}, so this expense can't "
+        'move there. Amounts are never converted.',
+      );
+      return null;
+    }
 
     if (!selected.isActiveOn(expense.date)) {
       _snack(
@@ -79,6 +108,14 @@ abstract final class MoveExpenseSheet {
       return null;
     }
     return selected;
+  }
+
+  /// The currency of the expense's budget, or null when it isn't listed.
+  static String? _currencyOf(List<BudgetEntity> budgets, String budgetId) {
+    for (final b in budgets) {
+      if (b.id == budgetId) return b.currency;
+    }
+    return null;
   }
 
   /// Null when the budgets couldn't be read, so that is never mistaken
