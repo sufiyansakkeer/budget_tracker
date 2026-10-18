@@ -3,8 +3,10 @@
 Tracks the fixes for the issues in [`docs/design/ux-audit-2026-10-10.md`](design/ux-audit-2026-10-10.md). The audit report itself is not edited.
 
 - **Branch:** `fix/monivo-ux-p0-critical`, from `main` at `c8fa6e1b`. P0 is committed in `3aa6ce2e`.
-- **Release:** the P0 fixes ship in **1.0.0**, listed in `CHANGELOG.md` and `RELEASE_NOTES.md`.
+- **Release:** the P0 fixes shipped in **1.0.0**, published on 2026-10-11 from the merge of PR #11 (`8237fc11`). They are listed in `CHANGELOG.md` and `RELEASE_NOTES.md`.
+- **Device checks:** done on 2026-10-11 on the Android 17 emulator (Pixel 9 Pro); see [Device checks](#device-checks-2026-10-11). iOS was not run on a device.
 - **Phase:** P0 (UX-001 to UX-012) is implemented. P1 has not started and waits for review.
+- **Pulled forward from P1:** only the workflow part of UX-026. `release.yml` no longer publishes a literal `\n` in the release text (it uses `RELEASE_NOTES.md` when its heading names the version). The rest of UX-026 (launch-time modal, persisted "skip", Privacy copy) is still open.
 
 ## Status key
 
@@ -12,14 +14,15 @@ Tracks the fixes for the issues in [`docs/design/ux-audit-2026-10-10.md`](design
 |---|---|
 | **Fixed and verified** | Root cause fixed. Regression tests pass, and where noted the test was shown to fail on the old code. |
 | **Fixed; device check needed** | Code and tests done. A platform behaviour (system dialog, biometrics, overnight resume) still needs a run on a phone. |
+| **Fixed and verified on device** | As above, and the device check passed on Android. |
 | **Blocked** | Waiting on a product decision. |
 
 ## P0 summary
 
 | ID | Status | Fix in one line |
 |---|---|---|
-| UX-001 | Fixed; device check needed | A day-change signal reloads Home, the widget, Reports and Expenses on resume and at midnight |
-| UX-002 | Fixed; device check needed | Back up saves through the system "save" dialog or the share sheet; success is reported only when the file reached the user |
+| UX-001 | Fixed and verified on device | A day-change signal reloads Home, the widget, Reports and Expenses on resume and at midnight |
+| UX-002 | Fixed and verified on device | Back up saves through the system "save" dialog or the share sheet; success is reported only when the file reached the user |
 | UX-003 | Fixed and verified | Exports are marked and named as exports; Restore recognises one and points to Import |
 | UX-004 | Fixed and verified | A currency change on a budget with expenses warns inline and needs confirmation; nothing is converted |
 | UX-005 | Fixed and verified | The move sheet won't move an expense across currencies; the editor asks before saving one |
@@ -27,9 +30,9 @@ Tracks the fixes for the issues in [`docs/design/ux-audit-2026-10-10.md`](design
 | UX-007 | Fixed and verified | The combined Expenses view takes its currency from the rows on screen |
 | UX-008 | Fixed and verified | CSV re-import skips expenses already present (by id) and counts every skipped row by reason |
 | UX-009 | Fixed and verified | JSON import accepts tags as a list, the stored JSON string or comma text, and rejects malformed ones before writing |
-| UX-010 | Fixed; device check needed | The PDF uses the report's currency and embeds Manrope plus the Omani Rial font |
+| UX-010 | Fixed and verified on device | The PDF uses the report's currency and embeds Manrope plus the Omani Rial font |
 | UX-011 | Fixed and verified | Turning the lock on or off takes effect at once; the setting is re-read on resume |
-| UX-012 | Fixed; device check needed | The lock never opens unless the user is confirmed; a PIN-only phone can use it; failures explain how to recover |
+| UX-012 | Fixed and verified on device | The lock never opens unless the user is confirmed; a PIN-only phone can use it; failures explain how to recover |
 
 The brief's app-lock guidance asked not to re-lock while the app's own file picker or share sheet is open. That is part of audit item **UX-018 (P1)**, and the guard needed for it is in this batch (see UX-002/UX-012 below). The rest of UX-018 (auto-prompt on resume, a grace period for ordinary backgrounding) is still open for P1.
 
@@ -283,10 +286,37 @@ None of these changes stored data on its own; each is reversible.
 | `dart format --set-exit-if-changed` on the 62 changed Dart files | 0 to change |
 | Goldens | Only `settings.{light,dark}.1x.png` changed, inspected and intended (see above). Every other golden is unchanged. |
 
-**Not run:** no device or emulator session, no iOS, no TalkBack or VoiceOver. The "device check" items above are still owed.
+**Not run at the time:** no device or emulator session, no iOS, no TalkBack or VoiceOver. The Android device checks were done afterwards (next section); iOS, TalkBack and VoiceOver are still owed.
 
 **Known risks:**
 - The lock is now stricter: a phone with the lock on and no screen lock is held at the gate until one is set up. Check this on a device before release.
 - The system save dialog and the share sheet are platform UI. Their outcome reporting is unit-tested through a fake, not on a phone.
 - A JSON data file whose budget id already exists here with a different currency still overwrites that budget's currency on import (merge semantics, unchanged). This is rare; it is noted for a later item.
 - Backups and exports still fail on iPad until UX-019 (P1) adds `sharePositionOrigin`.
+
+## Device checks (2026-10-11)
+
+Run on the Android 17 emulator (Pixel 9 Pro, `user` build) with a debug build of `8237fc11`, the commit released as 1.0.0, installed over the earlier 1.0.1 build with its data kept. The published APK was checked separately: version 1.0.0, build 1. The emulator was put back afterwards: test data restored from a backup, active budget, app lock off, no screen lock, automatic time on.
+
+| ID | Check | Result |
+|---|---|---|
+| UX-001 | App in the background; clock moved to 00:00:30 the next day; resumed | Pass. Home read "Mon 12 Oct", day 5 of 31, the bill one day more overdue. The home-screen widget showed the new day's figure, not "Tap to update". |
+| UX-002 | Back up › Save to this device › Downloads › Save | Pass. "Backup saved. Restore can open it from where you saved it." File `monivo-backup-2026-10-11-1138.json` (17 KB) in Downloads. |
+| UX-002 | Cancel the save dialog; dismiss the share sheet | Pass. Both say "Backup not saved. Nothing was kept on this device." |
+| UX-002 | Restore › pick that file › Restore | Pass. "Backup restored." (schema v8). |
+| UX-004 | Change the currency of a budget with 2 expenses to OMR | Pass. Inline warning, then "Change currency to OMR?" with "Keep INR". |
+| UX-006 | Home with an unpaid bill 6 days overdue | Pass. "1 bill is overdue", the bill first, in red. |
+| UX-010 | Export PDF for an INR budget and an OMR budget, pulled and rendered | Pass. ₹ and the rial sign draw in every amount, OMR keeps fils (72.727), the dash and bullet draw. |
+| UX-011 | Turn the lock on, leave, come back | Pass. Locked on return without a restart. |
+| UX-012 | No screen lock: turn the lock on | Pass. Refused: "Set up a screen lock or fingerprint on your phone first." |
+| UX-012 | PIN only (no biometrics): turn the lock on, unlock | Pass. The system PIN prompt confirms and unlocks. |
+| UX-012 | Lock on, then the screen lock removed; tap Unlock and cold start | Pass. The gate stays up with "This phone has no screen lock or fingerprint set up…", and unlocks after a PIN is added. |
+| UX-012 | Five wrong PINs at the gate | Pass (stays locked). Android 17 locks the whole phone after repeated failures inside the system prompt, so the app shows "Not unlocked. Tap Unlock to try again." rather than its lockout message (see UX-069). |
+| Lock guard | Save dialog, share sheet and Restore picker with the lock on | Pass. No re-lock on return. |
+| Updates | Settings › Updates with v1.0.0 as the latest release | Pass. "You're up to date"; no update dialog at launch. |
+
+**Noticed while testing (not P0 regressions; for P1 triage):**
+- The lock row is titled "Biometric lock" and, with no screen lock, says "Biometric authentication isn't available on this device", although a PIN alone now works (related to UX-069).
+- The Reports ⋮ and filter buttons and the budget screen's pencil and ⋮ have no accessibility label (uiautomator shows no content description).
+- Restore keeps the device's active budget: `active_budget_id` lives in SharedPreferences, outside the backup.
+

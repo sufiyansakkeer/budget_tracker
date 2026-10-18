@@ -174,6 +174,14 @@ jobs:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_BUILD: ${{ steps.version.outputs.build }}
         run: |
+          # The app's "What's new" shows this text. RELEASE_NOTES.md is used
+          # only when its heading names this version, so stale notes never ship.
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          if head -n 1 RELEASE_NOTES.md | grep -Fqx "# Monivo $RELEASE_VERSION"; then
+            cp RELEASE_NOTES.md "$notes_file"
+          else
+            printf 'Version: %s\nBuild: %s\n' "$RELEASE_VERSION" "$RELEASE_BUILD" > "$notes_file"
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" \
               build/app/outputs/flutter-apk/app-release.apk \
@@ -181,13 +189,13 @@ jobs:
               --clobber
             gh release edit "$RELEASE_TAG" \
               --title "Release $RELEASE_TAG" \
-              --notes "Version: $RELEASE_VERSION\nBuild: $RELEASE_BUILD"
+              --notes-file "$notes_file"
           else
             gh release create "$RELEASE_TAG" \
               build/app/outputs/flutter-apk/app-release.apk \
               build/app/outputs/bundle/release/app-release.aab \
               --title "Release $RELEASE_TAG" \
-              --notes "Version: $RELEASE_VERSION\nBuild: $RELEASE_BUILD"
+              --notes-file "$notes_file"
           fi
 
       - name: Remove signing files
