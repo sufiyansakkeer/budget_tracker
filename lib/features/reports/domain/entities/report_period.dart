@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Supported report periods.
 enum ReportPeriod {
@@ -46,7 +47,7 @@ class ReportRange extends Equatable {
   });
 
   /// Total number of calendar days in the range (inclusive).
-  int get dayCount => end.difference(start).inDays + 1;
+  int get dayCount => calendarDaysBetween(start, end) + 1;
 
   /// Whether the range is valid (start not after end).
   bool get isValid => !start.isAfter(end);

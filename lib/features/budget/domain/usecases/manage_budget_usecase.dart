@@ -66,8 +66,10 @@ class ManageBudgetUseCase {
     String name,
     double amount,
     DateTime startDate,
-    DateTime endDate,
-  ) {
+    DateTime endDate, {
+    double? reservedAmount,
+    double? savingsTarget,
+  }) {
     if (name.trim().isEmpty) {
       return 'Budget name cannot be empty.';
     }
@@ -80,6 +82,37 @@ class ManageBudgetUseCase {
     if (!endDate.isAfter(startDate)) {
       return 'End date must be after the start date.';
     }
+    return validateSetAside(reservedAmount, amount) ??
+        validateSetAside(savingsTarget, amount);
+  }
+
+  /// Money kept aside, or a savings goal, for a budget of [budgetAmount].
+  /// Null (not set) is fine.
+  static String? validateSetAside(double? amount, double budgetAmount) {
+    if (amount == null) return null;
+    if (amount < 0) return "This can't be negative.";
+    if (budgetAmount > 0 && amount > budgetAmount) {
+      return "This can't be more than the budget amount.";
+    }
     return null;
+  }
+
+  /// Whether money kept aside and the savings goal together take the whole
+  /// budget, leaving nothing free to spend. Added in [currency]'s units:
+  /// OMR 138.7 + 0.2 is 138.89999… in doubles, just short of 138.9.
+  static bool setAsideTakesAll({
+    required double budgetAmount,
+    double? reserve,
+    double? savings,
+    required String currency,
+  }) {
+    if (budgetAmount <= 0) return false;
+    final money = MoneyMath.forCurrency(currency);
+    try {
+      final set = money.sumUnits([reserve ?? 0, savings ?? 0]);
+      return set > 0 && set >= money.toUnits(budgetAmount);
+    } on ArgumentError {
+      return false;
+    }
   }
 }

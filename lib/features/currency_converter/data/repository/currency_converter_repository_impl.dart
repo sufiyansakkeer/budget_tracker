@@ -236,6 +236,10 @@ class CurrencyConverterRepositoryImpl implements CurrencyConverterRepository {
       }
       return CurrencyList(currencies: _toEntities(fetched));
     } catch (e) {
+      developer.log(
+        '[Converter] Could not fetch currencies: $e',
+        name: 'Converter',
+      );
       if (cached != null) {
         return CurrencyList(currencies: _toEntities(cached.currencies));
       }
@@ -273,7 +277,11 @@ class CurrencyConverterRepositoryImpl implements CurrencyConverterRepository {
     try {
       return await localDataSource.getPreferences() ??
           ConverterPreferences.defaults;
-    } catch (_) {
+    } catch (e) {
+      developer.log(
+        '[Converter] Could not read preferences: $e',
+        name: 'Converter',
+      );
       return ConverterPreferences.defaults;
     }
   }

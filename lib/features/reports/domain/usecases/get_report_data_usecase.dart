@@ -4,6 +4,7 @@ import '../entities/report_failure.dart';
 import '../entities/report_period.dart';
 import '../repository/reports_repository.dart';
 import '../services/analytics_service.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Loads all data needed to render the reports screen and computes report
 /// analytics via [AnalyticsService].
@@ -58,7 +59,7 @@ class GetReportDataUseCase {
       // narrower set is taken from it rather than read again.
       final comparisonFilter = ExpenseHistoryFilter(
         categoryId: filter.categoryId,
-        dateFrom: effectiveFrom.subtract(Duration(days: range.dayCount)),
+        dateFrom: effectiveFrom.addDays(-range.dayCount),
         dateTo: effectiveTo,
         minAmount: filter.minAmount,
         maxAmount: filter.maxAmount,

@@ -6,6 +6,9 @@ Tracks the fixes for the issues in [`docs/design/ux-audit-2026-10-10.md`](design
 - **Release:** the P0 fixes shipped in **1.0.0**, published on 2026-10-11 from the merge of PR #11 (`8237fc11`). They are listed in `CHANGELOG.md` and `RELEASE_NOTES.md`.
 - **Device checks:** done on 2026-10-11 on the Android 17 emulator (Pixel 9 Pro); see [Device checks](#device-checks-2026-10-11). iOS was not run on a device.
 - **Phase:** P0 (UX-001 to UX-012) is implemented. P1 has not started and waits for review.
+- **Done in the code-quality refactor** (branch `refactor/code-quality`, 2026-10-18):
+  - The dead-code part of UX-110: `SectionHeader`, the `AppHeader` widget (its date-range helpers moved to `core/dates/date_range_format.dart`), `AppCardTile`, `StatusChipStyles`, `AnimatedPercent`/`AnimatedNumber`, `CurrencyProvider.formatAmount`, `BudgetBloc` and `DashboardBloc._deriveSpendingTarget`. The consolidation part of UX-110 (amount fields, save buttons, snackbars) is still open.
+  - UX-009 fixed tags in Import only; Restore had the same cast and failed on any backup with a tagged expense. Restore now reads tags through `ImportService.normalizeTags`.
 - **Pulled forward from P1:** only the workflow part of UX-026. `release.yml` no longer publishes a literal `\n` in the release text (it uses `RELEASE_NOTES.md` when its heading names the version). The rest of UX-026 (launch-time modal, persisted "skip", Privacy copy) is still open.
 
 ## Status key
@@ -81,7 +84,7 @@ None of these changes stored data on its own; each is reversible.
   - Settings says "Backup saved…", "Backup shared.", "Backup sent to the share sheet…" or "Backup not saved…". A cancelled save is never reported as a success.
   - The file is named `monivo-backup-YYYY-MM-DD-HHmm.json` and written to the temporary folder.
 - **Files:**
-  - `lib/features/settings/domain/services/file_delivery_service.dart` (new)
+  - `lib/core/files/file_delivery_service.dart` (new; moved from `settings/domain/services/` on 2026-11-01, now shared with report exports)
   - `lib/features/settings/presentation/widgets/backup_destination_sheet.dart` (new)
   - `lib/features/settings/domain/services/backup_service.dart`
   - `lib/features/settings/domain/usecases/backup_data_usecase.dart`

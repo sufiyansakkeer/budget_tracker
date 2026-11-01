@@ -1,5 +1,6 @@
 import '../entities/expense_entity.dart';
 import '../entities/expense_history_filter.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Applies the active [ExpenseHistoryFilter] to a list of expenses.
 ///
@@ -20,8 +21,8 @@ class FilterExpensesUseCase {
     }
 
     final categoryId = filter.categoryId;
-    final start = filter.dateFrom == null ? null : _dateOnly(filter.dateFrom!);
-    final end = filter.dateTo == null ? null : _dateOnly(filter.dateTo!);
+    final start = filter.dateFrom?.dateOnly;
+    final end = filter.dateTo?.dateOnly;
     final minAmount = filter.minAmount;
     final maxAmount = filter.maxAmount;
     // Lower-cased once, not once per expense.
@@ -31,7 +32,7 @@ class FilterExpensesUseCase {
     bool matches(ExpenseEntity e) {
       if (categoryId != null && e.categoryId != categoryId) return false;
       if (start != null || end != null) {
-        final day = _dateOnly(e.date);
+        final day = e.date.dateOnly;
         if (start != null && day.isBefore(start)) return false;
         if (end != null && day.isAfter(end)) return false;
       }
@@ -50,7 +51,4 @@ class FilterExpensesUseCase {
 
     return expenses.where(matches).toList();
   }
-
-  DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
 }

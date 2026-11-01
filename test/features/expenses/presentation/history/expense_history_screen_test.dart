@@ -12,6 +12,7 @@ import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.da
 import 'package:monivo/features/expenses/domain/usecases/page_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/search_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/sort_expenses_usecase.dart';
+import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_event.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_state.dart';
@@ -121,6 +122,45 @@ void main() {
     expect(find.textContaining('₹'), findsNothing);
   });
 
+  testWidgets('a swiped expense that fails to delete comes back', (
+    tester,
+  ) async {
+    seed([_expense('a', 120, note: 'Lunch')]);
+    expenses.failWrites = 'database is locked';
+    final history = bloc();
+    addTearDown(history.close);
+    final expenseBloc = memoryExpenseBloc(expenses, budgets);
+    addTearDown(expenseBloc.close);
+    history.add(const ExpenseHistoryLoad());
+    await history.stream.firstWhere(
+      (s) => s.status == ExpenseHistoryStatus.loaded,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<ExpenseHistoryBloc>.value(value: history),
+            BlocProvider<ExpenseBloc>.value(value: expenseBloc),
+          ],
+          child: const ExpenseHistoryScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(
+      find.byKey(const Key('dismiss_a')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lunch'), findsOneWidget);
+    expect(expenses.store, contains('a'));
+  });
+
   testWidgets('a day header says what was spent and how many, quietly', (
     tester,
   ) async {
@@ -144,6 +184,122 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Switch budget'), findsOneWidget);
     expect(find.text('View budgets together'), findsOneWidget);
+  });
+
+  test('sorted by amount, the first page is the newest days, so loading more '
+      'only adds rows below', () async {
+    // 25 days, older days spending more: by amount alone the first page
+    // would be the oldest 20 days, and the next page would land above them.
+    seed([
+      for (var day = 1; day <= 25; day++)
+        _expense('e$day', 100.0 - day, day: day),
+    ]);
+    final history = bloc();
+    addTearDown(history.close);
+    history.add(const ExpenseHistoryLoad());
+    await history.stream.firstWhere(
+      (s) => s.status == ExpenseHistoryStatus.loaded,
+    );
+
+    history.add(
+      const ExpenseHistorySortChanged(ExpenseSortOption.highestAmount),
+    );
+    final sorted = await history.stream.firstWhere(
+      (s) => s.sort == ExpenseSortOption.highestAmount,
+    );
+
+    expect(sorted.loadedExpenses.map((e) => e.date.day), [
+      for (var day = 25; day > 5; day--) day,
+    ]);
+  });
+
+  test(
+    'clearing filters right after typing does not bring the search back',
+    () async {
+      final history = bloc();
+      addTearDown(history.close);
+      history.add(const ExpenseHistoryLoad());
+      await history.stream.firstWhere(
+        (s) => s.status == ExpenseHistoryStatus.loaded,
+      );
+
+      history.add(const ExpenseHistorySearchChanged('lunch'));
+      history.add(const ExpenseHistoryClearFilters());
+      // Past the search debounce.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+
+      expect(history.state.query, '');
+    },
+  );
+
+  test('an active budget that cannot be read ends in the error state, '
+      'not stuck loading', () async {
+    budgets.failActiveReads = true;
+    final history = bloc();
+    addTearDown(history.close);
+
+    history.add(const ExpenseHistoryLoad());
+    final state = await history.stream
+        .firstWhere((s) => s.status == ExpenseHistoryStatus.error)
+        .timeout(const Duration(seconds: 5));
+
+    expect(state.errorMessage, isNotNull);
+  });
+
+  test('with no active budget left, the header drops the old name', () async {
+    final history = bloc();
+    addTearDown(history.close);
+    history.add(const ExpenseHistoryLoad());
+    await history.stream.firstWhere(
+      (s) => s.status == ExpenseHistoryStatus.loaded,
+    );
+    expect(history.state.budgetName, 'Personal');
+
+    budgets.activeId = null;
+    history.add(const ExpenseHistoryRefresh());
+    await history.stream.firstWhere(
+      (s) => s.status == ExpenseHistoryStatus.loaded,
+    );
+
+    expect(history.state.budgetName, isNull);
+  });
+
+  Future<void> chooseViewTogether(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('viewModeToggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View budgets together'));
+    // Well under the 3 s the screen used to wait before answering.
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+
+  testWidgets('with no budget to combine, viewing budgets together says so '
+      'at once', (tester) async {
+    budgets.budgets['personal'] = budgets.budgets['personal']!.copyWith(
+      isArchived: true,
+    );
+    seed([_expense('a', 120)]);
+    await pump(tester);
+
+    await chooseViewTogether(tester);
+
+    expect(
+      find.text('You need at least one budget to combine.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('budgets that cannot be read are not reported as missing', (
+    tester,
+  ) async {
+    seed([_expense('a', 120)]);
+    final history = await pump(tester);
+    budgets.failListing = true;
+
+    await chooseViewTogether(tester);
+
+    expect(find.text("Couldn't load your budgets. Try again."), findsOneWidget);
+    expect(find.text('You need at least one budget to combine.'), findsNothing);
+    expect(history.state.isCombinedMode, isFalse);
   });
 
   testWidgets('the header scrolls away with the list', (tester) async {

@@ -49,68 +49,6 @@ void main() {
     );
   }
 
-  test('returns a positive savings insight when there are no expenses', () {
-    final result = useCase(
-      summary(spent: 0, average: 0, expectedSavings: 30000),
-    );
-    expect(result.first.id, 'on_track_savings');
-    expect(result.first.type, InsightType.positive);
-  });
-
-  test('reports today overspending and its amount', () {
-    final result = useCase(summary(todayOverspending: 450));
-    final insight = result.firstWhere((i) => i.id == 'today_overspending');
-    expect(insight.type, InsightType.warning);
-    expect(insight.message, contains('₹450'));
-  });
-
-  test('reports positive spending pace below safe allowance', () {
-    final result = useCase(summary(average: 400, safe: 500));
-    expect(result.first.id, 'spending_pace_under');
-    expect(result.first.type, InsightType.positive);
-    expect(result.first.message, contains('₹100'));
-  });
-
-  test('reports projected overspending', () {
-    final result = useCase(
-      summary(expectedSavings: 0, expectedOverspending: 2500),
-    );
-    expect(result.first.id, 'projected_overspending');
-    expect(result.first.message, contains('₹2,500'));
-  });
-
-  test('reports projected savings', () {
-    final result = useCase(summary(expectedSavings: 2000));
-    expect(result.any((i) => i.id == 'on_track_savings'), isTrue);
-  });
-
-  test('reports critical budget overspending with the actual amount', () {
-    final result = useCase(
-      summary(
-        spent: 33000,
-        status: BudgetStatus.overBudget,
-        expectedSavings: 0,
-        expectedOverspending: 4500,
-      ),
-    );
-    expect(result.first.id, 'over_budget');
-    expect(result.first.type, InsightType.negative);
-    expect(result.first.message, contains('₹3,000'));
-  });
-
-  test('returns under-budget positive insight when no pace data exists', () {
-    final result = useCase(summary(average: 0, expectedSavings: 0));
-    expect(result.any((i) => i.id == 'under_budget'), isTrue);
-  });
-
-  test('handles zero remaining days without crashing', () {
-    final result = useCase(
-      summary(remaining: 0, average: 500, expectedSavings: 0),
-    );
-    expect(result, isNotEmpty);
-    expect(result.every((i) => !i.message.contains('NaN')), isTrue);
-  });
-
   test('returns an informational insight when there is no budget', () {
     final result = useCase(summary(monthly: 0, spent: 0, expectedSavings: 0));
     expect(result, hasLength(1));
@@ -118,10 +56,13 @@ void main() {
     expect(result.first.type, InsightType.info);
   });
 
-  test('falls back to a real-data general insight for empty activity', () {
-    final result = useCase(summary(average: 0, expectedSavings: 0, spent: 0));
-    expect(result.first.id, 'under_budget');
-    expect(result.first.type, InsightType.positive);
+  // Without it, Home has no daily figure to compare against: the old
+  // bill-blind lines contradicted the hero (review B6).
+  test('without the safe-to-spend result there are no insights', () {
+    final result = useCase(
+      summary(todayOverspending: 450, expectedOverspending: 2500),
+    );
+    expect(result, isEmpty);
   });
 
   group('with the safe-to-spend engine result', () {
@@ -243,18 +184,6 @@ void main() {
       expect(ids, contains('per_budget_over_other'));
       expect(ids, isNot(contains('per_budget_over_aug')));
       expect(ids, isNot(contains('per_budget_weekly_over_aug')));
-    });
-
-    test('without the engine result the per-budget insights are unchanged', () {
-      final result = useCase(
-        summary(),
-        budgetDailyLimits: [overLimit('aug'), overLimit('other')],
-      );
-      final ids = result.map((i) => i.id).toList();
-      expect(
-        ids,
-        containsAll(['per_budget_over_aug', 'per_budget_over_other']),
-      );
     });
   });
 }

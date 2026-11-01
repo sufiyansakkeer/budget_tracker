@@ -430,21 +430,6 @@ class MockBudgetRepository extends _i1.Mock implements _i12.BudgetRepository {
           as _i3.Future<double>);
 
   @override
-  _i3.Future<int> getRemainingDays(
-    String? budgetId, {
-    DateTime? referenceDate,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #getRemainingDays,
-              [budgetId],
-              {#referenceDate: referenceDate},
-            ),
-            returnValue: _i3.Future<int>.value(0),
-          )
-          as _i3.Future<int>);
-
-  @override
   _i3.Future<_i15.BudgetResult<_i12.BudgetCalculationContext>>
   getCalculationContext(String? budgetId, {DateTime? referenceDate}) =>
       (super.noSuchMethod(

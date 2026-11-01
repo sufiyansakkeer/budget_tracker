@@ -189,7 +189,13 @@ class GetSafeToSpendUseCase {
   Future<List<BillEntity>?> _readBills() async {
     try {
       return await _billRepository.getBills();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      developer.log(
+        '[SafeToSpend] Could not read bills',
+        name: 'SafeToSpend',
+        error: error,
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }

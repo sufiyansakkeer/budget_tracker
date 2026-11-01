@@ -196,7 +196,8 @@ class _UpdateButtonsState extends State<_UpdateButtons> {
           ),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Opening the release page: $e');
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(

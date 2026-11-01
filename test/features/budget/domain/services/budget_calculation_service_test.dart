@@ -180,6 +180,25 @@ void main() {
   });
 
   group('calculateRemainingBudget', () {
+    test('in a currency, subtracts in its minor units', () {
+      expect(
+        service.calculateRemainingBudget(
+          monthlyAmount: 448.59,
+          totalSpent: 198.44 + 250.15,
+          currency: 'INR',
+        ),
+        0,
+      );
+      expect(
+        service.calculateRemainingBudget(
+          monthlyAmount: 10,
+          totalSpent: 2.125,
+          currency: 'OMR',
+        ),
+        7.875,
+      );
+    });
+
     test('subtracts total spent from monthly amount', () {
       expect(
         service.calculateRemainingBudget(monthlyAmount: 30000, totalSpent: 800),
@@ -386,45 +405,6 @@ void main() {
       final second = service.buildSummary(input, currency: 'INR');
       expect(identical(first, second), isTrue);
     });
-
-    test('clearCache forces recalculation', () {
-      final input = BudgetCalculationInput(
-        monthlyAmount: 30000,
-        totalSpent: 0,
-        todaySpending: 0,
-        referenceDate: _aug10,
-        startDate: start,
-        endDate: end,
-      );
-
-      final first = service.buildSummary(input, currency: 'INR');
-      service.clearCache();
-      final second = service.buildSummary(input, currency: 'INR');
-      expect(identical(first, second), isFalse);
-      expect(first, equals(second));
-    });
-  });
-
-  group('buildAnalytics', () {
-    test('includes projected remaining balance', () {
-      final input = BudgetCalculationInput(
-        monthlyAmount: 30000,
-        totalSpent: 9000,
-        todaySpending: 500,
-        referenceDate: _aug10,
-        startDate: start,
-        endDate: end,
-      );
-
-      final analytics = service.buildAnalytics(input);
-
-      expect(analytics.daysPassed, 10);
-      expect(analytics.daysRemaining, 22);
-      expect(analytics.averageDailySpending, 900);
-      expect(analytics.expectedMonthEndSpending, closeTo(27900, 0.01));
-      expect(analytics.projectedRemainingBalance, closeTo(2100, 0.01));
-      expect(analytics.projectedSavings, closeTo(2100, 0.01));
-    });
   });
 
   group('midnight rule – unused allowance stays in budget', () {
@@ -449,7 +429,6 @@ void main() {
         startDate: start,
         endDate: end,
       );
-      service.clearCache();
       final summaryDay2 = service.buildSummary(day2, currency: 'INR');
 
       // Remaining budget unchanged (900 spent total)
@@ -677,26 +656,6 @@ void main() {
       startDate: start,
       endDate: end,
     );
-
-    test('analytics of B is not served after analytics(A), summary(B)', () {
-      final a = input(1000);
-      final b = input(9000);
-      service.buildAnalytics(a);
-      service.buildSummary(b, currency: 'INR');
-      final analyticsB = service.buildAnalytics(b);
-      expect(analyticsB.totalSpent, 9000);
-      expect(analyticsB, equals(BudgetCalculationService().buildAnalytics(b)));
-    });
-
-    test('summary of A survives an analytics call for B', () {
-      final a = input(1000);
-      final first = service.buildSummary(a, currency: 'INR');
-      service.buildAnalytics(input(9000));
-      expect(
-        identical(service.buildSummary(a, currency: 'INR'), first),
-        isTrue,
-      );
-    });
 
     test('summary cache includes the currency', () {
       final a = input(1000);

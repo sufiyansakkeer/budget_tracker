@@ -1,16 +1,10 @@
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
-import 'package:monivo/features/budget/domain/entities/budget_status.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
-import 'package:monivo/features/budget/domain/usecases/calculate_daily_allowance_usecase.dart';
-import 'package:monivo/features/budget/domain/usecases/get_budget_analytics_usecase.dart';
-import 'package:monivo/features/budget/domain/usecases/get_budget_status_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_summary_usecase.dart';
-import 'package:monivo/features/budget/domain/usecases/get_projected_overspending_usecase.dart';
-import 'package:monivo/features/budget/domain/usecases/get_projected_savings_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
@@ -99,15 +93,6 @@ class FakeBudgetRepository implements BudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => statistics.todaySpending;
-
-  @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async {
-    if (budget == null) return 1;
-    return budget!.daysRemaining(referenceDate ?? this.referenceDate);
-  }
 
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
@@ -234,132 +219,6 @@ void main() {
         (result as BudgetError).failure.type,
         BudgetErrorType.invalidBudget,
       );
-    });
-  });
-
-  group('CalculateDailyAllowanceUseCase', () {
-    test('returns daily allowance for current budget', () async {
-      repository.statistics = const MonthlyStatisticsEntity(
-        totalSpent: 800,
-        expenseCount: 1,
-        todaySpending: 800,
-      );
-
-      final useCase = CalculateDailyAllowanceUseCase(
-        repository: repository,
-        calculationService: calculationService,
-      );
-
-      final result = await useCase(
-        budgetId: 'budget-1',
-        referenceDate: DateTime(2026, 8, 10),
-      );
-      expect(result, isA<BudgetSuccess>());
-      // Today's spend is added back so the figure is stable all day:
-      // (30000 - 800 + 800) / 22 ≈ 1363.64
-      expect((result as BudgetSuccess).data, closeTo(1363.64, 0.01));
-    });
-  });
-
-  group('GetBudgetStatusUseCase', () {
-    test('returns underBudget for low spending', () async {
-      final useCase = GetBudgetStatusUseCase(
-        repository: repository,
-        calculationService: calculationService,
-      );
-
-      final result = await useCase(
-        budgetId: 'budget-1',
-        referenceDate: DateTime(2026, 8, 10),
-      );
-      expect((result as BudgetSuccess).data, BudgetStatus.underBudget);
-    });
-
-    test('returns overBudget when spent exceeds monthly amount', () async {
-      repository.statistics = const MonthlyStatisticsEntity(
-        totalSpent: 35000,
-        expenseCount: 5,
-        todaySpending: 1000,
-      );
-
-      final useCase = GetBudgetStatusUseCase(
-        repository: repository,
-        calculationService: calculationService,
-      );
-
-      final result = await useCase(
-        budgetId: 'budget-1',
-        referenceDate: DateTime(2026, 8, 10),
-      );
-      expect((result as BudgetSuccess).data, BudgetStatus.overBudget);
-    });
-  });
-
-  group('GetProjectedSavingsUseCase', () {
-    test('returns savings when spending pace is under budget', () async {
-      repository.statistics = const MonthlyStatisticsEntity(
-        totalSpent: 9000,
-        expenseCount: 3,
-        todaySpending: 500,
-      );
-
-      final useCase = GetProjectedSavingsUseCase(
-        repository: repository,
-        calculationService: calculationService,
-      );
-
-      final result = await useCase(
-        budgetId: 'budget-1',
-        referenceDate: DateTime(2026, 8, 10),
-      );
-      expect(result, isA<BudgetSuccess>());
-      expect((result as BudgetSuccess).data, greaterThan(0));
-    });
-  });
-
-  group('GetProjectedOverspendingUseCase', () {
-    test('returns overspending when pace exceeds budget', () async {
-      repository.statistics = const MonthlyStatisticsEntity(
-        totalSpent: 20000,
-        expenseCount: 10,
-        todaySpending: 3000,
-      );
-
-      final useCase = GetProjectedOverspendingUseCase(
-        repository: repository,
-        calculationService: calculationService,
-      );
-
-      final result = await useCase(
-        budgetId: 'budget-1',
-        referenceDate: DateTime(2026, 8, 10),
-      );
-      expect(result, isA<BudgetSuccess>());
-      expect((result as BudgetSuccess).data, greaterThan(0));
-    });
-  });
-
-  group('GetBudgetAnalyticsUseCase', () {
-    test('returns analytics with days passed and remaining', () async {
-      repository.statistics = const MonthlyStatisticsEntity(
-        totalSpent: 5000,
-        expenseCount: 2,
-        todaySpending: 200,
-      );
-
-      final useCase = GetBudgetAnalyticsUseCase(
-        repository: repository,
-        calculationService: calculationService,
-      );
-
-      final result = await useCase(
-        budgetId: 'budget-1',
-        referenceDate: DateTime(2026, 8, 10),
-      );
-      expect(result, isA<BudgetSuccess>());
-      final analytics = (result as BudgetSuccess).data;
-      expect(analytics.daysPassed, 10);
-      expect(analytics.daysRemaining, 22);
     });
   });
 }

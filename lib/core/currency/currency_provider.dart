@@ -12,13 +12,14 @@ class CurrencyProvider extends ChangeNotifier {
   CurrencyProvider({LoadSettingsUseCase? loadSettingsUseCase})
     : _loadSettingsUseCase =
           loadSettingsUseCase ?? di.getIt<LoadSettingsUseCase>() {
-    _loadCurrencySettings();
+    reload();
   }
 
   String get currencyCode => _currencyCode;
   String get currencySymbol => _currencySymbol;
 
-  Future<void> _loadCurrencySettings() async {
+  /// Re-reads the currency setting (after a restore replaced it).
+  Future<void> reload() async {
     try {
       final result = await _loadSettingsUseCase();
       if (result case SettingsSuccess(:final data)) {
@@ -28,7 +29,8 @@ class CurrencyProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      // Keep default currency on error
+      // Keep the default currency.
+      debugPrint('[error] Loading the currency setting: $e');
     }
   }
 
@@ -36,10 +38,5 @@ class CurrencyProvider extends ChangeNotifier {
     _currencyCode = code;
     _currencySymbol = symbol;
     notifyListeners();
-  }
-
-  /// Format amount with current currency symbol
-  String formatAmount(double amount) {
-    return '$_currencySymbol${amount.toStringAsFixed(2)}';
   }
 }

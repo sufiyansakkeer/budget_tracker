@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
@@ -30,6 +31,15 @@ class _StatsBudgetRepository extends ListBudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => stats[budgetId] ?? MonthlyStatisticsEntity.empty;
+
+  /// Makes a delete fail, as when the database is busy.
+  bool failDelete = false;
+
+  @override
+  Future<void> deleteBudget(String id) async {
+    if (failDelete) throw Exception('database is locked');
+    await super.deleteBudget(id);
+  }
 }
 
 BudgetEntity _budget(
@@ -244,6 +254,30 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.activeId, 'personal');
       expect(find.byKey(const Key('budgetAddExpense')), findsOneWidget);
+    });
+
+    testWidgets('after a failed delete the screen still follows changes', (
+      tester,
+    ) async {
+      await register([household, personal], 'household');
+      repository.failDelete = true;
+      await pump(tester, const BudgetDetailsScreen(budgetId: 'personal'));
+
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining("Couldn't delete the budget."), findsOne);
+
+      // Renamed elsewhere: the details screen picks it up.
+      final index = repository.budgets.indexWhere((b) => b.id == 'personal');
+      repository.budgets[index] = personal.copyWith(name: 'Renamed');
+      RefreshBuses.budgets.notifyChanged();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Renamed'), findsWidgets);
     });
 
     testWidgets('an archived budget offers neither, only Restore', (

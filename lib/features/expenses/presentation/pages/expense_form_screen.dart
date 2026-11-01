@@ -10,9 +10,10 @@ import '../../../../core/currency/money_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
-import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -121,7 +122,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   TimeOfDay? _time;
   String? _receiptPath;
 
-  List<BudgetEntity> _budgets = [];
+  List<BudgetEntity> _allBudgets = [];
   String? _selectedBudgetId;
 
   /// The budget the expense being edited is saved in. Expenses carry no
@@ -234,11 +235,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       final activeId = await _manageBudget.activeBudgetId();
       if (!mounted) return;
       setState(() {
-        _budgets = budgets.where((b) => !b.isArchived).toList();
+        _allBudgets = budgets;
         _selectedBudgetId ??= activeId;
         _loadingBudgets = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading budgets for the expense form: $e');
       if (!mounted) return;
       setState(() {
         _loadingBudgets = false;
@@ -246,6 +248,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       });
     }
   }
+
+  /// Budgets an expense can go to: those not archived, plus the one it is
+  /// already in even when archived, so editing it keeps that budget and its
+  /// currency's decimals.
+  List<BudgetEntity> get _budgets => [
+    for (final b in _allBudgets)
+      if (!b.isArchived || b.id == _originalBudgetId) b,
+  ];
 
   BudgetEntity? get _selectedBudget {
     for (final b in _budgets) {
@@ -640,12 +650,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       );
     }
     if (_budgets.isEmpty) {
-      return StatusCard(
-        color: theme.colorScheme.error,
+      return AppNotice(
+        tone: AppTone.caution,
         icon: Icons.account_balance_wallet_outlined,
         title: 'No budget yet',
         message: 'Create a budget before adding expenses.',
-        trailing: TextButton(
+        action: TextButton(
           onPressed: () async {
             await context.pushUnique('/app/budgets/create');
             if (mounted) _loadBudgets();
@@ -692,10 +702,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         picker,
         if (_changesCurrency && budget != null) ...[
           const SizedBox(height: AppSpacing.sm),
-          StatusCard(
+          AppNotice(
             key: const ValueKey('expenseCurrencyChangeWarning'),
-            color: context.appColors.warning,
+            tone: AppTone.caution,
             icon: Icons.currency_exchange_rounded,
+            title: 'Different currency',
             message:
                 '${budget.name} uses ${budget.currency}. The amount is not '
                 'converted, so enter it in ${budget.currency}.',

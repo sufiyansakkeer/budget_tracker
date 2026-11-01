@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -117,7 +118,7 @@ void main() {
       remainingAmount: amount,
       currency: currency,
       startDate: s,
-      endDate: end ?? s.add(const Duration(days: 30)),
+      endDate: end ?? s.addDays(30),
       color: color,
       notes: notes,
       createdAt: createdAt,
@@ -395,13 +396,9 @@ void main() {
             updatedAt: createdAt,
           );
       await run((app) async {
-        await app.bills.createBill(
-          bill('overdue', todayDate.subtract(const Duration(days: 3))),
-        );
+        await app.bills.createBill(bill('overdue', todayDate.addDays(-3)));
         await app.bills.createBill(bill('today', todayDate));
-        await app.bills.createBill(
-          bill('soon', todayDate.add(const Duration(days: 5))),
-        );
+        await app.bills.createBill(bill('soon', todayDate.addDays(5)));
         await app.bills.createBill(bill('done', todayDate, paid: true));
       });
 

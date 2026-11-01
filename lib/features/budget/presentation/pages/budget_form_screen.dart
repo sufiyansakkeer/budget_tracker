@@ -12,8 +12,10 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -32,6 +34,7 @@ import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Create or edit a budget.
 ///
@@ -100,7 +103,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     super.initState();
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day);
-    _endDate = _startDate.add(const Duration(days: 30));
+    _endDate = _startDate.addDays(30);
     _currency = getIt<CurrencyProvider>().currencyCode;
     if (widget.budgetId != null) {
       _loadBudget();
@@ -167,8 +170,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
               .toList();
         });
       }
-    } catch (_) {
-      // No warning.
+    } catch (e) {
+      debugPrint('[error] Loading bills linked to a budget: $e');
     }
   }
 
@@ -182,8 +185,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       if (result case ExpenseSuccess(:final data)) {
         setState(() => _expenseCount = data.length);
       }
-    } catch (_) {
+    } catch (e) {
       // Unknown count: the warning is worded without one.
+      debugPrint('[error] Counting a budget\'s expenses: $e');
     }
   }
 
@@ -238,12 +242,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     if (text.isEmpty) return null;
     final amount = double.tryParse(text);
     if (amount == null) return 'Enter a valid number.';
-    if (amount < 0) return "This can't be negative.";
-    final budgetAmount = double.tryParse(_amountController.text);
-    if (budgetAmount != null && budgetAmount > 0 && amount > budgetAmount) {
-      return "This can't be more than the budget amount.";
-    }
-    return MoneyInput.decimalsError(text, _currency);
+    return ManageBudgetUseCase.validateSetAside(
+          amount,
+          double.tryParse(_amountController.text) ?? 0,
+        ) ??
+        MoneyInput.decimalsError(text, _currency);
   }
 
   /// Inline warning when the kept-aside amount and savings goal together
@@ -254,10 +257,21 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final reserve = _parseOptional(_reserveController.text) ?? 0;
     final savings = _parseOptional(_savingsController.text) ?? 0;
     // Each field reports its own range error.
-    if (reserve < 0 || savings < 0) return null;
-    if (reserve > budgetAmount || savings > budgetAmount) return null;
-    final sum = reserve + savings;
-    if (sum <= 0 || sum < budgetAmount) return null;
+    if (ManageBudgetUseCase.validateSetAside(reserve, budgetAmount) != null ||
+        ManageBudgetUseCase.validateSetAside(savings, budgetAmount) != null) {
+      return null;
+    }
+    if (!ManageBudgetUseCase.setAsideTakesAll(
+      budgetAmount: budgetAmount,
+      reserve: reserve,
+      savings: savings,
+      currency: _currency,
+    )) {
+      return null;
+    }
+    final sum = MoneyMath.forCurrency(
+      _currency,
+    ).toAmount(MoneyMath.forCurrency(_currency).sumUnits([reserve, savings]));
     final total = CurrencyFormatter.format(sum, code: _currency);
     final of = CurrencyFormatter.format(budgetAmount, code: _currency);
     return 'Together these set aside $total of $of, so nothing will be free '
@@ -293,10 +307,15 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
   Future<void> _pickDate({required bool isStart}) async {
     final current = isStart ? _startDate : _endDate;
+    // A period ends at least a day after it starts (saving refuses less).
+    // An older budget that ends on its start day keeps that date in range.
+    final earliestEnd = _startDate.addDays(1);
     final picked = await showDatePicker(
       context: context,
       initialDate: current,
-      firstDate: isStart ? DateTime(2000) : _startDate,
+      firstDate: isStart
+          ? DateTime(2000)
+          : (current.isBefore(earliestEnd) ? current : earliestEnd),
       lastDate: DateTime(2100),
       helpText: isStart ? 'Budget start date' : 'Budget end date',
     );
@@ -304,17 +323,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     setState(() {
       _dateError = null;
       if (isStart) {
-        final length = _endDate.difference(_startDate);
+        final length = calendarDaysBetween(_startDate, _endDate);
         _startDate = picked;
-        // Keep the same duration when the start moves.
-        _endDate = picked.add(length);
+        // Keep the same number of days when the start moves.
+        _endDate = picked.addDays(length);
       } else {
         _endDate = picked;
       }
     });
   }
 
-  int get _dayCount => _endDate.difference(_startDate).inDays + 1;
+  int get _dayCount => calendarDaysBetween(_startDate, _endDate) + 1;
 
   List<CurrencyEntity> get _currencies {
     final byCode = <String, CurrencyEntity>{};
@@ -343,6 +362,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       amount,
       _startDate,
       _endDate,
+      reservedAmount: _parseOptional(_reserveController.text),
+      savingsTarget: _parseOptional(_savingsController.text),
     );
     if (!fieldsOk) return;
     if (error != null) {
@@ -424,7 +445,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           ),
         );
       context.pop(true);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Saving budget: $e');
       if (!mounted) return;
       setState(() {
         _saving = false;
@@ -552,65 +574,30 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
-                        Semantics(
-                          label: 'Currency',
-                          child: Container(
-                            height: 56,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.smd,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainer,
-                              borderRadius: AppSpacing.borderRadiusMd,
-                            ),
-                            child: DropdownButton<String>(
-                              value: _selectedCurrencyCode,
-                              hint: const Text('Currency'),
-                              underline: const SizedBox.shrink(),
-                              borderRadius: AppSpacing.borderRadiusMd,
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(() => _currency = value);
-                                }
-                              },
-                              items: [
-                                for (final currency in _currencies)
-                                  DropdownMenuItem<String>(
-                                    value: currency.code,
-                                    child: Text(
-                                      '${currency.symbol}  ${currency.code}',
-                                    ),
-                                  ),
-                              ],
-                              selectedItemBuilder: (context) => [
-                                for (final currency in _currencies)
-                                  Center(
-                                    child: Text(
-                                      currency.code,
-                                      style: theme.textTheme.labelLarge,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
+                        _CurrencyDropdown(
+                          value: _selectedCurrencyCode,
+                          currencies: _currencies,
+                          onChanged: (code) => setState(() => _currency = code),
                         ),
                       ],
                     ),
                     if (_relabelsExpenses) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      StatusCard(
+                      AppNotice(
                         key: const ValueKey('budgetCurrencyExpensesWarning'),
-                        color: context.appColors.warning,
+                        tone: AppTone.caution,
                         icon: Icons.currency_exchange_rounded,
+                        title: 'Expenses keep their amounts',
                         message: _relabelSentence,
                       ),
                     ],
                     if (_currencyWarning != null) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      StatusCard(
+                      AppNotice(
                         key: const ValueKey('budgetCurrencyBillsWarning'),
-                        color: context.appColors.warning,
+                        tone: AppTone.caution,
                         icon: Icons.receipt_long_rounded,
+                        title: 'Some bills left out',
                         message: _currencyWarning!,
                       ),
                     ],
@@ -717,6 +704,58 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 label: _isEditing ? 'Save changes' : 'Create budget',
               ),
             ),
+    );
+  }
+}
+
+/// The currency beside the amount: symbol and code in the menu, the code
+/// alone once chosen.
+class _CurrencyDropdown extends StatelessWidget {
+  final String? value;
+  final List<CurrencyEntity> currencies;
+  final ValueChanged<String> onChanged;
+
+  const _CurrencyDropdown({
+    required this.value,
+    required this.currencies,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      label: 'Currency',
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.smd),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainer,
+          borderRadius: AppSpacing.borderRadiusMd,
+        ),
+        child: DropdownButton<String>(
+          value: value,
+          hint: const Text('Currency'),
+          underline: const SizedBox.shrink(),
+          borderRadius: AppSpacing.borderRadiusMd,
+          onChanged: (code) {
+            if (code != null) onChanged(code);
+          },
+          items: [
+            for (final currency in currencies)
+              DropdownMenuItem<String>(
+                value: currency.code,
+                child: Text('${currency.symbol}  ${currency.code}'),
+              ),
+          ],
+          selectedItemBuilder: (context) => [
+            for (final currency in currencies)
+              Center(
+                child: Text(currency.code, style: theme.textTheme.labelLarge),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -831,7 +870,7 @@ class _PeriodSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final valid = dayCount > 0;
+    final valid = dayCount > 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

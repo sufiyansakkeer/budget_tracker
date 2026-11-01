@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/notification_settings.dart';
-import '../../domain/services/file_delivery_service.dart';
+import '../../../../core/files/file_delivery_service.dart';
 
 /// Base class for all settings events.
 abstract class SettingsEvent extends Equatable {

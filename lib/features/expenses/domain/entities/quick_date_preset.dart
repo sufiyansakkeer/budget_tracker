@@ -1,4 +1,5 @@
 import 'expense_history_filter.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Named date ranges offered by the expense filters.
 ///
@@ -23,18 +24,17 @@ enum QuickDatePreset {
   (DateTime, DateTime) range({DateTime? now}) {
     final n = now ?? DateTime.now();
     final today = DateTime(n.year, n.month, n.day);
-    final monday = today.subtract(Duration(days: today.weekday - 1));
+    final monday = today.addDays(1 - today.weekday);
     switch (this) {
       case QuickDatePreset.today:
         return (today, today);
       case QuickDatePreset.yesterday:
-        final y = today.subtract(const Duration(days: 1));
+        final y = today.addDays(-1);
         return (y, y);
       case QuickDatePreset.thisWeek:
         return (monday, today);
       case QuickDatePreset.lastWeek:
-        final lastMonday = monday.subtract(const Duration(days: 7));
-        return (lastMonday, monday.subtract(const Duration(days: 1)));
+        return (monday.addDays(-7), monday.addDays(-1));
       case QuickDatePreset.thisMonth:
         return (DateTime(n.year, n.month, 1), DateTime(n.year, n.month + 1, 0));
       case QuickDatePreset.lastMonth:

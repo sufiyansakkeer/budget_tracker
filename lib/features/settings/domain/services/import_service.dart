@@ -10,6 +10,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/database/default_categories.dart';
 import '../../../budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 import '../entities/import_report.dart';
+import 'data_codec.dart';
 
 /// Handles importing data into the application from CSV or JSON files.
 ///
@@ -117,7 +118,7 @@ class ImportService {
 
       final String tags;
       try {
-        tags = normalizeTags(columns.read(cells, 'tags')) ?? '';
+        tags = DataCodec.normalizeTags(columns.read(cells, 'tags')) ?? '';
       } on FormatException {
         unreadable++;
         continue;
@@ -140,53 +141,38 @@ class ImportService {
 
     // Rows that name no budget go to one in their currency (the one whose
     // period holds the row's date, if any). Without a currency column they
-    // go to the default budget, as before.
-    final rows = <({_CsvRow row, String budgetId})>[];
-    // With no budget on the device, one is created for the first currency
-    // seen; rows in any other currency are skipped, not put in it.
-    String? createdCurrency;
-    for (final row in validRows) {
-      if (row.budgetId != null) {
-        rows.add((row: row, budgetId: row.budgetId!));
-        continue;
-      }
-      final currency = row.currency;
-      if (currency == null) {
-        rows.add((row: row, budgetId: await _findOrCreateDefaultBudgetId()));
-        continue;
-      }
-      final String? target;
-      if (budgets.isEmpty) {
-        createdCurrency ??= currency;
-        target = createdCurrency == currency
-            ? await _findOrCreateDefaultBudgetId(currency: currency)
-            : null;
-      } else {
-        target = _budgetForCurrency(budgets, currency, row.date);
-      }
-      if (target == null) {
-        otherCurrency++;
-        continue;
-      }
-      rows.add((row: row, budgetId: target));
-    }
-
-    if (rows.isEmpty) {
-      // Nothing new, but the file was read: say what was skipped rather
-      // than calling a re-import "damaged".
-      if (duplicates + otherCurrency > 0) {
-        return ImportReport(
-          duplicates: duplicates,
-          unreadable: unreadable,
-          otherCurrency: otherCurrency,
-        );
-      }
-      throw const FormatException('No valid data rows found in CSV.');
-    }
-
+    // go to the default budget, as before. With no budget on the device, one
+    // is created in the first currency the file names, whatever the order
+    // of its rows; rows in any other currency are skipped, not put in it.
+    final firstCurrency = validRows
+        .map((row) => row.currency)
+        .nonNulls
+        .firstOrNull;
     var importedCount = 0;
+    // The default budget is created inside the transaction, so a failed
+    // import leaves no empty budget behind.
     await _database.transaction(() async {
-      for (final (:row, :budgetId) in rows) {
+      String? defaultBudgetId;
+      Future<String> defaultBudget() async => defaultBudgetId ??=
+          await _findOrCreateDefaultBudgetId(currency: firstCurrency);
+
+      for (final row in validRows) {
+        final currency = row.currency;
+        final String? budgetId;
+        if (row.budgetId != null) {
+          budgetId = row.budgetId;
+        } else if (currency == null) {
+          budgetId = await defaultBudget();
+        } else if (budgets.isEmpty) {
+          budgetId = currency == firstCurrency ? await defaultBudget() : null;
+        } else {
+          budgetId = _budgetForCurrency(budgets, currency, row.date);
+        }
+        if (budgetId == null) {
+          otherCurrency++;
+          continue;
+        }
+
         await _database
             .into(_database.expenses)
             .insert(
@@ -204,6 +190,19 @@ class ImportService {
         importedCount++;
       }
     });
+
+    if (importedCount == 0) {
+      // Nothing new, but the file was read: say what was skipped rather
+      // than calling a re-import "damaged".
+      if (duplicates + otherCurrency > 0) {
+        return ImportReport(
+          duplicates: duplicates,
+          unreadable: unreadable,
+          otherCurrency: otherCurrency,
+        );
+      }
+      throw const FormatException('No valid data rows found in CSV.');
+    }
 
     await _refreshRemainingAmounts();
     return ImportReport(
@@ -252,41 +251,6 @@ class ImportService {
       if (!b.isArchived) return b.id;
     }
     return same.isEmpty ? null : same.first.id;
-  }
-
-  /// Tags as they are stored: a JSON list of strings, or null for none.
-  ///
-  /// Files carry tags in three shapes, all accepted: a JSON list (a Monivo
-  /// data file), the stored JSON string itself (a Monivo export, which
-  /// writes the column as it is), or comma-separated text (a spreadsheet).
-  /// Anything else is rejected, so a malformed file fails before writing.
-  static String? normalizeTags(Object? raw) {
-    if (raw == null) return null;
-    List<String> clean(Iterable<Object?> items) => [
-      for (final t in items)
-        if (t != null && t.toString().trim().isNotEmpty) t.toString().trim(),
-    ];
-
-    final List<String> tags;
-    if (raw is List) {
-      tags = clean(raw);
-    } else if (raw is String) {
-      final text = raw.trim();
-      if (text.isEmpty) return null;
-      List<String>? decoded;
-      if (text.startsWith('[')) {
-        try {
-          final value = jsonDecode(text);
-          if (value is List) decoded = clean(value);
-        } on FormatException {
-          decoded = null;
-        }
-      }
-      tags = decoded ?? clean(text.split(','));
-    } else {
-      throw FormatException('Invalid tags: $raw');
-    }
-    return tags.isEmpty ? null : jsonEncode(tags);
   }
 
   static bool _isExpenseHeader(List<dynamic> row) {
@@ -346,16 +310,18 @@ class ImportService {
       throw const FormatException('Import data missing.');
     }
 
-    // Check schema version if available.
+    // Backups keep the schema version under "metadata"; data exports keep
+    // it at the top.
     final meta = payload['metadata'];
-    if (meta is Map<String, Object?>) {
-      final schemaVersion = (meta['schemaVersion'] as num?)?.toInt() ?? 0;
-      if (schemaVersion > _database.schemaVersion) {
-        throw FormatException(
-          'Schema v$schemaVersion is newer than supported '
-          'v${_database.schemaVersion}.',
-        );
-      }
+    final version = meta is Map<String, Object?>
+        ? meta['schemaVersion']
+        : payload['schemaVersion'];
+    final schemaVersion = (version as num?)?.toInt() ?? 0;
+    if (schemaVersion > _database.schemaVersion) {
+      throw FormatException(
+        'Schema v$schemaVersion is newer than supported '
+        'v${_database.schemaVersion}.',
+      );
     }
 
     // Validate records before importing.
@@ -427,21 +393,17 @@ class ImportService {
   /// An unarchived budget is preferred, so imported spending does not land
   /// in one the user has put away. A budget created here uses [currency]
   /// when the file names one.
-  String? _cachedDefaultBudgetId;
-
+  ///
+  /// Each import looks the budget up afresh and keeps the id only while it
+  /// runs: the user can delete the budget before the next import.
   Future<String> _findOrCreateDefaultBudgetId({String? currency}) async {
-    if (_cachedDefaultBudgetId != null) return _cachedDefaultBudgetId!;
-
     final existing =
         await (_database.select(_database.budgets)
               ..where((b) => b.isArchived.equals(false))
               ..limit(1))
             .getSingleOrNull() ??
         await (_database.select(_database.budgets)..limit(1)).getSingleOrNull();
-    if (existing != null) {
-      _cachedDefaultBudgetId = existing.id;
-      return _cachedDefaultBudgetId!;
-    }
+    if (existing != null) return existing.id;
 
     // Create a default budget spanning the current month.
     final now = DateTime.now();
@@ -462,98 +424,45 @@ class ImportService {
             updatedAt: Value(now),
           ),
         );
-    _cachedDefaultBudgetId = id;
     return id;
   }
 
   /// Inserts or updates data from an import payload, avoiding full replacement
   /// so the user can selectively import.
   ///
-  /// Budgets and expenses are upserts (ON CONFLICT DO UPDATE), never REPLACE:
-  /// a key missing from an older export is [Value.absent], so the stored
-  /// reserve, savings goal or bill link of an existing row is kept.
+  /// Budgets, categories and expenses are upserts (ON CONFLICT DO UPDATE),
+  /// never REPLACE: a key missing from an older export is [Value.absent], so
+  /// the stored reserve, savings goal, archived flag or bill link of an
+  /// existing row is kept.
   Future<void> _upsertAll(Map<String, Object?> data) async {
+    List<Map> records(String key) => [
+      for (final item in (data[key] as List?) ?? const []) item as Map,
+    ];
+
     await _database.transaction(() async {
-      final budgets = (data['budgets'] as List?) ?? [];
-      for (final item in budgets) {
-        final map = item as Map;
+      for (final map in records('budgets')) {
         await _database
             .into(_database.budgets)
-            .insertOnConflictUpdate(
-              BudgetsCompanion.insert(
-                id: map['id'] as String,
-                name: (map['name'] as String?) ?? 'Personal Budget',
-                monthlyAmount: (map['monthlyAmount'] as num).toDouble(),
-                remainingAmount: (map['remainingAmount'] as num).toDouble(),
-                currency: map['currency'] as String,
-                startDate: DateTime.parse(map['startDate'] as String),
-                endDate: DateTime.parse(map['endDate'] as String),
-                isArchived: Value((map['isArchived'] as bool?) ?? false),
-                color: Value(map['color'] as String?),
-                icon: Value(map['icon'] as String?),
-                notes: Value(map['notes'] as String?),
-                createdAt: Value(DateTime.parse(map['createdAt'] as String)),
-                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
-                reservedAmount: _optionalDouble(map, 'reservedAmount'),
-                savingsTarget: _optionalDouble(map, 'savingsTarget'),
-              ),
-            );
+            .insertOnConflictUpdate(DataCodec.decodeBudget(map));
       }
-
-      final categories = (data['categories'] as List?) ?? [];
-      for (final item in categories) {
-        final map = item as Map;
+      for (final map in records('categories')) {
         await _database
             .into(_database.categories)
-            .insert(
-              CategoriesCompanion.insert(
-                id: map['id'] as String,
-                name: map['name'] as String,
-                icon: map['icon'] as String,
-                colorHex: map['colorHex'] as String,
-                isSystem: Value((map['isSystem'] as bool?) ?? true),
-              ),
-              mode: InsertMode.insertOrReplace,
-            );
+            .insertOnConflictUpdate(DataCodec.decodeCategory(map));
       }
 
-      final expenses = (data['expenses'] as List?) ?? [];
-      for (final item in expenses) {
-        final map = item as Map;
-        final mappedBudgetId =
+      String? defaultBudgetId;
+      for (final map in records('expenses')) {
+        final budgetId =
             (map['budgetId'] as String?) ??
-            (await _findOrCreateDefaultBudgetId());
+            (defaultBudgetId ??= await _findOrCreateDefaultBudgetId());
         await _database
             .into(_database.expenses)
             .insertOnConflictUpdate(
-              ExpensesCompanion.insert(
-                id: (map['id'] as String?) ?? const Uuid().v4(),
-                budgetId: mappedBudgetId,
-                amount: (map['amount'] as num).toDouble(),
-                categoryId: map['categoryId'] as String,
-                note: Value(map['note'] as String?),
-                date: DateTime.parse(map['date'] as String),
-                time: Value(DateTime.parse(map['time'] as String)),
-                receiptImagePath: Value(map['receiptImagePath'] as String?),
-                // A data file carries tags as a list or as the stored JSON
-                // string; reading only a list made every tagged expense fail.
-                tags: Value(normalizeTags(map['tags'])),
-                createdAt: Value(DateTime.parse(map['createdAt'] as String)),
-                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
-                billId: map.containsKey('billId')
-                    ? Value(map['billId'] as String?)
-                    : const Value.absent(),
-              ),
+              DataCodec.decodeExpense(map, budgetId: budgetId),
             );
       }
     });
-  }
-
-  /// A nullable money field from an import record: absent when the key is
-  /// missing (keep the stored value), otherwise the value or null.
-  static Value<double?> _optionalDouble(Map map, String key) {
-    if (!map.containsKey(key)) return const Value.absent();
-    return Value((map[key] as num?)?.toDouble());
   }
 }
 

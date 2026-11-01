@@ -79,8 +79,6 @@ class FakeRepository implements ExpenseRepository {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {
@@ -154,11 +152,6 @@ class FakeBudgetRepo implements BudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => 0;
-  @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 1;
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
@@ -256,7 +249,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         // Select Food
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
+        bloc.add(const ExpenseHistorySetBudgetSelection(['food']));
         await Future<void>.delayed(Duration.zero);
 
         // Apply
@@ -286,8 +279,7 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
       await Future<void>.delayed(Duration.zero);
 
       bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -313,9 +305,9 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('shopping'));
+      bloc.add(
+        const ExpenseHistorySetBudgetSelection(['food', 'travel', 'shopping']),
+      );
       await Future<void>.delayed(Duration.zero);
 
       bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -340,8 +332,7 @@ void main() {
         bloc.add(const ExpenseHistoryToggleViewMode());
         await Future<void>.delayed(Duration.zero);
 
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+        bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
         await Future<void>.delayed(Duration.zero);
 
         bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -368,8 +359,7 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
       await Future<void>.delayed(Duration.zero);
 
       bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -398,8 +388,7 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
       await Future<void>.delayed(Duration.zero);
 
       bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -432,7 +421,7 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('shopping'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['shopping']));
       await Future<void>.delayed(Duration.zero);
 
       bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -489,8 +478,7 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
       await Future<void>.delayed(Duration.zero);
 
       bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -508,8 +496,9 @@ void main() {
       updatedBloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      updatedBloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      updatedBloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      updatedBloc.add(
+        const ExpenseHistorySetBudgetSelection(['food', 'travel']),
+      );
       await Future<void>.delayed(Duration.zero);
 
       updatedBloc.add(const ExpenseHistoryApplyCombinedView());
@@ -545,8 +534,7 @@ void main() {
         bloc.add(const ExpenseHistoryToggleViewMode());
         await Future<void>.delayed(Duration.zero);
 
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+        bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
         await Future<void>.delayed(Duration.zero);
 
         bloc.add(const ExpenseHistoryApplyCombinedView());
@@ -593,20 +581,19 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
       await Future<void>.delayed(Duration.zero);
 
       bloc.add(const ExpenseHistoryApplyCombinedView());
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       // Food: 500 + 200 = 700, Travel: 300 + 150 = 450, Total = 1150
-      expect(bloc.state.combinedTotalAmount, 1150);
+      expect(bloc.state.summary.totalAmount, 1150);
     });
   });
 
   group('Combined mode — toggle selection', () {
-    test('SelectAll and ClearAll work correctly', () async {
+    test('a selection keeps only the budgets the bloc knows', () async {
       final repo = FakeRepository(_expenses);
       final budgetRepo = FakeBudgetRepo(
         budgets: [_budgetFood, _budgetTravel, _budgetShopping],
@@ -618,37 +605,54 @@ void main() {
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
 
-      // Select all
-      bloc.add(const ExpenseHistorySelectAllBudgets());
-      await Future<void>.delayed(Duration.zero);
-      expect(bloc.state.selectedBudgetIds.length, 3);
-
-      // Clear all
-      bloc.add(const ExpenseHistoryClearBudgetSelection());
-      await Future<void>.delayed(Duration.zero);
-      expect(bloc.state.selectedBudgetIds, isEmpty);
-    });
-
-    test('Toggle individual budget', () async {
-      final repo = FakeRepository(_expenses);
-      final budgetRepo = FakeBudgetRepo(
-        budgets: [_budgetFood, _budgetTravel, _budgetShopping],
-        activeBudgetId: 'food',
-      );
-      final bloc = _buildBloc(repo, budgetRepo);
-      addTearDown(bloc.close);
-
-      bloc.add(const ExpenseHistoryToggleViewMode());
-      await Future<void>.delayed(Duration.zero);
-
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'deleted']));
       await Future<void>.delayed(Duration.zero);
       expect(bloc.state.selectedBudgetIds, ['food']);
 
-      // Toggle off
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
+      bloc.add(const ExpenseHistorySetBudgetSelection([]));
       await Future<void>.delayed(Duration.zero);
       expect(bloc.state.selectedBudgetIds, isEmpty);
+    });
+  });
+
+  group('Combined mode — budgets stay current', () {
+    test('a budget added later shows up after a refresh', () async {
+      final budgetRepo = FakeBudgetRepo(
+        budgets: [_budgetFood, _budgetTravel],
+        activeBudgetId: 'food',
+      );
+      final bloc = _buildBloc(FakeRepository(_expenses), budgetRepo);
+      addTearDown(bloc.close);
+      bloc.add(const ExpenseHistoryToggleViewMode());
+      await Future<void>.delayed(Duration.zero);
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
+      bloc.add(const ExpenseHistoryApplyCombinedView());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      budgetRepo.budgets.add(_budgetShopping);
+      bloc.add(const ExpenseHistoryRefresh());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bloc.state.allBudgets.map((b) => b.id), contains('shopping'));
+    });
+
+    test('entering the combined view again re-reads the budgets', () async {
+      final budgetRepo = FakeBudgetRepo(
+        budgets: [_budgetFood, _budgetTravel],
+        activeBudgetId: 'food',
+      );
+      final bloc = _buildBloc(FakeRepository(_expenses), budgetRepo);
+      addTearDown(bloc.close);
+      bloc.add(const ExpenseHistoryToggleViewMode());
+      await Future<void>.delayed(Duration.zero);
+      bloc.add(const ExpenseHistoryExitCombinedView());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      budgetRepo.budgets.add(_budgetShopping);
+      bloc.add(const ExpenseHistoryToggleViewMode());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.allBudgets.map((b) => b.id), contains('shopping'));
     });
   });
 
@@ -740,8 +744,7 @@ void main() {
       // Enter combined mode and select Food + Travel
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
       await Future<void>.delayed(Duration.zero);
       bloc.add(const ExpenseHistoryApplyCombinedView());
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -770,9 +773,9 @@ void main() {
 
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('shopping'));
+      bloc.add(
+        const ExpenseHistorySetBudgetSelection(['food', 'travel', 'shopping']),
+      );
       await Future<void>.delayed(Duration.zero);
       bloc.add(const ExpenseHistoryApplyCombinedView());
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -801,8 +804,7 @@ void main() {
         // Select only Food + Travel (Shopping must NOT appear)
         bloc.add(const ExpenseHistoryToggleViewMode());
         await Future<void>.delayed(Duration.zero);
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+        bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
         await Future<void>.delayed(Duration.zero);
         bloc.add(const ExpenseHistoryApplyCombinedView());
         await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -831,8 +833,7 @@ void main() {
 
       bloc.add(const ExpenseHistoryToggleViewMode());
       await Future<void>.delayed(Duration.zero);
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-      bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+      bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
       await Future<void>.delayed(Duration.zero);
       bloc.add(const ExpenseHistoryApplyCombinedView());
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -865,8 +866,7 @@ void main() {
 
         bloc.add(const ExpenseHistoryToggleViewMode());
         await Future<void>.delayed(Duration.zero);
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('food'));
-        bloc.add(const ExpenseHistoryToggleBudgetSelection('travel'));
+        bloc.add(const ExpenseHistorySetBudgetSelection(['food', 'travel']));
         await Future<void>.delayed(Duration.zero);
         bloc.add(const ExpenseHistoryApplyCombinedView());
         await Future<void>.delayed(const Duration(milliseconds: 50));

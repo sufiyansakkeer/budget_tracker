@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Date picker field. Does not allow future dates.
 class ExpenseDatePicker extends StatelessWidget {
@@ -44,7 +45,7 @@ class ExpenseDatePicker extends StatelessWidget {
       final day = DateTime(date!.year, date!.month, date!.day);
       if (day == today) {
         display = 'Today';
-      } else if (day == today.subtract(const Duration(days: 1))) {
+      } else if (day == today.addDays(-1)) {
         display = 'Yesterday';
       } else {
         display = DateFormat('EEE, d MMM yyyy').format(date!);

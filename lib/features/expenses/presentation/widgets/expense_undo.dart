@@ -20,19 +20,24 @@ abstract final class ExpenseUndo {
   static void offer(ScaffoldMessengerState messenger, ExpenseEntity deleted) {
     messenger
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          key: const Key('undoDeleteSnackBar'),
-          content: const Text('Expense deleted'),
-          duration: const Duration(seconds: 6),
-          action: SnackBarAction(
-            key: const Key('undoDeleteAction'),
-            label: 'Undo',
-            onPressed: () => restore(deleted),
-          ),
-        ),
-      );
+      ..showSnackBar(snackBar(onUndo: () => restore(deleted)));
   }
+
+  /// The "deleted · Undo" SnackBar every delete shows, held longer than a
+  /// plain message so there is time to tap Undo.
+  static SnackBar snackBar({
+    String message = 'Expense deleted',
+    required VoidCallback onUndo,
+  }) => SnackBar(
+    key: const Key('undoDeleteSnackBar'),
+    content: Text(message),
+    duration: const Duration(seconds: 6),
+    action: SnackBarAction(
+      key: const Key('undoDeleteAction'),
+      label: 'Undo',
+      onPressed: onUndo,
+    ),
+  );
 
   /// Puts [expense] back and reports when that has finished.
   static Future<void> restore(ExpenseEntity expense) async {
@@ -45,8 +50,9 @@ abstract final class ExpenseUndo {
     bloc.add(ExpenseRestore(expense));
     try {
       await done.timeout(const Duration(seconds: 10));
-    } catch (_) {
+    } catch (e) {
       // The restore reports its own failure; only the bloc needs closing.
+      debugPrint('[error] Waiting for an expense to be restored: $e');
     }
     await bloc.close();
   }

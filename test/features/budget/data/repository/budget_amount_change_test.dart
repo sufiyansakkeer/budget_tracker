@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
@@ -92,8 +93,8 @@ void main() {
     // exactly as they do in the running app.
     final now = DateTime.now();
     today = DateTime(now.year, now.month, now.day);
-    periodStart = today.subtract(const Duration(days: 9));
-    periodEnd = today.add(const Duration(days: 20));
+    periodStart = today.addDays(-9);
+    periodEnd = today.addDays(20);
   });
 
   tearDown(() async {
@@ -194,16 +195,8 @@ void main() {
       'multiple expenses and repeated edits recalculate every time',
       () async {
         await manageBudget.create(budget('a', 10000));
-        await addExpense(
-          'a',
-          1000,
-          date: today.subtract(const Duration(days: 3)),
-        );
-        await addExpense(
-          'a',
-          1500,
-          date: today.subtract(const Duration(days: 1)),
-        );
+        await addExpense('a', 1000, date: today.addDays(-3));
+        await addExpense('a', 1500, date: today.addDays(-1));
         await addExpense('a', 500);
         expect((await stored('a')).remainingAmount, 7000);
 
@@ -220,11 +213,7 @@ void main() {
     test('expenses outside the (edited) period are not counted', () async {
       await manageBudget.create(budget('a', 10000));
       await addExpense('a', 3000);
-      await addExpense(
-        'a',
-        999,
-        date: periodStart.subtract(const Duration(days: 1)),
-      );
+      await addExpense('a', 999, date: periodStart.addDays(-1));
       expect((await stored('a')).remainingAmount, 7000);
 
       await editAmount('a', 15000);
@@ -329,11 +318,7 @@ void main() {
       'daily safe spending is recalculated from the new remaining',
       () async {
         await manageBudget.create(budget('a', 10000));
-        await addExpense(
-          'a',
-          2000,
-          date: today.subtract(const Duration(days: 2)),
-        );
+        await addExpense('a', 2000, date: today.addDays(-2));
         await addExpense('a', 1000); // spent today
 
         await editAmount('a', 15000);

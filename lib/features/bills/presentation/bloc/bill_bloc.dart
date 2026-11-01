@@ -193,17 +193,16 @@ class BillBloc extends Bloc<BillEvent, BillState> {
   Future<void> _onMarkPaid(BillMarkPaid event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.updating));
 
-    // Cancel current reminder.
-    final billResult = await getBillByIdUseCase(event.billId);
-    if (billResult case BillSuccess(:final data)) {
-      await reminderService.cancelReminder(data);
-    }
+    final before = await getBillByIdUseCase(event.billId);
+    final previous = before is BillSuccess<BillEntity> ? before.data : null;
 
     final result = await markBillPaidUseCase(event.billId);
     switch (result) {
       case BillSuccess(:final data):
-        // If recurring, schedule the next reminder.
-        if (data.isRecurring && data.reminderEnabled) {
+        // As for a payment: the old reminder is cancelled only once the bill
+        // is marked paid, and a repeating bill gets the next one.
+        if (previous != null) await reminderService.cancelReminder(previous);
+        if (data.repeats && data.reminderEnabled) {
           await reminderService.scheduleReminder(data);
         }
         RefreshBuses.bills.notifyChanged();
@@ -244,7 +243,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         // next one. Cancelled only once the payment is recorded, so a
         // refused payment keeps its reminder.
         if (previous != null) await reminderService.cancelReminder(previous);
-        if (data.bill.isRecurring && data.bill.reminderEnabled) {
+        if (data.bill.repeats && data.bill.reminderEnabled) {
           await reminderService.scheduleReminder(data.bill);
         }
         RefreshBuses.bills.notifyChanged();

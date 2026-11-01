@@ -35,6 +35,7 @@ class OnboardingLocalDataSourceImpl implements OnboardingLocalDataSource {
   @override
   Future<void> saveBudget(BudgetEntity budget) async {
     final companion = BudgetModel.toCompanion(budget);
-    await database.into(database.budgets).insert(companion);
+    // An upsert: a retried onboarding writes the same budget again.
+    await database.into(database.budgets).insertOnConflictUpdate(companion);
   }
 }

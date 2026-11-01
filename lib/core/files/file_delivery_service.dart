@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../../core/platform/system_ui_session.dart';
+import '../platform/system_ui_session.dart';
 
 /// Where a file the app made goes next.
 enum FileDestination {

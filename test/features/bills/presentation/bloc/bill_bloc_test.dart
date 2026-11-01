@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
@@ -82,12 +83,6 @@ class FakeBillRepository implements BillRepository {
   }
 
   @override
-  Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
-
-  @override
-  Future<double> getMonthlyRecurringBillsTotal() async => 0;
-
-  @override
   Future<T> transaction<T>(Future<T> Function() action) => action();
 }
 
@@ -109,9 +104,6 @@ class FakeBillReminderService extends BillReminderService {
   Future<void> rescheduleAll() async {}
 
   @override
-  Future<bool> areNotificationsEnabled() async => true;
-
-  @override
   Future<void> initialize() async {}
 }
 
@@ -123,7 +115,7 @@ BillEntity validBill({String id = 'bill-1', bool isPaid = false}) {
     amount: 1000,
     currency: 'INR',
     category: BillCategory.utilities,
-    dueDate: DateTime.now().add(const Duration(days: 7)),
+    dueDate: DateTime.now().addDays(7),
     isPaid: isPaid,
     createdAt: now,
     updatedAt: now,
@@ -253,6 +245,31 @@ void main() {
     expect(states.any((s) => s.status == BillBlocStatus.success), isTrue);
     await sub.cancel();
     await bloc.close();
+  });
+
+  test('a mark-paid that fails keeps the bill\'s reminder', () async {
+    await repository.createBill(validBill());
+    final reminders = FakeBillReminderService();
+    final bloc = BillBloc(
+      createBillUseCase: CreateBillUseCase(repository: repository),
+      updateBillUseCase: UpdateBillUseCase(repository: repository),
+      deleteBillUseCase: DeleteBillUseCase(repository: repository),
+      getBillsUseCase: GetBillsUseCase(repository: repository),
+      getBillByIdUseCase: GetBillByIdUseCase(repository: repository),
+      markBillPaidUseCase: _FailingMarkPaid(repository),
+      markBillUnpaidUseCase: MarkBillUnpaidUseCase(
+        repository: repository,
+        expenseRepository: InMemoryExpenseRepository(),
+      ),
+      payBillUseCase: FakePayBillUseCase(_unusedPayment),
+      reminderService: reminders,
+    );
+    addTearDown(bloc.close);
+
+    bloc.add(const BillMarkPaid('bill-1'));
+    await bloc.stream.firstWhere((s) => s.status == BillBlocStatus.error);
+
+    expect(reminders.cancelledBillIds, isEmpty);
   });
 
   test('marks bill as unpaid', () async {
@@ -428,7 +445,7 @@ void main() {
         amount: 500,
         currency: 'INR',
         category: BillCategory.electricity,
-        dueDate: DateTime.now().subtract(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(-7),
         createdAt: now,
         updatedAt: now,
       );
@@ -438,7 +455,7 @@ void main() {
         amount: 1000,
         currency: 'INR',
         category: BillCategory.rent,
-        dueDate: DateTime.now().add(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(7),
         createdAt: now,
         updatedAt: now,
       );
@@ -472,7 +489,7 @@ void main() {
         amount: 1000,
         currency: 'INR',
         category: BillCategory.rent,
-        dueDate: DateTime.now().add(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(7),
         createdAt: now,
         updatedAt: now,
       );
@@ -494,7 +511,7 @@ void main() {
         amount: 649,
         currency: 'INR',
         category: BillCategory.subscription,
-        dueDate: DateTime.now().add(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(7),
         isRecurring: true,
         recurrenceType: RecurrenceType.monthly,
         createdAt: now,
@@ -506,7 +523,7 @@ void main() {
         amount: 1000,
         currency: 'INR',
         category: BillCategory.rent,
-        dueDate: DateTime.now().add(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(7),
         createdAt: now,
         updatedAt: now,
       );
@@ -528,7 +545,7 @@ void main() {
         amount: 1250,
         currency: 'INR',
         category: BillCategory.electricity,
-        dueDate: DateTime.now().add(const Duration(days: 1)),
+        dueDate: DateTime.now().addDays(1),
         createdAt: now,
         updatedAt: now,
       );
@@ -538,7 +555,7 @@ void main() {
         amount: 25000,
         currency: 'INR',
         category: BillCategory.rent,
-        dueDate: DateTime.now().add(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(7),
         createdAt: now,
         updatedAt: now,
       );
@@ -560,7 +577,7 @@ void main() {
         amount: 799,
         currency: 'INR',
         category: BillCategory.internet,
-        dueDate: DateTime.now().subtract(const Duration(days: 3)),
+        dueDate: DateTime.now().addDays(-3),
         createdAt: now,
         updatedAt: now,
       );
@@ -579,7 +596,7 @@ void main() {
         amount: 1000,
         currency: 'INR',
         category: BillCategory.rent,
-        dueDate: DateTime.now().add(const Duration(days: 14)),
+        dueDate: DateTime.now().addDays(14),
         createdAt: now,
         updatedAt: now,
       );
@@ -589,7 +606,7 @@ void main() {
         amount: 500,
         currency: 'INR',
         category: BillCategory.electricity,
-        dueDate: DateTime.now().subtract(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(-7),
         createdAt: now,
         updatedAt: now,
       );
@@ -631,7 +648,7 @@ void main() {
         amount: 1000,
         currency: 'INR',
         category: BillCategory.electricity,
-        dueDate: DateTime.now().subtract(const Duration(days: 7)),
+        dueDate: DateTime.now().addDays(-7),
         createdAt: now,
         updatedAt: now,
       );
@@ -642,128 +659,15 @@ void main() {
       expect(state.filteredBills[1].id, 'paid');
     });
   });
+}
 
-  group('BillState computed properties', () {
-    test('upcomingTotal sums unpaid upcoming and due today bills', () {
-      final now = DateTime.now();
-      final state = BillState(
-        allBills: [
-          BillEntity(
-            id: '1',
-            title: 'Due Today',
-            amount: 1000,
-            currency: 'INR',
-            category: BillCategory.electricity,
-            dueDate: DateTime.now(),
-            createdAt: now,
-            updatedAt: now,
-          ),
-          BillEntity(
-            id: '2',
-            title: 'Upcoming',
-            amount: 2000,
-            currency: 'INR',
-            category: BillCategory.rent,
-            dueDate: DateTime.now().add(const Duration(days: 7)),
-            createdAt: now,
-            updatedAt: now,
-          ),
-          BillEntity(
-            id: '3',
-            title: 'Paid',
-            amount: 500,
-            currency: 'INR',
-            category: BillCategory.phone,
-            dueDate: DateTime.now(),
-            isPaid: true,
-            createdAt: now,
-            updatedAt: now,
-          ),
-        ],
-      );
+/// Marking paid fails, as when the database is busy.
+class _FailingMarkPaid extends MarkBillPaidUseCase {
+  _FailingMarkPaid(FakeBillRepository repository)
+    : super(repository: repository);
 
-      expect(state.upcomingTotal, 3000); // 1000 + 2000, not 500
-    });
-
-    test('overdueTotal sums overdue bills only', () {
-      final now = DateTime.now();
-      final state = BillState(
-        allBills: [
-          BillEntity(
-            id: '1',
-            title: 'Overdue',
-            amount: 799,
-            currency: 'INR',
-            category: BillCategory.internet,
-            dueDate: DateTime.now().subtract(const Duration(days: 7)),
-            createdAt: now,
-            updatedAt: now,
-          ),
-          BillEntity(
-            id: '2',
-            title: 'Upcoming',
-            amount: 2000,
-            currency: 'INR',
-            category: BillCategory.rent,
-            dueDate: DateTime.now().add(const Duration(days: 7)),
-            createdAt: now,
-            updatedAt: now,
-          ),
-        ],
-      );
-
-      expect(state.overdueTotal, 799);
-    });
-
-    test('upcomingTotal excludes overdue and paid bills', () {
-      final now = DateTime.now();
-      final state = BillState(
-        allBills: [
-          BillEntity(
-            id: '1',
-            title: 'Upcoming unpaid',
-            amount: 2000,
-            currency: 'INR',
-            category: BillCategory.rent,
-            dueDate: DateTime.now().add(const Duration(days: 7)),
-            createdAt: now,
-            updatedAt: now,
-          ),
-          BillEntity(
-            id: '2',
-            title: 'Due today unpaid',
-            amount: 1000,
-            currency: 'INR',
-            category: BillCategory.electricity,
-            dueDate: DateTime.now(),
-            createdAt: now,
-            updatedAt: now,
-          ),
-          BillEntity(
-            id: '3',
-            title: 'Overdue unpaid',
-            amount: 500,
-            currency: 'INR',
-            category: BillCategory.phone,
-            dueDate: DateTime.now().subtract(const Duration(days: 3)),
-            createdAt: now,
-            updatedAt: now,
-          ),
-          BillEntity(
-            id: '4',
-            title: 'Paid upcoming',
-            amount: 700,
-            currency: 'INR',
-            category: BillCategory.subscription,
-            dueDate: DateTime.now().add(const Duration(days: 10)),
-            isPaid: true,
-            createdAt: now,
-            updatedAt: now,
-          ),
-        ],
-      );
-
-      expect(state.upcomingTotal, 3000); // 2000 + 1000
-    });
-  });
+  @override
+  Future<BillResult<BillEntity>> call(String billId) async => const BillError(
+    BillFailure(type: BillErrorType.databaseFailure, message: 'busy'),
+  );
 }

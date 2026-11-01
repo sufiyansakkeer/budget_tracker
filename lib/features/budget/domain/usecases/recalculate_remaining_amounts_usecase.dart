@@ -31,6 +31,7 @@ class RecalculateRemainingAmountsUseCase {
       final remaining = calculationService.calculateRemainingBudget(
         monthlyAmount: budget.monthlyAmount,
         totalSpent: statistics.totalSpent,
+        currency: budget.currency,
       );
       if (remaining == budget.remainingAmount) continue;
       // In a transaction, so an edit saved meanwhile cannot be overwritten

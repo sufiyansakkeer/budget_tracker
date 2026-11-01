@@ -89,6 +89,33 @@ void main() {
     );
   }
 
+  testWidgets('the end date cannot be the start date, which saving refuses', (
+    tester,
+  ) async {
+    final budget = budgetWithCurrency('INR');
+    when(
+      getIt<BudgetRepository>().getBudgetById(budget.id),
+    ).thenAnswer((_) async => budget);
+    await pumpEditScreen(tester, budgetId: budget.id);
+
+    final end = find.text('31 Aug 2026');
+    await tester.ensureVisible(end);
+    await tester.tap(end);
+    await tester.pumpAndSettle();
+    // 1 August is the start date: not a valid end.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(DatePickerDialog),
+        matching: find.text('1'),
+      ),
+    );
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('1 day ·'), findsNothing);
+    expect(find.text('31 Aug 2026'), findsOneWidget);
+  });
+
   testWidgets('editing an INR budget selects INR exactly once', (tester) async {
     final budget = budgetWithCurrency('INR');
     when(

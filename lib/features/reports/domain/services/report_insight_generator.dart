@@ -5,13 +5,19 @@ import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 import '../entities/report_data.dart';
 
 /// Generates rule-based, human-readable [SmartInsight] messages from a
-/// computed [ReportData]. Contains no calculation logic — it only translates
-/// analytics results into user-facing copy. No AI or network is involved.
+/// computed [ReportData]. Apart from small figures for the copy (weekend
+/// share, amount left or over), it translates the analytics results as they
+/// are. No AI or network is involved.
 class ReportInsightGenerator {
   const ReportInsightGenerator();
 
-  /// Builds a list of insights from [data], ordered by importance.
-  List<SmartInsight> generate(ReportData data) {
+  /// Builds a list of insights from [data], ordered by importance. Amounts
+  /// are written with [money] when given (the PDF can't draw every symbol).
+  List<SmartInsight> generate(
+    ReportData data, {
+    String Function(double amount)? money,
+  }) {
+    final format = money ?? (double amount) => _money(amount, data);
     if (data.isEmpty) {
       return const [
         SmartInsight(
@@ -27,7 +33,7 @@ class ReportInsightGenerator {
     _addTopCategoryInsight(data, insights);
     _addHighestSpendingDayInsight(data, insights);
     _addWeekendInsight(data, insights);
-    _addProjectionInsight(data, insights);
+    _addProjectionInsight(data, insights, format);
     _addTrendInsight(data, insights);
     _addConsistencyInsight(data, insights);
 
@@ -36,7 +42,7 @@ class ReportInsightGenerator {
         SmartInsight(
           id: 'overview',
           message:
-              'You spent ${_money(data.overview.totalSpending, data)} across '
+              'You spent ${format(data.overview.totalSpending)} across '
               '${data.overview.totalTransactions} transactions.',
           type: InsightType.info,
         ),
@@ -115,7 +121,11 @@ class ReportInsightGenerator {
     }
   }
 
-  void _addProjectionInsight(ReportData data, List<SmartInsight> insights) {
+  void _addProjectionInsight(
+    ReportData data,
+    List<SmartInsight> insights,
+    String Function(double amount) money,
+  ) {
     if (data.currentBudget == null || data.currentMonthBudget <= 0) return;
     final spent = data.currentMonthSpent;
     final budget = data.currentMonthBudget;
@@ -125,7 +135,7 @@ class ReportInsightGenerator {
         SmartInsight(
           id: 'projected_savings',
           message:
-              'Your active budget still has ${_money(projectedSavings, data)} '
+              'Your active budget still has ${money(projectedSavings)} '
               'left for its period.',
           type: InsightType.positive,
         ),
@@ -136,7 +146,7 @@ class ReportInsightGenerator {
         SmartInsight(
           id: 'budget_exceeded',
           message:
-              "You've spent ${_money(overspent, data)} more than your active "
+              "You've spent ${money(overspent)} more than your active "
               "budget's total amount.",
           type: InsightType.negative,
         ),

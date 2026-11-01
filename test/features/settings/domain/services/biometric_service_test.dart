@@ -61,44 +61,6 @@ void main() {
       });
     });
 
-    group('canUseBiometrics', () {
-      test(
-        'should return true when device supports and has biometrics',
-        () async {
-          when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
-          when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
-          when(
-            mockAuth.getAvailableBiometrics(),
-          ).thenAnswer((_) async => [BiometricType.face]);
-
-          final result = await biometricService.canUseBiometrics();
-
-          expect(result, true);
-        },
-      );
-
-      test(
-        'should return false when device does not support biometrics',
-        () async {
-          when(mockAuth.isDeviceSupported()).thenAnswer((_) async => false);
-
-          final result = await biometricService.canUseBiometrics();
-
-          expect(result, false);
-        },
-      );
-
-      test('should return false when no biometrics available', () async {
-        when(mockAuth.isDeviceSupported()).thenAnswer((_) async => true);
-        when(mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
-        when(mockAuth.getAvailableBiometrics()).thenAnswer((_) async => []);
-
-        final result = await biometricService.canUseBiometrics();
-
-        expect(result, false);
-      });
-    });
-
     group('authenticate', () {
       test('should return true on successful authentication', () async {
         when(

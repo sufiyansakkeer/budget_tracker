@@ -7,9 +7,6 @@ class CategoryAnalytics extends Equatable {
   final String colorHex;
   final double totalAmount;
   final int transactionCount;
-  final double averageTransaction;
-  final double highestTransaction;
-  final double lowestTransaction;
   final double percentageOfTotal;
 
   const CategoryAnalytics({
@@ -18,9 +15,6 @@ class CategoryAnalytics extends Equatable {
     required this.colorHex,
     required this.totalAmount,
     required this.transactionCount,
-    required this.averageTransaction,
-    required this.highestTransaction,
-    required this.lowestTransaction,
     required this.percentageOfTotal,
   });
 
@@ -31,9 +25,6 @@ class CategoryAnalytics extends Equatable {
     colorHex,
     totalAmount,
     transactionCount,
-    averageTransaction,
-    highestTransaction,
-    lowestTransaction,
     percentageOfTotal,
   ];
 }

@@ -4,7 +4,7 @@ import '../entities/expense_history_sort.dart';
 
 /// Sorts expenses according to an [ExpenseSortOption].
 ///
-/// Returns a new sorted list. The order is stable for equal keys.
+/// Returns a new sorted list.
 class SortExpensesUseCase {
   const SortExpensesUseCase();
 
@@ -13,54 +13,40 @@ class SortExpensesUseCase {
     required List<ExpenseCategory> categories,
     required ExpenseSortOption sort,
   }) {
-    final result = List.of(expenses);
-
     final categoryNameById = <String, String>{
       for (final category in categories)
         category.id: category.name.toLowerCase(),
     };
+    return List.of(expenses)
+      ..sort(comparatorFor(sort, categoryNames: categoryNameById));
+  }
 
-    switch (sort) {
-      case ExpenseSortOption.newestFirst:
-        result.sort((a, b) {
-          final byDate = b.date.compareTo(a.date);
-          if (byDate != 0) return byDate;
-          return b.time.compareTo(a.time);
-        });
-        break;
-      case ExpenseSortOption.oldestFirst:
-        result.sort((a, b) {
-          final byDate = a.date.compareTo(b.date);
-          if (byDate != 0) return byDate;
-          return a.time.compareTo(b.time);
-        });
-        break;
-      case ExpenseSortOption.highestAmount:
-        result.sort((a, b) => b.amount.compareTo(a.amount));
-        break;
-      case ExpenseSortOption.lowestAmount:
-        result.sort((a, b) => a.amount.compareTo(b.amount));
-        break;
-      case ExpenseSortOption.category:
-        result.sort((a, b) {
-          final ca = categoryNameById[a.categoryId] ?? '';
-          final cb = categoryNameById[b.categoryId] ?? '';
-          final byName = ca.compareTo(cb);
-          if (byName != 0) return byName;
-          return b.date.compareTo(a.date);
-        });
-        break;
-      case ExpenseSortOption.alphabetical:
-        result.sort((a, b) {
-          final na = (a.note ?? '').toLowerCase();
-          final nb = (b.note ?? '').toLowerCase();
-          final byNote = na.compareTo(nb);
-          if (byNote != 0) return byNote;
-          return b.date.compareTo(a.date);
-        });
-        break;
-    }
+  /// How [sort] orders two expenses. [categoryNames] (id → lower-case name)
+  /// is read by the category sort only.
+  static Comparator<ExpenseEntity> comparatorFor(
+    ExpenseSortOption sort, {
+    Map<String, String> categoryNames = const {},
+  }) => switch (sort) {
+    ExpenseSortOption.newestFirst => (a, b) => _byDateTime(b, a),
+    ExpenseSortOption.oldestFirst => _byDateTime,
+    ExpenseSortOption.highestAmount => (a, b) => b.amount.compareTo(a.amount),
+    ExpenseSortOption.lowestAmount => (a, b) => a.amount.compareTo(b.amount),
+    ExpenseSortOption.category => (a, b) {
+      final byName = (categoryNames[a.categoryId] ?? '').compareTo(
+        categoryNames[b.categoryId] ?? '',
+      );
+      return byName != 0 ? byName : b.date.compareTo(a.date);
+    },
+    ExpenseSortOption.alphabetical => (a, b) {
+      final byNote = (a.note ?? '').toLowerCase().compareTo(
+        (b.note ?? '').toLowerCase(),
+      );
+      return byNote != 0 ? byNote : b.date.compareTo(a.date);
+    },
+  };
 
-    return result;
+  static int _byDateTime(ExpenseEntity a, ExpenseEntity b) {
+    final byDate = a.date.compareTo(b.date);
+    return byDate != 0 ? byDate : a.time.compareTo(b.time);
   }
 }

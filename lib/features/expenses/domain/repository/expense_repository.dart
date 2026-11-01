@@ -21,8 +21,6 @@ abstract class ExpenseRepository {
   /// or a summary never loads a budget's whole history to look at one week.
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   });

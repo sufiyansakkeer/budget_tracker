@@ -1,7 +1,6 @@
 import 'package:uuid/uuid.dart';
 
 import '../entities/bill_entity.dart';
-import '../entities/bill_enums.dart';
 import '../entities/bill_failure.dart';
 import '../repository/bill_repository.dart';
 
@@ -21,7 +20,7 @@ class MarkBillPaidUseCase {
   /// bill moves to its next due date and stays unpaid; a one-time bill is
   /// marked paid. Shared with `PayBillUseCase` so both pay the same way.
   static BillEntity settle(BillEntity bill, DateTime now) {
-    if (bill.isRecurring && bill.recurrenceType != RecurrenceType.none) {
+    if (bill.repeats) {
       // For recurring bills: advance the due date, keep active.
       return bill.copyWith(
         dueDate: bill.nextDueDate,

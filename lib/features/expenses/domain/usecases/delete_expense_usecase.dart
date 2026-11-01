@@ -17,17 +17,18 @@ class DeleteExpenseUseCase {
       );
     }
 
-    final existing = await repository.getExpenseById(id);
-    if (existing == null) {
-      return const ExpenseError(
-        ExpenseFailure(
-          type: ExpenseErrorType.notFound,
-          message: 'Expense not found',
-        ),
-      );
-    }
-
+    // The read is inside the try too: a failure must come back as a result,
+    // or the screen waiting on it stays on "saving".
     try {
+      final existing = await repository.getExpenseById(id);
+      if (existing == null) {
+        return const ExpenseError(
+          ExpenseFailure(
+            type: ExpenseErrorType.notFound,
+            message: 'Expense not found',
+          ),
+        );
+      }
       await repository.deleteExpense(id);
       return const ExpenseSuccess(null);
     } catch (e) {

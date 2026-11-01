@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/currency/money_input.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
 import 'quick_filter_chips.dart';
@@ -75,7 +76,7 @@ class ActiveFilterChips extends StatelessWidget {
     if (filter.minAmount != null) {
       chips.add(
         _chip(
-          label: 'Min ${filter.minAmount!.toStringAsFixed(0)}',
+          label: 'Min ${MoneyInput.forInput(filter.minAmount!)}',
           onDeleted: () => onChanged(filter.copyWithMinAmount(null)),
         ),
       );
@@ -84,7 +85,7 @@ class ActiveFilterChips extends StatelessWidget {
     if (filter.maxAmount != null) {
       chips.add(
         _chip(
-          label: 'Max ${filter.maxAmount!.toStringAsFixed(0)}',
+          label: 'Max ${MoneyInput.forInput(filter.maxAmount!)}',
           onDeleted: () => onChanged(filter.copyWithMaxAmount(null)),
         ),
       );

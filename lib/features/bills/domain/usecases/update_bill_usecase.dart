@@ -3,24 +3,17 @@ import '../entities/bill_failure.dart';
 import '../repository/bill_repository.dart';
 import '../validators/bill_validator.dart';
 
-/// Updates an existing bill after validating its input.
+/// Updates an existing bill, checked against the same rules as a new one.
 class UpdateBillUseCase {
   final BillRepository repository;
 
   UpdateBillUseCase({required this.repository});
 
   Future<BillResult<BillEntity>> call(BillEntity bill) async {
-    final titleError = BillValidator.validateTitle(bill.title);
-    if (titleError != null) {
+    final invalid = BillValidator.check(bill);
+    if (invalid != null) {
       return BillError(
-        BillFailure(type: BillErrorType.invalidInput, message: titleError),
-      );
-    }
-
-    final amountError = BillValidator.validateAmountValue(bill.amount);
-    if (amountError != null) {
-      return BillError(
-        BillFailure(type: BillErrorType.invalidInput, message: amountError),
+        BillFailure(type: BillErrorType.invalidInput, message: invalid),
       );
     }
 

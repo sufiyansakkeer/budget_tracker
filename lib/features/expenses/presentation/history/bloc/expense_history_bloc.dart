@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/domain/entities/budget_entity.dart';
@@ -8,6 +9,7 @@ import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_failure.dart';
 import '../../../domain/entities/expense_history_summary.dart';
+import '../../../domain/usecases/group_expenses_usecase.dart';
 import '../../../domain/usecases/calculate_expense_summary_usecase.dart';
 import '../../../domain/usecases/filter_expenses_usecase.dart';
 import '../../../domain/usecases/get_categories_usecase.dart';
@@ -41,6 +43,7 @@ class ExpenseHistoryBloc
   final CalculateExpenseSummaryUseCase calculateExpenseSummaryUseCase;
   final PageExpensesUseCase pageExpensesUseCase;
   final BudgetRepository budgetRepository;
+  final GroupExpensesUseCase groupExpensesUseCase;
 
   /// Debounce window for search input.
   static const Duration searchDebounce = Duration(milliseconds: 300);
@@ -64,6 +67,7 @@ class ExpenseHistoryBloc
     required this.calculateExpenseSummaryUseCase,
     required this.pageExpensesUseCase,
     required this.budgetRepository,
+    this.groupExpensesUseCase = const GroupExpensesUseCase(),
   }) : super(const ExpenseHistoryState()) {
     on<ExpenseHistoryLoad>(_onLoad);
     on<ExpenseHistoryRefresh>(_onRefresh);
@@ -73,10 +77,7 @@ class ExpenseHistoryBloc
     on<ExpenseHistoryLoadMore>(_onLoadMore);
     on<ExpenseHistoryClearFilters>(_onClearFilters);
     on<ExpenseHistoryToggleViewMode>(_onToggleViewMode);
-    on<ExpenseHistoryToggleBudgetSelection>(_onToggleBudgetSelection);
     on<ExpenseHistorySetBudgetSelection>(_onSetBudgetSelection);
-    on<ExpenseHistorySelectAllBudgets>(_onSelectAllBudgets);
-    on<ExpenseHistoryClearBudgetSelection>(_onClearBudgetSelection);
     on<ExpenseHistoryApplyCombinedView>(_onApplyCombinedView);
     on<ExpenseHistoryExitCombinedView>(_onExitCombinedView);
     on<ExpenseHistoryExpenseRemoved>(_onExpenseRemoved);
@@ -213,6 +214,8 @@ class ExpenseHistoryBloc
     ExpenseHistoryClearFilters event,
     Emitter<ExpenseHistoryState> emit,
   ) async {
+    // A search still waiting on its debounce would bring the text back.
+    _searchTimer?.cancel();
     _recompute(emit, query: '', filter: const ExpenseHistoryFilter());
   }
 
@@ -232,25 +235,11 @@ class ExpenseHistoryBloc
       );
       await _load(emit, showLoading: true);
     } else {
-      // Entering combined mode — load budgets and keep previous selection
-      if (state.allBudgets.isEmpty) {
-        await _loadBudgets(emit);
-      }
+      // Entering combined mode: read the budgets afresh (names, amounts
+      // and new budgets may have changed since) and keep the selection.
+      if (!await _loadBudgets(emit)) return;
       emit(state.copyWith(viewMode: ExpenseViewMode.combined));
     }
-  }
-
-  Future<void> _onToggleBudgetSelection(
-    ExpenseHistoryToggleBudgetSelection event,
-    Emitter<ExpenseHistoryState> emit,
-  ) async {
-    final current = List<String>.from(state.selectedBudgetIds);
-    if (current.contains(event.budgetId)) {
-      current.remove(event.budgetId);
-    } else {
-      current.add(event.budgetId);
-    }
-    emit(state.copyWith(selectedBudgetIds: current));
   }
 
   Future<void> _onSetBudgetSelection(
@@ -260,24 +249,6 @@ class ExpenseHistoryBloc
     final known = state.allBudgets.map((b) => b.id).toSet();
     final next = event.budgetIds.where(known.contains).toList();
     emit(state.copyWith(selectedBudgetIds: next));
-  }
-
-  Future<void> _onSelectAllBudgets(
-    ExpenseHistorySelectAllBudgets event,
-    Emitter<ExpenseHistoryState> emit,
-  ) async {
-    emit(
-      state.copyWith(
-        selectedBudgetIds: state.allBudgets.map((b) => b.id).toList(),
-      ),
-    );
-  }
-
-  Future<void> _onClearBudgetSelection(
-    ExpenseHistoryClearBudgetSelection event,
-    Emitter<ExpenseHistoryState> emit,
-  ) async {
-    emit(state.copyWith(selectedBudgetIds: const []));
   }
 
   Future<void> _onApplyCombinedView(
@@ -383,14 +354,31 @@ class ExpenseHistoryBloc
   // ── Private helpers ─────────────────────────────────────────────────
 
   /// Loads all available budgets from the repository and stores them in state.
-  Future<void> _loadBudgets(Emitter<ExpenseHistoryState> emit) async {
-    final budgets = await budgetRepository.getAllBudgets();
+  /// Reads the budgets the combined view picks from. Returns false, with
+  /// [ExpenseHistoryState.budgetsLoad] failed, when they can't be read.
+  Future<bool> _loadBudgets(Emitter<ExpenseHistoryState> emit) async {
+    emit(state.copyWith(budgetsLoad: BudgetsLoad.loading));
+    final List<BudgetEntity> budgets;
+    try {
+      budgets = await budgetRepository.getAllBudgets();
+    } catch (e) {
+      debugPrint('[error] Loading budgets to view together: $e');
+      emit(state.copyWith(budgetsLoad: BudgetsLoad.failed));
+      return false;
+    }
     final activeBudgets = budgets.where((b) => !b.isArchived).toList();
     final budgetMap = <String, BudgetEntity>{};
     for (final b in activeBudgets) {
       budgetMap[b.id] = b;
     }
-    emit(state.copyWith(allBudgets: activeBudgets, budgetMap: budgetMap));
+    emit(
+      state.copyWith(
+        allBudgets: activeBudgets,
+        budgetMap: budgetMap,
+        budgetsLoad: BudgetsLoad.loaded,
+      ),
+    );
+    return true;
   }
 
   /// Loads expenses and categories from the repository, then recomputes the
@@ -430,8 +418,10 @@ class ExpenseHistoryBloc
     }
 
     if (isCombined) {
-      // Combined mode — reload expenses for the selected budgets so the
-      // selection and displayed list stay in sync after refresh.
+      // Combined mode — reload the budgets and the selected budgets'
+      // expenses, so a refresh after a budget change shows its new name,
+      // amounts and any new budget.
+      await _loadBudgets(emit);
       final expensesResult = await getExpensesForBudgetsUseCase(
         budgetIds: state.selectedBudgetIds,
       );
@@ -443,20 +433,28 @@ class ExpenseHistoryBloc
       }
     } else {
       // Single-budget mode — scope to the active budget.
-      final activeBudgetId = await budgetRepository.getActiveBudgetId();
-      final activeBudget = activeBudgetId == null
-          ? null
-          : await budgetRepository.getBudgetById(activeBudgetId);
+      BudgetEntity? activeBudget;
+      try {
+        final activeBudgetId = await budgetRepository.getActiveBudgetId();
+        activeBudget = activeBudgetId == null
+            ? null
+            : await budgetRepository.getBudgetById(activeBudgetId);
+      } catch (e) {
+        debugPrint('[error] Reading the active budget for expenses: $e');
+        errorMessage ??= loadFailedMessage;
+      }
       budgetId = activeBudget?.id;
       budgetName = activeBudget?.name;
       budgetCurrency = activeBudget?.currency;
 
-      final expensesResult = await getExpensesUseCase(budgetId: budgetId);
-      switch (expensesResult) {
-        case ExpenseSuccess(:final data):
-          expenses = data;
-        case ExpenseError(:final failure):
-          errorMessage ??= failure.shown(loadFailedMessage);
+      if (errorMessage == null) {
+        final expensesResult = await getExpensesUseCase(budgetId: budgetId);
+        switch (expensesResult) {
+          case ExpenseSuccess(:final data):
+            expenses = data;
+          case ExpenseError(:final failure):
+            errorMessage ??= failure.shown(loadFailedMessage);
+        }
       }
     }
 
@@ -485,7 +483,8 @@ class ExpenseHistoryBloc
       budgetId: budgetId,
       budgetName: budgetName,
       budgetCurrency: budgetCurrency,
-      clearBudgetScope: isCombined,
+      // No active budget any more (deleted): drop the old name.
+      clearBudgetScope: isCombined || budgetId == null,
       keepLoaded: showLoading,
     );
   }
@@ -523,6 +522,12 @@ class ExpenseHistoryBloc
       categories: nextCategories,
       sort: nextSort,
     );
+    // Paged in the order the screen shows them (days newest first, the sort
+    // applied within each day), so loading more only adds rows below.
+    visible = [
+      for (final group in groupExpensesUseCase(visible, sort: nextSort))
+        ...group.expenses,
+    ];
 
     final summary = calculateExpenseSummaryUseCase(visible);
     final summaryByCurrency = _summaryByCurrency(visible);

@@ -3,7 +3,7 @@ import 'package:monivo/features/settings/domain/entities/app_settings.dart';
 import 'package:monivo/features/settings/domain/entities/import_report.dart';
 import 'package:monivo/features/settings/domain/entities/settings_failure.dart';
 import 'package:monivo/features/settings/domain/services/biometric_service.dart';
-import 'package:monivo/features/settings/domain/services/file_delivery_service.dart';
+import 'package:monivo/core/files/file_delivery_service.dart';
 import 'package:monivo/features/settings/domain/usecases/backup_data_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/export_data_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/import_data_usecase.dart';
@@ -193,6 +193,48 @@ void main() {
       },
     );
 
+    test('a screen lock without biometrics is enough, so loading Settings asks '
+        'for no fingerprint', () async {
+      when(biometricService.getAvailability()).thenAnswer(
+        (_) async => const BiometricAvailability(
+          isDeviceSupported: true,
+          canCheckBiometrics: true,
+          availableTypes: [],
+        ),
+      );
+      when(
+        loadSettingsUseCase(),
+      ).thenAnswer((_) async => const SettingsSuccess(AppSettings()));
+
+      final bloc = buildBloc();
+      bloc.add(SettingsLoadEvent());
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.status, SettingsStatus.loaded);
+      expect(bloc.state.biometricMessage, isNull);
+
+      await bloc.close();
+    });
+
+    test('a phone with no screen lock is told to set one up on load', () async {
+      when(biometricService.getAvailability()).thenAnswer(
+        (_) async => const BiometricAvailability(isDeviceSupported: false),
+      );
+      when(
+        loadSettingsUseCase(),
+      ).thenAnswer((_) async => const SettingsSuccess(AppSettings()));
+
+      final bloc = buildBloc();
+      bloc.add(SettingsLoadEvent());
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.biometricMessage, contains('screen lock'));
+
+      await bloc.close();
+    });
+
     test('UX-011: a failed save never tells the lock bloc', () async {
       when(updateBiometricUseCase.call(true)).thenAnswer(
         (_) async => const SettingsError(
@@ -313,8 +355,17 @@ void main() {
     });
 
     SettingsBloc buildBloc() {
+      // A restore re-reads the settings and reschedules the reminders.
+      final loadSettings = MockLoadSettingsUseCase();
+      when(
+        loadSettings.call(),
+      ).thenAnswer((_) async => const SettingsSuccess(AppSettings()));
+      final schedule = MockScheduleNotificationsUseCase();
+      when(
+        schedule.call(any),
+      ).thenAnswer((_) async => const SettingsSuccess(null));
       return SettingsBloc(
-        loadSettingsUseCase: MockLoadSettingsUseCase(),
+        loadSettingsUseCase: loadSettings,
         updateCurrencyUseCase: MockUpdateCurrencyUseCase(),
         updateNotificationSettingsUseCase:
             MockUpdateNotificationSettingsUseCase(),
@@ -325,7 +376,7 @@ void main() {
         backupDataUseCase: MockBackupDataUseCase(),
         restoreDataUseCase: restoreDataUseCase,
         resetBudgetUseCase: MockResetBudgetUseCase(),
-        scheduleNotificationsUseCase: MockScheduleNotificationsUseCase(),
+        scheduleNotificationsUseCase: schedule,
       );
     }
 
@@ -354,11 +405,52 @@ void main() {
 
       final bloc = buildBloc();
       bloc.add(const SettingsRestoreEvent('/backup.json'));
-      await Future<void>.delayed(Duration.zero);
+      await bloc.stream.firstWhere((s) => s.infoMessage != null);
 
       expect(bloc.state.infoMessage, 'Backup restored.');
       expect(counts, {'budgets': 1, 'expenses': 1, 'bills': 1});
       await bloc.close();
+    });
+
+    test('a restore brings its settings back into use at once', () async {
+      // Review B4: the backup replaced the settings table, but the theme,
+      // currency, lock and reminders kept the old values until a restart.
+      const restored = AppSettings(currencyCode: 'OMR');
+      final loadSettings = MockLoadSettingsUseCase();
+      final schedule = MockScheduleNotificationsUseCase();
+      var resynced = 0;
+      when(
+        restoreDataUseCase.call('/backup.json'),
+      ).thenAnswer((_) async => const SettingsSuccess('Restored.'));
+      when(
+        loadSettings.call(),
+      ).thenAnswer((_) async => const SettingsSuccess(restored));
+      when(
+        schedule.call(any),
+      ).thenAnswer((_) async => const SettingsSuccess(null));
+      final bloc = SettingsBloc(
+        loadSettingsUseCase: loadSettings,
+        updateCurrencyUseCase: MockUpdateCurrencyUseCase(),
+        updateNotificationSettingsUseCase:
+            MockUpdateNotificationSettingsUseCase(),
+        updateBiometricUseCase: MockUpdateBiometricUseCase(),
+        biometricService: MockBiometricService(),
+        exportDataUseCase: MockExportDataUseCase(),
+        importDataUseCase: MockImportDataUseCase(),
+        backupDataUseCase: MockBackupDataUseCase(),
+        restoreDataUseCase: restoreDataUseCase,
+        resetBudgetUseCase: MockResetBudgetUseCase(),
+        scheduleNotificationsUseCase: schedule,
+        onSettingsRestored: () => resynced++,
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const SettingsRestoreEvent('/backup.json'));
+      await bloc.stream.firstWhere((s) => s.infoMessage != null);
+
+      expect(bloc.state.settings.currencyCode, 'OMR');
+      verify(schedule.call(restored)).called(1);
+      expect(resynced, 1);
     });
 
     test('a failed restore notifies nothing', () async {

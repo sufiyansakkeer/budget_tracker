@@ -24,8 +24,8 @@ class RateLookup extends Equatable {
 
   final RateOrigin origin;
 
-  /// Computed as `1 / rate` from the cached reverse pair instead of being
-  /// fetched for this direction.
+  /// Computed as `1 / rate` from the reverse pair (fetched or cached)
+  /// instead of being looked up for this direction.
   final bool derived;
 
   /// Set when a fetch was attempted and failed, so [rate] is a cached

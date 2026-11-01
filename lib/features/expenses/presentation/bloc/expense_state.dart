@@ -18,15 +18,14 @@ enum ExpenseBlocStatus {
 /// Which mutation produced the latest [ExpenseBlocStatus.success].
 enum ExpenseAction { none, created, updated, deleted, restored }
 
-/// Progress of the quick-add sheet's data ([ExpenseLoadQuickAdd]).
-enum QuickAddLoad { idle, loading, loaded }
+/// Progress of the quick-add sheet's data ([ExpenseLoadQuickAdd]). [failed]
+/// means the budget or the categories could not be read.
+enum QuickAddLoad { idle, loading, loaded, failed }
 
 class ExpenseState extends Equatable {
   final ExpenseBlocStatus status;
   final List<ExpenseCategory> categories;
   final ExpenseEntity? expense;
-  final List<ExpenseEntity> expenses;
-  final String? activeBudgetId;
   final String? message;
 
   /// The mutation behind the latest success, so the UI can offer the right
@@ -57,8 +56,6 @@ class ExpenseState extends Equatable {
     this.status = ExpenseBlocStatus.initial,
     this.categories = const [],
     this.expense,
-    this.expenses = const [],
-    this.activeBudgetId,
     this.message,
     this.lastAction = ExpenseAction.none,
     this.lastDeleted,
@@ -79,8 +76,6 @@ class ExpenseState extends Equatable {
     List<ExpenseCategory>? categories,
     ExpenseEntity? expense,
     bool clearExpense = false,
-    List<ExpenseEntity>? expenses,
-    String? activeBudgetId,
     String? message,
     bool clearMessage = false,
     ExpenseAction? lastAction,
@@ -97,8 +92,6 @@ class ExpenseState extends Equatable {
       status: status ?? this.status,
       categories: categories ?? this.categories,
       expense: clearExpense ? null : (expense ?? this.expense),
-      expenses: expenses ?? this.expenses,
-      activeBudgetId: activeBudgetId ?? this.activeBudgetId,
       message: clearMessage ? null : (message ?? this.message),
       lastAction: lastAction ?? this.lastAction,
       lastDeleted: clearLastDeleted ? null : (lastDeleted ?? this.lastDeleted),
@@ -117,8 +110,6 @@ class ExpenseState extends Equatable {
     status,
     categories,
     expense,
-    expenses,
-    activeBudgetId,
     message,
     lastAction,
     lastDeleted,

@@ -1,5 +1,4 @@
-import 'dart:async';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
@@ -7,7 +6,6 @@ import '../../../budget/domain/repository/budget_repository.dart';
 import '../expense_failure_copy.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/entities/expense_failure.dart';
-import '../../domain/repository/expense_repository.dart';
 import '../../domain/usecases/create_expense_usecase.dart';
 import '../../domain/usecases/delete_expense_usecase.dart';
 import '../../domain/usecases/get_categories_usecase.dart';
@@ -29,7 +27,6 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   final GetExpenseByIdUseCase getExpenseByIdUseCase;
   final GetExpensesUseCase getExpensesUseCase;
   final GetCategoriesUseCase getCategoriesUseCase;
-  final ExpenseRepository repository;
   final BudgetRepository budgetRepository;
   final RankCategoriesByUseUseCase rankCategoriesByUse;
 
@@ -40,7 +37,6 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     required this.getExpenseByIdUseCase,
     required this.getExpensesUseCase,
     required this.getCategoriesUseCase,
-    required this.repository,
     required this.budgetRepository,
     this.rankCategoriesByUse = const RankCategoriesByUseUseCase(),
   }) : super(const ExpenseState()) {
@@ -48,28 +44,11 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     on<ExpenseLoadQuickAdd>(_onLoadQuickAdd);
     on<ExpenseInitialize>(_onInitialize);
     on<ExpenseLoadById>(_onLoadById);
-    on<ExpenseLoadAll>(_onLoadAll);
     on<ExpenseCreate>(_onCreate);
     on<ExpenseUpdate>(_onUpdate);
     on<ExpenseDelete>(_onDelete);
     on<ExpenseRestore>(_onRestore);
     on<ExpenseClearMessage>(_onClearMessage);
-
-    // Reload the expenses list when the active budget is switched so the list
-    // only shows expenses belonging to the newly active budget.
-    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
-      if (!isClosed) {
-        add(const ExpenseLoadAll());
-      }
-    });
-  }
-
-  StreamSubscription<void>? _budgetSwitchSubscription;
-
-  @override
-  Future<void> close() {
-    _budgetSwitchSubscription?.cancel();
-    return super.close();
   }
 
   Future<void> _onLoadCategories(
@@ -91,27 +70,39 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     }
   }
 
-  /// Reads the active budget and ranks the categories by use. Each part
-  /// degrades on its own: without a budget the sheet says so, and without
-  /// history the shortcuts fall back to catalogue order.
+  /// Reads the active budget and ranks the categories by use. Without a
+  /// budget the sheet says so, and without history the shortcuts fall back
+  /// to catalogue order. A budget or categories that can't be read leave the
+  /// load [QuickAddLoad.failed], so the sheet offers a retry rather than
+  /// claiming there is no budget.
   Future<void> _onLoadQuickAdd(
     ExpenseLoadQuickAdd event,
     Emitter<ExpenseState> emit,
   ) async {
     emit(state.copyWith(quickAddLoad: QuickAddLoad.loading));
 
+    var failed = false;
     var categories = state.categories;
     if (categories.isEmpty) {
       final result = await getCategoriesUseCase();
-      if (result case ExpenseSuccess(:final data)) categories = data;
+      switch (result) {
+        case ExpenseSuccess(:final data):
+          categories = data;
+        case ExpenseError(:final failure):
+          debugPrint(
+            '[error] Loading categories for quick add: ${failure.message}',
+          );
+          failed = true;
+      }
     }
 
     BudgetEntity? budget;
     try {
       final id = await budgetRepository.getActiveBudgetId();
       budget = id == null ? null : await budgetRepository.getBudgetById(id);
-    } catch (_) {
-      budget = null;
+    } catch (e) {
+      debugPrint('[error] Loading the active budget for quick add: $e');
+      failed = true;
     }
     if (budget?.isArchived ?? false) budget = null;
 
@@ -126,7 +117,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     emit(
       state.copyWith(
         categories: categories,
-        quickAddLoad: QuickAddLoad.loaded,
+        quickAddLoad: failed ? QuickAddLoad.failed : QuickAddLoad.loaded,
         quickAddBudget: budget,
         clearQuickAddBudget: budget == null,
         frequentCategories: rankCategoriesByUse(
@@ -154,14 +145,14 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   Future<String?> _resolveActiveBudgetId() async {
     try {
       return await budgetRepository.getActiveBudgetId();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Reading the active budget: $e');
       return null;
     }
   }
 
   /// Resolves the effective budget id for an expense during creation.
-  /// Prefers the expense's own budgetId; otherwise uses the active budget id
-  /// (from state, or resolved from the repository).
+  /// Prefers the expense's own budgetId; otherwise uses the active budget id.
   ///
   /// If budgetId cannot be resolved, returns an error result instead of
   /// silently returning an expense with empty budgetId (which would violate
@@ -169,10 +160,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   Future<ExpenseEntity?> _ensureBudgetId(ExpenseEntity expense) async {
     if (expense.budgetId.isNotEmpty) return expense;
 
-    var id = state.activeBudgetId;
-    if (id == null || id.isEmpty) {
-      id = await _resolveActiveBudgetId();
-    }
+    final id = await _resolveActiveBudgetId();
     if (id == null || id.isEmpty) {
       // Cannot proceed without a valid budget ID
       return null;
@@ -190,50 +178,12 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     final result = await getExpenseByIdUseCase(event.id);
     switch (result) {
       case ExpenseSuccess(:final data):
-        emit(
-          state.copyWith(
-            status: ExpenseBlocStatus.loaded,
-            expense: data,
-            activeBudgetId: data.budgetId,
-          ),
-        );
+        emit(state.copyWith(status: ExpenseBlocStatus.loaded, expense: data));
       case ExpenseError(:final failure):
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.error,
             message: failure.shown(openFailedMessage),
-          ),
-        );
-    }
-  }
-
-  Future<void> _onLoadAll(
-    ExpenseLoadAll event,
-    Emitter<ExpenseState> emit,
-  ) async {
-    emit(state.copyWith(status: ExpenseBlocStatus.loading));
-
-    // Scope the expenses list to the active budget.
-    var budgetId = state.activeBudgetId;
-    if (budgetId == null || budgetId.isEmpty) {
-      budgetId = await _resolveActiveBudgetId();
-    }
-
-    final result = await getExpensesUseCase(budgetId: budgetId);
-    switch (result) {
-      case ExpenseSuccess(:final data):
-        emit(
-          state.copyWith(
-            status: ExpenseBlocStatus.loaded,
-            expenses: data,
-            activeBudgetId: budgetId,
-          ),
-        );
-      case ExpenseError(:final failure):
-        emit(
-          state.copyWith(
-            status: ExpenseBlocStatus.error,
-            message: failure.shown("Couldn't load your expenses. Try again."),
           ),
         );
     }

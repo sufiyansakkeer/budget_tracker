@@ -68,65 +68,6 @@ class AnimatedAmount extends StatelessWidget {
   }
 }
 
-/// A percentage value (0–100) that animates between changes.
-///
-/// [suffix] follows the number, e.g. `'% used'`.
-class AnimatedPercent extends StatelessWidget {
-  final double percent;
-  final TextStyle? style;
-  final String suffix;
-  final TextAlign? textAlign;
-
-  const AnimatedPercent({
-    super.key,
-    required this.percent,
-    this.style,
-    this.suffix = '%',
-    this.textAlign,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _AnimatedValue(
-      value: percent,
-      builder: (context, value) => Text(
-        '${value.toStringAsFixed(0)}$suffix',
-        style: style,
-        maxLines: 1,
-        textAlign: textAlign,
-      ),
-    );
-  }
-}
-
-/// Any numeric value that animates between changes, formatted by [format].
-///
-/// Use for counts, day numbers or custom money layouts where
-/// [AnimatedAmount] does not fit.
-class AnimatedNumber extends StatelessWidget {
-  final double value;
-  final String Function(double value) format;
-  final TextStyle? style;
-  final TextAlign? textAlign;
-
-  const AnimatedNumber({
-    super.key,
-    required this.value,
-    required this.format,
-    this.style,
-    this.textAlign,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _AnimatedValue(
-      value: value,
-      builder: (context, v) =>
-          Text(format(v), style: style, maxLines: 1, textAlign: textAlign),
-    );
-  }
-}
-
 class _AnimatedValue extends StatefulWidget {
   final double value;
   final Widget Function(BuildContext context, double value) builder;

@@ -20,7 +20,7 @@ class ExpensePage extends Equatable {
 
 /// Slices a sorted list of expenses into pages, enabling lazy loading.
 ///
-/// The blocktype offset is the number of items already loaded. Pass
+/// The offset is the number of items already loaded. Pass
 /// `offset >= items.length` to detect the end of the list.
 class PageExpensesUseCase {
   final int pageSize;

@@ -57,7 +57,7 @@ class BillState extends Equatable {
         result = result.where((b) => b.status == BillStatus.paid).toList();
         break;
       case BillFilter.recurring:
-        result = result.where((b) => b.isRecurring).toList();
+        result = result.where((b) => b.repeats).toList();
         break;
       case BillFilter.notLinked:
         result = result.where((b) => b.budgetId == null).toList();
@@ -97,58 +97,10 @@ class BillState extends Equatable {
     return result;
   }
 
-  /// Bills with status == upcoming.
-  List<BillEntity> get upcomingBills =>
-      allBills.where((b) => b.status == BillStatus.upcoming).toList();
-
-  /// Bills with status == dueToday.
-  List<BillEntity> get dueTodayBills =>
-      allBills.where((b) => b.status == BillStatus.dueToday).toList();
-
-  /// Bills with status == overdue.
-  List<BillEntity> get overdueBills =>
-      allBills.where((b) => b.status == BillStatus.overdue).toList();
-
-  /// Bills with status == paid.
-  List<BillEntity> get paidBills =>
-      allBills.where((b) => b.status == BillStatus.paid).toList();
-
-  /// Total amount of upcoming bills (due today + upcoming).
-  double get upcomingTotal {
-    double total = 0;
-    for (final bill in allBills) {
-      if (!bill.isPaid &&
-          (bill.status == BillStatus.upcoming ||
-              bill.status == BillStatus.dueToday)) {
-        total += bill.amount;
-      }
-    }
-    return total;
-  }
-
-  /// Total amount of overdue bills.
-  double get overdueTotal {
-    double total = 0;
-    for (final bill in overdueBills) {
-      total += bill.amount;
-    }
-    return total;
-  }
-
-  /// Total amount of due today bills.
-  double get dueTodayTotal {
-    double total = 0;
-    for (final bill in dueTodayBills) {
-      total += bill.amount;
-    }
-    return total;
-  }
-
   BillState copyWith({
     BillBlocStatus? status,
     List<BillEntity>? allBills,
     BillEntity? selectedBill,
-    bool clearSelectedBill = false,
     BillFilter? filter,
     String? searchQuery,
     String? message,
@@ -157,9 +109,7 @@ class BillState extends Equatable {
     return BillState(
       status: status ?? this.status,
       allBills: allBills ?? this.allBills,
-      selectedBill: clearSelectedBill
-          ? null
-          : (selectedBill ?? this.selectedBill),
+      selectedBill: selectedBill ?? this.selectedBill,
       filter: filter ?? this.filter,
       searchQuery: searchQuery ?? this.searchQuery,
       message: clearMessage ? null : (message ?? this.message),

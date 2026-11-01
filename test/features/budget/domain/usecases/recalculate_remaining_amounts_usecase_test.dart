@@ -53,6 +53,30 @@ void main() {
         ),
       );
 
+  test('a budget spent to exactly zero stores zero, not a rounding '
+      'remainder that reads as over budget', () async {
+    await app.addBudget(
+      id: 'exact',
+      amount: 448.59,
+      startDate: DateTime(2026, 8, 1),
+      endDate: DateTime(2026, 8, 31),
+    );
+    for (final (id, amount) in const [('x1', 198.44), ('x2', 250.15)]) {
+      await app.expenseRepository.createExpense(
+        app.newExpense(
+          id: id,
+          budgetId: 'exact',
+          amount: amount,
+          date: DateTime(2026, 8, 10),
+        ),
+      );
+    }
+
+    expect(await app.storedRemaining('exact'), 0);
+    // And the startup repair agrees, so it never rewrites the value.
+    expect(await recalculate(), 0);
+  });
+
   test('repairs a stale value from the period total; correct ones are '
       'left alone', () async {
     await app.addBudget(

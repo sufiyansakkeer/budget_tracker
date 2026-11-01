@@ -235,26 +235,6 @@ class BudgetLocalDataSourceImpl implements BudgetLocalDataSource {
     return total;
   }
 
-  @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async {
-    final budget = await getBudgetById(budgetId);
-    if (budget == null) return 1;
-
-    final date = referenceDate ?? DateTime.now();
-    if (date.isAfter(budget.endDate)) return 0;
-
-    final start = DateTime(date.year, date.month, date.day);
-    final end = DateTime(
-      budget.endDate.year,
-      budget.endDate.month,
-      budget.endDate.day,
-    );
-    return end.difference(start).inDays + 1;
-  }
-
   String _newId() {
     return 'budget_${DateTime.now().microsecondsSinceEpoch}';
   }

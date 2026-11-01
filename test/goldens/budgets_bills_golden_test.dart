@@ -216,6 +216,17 @@ void main() {
       createdAt: day(-40),
       updatedAt: day(-40),
     );
+    // The bills' budget must still be running on the real day too, or each
+    // linked row reads "· ended" once its fixed dates have passed.
+    final running = [
+      for (final b in budgets)
+        b.id == 'household' ? b.copyWith(endDate: day(30)) : b,
+    ];
+    getIt
+      ..unregister<ManageBudgetUseCase>()
+      ..registerSingleton<ManageBudgetUseCase>(
+        ManageBudgetUseCase(repository: _StatsRepository(running, 'household')),
+      );
     final bills = SafeSpendFakeBillRepository([
       bill(
         'rent',

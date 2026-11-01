@@ -45,11 +45,6 @@ class ExpenseLoadById extends ExpenseEvent {
   List<Object?> get props => [id];
 }
 
-/// Loads all expenses (for the list screen).
-class ExpenseLoadAll extends ExpenseEvent {
-  const ExpenseLoadAll();
-}
-
 /// Creates a new expense.
 class ExpenseCreate extends ExpenseEvent {
   final ExpenseEntity expense;

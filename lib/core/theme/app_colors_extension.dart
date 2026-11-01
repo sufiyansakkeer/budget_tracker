@@ -31,18 +31,12 @@ import 'contrast.dart';
 class AppColorTokens extends ThemeExtension<AppColorTokens> {
   // Brand — Primary
   final Color primary;
-  final Color primaryLight;
-  final Color primaryDark;
 
   // Brand — Secondary
   final Color secondary;
-  final Color secondaryLight;
-  final Color secondaryDark;
 
   // Brand — Tertiary
   final Color tertiary;
-  final Color tertiaryLight;
-  final Color tertiaryDark;
 
   // Semantic
   final Color income;
@@ -82,14 +76,8 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
 
   const AppColorTokens({
     required this.primary,
-    required this.primaryLight,
-    required this.primaryDark,
     required this.secondary,
-    required this.secondaryLight,
-    required this.secondaryDark,
     required this.tertiary,
-    required this.tertiaryLight,
-    required this.tertiaryDark,
     required this.income,
     required this.expense,
     required this.success,
@@ -247,14 +235,8 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
 
     return AppColorTokens(
       primary: primary,
-      primaryLight: _lighten(primary, 0.12),
-      primaryDark: _darken(primary, 0.12),
       secondary: secondary,
-      secondaryLight: _lighten(secondary, 0.12),
-      secondaryDark: _darken(secondary, 0.12),
       tertiary: tertiary,
-      tertiaryLight: _lighten(tertiary, 0.12),
-      tertiaryDark: _darken(tertiary, 0.12),
       income: income,
       expense: expense,
       success: success,
@@ -286,14 +268,8 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
   @override
   AppColorTokens copyWith({
     Color? primary,
-    Color? primaryLight,
-    Color? primaryDark,
     Color? secondary,
-    Color? secondaryLight,
-    Color? secondaryDark,
     Color? tertiary,
-    Color? tertiaryLight,
-    Color? tertiaryDark,
     Color? income,
     Color? expense,
     Color? success,
@@ -322,14 +298,8 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
   }) {
     return AppColorTokens(
       primary: primary ?? this.primary,
-      primaryLight: primaryLight ?? this.primaryLight,
-      primaryDark: primaryDark ?? this.primaryDark,
       secondary: secondary ?? this.secondary,
-      secondaryLight: secondaryLight ?? this.secondaryLight,
-      secondaryDark: secondaryDark ?? this.secondaryDark,
       tertiary: tertiary ?? this.tertiary,
-      tertiaryLight: tertiaryLight ?? this.tertiaryLight,
-      tertiaryDark: tertiaryDark ?? this.tertiaryDark,
       income: income ?? this.income,
       expense: expense ?? this.expense,
       success: success ?? this.success,
@@ -364,14 +334,8 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     if (other is! AppColorTokens) return this;
     return AppColorTokens(
       primary: Color.lerp(primary, other.primary, t)!,
-      primaryLight: Color.lerp(primaryLight, other.primaryLight, t)!,
-      primaryDark: Color.lerp(primaryDark, other.primaryDark, t)!,
       secondary: Color.lerp(secondary, other.secondary, t)!,
-      secondaryLight: Color.lerp(secondaryLight, other.secondaryLight, t)!,
-      secondaryDark: Color.lerp(secondaryDark, other.secondaryDark, t)!,
       tertiary: Color.lerp(tertiary, other.tertiary, t)!,
-      tertiaryLight: Color.lerp(tertiaryLight, other.tertiaryLight, t)!,
-      tertiaryDark: Color.lerp(tertiaryDark, other.tertiaryDark, t)!,
       income: Color.lerp(income, other.income, t)!,
       expense: Color.lerp(expense, other.expense, t)!,
       success: Color.lerp(success, other.success, t)!,

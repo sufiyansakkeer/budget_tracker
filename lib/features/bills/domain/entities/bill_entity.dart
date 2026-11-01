@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'bill_enums.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Immutable bill entity used across the Bills & Reminders feature.
 class BillEntity extends Equatable {
@@ -118,11 +119,16 @@ class BillEntity extends Equatable {
     return 80000000 + (hash & 0x7FFFFFFF) % 10000000;
   }
 
-  /// Returns the reminder date/time for scheduling a notification.
-  /// Returns null if reminder is disabled or the reminder time is in the past.
+  /// Whether the bill comes round again. A stored row can say recurring with
+  /// no usable type (an unknown type reads as none); that bill is paid once.
+  bool get repeats => isRecurring && recurrenceType != RecurrenceType.none;
+
+  /// Returns the reminder date/time for scheduling a notification, or null if
+  /// the reminder is disabled. A time already in the past is still returned;
+  /// the scheduler skips it.
   DateTime? get reminderDateTime {
     if (!reminderEnabled) return null;
-    final reminderDate = dueDate.subtract(Duration(days: reminderOffsetDays));
+    final reminderDate = dueDate.addDays(-reminderOffsetDays);
     if (dueTime != null) {
       return DateTime(
         reminderDate.year,

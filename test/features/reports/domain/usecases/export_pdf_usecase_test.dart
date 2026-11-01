@@ -8,6 +8,7 @@ import 'package:monivo/features/expenses/domain/entities/expense_history_filter.
 import 'package:monivo/features/reports/domain/entities/report_data.dart';
 import 'package:monivo/features/reports/domain/entities/report_period.dart';
 import 'package:monivo/features/reports/domain/services/analytics_service.dart';
+import 'package:monivo/features/reports/domain/services/report_insight_generator.dart';
 import 'package:monivo/features/reports/domain/usecases/export_pdf_usecase.dart';
 
 /// UX-010: the PDF printed ₹ for any period outside the current month
@@ -96,4 +97,60 @@ void main() {
       expect(latin1.decode(bytes.sublist(0, 8)), startsWith('%PDF'));
     });
   }
+
+  group('trends and insights', () {
+    test('no spending in the period before: no "Growth 0.0%"', () {
+      final data = report('OMR');
+      expect(data.trend.hasPreviousPeriod, isFalse);
+
+      final lines = ExportPdfUseCase.trendLines(data, (v) => money(v, 'OMR'));
+
+      expect(lines.where((l) => l.startsWith('Growth')), isEmpty);
+    });
+
+    test('spending in the period before: growth is printed', () {
+      final range = ReportRange(
+        start: DateTime(2026, 9, 1),
+        end: DateTime(2026, 9, 30),
+        period: ReportPeriod.lastMonth,
+      );
+      ExpenseEntity spent(String id, double amount, DateTime day) =>
+          ExpenseEntity(
+            id: id,
+            budgetId: 'b1',
+            amount: amount,
+            categoryId: 'food',
+            date: day,
+            time: day,
+            createdAt: day,
+            updatedAt: day,
+          );
+      final data = const AnalyticsService().buildReportData(
+        range: range,
+        filteredExpenses: [spent('e1', 15, DateTime(2026, 9, 10))],
+        comparisonExpenses: [spent('e0', 10, DateTime(2026, 8, 10))],
+        categories: defaultCategories,
+        filter: const ExpenseHistoryFilter(),
+        currency: 'OMR',
+      );
+      expect(data.trend.hasPreviousPeriod, isTrue);
+
+      final lines = ExportPdfUseCase.trendLines(data, (v) => money(v, 'OMR'));
+
+      expect(lines, contains('Growth vs previous period: 50.0%'));
+    });
+
+    test('the PDF lists the same insights as the report, in its own money', () {
+      final data = report('AED');
+      String pdf(double v) => money(v, 'AED');
+
+      expect(
+        ExportPdfUseCase.insightLines(data, pdf),
+        const ReportInsightGenerator()
+            .generate(data, money: pdf)
+            .map((i) => i.message)
+            .toList(),
+      );
+    });
+  });
 }

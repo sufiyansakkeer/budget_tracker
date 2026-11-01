@@ -98,6 +98,35 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('a budget that cannot be read is not reported as missing', (
+    tester,
+  ) async {
+    budgets.failActiveReads = true;
+    await open(tester);
+
+    expect(find.text("Couldn't load"), findsOneWidget);
+    expect(find.text('No budget yet'), findsNothing);
+  });
+
+  testWidgets('categories that cannot be read say so too', (tester) async {
+    expenses.failCategories = 'disk busy';
+    await open(tester);
+
+    expect(find.text("Couldn't load"), findsOneWidget);
+  });
+
+  testWidgets('Try again loads the sheet once reads work', (tester) async {
+    budgets.failActiveReads = true;
+    await open(tester);
+
+    budgets.failActiveReads = false;
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Couldn't load"), findsNothing);
+    expect(find.text('To Personal · until 31 Oct'), findsOneWidget);
+  });
+
   testWidgets('adds an expense to the active budget for today in a few taps', (
     tester,
   ) async {

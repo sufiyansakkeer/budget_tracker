@@ -69,8 +69,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       final budgets = await _manageBudget.getAll();
       if (!mounted) return;
       setState(() => _budgets = budgets);
-    } catch (_) {
+    } catch (e) {
       // Budgets are supplementary here; the expense still renders.
+      debugPrint('[error] Loading budgets for an expense: $e');
     }
   }
 

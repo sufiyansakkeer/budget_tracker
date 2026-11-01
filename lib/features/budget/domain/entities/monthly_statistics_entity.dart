@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// Aggregated expense statistics for a budget month.
+/// Aggregated expense statistics for a budget's period.
 class MonthlyStatisticsEntity extends Equatable {
   final double totalSpent;
   final int expenseCount;

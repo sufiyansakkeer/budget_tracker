@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 
@@ -30,6 +31,7 @@ class GithubReleaseRemoteDataSourceImpl
           )
           .timeout(GitHubConfig.requestTimeout);
     } catch (e) {
+      developer.log('[AppUpdate] Request failed: $e', name: 'AppUpdate');
       throw const GithubApiException(
         message: 'Unable to reach GitHub. Please check your connection.',
       );
@@ -45,7 +47,8 @@ class GithubReleaseRemoteDataSourceImpl
     try {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return GithubReleaseModel.fromJson(json);
-    } catch (_) {
+    } catch (e) {
+      developer.log('[AppUpdate] Unreadable response: $e', name: 'AppUpdate');
       throw const GithubApiException(
         message: 'Received an unexpected response from GitHub.',
       );

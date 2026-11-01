@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:provider/provider.dart';
 import 'core/currency/currency_provider.dart';
+import 'core/database/app_database.dart';
 import 'core/notifications/notification_bloc.dart';
 import 'core/constants/app_motion.dart';
 import 'core/di/injection.dart' as di;
@@ -23,6 +23,7 @@ import 'features/app_update/presentation/bloc/app_update_event.dart';
 import 'features/app_update/presentation/bloc/app_update_state.dart';
 import 'features/app_update/presentation/widgets/update_dialog_service.dart';
 import 'features/budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
+import 'features/expenses/data/services/receipt_storage_service.dart';
 import 'features/settings/presentation/bloc/theme/theme_bloc.dart';
 import 'features/settings/presentation/bloc/theme/theme_state.dart';
 import 'features/widgets/home_widget_service.dart';
@@ -72,6 +73,7 @@ Future<void> main() async {
   // Stored remaining amounts that an import or restore left stale (before
   // those recalculated them) are repaired once, in the background.
   _repairStoredRemainingAmountsOnStartup();
+  _deleteUnusedReceiptsOnStartup();
 
   // ── Home Widget: configure iOS App Group for data sharing ────────────
   await _configureHomeWidget();
@@ -80,14 +82,17 @@ Future<void> main() async {
   await _handleWidgetLaunch();
 
   // ── Home Widget: update widget data on every app start ────────────────
-  _updateWidgetDataOnStartup();
+  // One service for the app: its updates queue, so an older one can never
+  // overwrite a newer one. Two instances had two queues.
+  final widgetService = HomeWidgetService.fromDI();
+  _updateWidgetDataOnStartup(widgetService);
 
   // ── Home Widget: register interactivity callback ──────────────────────
   await _registerWidgetCallbacks();
 
   // ── Home Widget: listen for data changes and refresh widget ───────────
   _widgetRefreshListener = WidgetRefreshListener(
-    widgetService: HomeWidgetService.fromDI(),
+    widgetService: widgetService,
     // The widget is drawn in the user's palette.
     appearanceChanges: di
         .getIt<ThemeBloc>()
@@ -109,7 +114,8 @@ Future<void> _configureHomeWidget() async {
   try {
     await HomeWidget.setAppGroupId('group.com.sufiyan.monivo');
   } catch (e) {
-    // Configuration failed — widget data sharing won't work on iOS.
+    // Widget data sharing won't work on iOS.
+    debugPrint('[error] Configuring the home-screen widget: $e');
   }
 }
 
@@ -125,19 +131,35 @@ Future<void> _handleWidgetLaunch() async {
       }
     }
   } catch (e) {
-    // Widget launch detection failed — not critical.
+    // Not critical: the app opens on its usual screen.
+    debugPrint('[error] Reading the widget launch: $e');
   }
 }
 
 /// Updates widget data on app startup so the widget shows fresh values.
-void _updateWidgetDataOnStartup() {
+void _updateWidgetDataOnStartup(HomeWidgetService service) {
   // Run asynchronously — don't block app launch.
   Future.microtask(() async {
     try {
-      final service = HomeWidgetService.fromDI();
       await service.updateWidgetData();
     } catch (e) {
-      // Widget update on startup is best-effort.
+      // Best-effort: the next data change updates the widget.
+      debugPrint('[error] Updating the widget on startup: $e');
+    }
+  });
+}
+
+/// Deletes receipt files no expense points to any more.
+void _deleteUnusedReceiptsOnStartup() {
+  // Run asynchronously — don't block app launch.
+  Future.microtask(() async {
+    try {
+      await ReceiptStorageService.instance.deleteUnreferenced(
+        di.getIt<AppDatabase>(),
+      );
+    } catch (e) {
+      // Best-effort: the next start tries again.
+      debugPrint('[error] Deleting unused receipts: $e');
     }
   });
 }
@@ -152,6 +174,7 @@ void _repairStoredRemainingAmountsOnStartup() {
       if (updated > 0) RefreshBuses.budgets.notifyChanged();
     } catch (e) {
       // Best-effort: the next expense change recalculates that budget.
+      debugPrint('[error] Repairing stored remaining amounts: $e');
     }
   });
 }
@@ -163,7 +186,8 @@ Future<void> _registerWidgetCallbacks() async {
       homeWidgetCallbackDispatcher,
     );
   } catch (e) {
-    // Registration failed — widget interactivity won't work.
+    // Widget interactivity won't work.
+    debugPrint('[error] Registering the widget callback: $e');
   }
 }
 
@@ -176,7 +200,6 @@ class SmartBudgetApp extends StatefulWidget {
 
 class _SmartBudgetAppState extends State<SmartBudgetApp> {
   late final ThemeBloc _themeBloc;
-  late final CurrencyProvider _currencyProvider;
   late final AppUpdateBloc _appUpdateBloc;
   StreamSubscription<Uri?>? _widgetClickedSubscription;
 
@@ -187,10 +210,9 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
   void initState() {
     super.initState();
     _themeBloc = di.getIt<ThemeBloc>();
-    // Exposed below through ChangeNotifierProvider.value, so widgets that
-    // care rebuild themselves; rebuilding the whole MaterialApp here would
-    // throw away every route's element tree on a currency change.
-    _currencyProvider = di.getIt<CurrencyProvider>();
+    // Starts loading the saved currency now; screens read it from get_it
+    // when they open.
+    di.getIt<CurrencyProvider>();
     _appUpdateBloc = di.getIt<AppUpdateBloc>();
     _dayChangeWatcher.start();
 
@@ -263,65 +285,60 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
         child: BiometricGateScreen(
           child: BlocProvider<AppUpdateBloc>.value(
             value: _appUpdateBloc,
-            child: MultiProvider(
-              providers: [
-                ChangeNotifierProvider.value(value: _currencyProvider),
-              ],
-              child: BlocBuilder<ThemeBloc, ThemeState>(
-                builder: (context, state) {
-                  return MaterialApp.router(
-                    title: 'Monivo',
-                    debugShowCheckedModeBanner: false,
-                    theme: AppTheme.buildLightTheme(state.palette),
-                    darkTheme: AppTheme.buildDarkTheme(state.palette),
-                    themeMode: state.mode.toThemeMode(),
-                    // Light ↔ dark and palette switches lerp every colour
-                    // in place (AppColorTokens implements lerp) instead of
-                    // flashing to the new theme; no restart needed.
-                    themeAnimationDuration: AppMotion.respectReducedMotion(
-                      context,
-                      AppMotion.medium,
-                    ),
-                    themeAnimationCurve: AppMotion.emphasizedCurve,
-                    routerConfig: AppRouter.router,
-                    // The builder places a BlocListener *inside* the
-                    // MaterialApp tree.  The context here is below
-                    // MaterialLocalizations but above the Navigator,
-                    // so we must NOT call showDialog with it directly.
-                    // Instead we use UpdateDialogService, which obtains a
-                    // valid Navigator context through the root navigator key
-                    // registered on GoRouter.
-                    builder: (context, child) {
-                      // Most screens scroll edge-to-edge without an AppBar, so
-                      // nothing else claims the status bar. Annotating the
-                      // whole app keeps the system icons readable against the
-                      // active theme; an AppBar paints over this region and
-                      // still wins where one exists.
-                      return AnnotatedRegion<SystemUiOverlayStyle>(
-                        value: AppTheme.systemOverlayStyle(
-                          Theme.of(context).brightness,
-                        ),
-                        child: BlocListener<AppUpdateBloc, AppUpdateState>(
-                          listenWhen: (previous, current) {
-                            // Only listen for the *first* time an update is
-                            // available after launch; ignore subsequent state
-                            // transitions (e.g. up-to-date after manual check).
-                            if (current is! AppUpdateAvailable) return false;
-                            if (previous is AppUpdateAvailable) return false;
-                            return true;
-                          },
-                          listener: (context, state) {
-                            if (state is AppUpdateAvailable) {
-                              UpdateDialogService.show(state.result);
-                            }
-                          },
-                          child: child ?? const SizedBox.shrink(),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+            child: BlocBuilder<ThemeBloc, ThemeState>(
+              builder: (context, state) {
+                return MaterialApp.router(
+                  title: 'Monivo',
+                  debugShowCheckedModeBanner: false,
+                  theme: AppTheme.buildLightTheme(state.palette),
+                  darkTheme: AppTheme.buildDarkTheme(state.palette),
+                  themeMode: state.mode.toThemeMode(),
+                  // Light ↔ dark and palette switches lerp every colour
+                  // in place (AppColorTokens implements lerp) instead of
+                  // flashing to the new theme; no restart needed.
+                  themeAnimationDuration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.medium,
+                  ),
+                  themeAnimationCurve: AppMotion.emphasizedCurve,
+                  routerConfig: AppRouter.router,
+                  // The builder places a BlocListener *inside* the
+                  // MaterialApp tree.  The context here is below
+                  // MaterialLocalizations but above the Navigator,
+                  // so we must NOT call showDialog with it directly.
+                  // Instead we use UpdateDialogService, which obtains a
+                  // valid Navigator context through the root navigator key
+                  // registered on GoRouter.
+                  builder: (context, child) {
+                    // Most screens scroll edge-to-edge without an AppBar, so
+                    // nothing else claims the status bar. Annotating the
+                    // whole app keeps the system icons readable against the
+                    // active theme; an AppBar paints over this region and
+                    // still wins where one exists.
+                    return AnnotatedRegion<SystemUiOverlayStyle>(
+                      value: AppTheme.systemOverlayStyle(
+                        Theme.of(context).brightness,
+                      ),
+                      child: BlocListener<AppUpdateBloc, AppUpdateState>(
+                        listenWhen: (previous, current) {
+                          // Only listen for the *first* time an update is
+                          // available after launch; ignore subsequent state
+                          // transitions (e.g. up-to-date after manual check).
+                          if (current is! AppUpdateAvailable) return false;
+                          if (previous is AppUpdateAvailable) return false;
+                          return true;
+                        },
+                        listener: (context, state) {
+                          if (state is AppUpdateAvailable) {
+                            UpdateDialogService.show(state.result);
+                          }
+                        },
+                        child: child ?? const SizedBox.shrink(),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ),

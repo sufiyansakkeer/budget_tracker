@@ -110,51 +110,6 @@ class BillLocalDataSourceImpl implements BillLocalDataSource {
   }
 
   @override
-  Future<double> getUpcomingBillsTotal({int withinDays = 30}) async {
-    final today = DateTime.now();
-    final todayDate = DateTime(today.year, today.month, today.day);
-    final cutoff = todayDate.add(Duration(days: withinDays));
-
-    final sum = database.bills.amount.sum();
-    final query = database.selectOnly(database.bills)
-      ..addColumns([sum])
-      ..where(
-        database.bills.isPaid.equals(false) &
-            database.bills.dueDate.isBiggerOrEqualValue(todayDate) &
-            database.bills.dueDate.isSmallerOrEqualValue(cutoff),
-      );
-    final row = await query.getSingle();
-    return row.read(sum) ?? 0;
-  }
-
-  @override
-  Future<double> getMonthlyRecurringBillsTotal() async {
-    final query = database.select(database.bills)
-      ..where((b) => b.isRecurring.equals(true) & b.isPaid.equals(false));
-    final rows = await query.get();
-    double total = 0;
-    for (final row in rows) {
-      // "Every N weeks/months/years": a bill due every 2 months costs half
-      // of its amount per month.
-      final interval = row.recurrenceInterval < 1 ? 1 : row.recurrenceInterval;
-      switch (row.recurrenceType) {
-        case 'weekly':
-          total += row.amount * (52 / 12) / interval;
-          break;
-        case 'monthly':
-          total += row.amount / interval;
-          break;
-        case 'yearly':
-          total += row.amount / 12 / interval;
-          break;
-        default:
-          break;
-      }
-    }
-    return total;
-  }
-
-  @override
   Future<T> transaction<T>(Future<T> Function() action) {
     return database.transaction(action);
   }

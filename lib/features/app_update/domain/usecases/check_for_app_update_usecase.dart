@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../entities/app_update_result.dart';
@@ -13,20 +15,34 @@ class CheckForAppUpdateUseCase {
   CheckForAppUpdateUseCase({required AppUpdateRepository repository})
     : _repository = repository;
 
-  /// Runs the update check.
+  /// Runs the update check. Reading the installed version can fail too;
+  /// that ends the check as failed rather than leaving it running.
   Future<AppUpdateResult> call() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    final currentVersion = _normalizeVersion(packageInfo.version);
+    final String installedVersion;
+    try {
+      installedVersion = (await PackageInfo.fromPlatform()).version;
+    } catch (e) {
+      developer.log(
+        '[AppUpdate] Could not read the installed version: $e',
+        name: 'AppUpdate',
+      );
+      return const AppUpdateResult(
+        status: UpdateStatus.checkFailed,
+        currentVersion: '',
+        latestVersion: '',
+      );
+    }
+    final currentVersion = _normalizeVersion(installedVersion);
 
     LatestRelease latestRelease;
     try {
       latestRelease = await _repository.getLatestRelease();
-    } catch (e) {
+    } on AppUpdateException catch (e) {
       return AppUpdateResult(
         status: UpdateStatus.checkFailed,
-        currentVersion: packageInfo.version,
+        currentVersion: installedVersion,
         latestVersion: '',
-        errorMessage: e.toString().replaceFirst('AppUpdateException: ', ''),
+        errorMessage: e.message,
       );
     }
 
@@ -47,7 +63,7 @@ class CheckForAppUpdateUseCase {
 
     return AppUpdateResult(
       status: status,
-      currentVersion: packageInfo.version,
+      currentVersion: installedVersion,
       latestVersion: latestVersion,
       releaseUrl: latestRelease.releaseUrl,
       releaseTitle: latestRelease.title,

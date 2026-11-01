@@ -1,5 +1,7 @@
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/currency/money_math.dart';
+import '../entities/expense_entity.dart';
+import '../entities/expense_failure.dart';
 
 /// Reusable, pure validation logic for expense inputs.
 /// Kept outside the UI so it can be unit-tested independently.
@@ -86,6 +88,30 @@ class ExpenseValidator {
   static String? validateReceiptPath(String? path) {
     if (path == null || path.isEmpty) return null;
     if (path.trim().isEmpty) return 'Invalid receipt path';
+    return null;
+  }
+
+  /// Every rule an expense must meet to be saved, the same for a new
+  /// expense and an edit. Null when it is valid.
+  static ExpenseFailure? check(ExpenseEntity expense, {DateTime? now}) {
+    final inputError =
+        validateAmountValue(expense.amount) ??
+        validateCategory(expense.categoryId) ??
+        validateDate(expense.date, now: now) ??
+        validateNote(expense.note);
+    if (inputError != null) {
+      return ExpenseFailure(
+        type: ExpenseErrorType.invalidInput,
+        message: inputError,
+      );
+    }
+    final receiptError = validateReceiptPath(expense.receiptImagePath);
+    if (receiptError != null) {
+      return ExpenseFailure(
+        type: ExpenseErrorType.missingReceipt,
+        message: receiptError,
+      );
+    }
     return null;
   }
 

@@ -20,9 +20,6 @@ class RefreshBus {
   /// Emits every time [notifyChanged] is called.
   Stream<void> get changes => _controller.stream;
 
-  /// Whether at least one listener is currently subscribed.
-  bool get hasListeners => _controller.hasListener;
-
   /// Notifies every listener that the data behind this bus changed.
   void notifyChanged() {
     if (!_controller.isClosed) {

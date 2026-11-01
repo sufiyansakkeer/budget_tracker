@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monivo/features/settings/domain/services/file_delivery_service.dart';
+import 'package:monivo/core/files/file_delivery_service.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';

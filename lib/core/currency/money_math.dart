@@ -84,4 +84,15 @@ class MoneyMath {
 
   /// [units] (whole or fractional, e.g. a quotient) back in currency units.
   double toAmount(num units) => units / scale;
+
+  /// [a] − [b], worked out in units: in plain doubles 448.59 − (198.44 +
+  /// 250.15) is −5.7e-14, which reads as "over by 0". Amounts too large for
+  /// units (only corrupt data) fall back to the plain difference.
+  double subtract(double a, double b) {
+    try {
+      return toAmount(toUnits(a) - toUnits(b));
+    } on ArgumentError {
+      return a - b;
+    }
+  }
 }

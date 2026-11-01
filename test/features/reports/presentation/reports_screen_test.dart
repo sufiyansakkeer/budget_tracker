@@ -32,19 +32,11 @@ class _FlakyExpenses extends MemoryExpenseRepository {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) {
     if (failReads) throw Exception('disk busy');
-    return super.getExpenses(
-      budgetId: budgetId,
-      month: month,
-      year: year,
-      from: from,
-      to: to,
-    );
+    return super.getExpenses(budgetId: budgetId, from: from, to: to);
   }
 }
 
@@ -220,6 +212,19 @@ void main() {
       );
       expect(state.errorMessage, ReportsBloc.noBudgetMessage);
       expect(state.followsBudget, isFalse);
+    });
+
+    test('a budget that cannot be read is not reported as missing', () async {
+      budgets.throwOnRead = true;
+      final reports = bloc();
+      addTearDown(reports.close);
+      reports.add(const ReportsBudgetPeriodSelected());
+      final state = await reports.stream.firstWhere(
+        (s) => s.status == ReportsStatus.error,
+      );
+      expect(state.errorMessage, ReportsBloc.budgetUnreadableMessage);
+      // Still on "This Budget", so Retry reads the budget again.
+      expect(state.followsBudget, isTrue);
     });
   });
 

@@ -7,8 +7,6 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../features/budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
-import '../../../../features/budget/domain/repository/budget_repository.dart';
-import '../../../../features/budget/domain/services/budget_calculation_service.dart';
 import '../entities/app_settings.dart';
 import '../../../dashboard/domain/entities/budget_daily_limit_entity.dart';
 import '../../../dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -38,8 +36,6 @@ class NotificationService {
   /// next one (0 = the next one, which keeps [morningReminderId]).
   static int morningReminderIdFor(int dayOffset) =>
       dayOffset == 0 ? morningReminderId : 1100 + dayOffset;
-  static const int overspendingAlertId = 1003;
-  static const int noExpenseReminderId = 1004;
   static const int testNotificationId = 1999;
 
   static const String channelId = 'budget_reminders';
@@ -56,8 +52,6 @@ class NotificationService {
       "Daily Today's Safe Spending reminder and evening summary";
 
   final FlutterLocalNotificationsPlugin _plugin;
-  final BudgetRepository budgetRepository;
-  final BudgetCalculationService calculationService;
   final GetSpendingTargetsUseCase spendingTargetsUseCase;
 
   /// Puts back the bill reminders [scheduleAll] clears. The plugin can only
@@ -74,8 +68,6 @@ class NotificationService {
 
   NotificationService({
     FlutterLocalNotificationsPlugin? plugin,
-    required this.budgetRepository,
-    required this.calculationService,
     required this.spendingTargetsUseCase,
     this.rescheduleBillReminders,
     DateTime Function()? clock,
@@ -149,30 +141,6 @@ class NotificationService {
     }
   }
 
-  /// Returns whether notifications are enabled at the OS level.
-  Future<bool> areNotificationsEnabled() async {
-    await initialize();
-
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (android != null) {
-      return await android.areNotificationsEnabled() ?? false;
-    }
-
-    final ios = _plugin
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >();
-    if (ios != null) {
-      final settings = await ios.checkPermissions();
-      return settings?.isEnabled ?? false;
-    }
-
-    return true;
-  }
-
   /// Schedules all daily notifications based on [settings].
   ///
   /// The morning notification is scheduled once per day for the next
@@ -194,7 +162,6 @@ class NotificationService {
       await _scheduleMorningReminders(
         hour: notifSettings.morningReminderTime.hour,
         minute: notifSettings.morningReminderTime.minute,
-        fallbackCurrency: settings.currencyCode,
       );
     }
 
@@ -208,6 +175,11 @@ class NotificationService {
       );
     }
   }
+
+  /// The morning text when the amounts could not be worked out: the same
+  /// neutral line the home-screen widget shows, not "no budget".
+  static const String morningUnavailableBody =
+      "Open Monivo to see today's safe spending.";
 
   /// The morning notification text for the budgets running today, one line
   /// per budget (never combined).
@@ -285,16 +257,14 @@ class NotificationService {
   ///
   /// Intended for development verification of permission, channel, and delivery.
   /// Uses the same per-budget calculation as the morning notification.
-  Future<void> scheduleTestNotification({AppSettings? settings}) async {
+  Future<void> scheduleTestNotification() async {
     await initialize();
 
-    final currencyCode = settings?.currencyCode ?? 'INR';
+    final perBudget = await _getPerBudgetSafeSpending();
 
-    final perBudget = await _getPerBudgetSafeSpending(
-      fallbackCurrency: currencyCode,
-    );
-
-    final body = morningBody(perBudget?.budgetLimits ?? const []);
+    final body = perBudget == null
+        ? morningUnavailableBody
+        : morningBody(perBudget.budgetLimits);
 
     debugPrint('[Notification] Test notification body: $body');
 
@@ -342,19 +312,9 @@ class NotificationService {
     }
   }
 
-  /// Cancels all scheduled notifications.
-  Future<void> cancelAll() async {
-    await _cancelWithRecovery(() => _plugin.cancelAll());
-  }
-
   /// Cancels scheduled notifications without touching already displayed ones.
   Future<void> cancelAllPending() async {
     await _cancelWithRecovery(() => _plugin.cancelAllPendingNotifications());
-  }
-
-  /// Cancels a specific notification by id.
-  Future<void> cancel(int id) async {
-    await _plugin.cancel(id);
   }
 
   /// Whether the plugin is ready for scheduling.
@@ -368,17 +328,15 @@ class NotificationService {
   Future<void> _scheduleMorningReminders({
     required int hour,
     required int minute,
-    required String fallbackCurrency,
   }) async {
     final first = _nextInstanceOf(hour, minute);
     for (var i = 0; i < morningReminderDays; i++) {
       // Calendar arithmetic, so a daylight-saving change keeps the time.
       final day = DateTime(first.year, first.month, first.day + i);
-      final perBudget = await _getPerBudgetSafeSpending(
-        fallbackCurrency: fallbackCurrency,
-        referenceDate: day,
-      );
-      final body = morningBody(perBudget?.budgetLimits ?? const []);
+      final perBudget = await _getPerBudgetSafeSpending(referenceDate: day);
+      final body = perBudget == null
+          ? morningUnavailableBody
+          : morningBody(perBudget.budgetLimits);
 
       debugPrint('[Notification] Morning notification for $day: $body');
 
@@ -470,17 +428,13 @@ class NotificationService {
   /// Dashboard's "Today's Spending Limits" section, for [referenceDate]
   /// (today when omitted).
   Future<PerBudgetSafeSpendingResult?> _getPerBudgetSafeSpending({
-    String fallbackCurrency = 'INR',
     DateTime? referenceDate,
   }) async {
     try {
       final useCase = GetTodaySafeSpendingUseCase(
         spendingTargetsUseCase: spendingTargetsUseCase,
       );
-      return await useCase.callPerBudget(
-        fallbackCurrency: fallbackCurrency,
-        referenceDate: referenceDate,
-      );
+      return await useCase.callPerBudget(referenceDate: referenceDate);
     } catch (e, st) {
       debugPrint('[Notification] Error calculating safe spending: $e\n$st');
       return null;

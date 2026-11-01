@@ -98,8 +98,9 @@ class _BillsListScreenState extends State<BillsListScreen> {
       final budgets = await getIt<ManageBudgetUseCase>().getAll();
       if (!mounted) return;
       setState(() => _budgetsById = {for (final b in budgets) b.id: b});
-    } catch (_) {
+    } catch (e) {
       // Keep what we had.
+      debugPrint('[error] Loading budget names for bills: $e');
     }
   }
 

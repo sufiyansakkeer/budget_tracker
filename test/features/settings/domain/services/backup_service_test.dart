@@ -5,6 +5,7 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:monivo/core/database/app_database.dart';
+import 'package:monivo/features/expenses/data/models/expense_model.dart';
 import 'package:monivo/features/settings/domain/services/backup_service.dart';
 
 import '../../../../helpers/in_memory_database.dart';
@@ -169,6 +170,61 @@ void main() {
       final settings = await (database.select(database.settings)).get();
       expect(settings, hasLength(1));
       expect(settings.first.value, 'light');
+    });
+  });
+
+  group('BackupService round trip', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('backup_round_trip_');
+    });
+
+    tearDown(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    Future<void> backUpAndRestore() async {
+      final file = File('${tempDir.path}/backup.json');
+      await file.writeAsString(
+        jsonEncode(await backupService.buildBackupPayload()),
+      );
+      await backupService.restore(file.path);
+    }
+
+    test('a tagged expense restores with its tags', () async {
+      await seedData();
+
+      await backUpAndRestore();
+
+      final expense = await database.select(database.expenses).getSingle();
+      expect(ExpenseModel.decodeTags(expense.tags), ['meal']);
+    });
+
+    test('an untagged expense restores without tags', () async {
+      await seedData();
+      await database
+          .update(database.expenses)
+          .write(const ExpensesCompanion(tags: Value(null)));
+
+      await backUpAndRestore();
+
+      final expense = await database.select(database.expenses).getSingle();
+      expect(expense.tags, isNull);
+    });
+
+    test('an archived category stays archived', () async {
+      await seedData();
+      await (database.update(database.categories)
+            ..where((c) => c.id.equals('food')))
+          .write(const CategoriesCompanion(isArchived: Value(true)));
+
+      await backUpAndRestore();
+
+      final food = await (database.select(
+        database.categories,
+      )..where((c) => c.id.equals('food'))).getSingle();
+      expect(food.isArchived, isTrue);
     });
   });
 

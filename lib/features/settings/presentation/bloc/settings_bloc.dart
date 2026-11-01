@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/import_report.dart';
 import '../../domain/entities/settings_failure.dart';
 import '../../domain/services/biometric_service.dart';
-import '../../domain/services/file_delivery_service.dart';
+import '../../../../core/files/file_delivery_service.dart';
 import '../../domain/usecases/backup_data_usecase.dart';
 import '../../domain/usecases/export_data_usecase.dart';
 import '../../domain/usecases/import_data_usecase.dart';
@@ -45,6 +45,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   /// once rather than at the next restart.
   final void Function(bool enabled)? onLockPreferenceChanged;
 
+  /// Told after a restore replaced the settings, so the parts of the app
+  /// that keep their own copy (theme, currency, app lock) re-read them.
+  final void Function()? onSettingsRestored;
+
   SettingsBloc({
     required this.loadSettingsUseCase,
     required this.updateCurrencyUseCase,
@@ -59,6 +63,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     required this.scheduleNotificationsUseCase,
     this.integrityService,
     this.onLockPreferenceChanged,
+    this.onSettingsRestored,
   }) : super(const SettingsState()) {
     on<SettingsLoadEvent>(_onLoadSettings);
     on<SettingsUpdateCurrencyEvent>(_onUpdateCurrency);
@@ -147,27 +152,18 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
 
   /// Refreshes the friendly biometric availability message shown in the UI.
   Future<void> _checkBiometricAvailability(Emitter<SettingsState> emit) async {
+    // The lock also accepts the screen lock, so a PIN-only phone needs
+    // nothing more.
     final availability = await biometricService.getAvailability();
-    if (!availability.isDeviceSupported) {
-      emit(
-        state.copyWith(
-          biometricMessage:
-              'Biometric authentication isn\'t available on '
-              'this device.',
-        ),
-      );
-    } else if (!availability.hasBiometrics) {
-      emit(
-        state.copyWith(
-          biometricMessage:
-              'Please set up fingerprint or face unlock on your '
-              'device first.',
-        ),
-      );
+    if (!availability.canAuthenticate) {
+      emit(state.copyWith(biometricMessage: _noScreenLockMessage));
     } else {
       emit(state.copyWith(clearBiometricMessage: true));
     }
   }
+
+  static const _noScreenLockMessage =
+      'Set up a screen lock or fingerprint on your phone first.';
 
   Future<void> _onUpdateCurrency(
     SettingsUpdateCurrencyEvent event,
@@ -269,8 +265,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       emit(
         state.copyWith(
           isBiometricBusy: false,
-          biometricMessage:
-              'Set up a screen lock or fingerprint on your phone first.',
+          biometricMessage: _noScreenLockMessage,
         ),
       );
       return;
@@ -477,6 +472,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         RefreshBuses.expenses.notifyChanged();
         RefreshBuses.bills.notifyChanged();
         debugPrint('[settings] $data');
+        // The settings came from the backup too. Re-read them and schedule
+        // the reminders they describe (with reminders off, scheduling
+        // cancels the old ones); the theme, currency and lock re-read theirs.
+        final reloaded = await loadSettingsUseCase();
+        if (reloaded case SettingsSuccess(data: final settings)) {
+          emit(state.copyWith(settings: settings));
+          await scheduleNotificationsUseCase(settings);
+        }
+        onSettingsRestored?.call();
         emit(state.copyWith(isBusy: false, infoMessage: 'Backup restored.'));
       case SettingsError(:final failure):
         // A file that fails validation is rejected before anything is

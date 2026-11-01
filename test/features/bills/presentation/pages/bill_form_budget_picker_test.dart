@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
-import 'package:monivo/core/theme/app_colors_extension.dart';
 import 'package:monivo/core/theme/app_theme.dart';
-import 'package:monivo/core/widgets/app_card.dart';
+import 'package:monivo/core/theme/app_tone.dart';
+import 'package:monivo/core/widgets/app_notice.dart';
 import 'package:monivo/core/widgets/primary_button.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
@@ -160,6 +160,41 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('a bill due long ago can still have its date changed', (
+    tester,
+  ) async {
+    // Its due date is before the picker's usual first year; the picker used
+    // to assert (debug) or open on a month that couldn't be chosen.
+    bills.store['rent'] = linkedBill().copyWith(dueDate: DateTime(2020, 1, 6));
+    await pumpForm(tester, billId: 'rent');
+
+    final due = find.text('Mon, 6 Jan 2020');
+    await tester.ensureVisible(due);
+    await tester.tap(due);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(DatePickerDialog), findsOneWidget);
+  });
+
+  testWidgets('an empty repeat interval is not saved silently', (tester) async {
+    bills.store['rent'] = linkedBill().copyWith(
+      isRecurring: true,
+      recurrenceType: RecurrenceType.monthly,
+      recurrenceInterval: 2,
+    );
+    await pumpForm(tester, billId: 'rent');
+
+    final interval = find.widgetWithText(TextField, '2', skipOffstage: false);
+    await tester.ensureVisible(interval);
+    await tester.enterText(interval, '');
+    await save(tester, 'Save changes');
+
+    expect(find.text('Enter how often it repeats, 1 or more.'), findsOneWidget);
+    expect(bills.store['rent']!.recurrenceInterval, 2);
+    expect(find.text('Bills list'), findsNothing);
+  });
+
   testWidgets('a new bill starts not linked and lists running and upcoming '
       'budgets only', (tester) async {
     await pumpForm(tester);
@@ -284,13 +319,12 @@ void main() {
     await pumpForm(tester, budgets: [summer, oldTrip]);
 
     expect(picker(), findsNothing);
-    final card = tester.widget<StatusCard>(
+    final notice = tester.widget<AppNotice>(
       find.byKey(const ValueKey('billBudgetPickerEmpty')),
     );
-    final context = tester.element(find.byType(BillFormScreen));
-    expect(card.color, context.appColors.info);
+    expect(notice.tone, AppTone.info);
     expect(
-      card.message,
+      notice.message,
       'No budget is running or upcoming. You can link this bill later.',
     );
   });

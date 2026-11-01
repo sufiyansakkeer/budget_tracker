@@ -71,16 +71,6 @@ class ExpenseHistoryToggleViewMode extends ExpenseHistoryEvent {
   const ExpenseHistoryToggleViewMode();
 }
 
-/// Toggles selection of a specific budget in the combined budget picker.
-class ExpenseHistoryToggleBudgetSelection extends ExpenseHistoryEvent {
-  final String budgetId;
-
-  const ExpenseHistoryToggleBudgetSelection(this.budgetId);
-
-  @override
-  List<Object?> get props => [budgetId];
-}
-
 /// Replaces the current budget selection in one step.
 class ExpenseHistorySetBudgetSelection extends ExpenseHistoryEvent {
   final List<String> budgetIds;
@@ -89,16 +79,6 @@ class ExpenseHistorySetBudgetSelection extends ExpenseHistoryEvent {
 
   @override
   List<Object?> get props => [budgetIds];
-}
-
-/// Selects all available budgets in the combined picker.
-class ExpenseHistorySelectAllBudgets extends ExpenseHistoryEvent {
-  const ExpenseHistorySelectAllBudgets();
-}
-
-/// Clears all budget selections in the combined picker.
-class ExpenseHistoryClearBudgetSelection extends ExpenseHistoryEvent {
-  const ExpenseHistoryClearBudgetSelection();
 }
 
 /// Applies the combined budget filter with the currently selected budgets.

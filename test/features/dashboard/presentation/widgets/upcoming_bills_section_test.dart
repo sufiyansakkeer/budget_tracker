@@ -19,7 +19,11 @@ void main() {
     budgetId: budgetId,
   );
 
-  Future<void> pump(WidgetTester tester, List<BillEntity> bills) async {
+  Future<void> pump(
+    WidgetTester tester,
+    List<BillEntity> bills, {
+    Set<String> setAside = const {'a'},
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
@@ -28,6 +32,7 @@ void main() {
             child: UpcomingBillsSection(
               bills: bills,
               activeBudgetId: 'personal',
+              setAsideBillIds: setAside,
               budgetNames: const {
                 'personal': 'Personal',
                 'household': 'Household',
@@ -39,6 +44,44 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('bills that could not be read say so and offer a retry', (
+    tester,
+  ) async {
+    var retries = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: UpcomingBillsSection(
+            bills: const [],
+            unavailable: true,
+            onRetry: () => retries++,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text("Couldn't load your bills."), findsOneWidget);
+    expect(find.textContaining('No bills due soon'), findsNothing);
+    expect(find.text('Add bill'), findsNothing);
+
+    await tester.tap(find.text('Try again'));
+    expect(retries, 1);
+  });
+
+  testWidgets('a bill of the budget on screen that it does not set aside '
+      'does not read "Set aside"', (tester) async {
+    // Due after the budget ends, or in another currency: the budget's
+    // safe amount does not count it, so neither does the row.
+    await pump(tester, [bill('a', budgetId: 'personal')], setAside: const {});
+
+    expect(find.textContaining('Set aside', findRichText: true), findsNothing);
+    expect(
+      find.textContaining('Paid from Personal', findRichText: true),
+      findsOne,
+    );
+  });
 
   testWidgets('only a bill the budget on screen pays reads "Set aside"', (
     tester,

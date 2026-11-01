@@ -11,9 +11,10 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
-import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -23,6 +24,8 @@ import '../../../settings/domain/entities/settings_failure.dart';
 import '../../../settings/domain/usecases/load_settings_usecase.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
+import '../../../expenses/presentation/widgets/form_field_error.dart';
+import '../../domain/validators/bill_validator.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
 import '../bloc/bill_state.dart';
@@ -32,6 +35,7 @@ import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Add/Edit bill form screen.
 ///
@@ -64,6 +68,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   String? _titleError;
   String? _amountError;
   String? _dueDateError;
+  String? _intervalError;
   DateTime? _dueDate;
   TimeOfDay? _dueTime;
   BillCategory _selectedCategory = BillCategory.other;
@@ -117,8 +122,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
           setState(() => _currency = data.currencyCode);
         }
       }
-    } catch (_) {
-      // Keep default.
+    } catch (e) {
+      // Keep the default currency.
+      debugPrint('[error] Loading the currency setting: $e');
     }
   }
 
@@ -134,7 +140,8 @@ class _BillFormScreenState extends State<BillFormScreen> {
         _budgets = budgets;
         _loadingBudgets = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading budgets for the bill form: $e');
       if (!mounted) return;
       setState(() {
         _loadingBudgets = false;
@@ -246,7 +253,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
   String? _validateTitle() {
     final title = _titleController.text.trim();
     if (title.isEmpty) return 'Give the bill a name.';
-    if (title.length > 100) return 'Keep the name under 100 characters.';
+    if (title.length > BillValidator.maxTitleLength) {
+      return 'Keep the name under ${BillValidator.maxTitleLength} characters.';
+    }
     return null;
   }
 
@@ -263,18 +272,32 @@ class _BillFormScreenState extends State<BillFormScreen> {
     return MoneyInput.decimalsError(text, _currency);
   }
 
+  /// The repeat interval as typed. An empty or zero field used to be ignored,
+  /// saving the previous interval while the field showed something else.
+  String? _validateInterval() {
+    if (!_isRecurring) return null;
+    final n = int.tryParse(_intervalController.text.trim());
+    if (n == null || n < 1) return 'Enter how often it repeats, 1 or more.';
+    _recurrenceInterval = n;
+    return null;
+  }
+
   void _save() {
     FocusManager.instance.primaryFocus?.unfocus();
 
     final titleError = _validateTitle();
     final amountError = _validateAmount();
     final dueDateError = _dueDate == null ? 'Choose a due date.' : null;
+    final intervalError = _validateInterval();
     setState(() {
       _titleError = titleError;
       _amountError = amountError;
       _dueDateError = dueDateError;
+      _intervalError = intervalError;
     });
-    if (titleError != null || amountError != null) return;
+    if (titleError != null || amountError != null || intervalError != null) {
+      return;
+    }
     if (dueDateError != null) {
       final ctx = _dueDateKey.currentContext;
       if (ctx != null) {
@@ -327,10 +350,13 @@ class _BillFormScreenState extends State<BillFormScreen> {
 
   Future<void> _pickDueDate() async {
     final now = DateTime.now();
+    final initial = _dueDate ?? now;
+    final lastYear = DateTime(now.year - 1);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _dueDate ?? now,
-      firstDate: DateTime(now.year - 1),
+      initialDate: initial,
+      // An unpaid bill can be due long ago; the picker needs it in range.
+      firstDate: initial.isBefore(lastYear) ? initial : lastYear,
       lastDate: DateTime(now.year + 10, 12, 31),
       helpText: 'Due date',
     );
@@ -561,156 +587,47 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       ),
                       const SizedBox(height: AppSpacing.lg),
 
-                      // Repeat
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        secondary: const Icon(Icons.repeat_rounded),
-                        title: const Text('Repeat this bill'),
-                        subtitle: Text(
-                          _isRecurring ? _recurrenceSummary() : 'One-time bill',
-                        ),
+                      _ToggleSection(
+                        icon: Icons.repeat_rounded,
+                        title: 'Repeat this bill',
+                        subtitle: _isRecurring
+                            ? _recurrenceSummary()
+                            : 'One-time bill',
                         value: _isRecurring,
                         onChanged: (value) =>
                             setState(() => _isRecurring = value),
-                      ),
-                      AppAnimatedSize(
-                        duration: AppMotion.respectReducedMotion(
-                          context,
-                          AppMotion.standard,
+                        child: _RepeatOptions(
+                          type: _recurrenceType,
+                          onTypeChanged: (type) =>
+                              setState(() => _recurrenceType = type),
+                          intervalController: _intervalController,
+                          onIntervalChanged: (value) {
+                            final n = int.tryParse(value);
+                            setState(() {
+                              if (n != null && n >= 1) {
+                                _recurrenceInterval = n;
+                              }
+                              _intervalError = null;
+                            });
+                          },
+                          unitLabel: _unitLabel(),
+                          intervalError: _intervalError,
                         ),
-                        curve: AppMotion.standardCurve,
-                        alignment: Alignment.topCenter,
-                        child: !_isRecurring
-                            ? const SizedBox(width: double.infinity)
-                            : Padding(
-                                padding: const EdgeInsets.only(
-                                  left: AppSpacing.xxl - AppSpacing.sm,
-                                  bottom: AppSpacing.sm,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SegmentedButton<RecurrenceType>(
-                                      showSelectedIcon: false,
-                                      segments: const [
-                                        ButtonSegment(
-                                          value: RecurrenceType.weekly,
-                                          label: Text('Weekly'),
-                                        ),
-                                        ButtonSegment(
-                                          value: RecurrenceType.monthly,
-                                          label: Text('Monthly'),
-                                        ),
-                                        ButtonSegment(
-                                          value: RecurrenceType.yearly,
-                                          label: Text('Yearly'),
-                                        ),
-                                      ],
-                                      selected: {_recurrenceType},
-                                      onSelectionChanged: (s) => setState(
-                                        () => _recurrenceType = s.first,
-                                      ),
-                                    ),
-                                    const SizedBox(height: AppSpacing.sm),
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Every',
-                                          style: theme.textTheme.bodyMedium,
-                                        ),
-                                        const SizedBox(width: AppSpacing.sm),
-                                        SizedBox(
-                                          width: 64,
-                                          child: TextField(
-                                            controller: _intervalController,
-                                            keyboardType: TextInputType.number,
-                                            textAlign: TextAlign.center,
-                                            inputFormatters: [
-                                              FilteringTextInputFormatter
-                                                  .digitsOnly,
-                                              LengthLimitingTextInputFormatter(
-                                                2,
-                                              ),
-                                            ],
-                                            decoration: const InputDecoration(
-                                              isDense: true,
-                                              contentPadding:
-                                                  EdgeInsets.symmetric(
-                                                    horizontal: AppSpacing.sm,
-                                                    vertical: AppSpacing.smd,
-                                                  ),
-                                            ),
-                                            onChanged: (value) {
-                                              final n = int.tryParse(value);
-                                              if (n != null && n >= 1) {
-                                                setState(
-                                                  () => _recurrenceInterval = n,
-                                                );
-                                              }
-                                            },
-                                          ),
-                                        ),
-                                        const SizedBox(width: AppSpacing.sm),
-                                        Flexible(
-                                          child: Text(
-                                            _unitLabel(),
-                                            style: theme.textTheme.bodyMedium,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
                       ),
-
-                      // Reminder
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        secondary: const Icon(Icons.notifications_outlined),
-                        title: const Text('Remind me'),
-                        subtitle: Text(
-                          _reminderEnabled ? _reminderSummary() : 'No reminder',
-                        ),
+                      _ToggleSection(
+                        icon: Icons.notifications_outlined,
+                        title: 'Remind me',
+                        subtitle: _reminderEnabled
+                            ? _reminderSummary()
+                            : 'No reminder',
                         value: _reminderEnabled,
                         onChanged: (value) =>
                             setState(() => _reminderEnabled = value),
-                      ),
-                      AppAnimatedSize(
-                        duration: AppMotion.respectReducedMotion(
-                          context,
-                          AppMotion.standard,
+                        child: _ReminderOffsets(
+                          selected: _reminderOffsetDays,
+                          onSelected: (days) =>
+                              setState(() => _reminderOffsetDays = days),
                         ),
-                        curve: AppMotion.standardCurve,
-                        alignment: Alignment.topCenter,
-                        child: !_reminderEnabled
-                            ? const SizedBox(width: double.infinity)
-                            : Padding(
-                                padding: const EdgeInsets.only(
-                                  left: AppSpacing.xxl - AppSpacing.sm,
-                                  bottom: AppSpacing.sm,
-                                ),
-                                child: Wrap(
-                                  spacing: AppSpacing.sm,
-                                  runSpacing: AppSpacing.sm,
-                                  children: [
-                                    for (final (days, label) in const [
-                                      (0, 'On the day'),
-                                      (1, '1 day before'),
-                                      (2, '2 days before'),
-                                      (3, '3 days before'),
-                                      (7, '1 week before'),
-                                    ])
-                                      ChoiceChip(
-                                        label: Text(label),
-                                        selected: _reminderOffsetDays == days,
-                                        onSelected: (_) => setState(
-                                          () => _reminderOffsetDays = days,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
                       ),
                       const SizedBox(height: AppSpacing.md),
 
@@ -791,10 +708,11 @@ class _BillFormScreenState extends State<BillFormScreen> {
       today: today,
     );
     if (options.isEmpty) {
-      return StatusCard(
+      return AppNotice(
         key: const ValueKey('billBudgetPickerEmpty'),
-        color: context.appColors.info,
+        tone: AppTone.info,
         icon: Icons.account_balance_wallet_outlined,
+        title: 'No budget to link',
         message:
             'No budget is running or upcoming. You can link this bill later.',
       );
@@ -855,7 +773,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final d = DateTime(date.year, date.month, date.day);
     if (d == today) return 'Today';
-    if (d == today.add(const Duration(days: 1))) return 'Tomorrow';
+    if (d == today.addDays(1)) return 'Tomorrow';
     return DateFormat('EEE, d MMM yyyy').format(date);
   }
 
@@ -880,6 +798,158 @@ class _BillFormScreenState extends State<BillFormScreen> {
     7 => '1 week before',
     final d => '$d days before',
   };
+}
+
+/// A switch, and under it the options it turns on, revealed as it is
+/// switched on.
+class _ToggleSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Widget child;
+
+  const _ToggleSection({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          secondary: Icon(icon),
+          title: Text(title),
+          subtitle: Text(subtitle),
+          value: value,
+          onChanged: onChanged,
+        ),
+        AppAnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.standard),
+          curve: AppMotion.standardCurve,
+          alignment: Alignment.topCenter,
+          child: !value
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(
+                    left: AppSpacing.xxl - AppSpacing.sm,
+                    bottom: AppSpacing.sm,
+                  ),
+                  child: child,
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// How often a bill repeats: weekly, monthly or yearly, every N of them.
+class _RepeatOptions extends StatelessWidget {
+  final RecurrenceType type;
+  final ValueChanged<RecurrenceType> onTypeChanged;
+  final TextEditingController intervalController;
+  final ValueChanged<String> onIntervalChanged;
+  final String unitLabel;
+  final String? intervalError;
+
+  const _RepeatOptions({
+    required this.type,
+    required this.onTypeChanged,
+    required this.intervalController,
+    required this.onIntervalChanged,
+    required this.unitLabel,
+    required this.intervalError,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedButton<RecurrenceType>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: RecurrenceType.weekly, label: Text('Weekly')),
+            ButtonSegment(
+              value: RecurrenceType.monthly,
+              label: Text('Monthly'),
+            ),
+            ButtonSegment(value: RecurrenceType.yearly, label: Text('Yearly')),
+          ],
+          selected: {type},
+          onSelectionChanged: (s) => onTypeChanged(s.first),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Text('Every', style: theme.textTheme.bodyMedium),
+            const SizedBox(width: AppSpacing.sm),
+            SizedBox(
+              width: 64,
+              child: TextField(
+                controller: intervalController,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.smd,
+                  ),
+                ),
+                onChanged: onIntervalChanged,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Flexible(child: Text(unitLabel, style: theme.textTheme.bodyMedium)),
+          ],
+        ),
+        if (intervalError != null) FormFieldError(message: intervalError!),
+      ],
+    );
+  }
+}
+
+/// When the reminder comes, in days before the due date.
+class _ReminderOffsets extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  const _ReminderOffsets({required this.selected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final (days, label) in const [
+          (0, 'On the day'),
+          (1, '1 day before'),
+          (2, '2 days before'),
+          (3, '3 days before'),
+          (7, '1 week before'),
+        ])
+          ChoiceChip(
+            label: Text(label),
+            selected: selected == days,
+            onSelected: (_) => onSelected(days),
+          ),
+      ],
+    );
+  }
 }
 
 class _PickerField extends StatelessWidget {

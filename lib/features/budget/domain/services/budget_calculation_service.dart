@@ -1,46 +1,30 @@
-import '../entities/budget_analytics_entity.dart';
+import '../../../../core/currency/money_math.dart';
 import '../entities/budget_calculation_input.dart';
 import '../entities/budget_status.dart';
 import '../entities/budget_summary_entity.dart';
 import '../entities/budget_thresholds.dart';
+import '../../../../core/dates/calendar_dates.dart' as dates;
 
 /// Pure calculation engine for all budget-related metrics.
 ///
 /// Contains no database, UI, or Flutter dependencies.
 /// All methods are deterministic and unit-testable.
 class BudgetCalculationService {
-  // Summary and analytics are memoized independently: sharing one input key
-  // let `buildAnalytics(A) → buildSummary(B) → buildAnalytics(B)` return the
-  // analytics of A. The summary key also includes the currency it was
+  // The last summary is memoized; its key includes the currency it was
   // labelled with.
   BudgetCalculationInput? _summaryInput;
   String? _summaryCurrency;
   BudgetSummaryEntity? _cachedSummary;
-  BudgetCalculationInput? _analyticsInput;
-  BudgetAnalyticsEntity? _cachedAnalytics;
-
-  /// Clears memoized calculation results.
-  void clearCache() {
-    _summaryInput = null;
-    _summaryCurrency = null;
-    _cachedSummary = null;
-    _analyticsInput = null;
-    _cachedAnalytics = null;
-  }
 
   /// Whole calendar days from the date of [from] to the date of [to]
   /// (negative when [to] is earlier). Time of day is ignored.
   ///
-  /// Counted on UTC calendar dates so a daylight-saving change between the
-  /// two dates (a 23- or 25-hour local day) cannot shift the result: local
-  /// `difference().inDays` truncates a 23-hour span to 0.
+  /// See [dates.calendarDaysBetween]: a daylight-saving change between the
+  /// two dates (a 23- or 25-hour local day) cannot shift the result.
   ///
   /// Example: 8 Mar 2026 → 9 Mar 2026 = 1 in every time zone.
-  static int calendarDaysBetween(DateTime from, DateTime to) {
-    final a = DateTime.utc(from.year, from.month, from.day);
-    final b = DateTime.utc(to.year, to.month, to.day);
-    return b.difference(a).inDays;
-  }
+  static int calendarDaysBetween(DateTime from, DateTime to) =>
+      dates.calendarDaysBetween(from, to);
 
   /// Returns the total number of days in the budget period (inclusive).
   ///
@@ -79,11 +63,17 @@ class BudgetCalculationService {
   }
 
   /// Remaining budget after subtracting total spending.
+  ///
+  /// With [currency], the subtraction is done in its minor units
+  /// ([MoneyMath.subtract]), so a budget spent to exactly zero is 0, not a
+  /// rounding remainder shown as over budget.
   double calculateRemainingBudget({
     required double monthlyAmount,
     required double totalSpent,
+    String? currency,
   }) {
-    return monthlyAmount - totalSpent;
+    if (currency == null) return monthlyAmount - totalSpent;
+    return MoneyMath.forCurrency(currency).subtract(monthlyAmount, totalSpent);
   }
 
   /// Primitive division used by [calculateTodaySafeSpending].
@@ -224,6 +214,7 @@ class BudgetCalculationService {
     final remainingBudget = calculateRemainingBudget(
       monthlyAmount: input.monthlyAmount,
       totalSpent: input.totalSpent,
+      currency: currency,
     );
     final daysPassed = calculateDaysPassed(
       referenceDate: input.referenceDate,
@@ -307,92 +298,6 @@ class BudgetCalculationService {
     _summaryCurrency = currency;
     _cachedSummary = summary;
     return summary;
-  }
-
-  /// Builds extended [BudgetAnalyticsEntity] from raw input data.
-  BudgetAnalyticsEntity buildAnalytics(BudgetCalculationInput input) {
-    if (_analyticsInput == input && _cachedAnalytics != null) {
-      return _cachedAnalytics!;
-    }
-
-    final remainingBudget = calculateRemainingBudget(
-      monthlyAmount: input.monthlyAmount,
-      totalSpent: input.totalSpent,
-    );
-    final daysPassed = calculateDaysPassed(
-      referenceDate: input.referenceDate,
-      startDate: input.startDate,
-      endDate: input.endDate,
-    );
-    final daysRemaining = calculateRemainingDays(
-      referenceDate: input.referenceDate,
-      startDate: input.startDate,
-      endDate: input.endDate,
-    );
-    final dailySafeSpending = calculateTodaySafeSpending(
-      remainingBudget: remainingBudget,
-      todaySpending: input.todaySpending,
-      remainingDays: daysRemaining,
-    );
-    final spendingPercentage = calculateSpendingPercentage(
-      totalSpent: input.totalSpent,
-      monthlyAmount: input.monthlyAmount,
-    );
-    final remainingPercentage = calculateRemainingPercentage(
-      remainingBudget: remainingBudget,
-      monthlyAmount: input.monthlyAmount,
-    );
-    final averageDailySpending = calculateAverageDailySpending(
-      totalSpent: input.totalSpent,
-      daysPassed: daysPassed,
-    );
-    final periodDays = daysInPeriod(
-      startDate: input.startDate,
-      endDate: input.endDate,
-    );
-    final expectedPeriodEndSpending = calculateExpectedPeriodEndSpending(
-      averageDailySpending: averageDailySpending,
-      daysInPeriod: periodDays,
-    );
-    final projectedRemainingBalance =
-        input.monthlyAmount - expectedPeriodEndSpending;
-    final projectedSavings = calculateProjectedSavings(
-      monthlyAmount: input.monthlyAmount,
-      expectedPeriodEndSpending: expectedPeriodEndSpending,
-    );
-    final projectedOverspending = calculateProjectedOverspending(
-      monthlyAmount: input.monthlyAmount,
-      expectedPeriodEndSpending: expectedPeriodEndSpending,
-    );
-    final utilization = calculateBudgetUtilization(
-      totalSpent: input.totalSpent,
-      monthlyAmount: input.monthlyAmount,
-    );
-    final status = calculateBudgetStatus(
-      budgetUtilization: utilization,
-      thresholds: input.thresholds,
-    );
-
-    final analytics = BudgetAnalyticsEntity(
-      monthlyAmount: input.monthlyAmount,
-      totalSpent: input.totalSpent,
-      remainingBudget: remainingBudget,
-      spendingPercentage: spendingPercentage,
-      remainingPercentage: remainingPercentage,
-      averageDailySpending: averageDailySpending,
-      expectedMonthEndSpending: expectedPeriodEndSpending,
-      projectedRemainingBalance: projectedRemainingBalance,
-      projectedSavings: projectedSavings,
-      projectedOverspending: projectedOverspending,
-      daysPassed: daysPassed,
-      daysRemaining: daysRemaining,
-      dailySafeSpending: dailySafeSpending,
-      status: status,
-    );
-
-    _analyticsInput = input;
-    _cachedAnalytics = analytics;
-    return analytics;
   }
 
   void _validateDateRange(DateTime startDate, DateTime endDate) {

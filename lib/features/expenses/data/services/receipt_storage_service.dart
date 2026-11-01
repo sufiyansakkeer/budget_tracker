@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../../core/platform/system_ui_session.dart';
 
 /// Handles local receipt image storage (capture or gallery).
@@ -58,18 +60,42 @@ class ReceiptStorageService {
     return file.path;
   }
 
-  /// Removes a stored receipt file. Returns true if the file was deleted.
-  Future<bool> removeReceipt(String path) async {
-    try {
-      final file = File(path);
-      if (await file.exists()) {
-        await file.delete();
-        return true;
+  /// Deletes the stored receipts no expense points to: the expense was
+  /// deleted, the receipt replaced or removed, or the form discarded. Run
+  /// at startup, before a form can hold a picked receipt not yet saved, and
+  /// after any Undo has expired. Returns how many files were deleted.
+  Future<int> deleteUnreferenced(AppDatabase database) async =>
+      deleteUnreferencedIn(await _receiptsDir(), database);
+
+  /// [deleteUnreferenced] for the receipts in [dir]. Files are matched by
+  /// name: iOS moves the app's folder on updates, so a stored path can name
+  /// an old folder while the file sits in the new one.
+  @visibleForTesting
+  static Future<int> deleteUnreferencedIn(
+    Directory dir,
+    AppDatabase database,
+  ) async {
+    final path = database.expenses.receiptImagePath;
+    final rows =
+        await (database.selectOnly(database.expenses)
+              ..addColumns([path])
+              ..where(path.isNotNull()))
+            .get();
+    final referenced = {for (final row in rows) p.basename(row.read(path)!)};
+
+    var deleted = 0;
+    await for (final entry in dir.list()) {
+      if (entry is! File || referenced.contains(p.basename(entry.path))) {
+        continue;
       }
-      return false;
-    } catch (_) {
-      return false;
+      try {
+        await entry.delete();
+        deleted++;
+      } on FileSystemException catch (e) {
+        debugPrint('[error] Deleting an unused receipt: $e');
+      }
     }
+    return deleted;
   }
 
   /// Gracefully checks whether a receipt file exists.

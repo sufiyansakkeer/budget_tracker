@@ -6,12 +6,13 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/currency/money_math.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/app_metric.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
@@ -70,15 +71,20 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   StreamSubscription<void>? _expenseSubscription;
   StreamSubscription<void>? _budgetSubscription;
 
+  /// Set while a delete runs: the delete notifies the buses, and reloading a
+  /// budget that no longer exists would flash "Budget not found" during the
+  /// pop animation. A failed delete clears it, so the screen stays live.
+  bool _deleting = false;
+
   @override
   void initState() {
     super.initState();
     _load();
     _expenseSubscription = RefreshBuses.expenses.changes.listen((_) {
-      if (mounted) _load(silent: true);
+      if (mounted && !_deleting) _load(silent: true);
     });
     _budgetSubscription = RefreshBuses.budgets.changes.listen((_) {
-      if (mounted) _load(silent: true);
+      if (mounted && !_deleting) _load(silent: true);
     });
   }
 
@@ -113,7 +119,8 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
         _loading = false;
         _error = null;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading budget ${widget.budgetId}: $e');
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -160,8 +167,8 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       if (result case BillSuccess(:final data)) {
         return data.where((b) => b.budgetId == widget.budgetId).toList();
       }
-    } catch (_) {
-      // Fall through.
+    } catch (e) {
+      debugPrint('[error] Loading bills linked to a budget: $e');
     }
     return const [];
   }
@@ -236,12 +243,13 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     );
     if (!confirmed || !mounted) return;
     await _run(() async {
-      // Stop reacting to the buses first: the delete notifies them, and a
-      // reload of a budget that no longer exists would flash "Budget not
-      // found" during the pop animation.
-      _expenseSubscription?.cancel();
-      _budgetSubscription?.cancel();
-      await _manageBudget.delete(widget.budgetId);
+      _deleting = true;
+      try {
+        await _manageBudget.delete(widget.budgetId);
+      } catch (_) {
+        _deleting = false;
+        rethrow;
+      }
       RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
       _notify('Budget deleted');
@@ -410,7 +418,9 @@ class _Content extends StatelessWidget {
     final typography = context.appTypography;
     final now = BudgetDetailsScreen.clock();
     final spent = stats.totalSpent;
-    final remaining = budget.monthlyAmount - spent;
+    final remaining = MoneyMath.forCurrency(
+      budget.currency,
+    ).subtract(budget.monthlyAmount, spent);
     final over = remaining < 0;
     final used = budget.monthlyAmount <= 0 ? 0.0 : spent / budget.monthlyAmount;
     final s = CurrencyFormatter.symbolFor(budget.currency);

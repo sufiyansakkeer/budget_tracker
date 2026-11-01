@@ -1,10 +1,5 @@
 /// Typed errors returned by bill use cases instead of throwing.
-enum BillErrorType {
-  notFound,
-  invalidInput,
-  databaseFailure,
-  notificationFailure,
-}
+enum BillErrorType { notFound, invalidInput, databaseFailure }
 
 /// Failure object for bill operations.
 class BillFailure {

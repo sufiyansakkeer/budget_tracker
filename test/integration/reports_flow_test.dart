@@ -97,14 +97,11 @@ void main() {
     expect(data.overview.lowestExpense, 1000);
 
     // Categories are ranked by spend, with percentages of the total.
-    expect(data.categorySlices.first.categoryName, 'Food');
-    expect(data.categorySlices.first.amount, 4000);
-    expect(data.categorySlices.first.percentage, closeTo(66.67, 0.01));
-    final food = data.categoryAnalytics.firstWhere(
-      (c) => c.categoryId == 'food',
-    );
+    final food = data.categoryAnalytics.first;
+    expect(food.categoryName, 'Food');
+    expect(food.totalAmount, 4000);
+    expect(food.percentageOfTotal, closeTo(66.67, 0.01));
     expect(food.transactionCount, 2);
-    expect(food.averageTransaction, 2000);
 
     // "This month" is month-to-date: one point per day from the 1st to
     // today, with today carrying the spend.
@@ -217,7 +214,7 @@ void main() {
     );
 
     expect(filtered.data!.overview.totalSpending, 1200);
-    expect(filtered.data!.categorySlices.single.categoryName, 'Travel');
+    expect(filtered.data!.categoryAnalytics.single.categoryName, 'Travel');
   });
 
   test(

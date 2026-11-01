@@ -15,7 +15,6 @@ import 'package:monivo/features/budget/domain/repository/budget_repository.dart'
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
 import 'package:monivo/features/budget/domain/entities/budget_status.dart';
 import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_entity.dart';
-import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
@@ -30,7 +29,6 @@ import '../../../../integration/app_harness.dart';
 import 'notification_service_test.mocks.dart';
 
 class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
-  SpendingTargetEntity? targetsToReturn;
   PerBudgetSpendingTargetResult? perBudgetResultToReturn;
 
   /// When set, answers [callPerBudget] per reference date.
@@ -40,24 +38,13 @@ class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   /// Every reference date [callPerBudget] was asked for, in order.
   final List<DateTime?> perBudgetReferenceDates = [];
 
-  FakeGetSpendingTargetsUseCase({
-    this.targetsToReturn,
-    this.perBudgetResultToReturn,
-  });
+  FakeGetSpendingTargetsUseCase({this.perBudgetResultToReturn});
 
   @override
   final BudgetRepository repository = MockBudgetRepository();
   @override
   final BudgetCalculationService calculationService =
       BudgetCalculationService();
-
-  @override
-  Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
-    if (targetsToReturn != null) {
-      return SpendingTargetSuccess(targetsToReturn!);
-    }
-    return const SpendingTargetNoBudget();
-  }
 
   @override
   Future<PerBudgetSpendingTargetResult> callPerBudget({
@@ -93,21 +80,6 @@ void main() {
     mockPlugin = MockFlutterLocalNotificationsPlugin();
     mockBudgetRepository = MockBudgetRepository();
     fakeSpendingTargetsUseCase = FakeGetSpendingTargetsUseCase(
-      targetsToReturn: const SpendingTargetEntity(
-        dailyTarget: 1500,
-        dailySpent: 500,
-        dailyRemaining: 1000,
-        dailyExceeded: 0,
-        dailyProgress: 0.33,
-        dailyStatus: SpendingTargetStatus.onTrack,
-        weeklyTarget: 10500,
-        weeklySpent: 3500,
-        weeklyRemaining: 7000,
-        weeklyExceeded: 0,
-        weeklyProgress: 0.33,
-        weeklyStatus: SpendingTargetStatus.onTrack,
-        currency: 'INR',
-      ),
       perBudgetResultToReturn: PerBudgetSpendingTargetSuccess(
         budgetLimits: [
           BudgetDailyLimitEntity(
@@ -137,14 +109,10 @@ void main() {
             endDate: DateTime(2026, 8, 31),
           ),
         ],
-        combinedDailyTarget: 1500,
-        currency: 'INR',
       ),
     );
     notificationService = NotificationService(
       plugin: mockPlugin,
-      budgetRepository: mockBudgetRepository,
-      calculationService: BudgetCalculationService(),
       spendingTargetsUseCase: fakeSpendingTargetsUseCase,
     );
     when(
@@ -347,7 +315,6 @@ void main() {
 
       test('should use fallback text when no active budget exists', () async {
         // When no spending target is available, use fallback text
-        fakeSpendingTargetsUseCase.targetsToReturn = null;
         fakeSpendingTargetsUseCase.perBudgetResultToReturn = null;
 
         final settings = AppSettings(
@@ -366,6 +333,64 @@ void main() {
             NotificationService.morningReminderId,
             "Today's Safe Spending",
             'No budget is running today. Open the app to check your budgets.',
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).called(1);
+      });
+
+      test('a figure that could not be worked out is not reported as no '
+          'budget', () async {
+        fakeSpendingTargetsUseCase.perBudgetResultToReturn =
+            const PerBudgetSpendingTargetError(
+              BudgetFailure(
+                type: BudgetErrorType.invalidDate,
+                message: 'database is locked',
+              ),
+            );
+        final settings = AppSettings(
+          notifications: const NotificationSettings(
+            notificationsEnabled: true,
+            morningReminderEnabled: true,
+            eveningSummaryEnabled: false,
+          ),
+        );
+
+        await notificationService.scheduleAll(settings);
+
+        verify(
+          mockPlugin.zonedSchedule(
+            NotificationService.morningReminderId,
+            "Today's Safe Spending",
+            "Open Monivo to see today's safe spending.",
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).called(1);
+      });
+
+      test('a calculation that throws gets the same neutral text', () async {
+        fakeSpendingTargetsUseCase.perBudgetResultFor = (_) =>
+            throw Exception('database is locked');
+        final settings = AppSettings(
+          notifications: const NotificationSettings(
+            notificationsEnabled: true,
+            morningReminderEnabled: true,
+            eveningSummaryEnabled: false,
+          ),
+        );
+
+        await notificationService.scheduleAll(settings);
+
+        verify(
+          mockPlugin.zonedSchedule(
+            NotificationService.morningReminderId,
+            "Today's Safe Spending",
+            "Open Monivo to see today's safe spending.",
             any,
             any,
             androidScheduleMode: anyNamed('androidScheduleMode'),
@@ -519,8 +544,6 @@ void main() {
         );
         notificationService = NotificationService(
           plugin: mockPlugin,
-          budgetRepository: mockBudgetRepository,
-          calculationService: BudgetCalculationService(),
           spendingTargetsUseCase: fakeSpendingTargetsUseCase,
           rescheduleBillReminders: billReminders.rescheduleAll,
         );
@@ -637,8 +660,6 @@ void main() {
           GetSpendingTargetsUseCase? targets,
         }) => NotificationService(
           plugin: mockPlugin,
-          budgetRepository: mockBudgetRepository,
-          calculationService: BudgetCalculationService(),
           spendingTargetsUseCase: targets ?? fakeSpendingTargetsUseCase,
           clock: () => clock,
         );
@@ -688,11 +709,7 @@ void main() {
             startDate: base.startDate,
             endDate: base.endDate,
           );
-          return PerBudgetSpendingTargetSuccess(
-            budgetLimits: [limit],
-            combinedDailyTarget: limit.dailyLimit,
-            currency: 'INR',
-          );
+          return PerBudgetSpendingTargetSuccess(budgetLimits: [limit]);
         }
 
         test('scheduled in the evening: the first reminder is tomorrow with '
@@ -844,34 +861,6 @@ void main() {
         });
       },
     );
-
-    group('cancelAll', () {
-      setUp(() {
-        stubPluginInitialization();
-      });
-
-      test('should cancel all notifications', () async {
-        when(mockPlugin.cancelAll()).thenAnswer((_) async => {});
-
-        await notificationService.cancelAll();
-
-        verify(mockPlugin.cancelAll()).called(1);
-      });
-    });
-
-    group('cancel', () {
-      setUp(() {
-        stubPluginInitialization();
-      });
-
-      test('should cancel specific notification', () async {
-        when(mockPlugin.cancel(any)).thenAnswer((_) async => {});
-
-        await notificationService.cancel(1001);
-
-        verify(mockPlugin.cancel(1001)).called(1);
-      });
-    });
   });
 }
 

@@ -3,7 +3,7 @@ import '../entities/category_failure.dart';
 import '../repository/category_repository.dart';
 
 /// Loads every category (active first, then archived), sorted by name within
-/// each group with system categories keeping their seeded order.
+/// each group.
 class LoadCategoriesUseCase {
   final CategoryRepository repository;
 

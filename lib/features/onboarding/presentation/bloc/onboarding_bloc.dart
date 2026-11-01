@@ -7,21 +7,23 @@ import '../../domain/usecases/create_budget_usecase.dart';
 import 'onboarding_event.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import 'onboarding_state.dart';
+import '../../../../core/currency/money_math.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/errors/user_facing_error.dart';
 
 class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   final CreateBudgetUseCase createBudgetUseCase;
   final BudgetRepository budgetRepository;
 
+  /// One id for every submit, so a retry rewrites the same budget.
+  final String _budgetId = const Uuid().v4();
+
   OnboardingBloc({
     required this.createBudgetUseCase,
     required this.budgetRepository,
   }) : super(
-         OnboardingState(
-           startDate: _today(),
-           endDate: _daysAfter(_today(), 30),
-         ),
+         OnboardingState(startDate: _today(), endDate: _today().addDays(30)),
        ) {
     on<OnboardingInitEvent>(_onInit);
     on<OnboardingPageChangedEvent>(_onPageChanged);
@@ -38,7 +40,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     emit(
       state.copyWith(
         startDate: today,
-        endDate: _daysAfter(today, 30),
+        endDate: today.addDays(30),
         selectedCurrency: _detectCurrency(event.localeCountryCode),
       ),
     );
@@ -101,61 +103,42 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     OnboardingBudgetInputChangedEvent event,
     Emitter<OnboardingState> emit,
   ) {
-    final input = event.budgetInput.trim();
-    if (input.isEmpty) {
+    _applyBudgetInput(event.budgetInput, emit);
+  }
+
+  /// Checks [rawInput] against the budget rules for the chosen currency and
+  /// stores it. Run again when the currency changes: 12.125 is fine in OMR
+  /// but not in INR.
+  void _applyBudgetInput(String rawInput, Emitter<OnboardingState> emit) {
+    final input = rawInput.trim();
+    final value = double.tryParse(input);
+    final error = input.isEmpty
+        ? 'Budget amount cannot be empty'
+        : value == null
+        ? 'Please enter a valid number'
+        : value <= 0
+        ? 'Budget must be greater than zero'
+        : !MoneyMath.isWithinLimit(value)
+        ? 'Budget amount must be less than ${MoneyMath.maxAmountLabel}.'
+        : MoneyInput.decimalsError(
+            input,
+            state.selectedCurrency.code,
+            subject: 'Budget',
+          );
+    if (error != null) {
       emit(
         state.copyWith(
           monthlyBudgetInput: input,
           clearParsedBudget: true,
-          budgetValidationError: 'Budget amount cannot be empty',
+          budgetValidationError: error,
         ),
       );
       return;
     }
-
-    final doubleValue = double.tryParse(input);
-    if (doubleValue == null) {
-      emit(
-        state.copyWith(
-          monthlyBudgetInput: input,
-          clearParsedBudget: true,
-          budgetValidationError: 'Please enter a valid number',
-        ),
-      );
-      return;
-    }
-
-    if (doubleValue <= 0) {
-      emit(
-        state.copyWith(
-          monthlyBudgetInput: input,
-          clearParsedBudget: true,
-          budgetValidationError: 'Budget must be greater than zero',
-        ),
-      );
-      return;
-    }
-
-    final decimalsError = MoneyInput.decimalsError(
-      input,
-      state.selectedCurrency.code,
-      subject: 'Budget',
-    );
-    if (decimalsError != null) {
-      emit(
-        state.copyWith(
-          monthlyBudgetInput: input,
-          clearParsedBudget: true,
-          budgetValidationError: decimalsError,
-        ),
-      );
-      return;
-    }
-
     emit(
       state.copyWith(
         monthlyBudgetInput: input,
-        parsedBudget: doubleValue,
+        parsedBudget: value,
         clearBudgetValidationError: true,
       ),
     );
@@ -174,16 +157,19 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       ),
     );
     emit(state.copyWith(selectedCurrency: found));
+    if (state.monthlyBudgetInput.isNotEmpty) {
+      _applyBudgetInput(state.monthlyBudgetInput, emit);
+    }
   }
 
   void _onStartDateChanged(
     OnboardingStartDateChangedEvent event,
     Emitter<OnboardingState> emit,
   ) {
-    final newStart = _dateOnly(event.date);
+    final newStart = event.date.dateOnly;
     final newEnd = state.endDate.isAfter(newStart)
         ? state.endDate
-        : _daysAfter(newStart, 1);
+        : newStart.addDays(1);
     emit(
       state.copyWith(
         startDate: newStart,
@@ -197,7 +183,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     OnboardingEndDateChangedEvent event,
     Emitter<OnboardingState> emit,
   ) {
-    final newEnd = _dateOnly(event.date);
+    final newEnd = event.date.dateOnly;
     if (!newEnd.isAfter(state.startDate)) {
       emit(
         state.copyWith(
@@ -228,12 +214,14 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       return;
     }
 
-    emit(state.copyWith(status: OnboardingStatus.loading, errorMessage: null));
+    emit(
+      state.copyWith(status: OnboardingStatus.loading, clearErrorMessage: true),
+    );
 
     try {
       final now = DateTime.now();
       final budgetEntity = BudgetEntity(
-        id: const Uuid().v4(),
+        id: _budgetId,
         name: state.budgetNameInput.trim(),
         monthlyAmount: state.parsedBudget!,
         remainingAmount: state.parsedBudget!,
@@ -244,9 +232,13 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
         updatedAt: now,
       );
 
+      // Budget, then active budget, then "onboarding done": the app leaves
+      // onboarding only once the budget is in place. Preferences and the
+      // database can't share a transaction, so a failed step is retried
+      // from the start, and the fixed id keeps that to one budget.
       await createBudgetUseCase(budgetEntity);
-      // Set the newly created budget as the active budget.
       await budgetRepository.setActiveBudgetId(budgetEntity.id);
+      await createBudgetUseCase.finishOnboarding();
 
       emit(state.copyWith(status: OnboardingStatus.success));
     } catch (e) {
@@ -266,11 +258,5 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   // Budget periods are calendar dates. Storing the moment onboarding ran
   // gave the first budget a time of day, which day counts done on raw
   // timestamps (week share, "Day X of N", this preview) got wrong by one.
-  static DateTime _today() => _dateOnly(DateTime.now());
-
-  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
-
-  /// Calendar arithmetic: a daylight-saving change cannot shift the date.
-  static DateTime _daysAfter(DateTime d, int days) =>
-      DateTime(d.year, d.month, d.day + days);
+  static DateTime _today() => DateTime.now().dateOnly;
 }

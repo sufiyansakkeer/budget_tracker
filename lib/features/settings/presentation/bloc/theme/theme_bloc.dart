@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../domain/repository/theme_repository.dart';
@@ -34,8 +35,9 @@ class ThemeBloc extends Bloc<ThemeEvent, ThemeState> {
         final mode = results[0] as dynamic; // AppThemeMode
         final palette = results[1] as dynamic; // ColorPalette
         if (!isClosed) emit(ThemeState(mode: mode, palette: palette));
-      } catch (_) {
-        // Keep the default theme mode on error.
+      } catch (e) {
+        // Keep the default theme mode.
+        debugPrint('[error] Loading the theme: $e');
       } finally {
         if (!_ready.isCompleted) _ready.complete();
       }

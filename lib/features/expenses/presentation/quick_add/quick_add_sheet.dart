@@ -28,6 +28,7 @@ import '../widgets/category_visuals.dart';
 import '../widgets/expense_date_rules.dart';
 import '../widgets/form_field_error.dart';
 import 'amount_entry.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 enum _Day { today, yesterday, other }
 
@@ -149,7 +150,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       _otherDate = picked;
       _day = _isSameDay(picked, _today)
           ? _Day.today
-          : _isSameDay(picked, _today.subtract(const Duration(days: 1)))
+          : _isSameDay(picked, _today.addDays(-1))
           ? _Day.yesterday
           : _Day.other;
       _dateError = null;
@@ -250,6 +251,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       builder: (context, state) {
         final budget = state.quickAddBudget;
         final loaded = state.quickAddLoad == QuickAddLoad.loaded;
+        final failed = state.quickAddLoad == QuickAddLoad.failed;
         final noBudget = loaded && budget == null;
         final currency = budget?.currency;
 
@@ -281,7 +283,22 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                     if (_amountError != null)
                       Center(child: _CenteredError(message: _amountError!)),
                     const SizedBox(height: AppSpacing.md),
-                    if (noBudget)
+                    if (failed)
+                      AppNotice(
+                        tone: AppTone.caution,
+                        icon: Icons.error_outline_rounded,
+                        title: "Couldn't load",
+                        message:
+                            'Your budget and categories are still on this '
+                            'device. Try again.',
+                        action: TextButton(
+                          onPressed: () => context.read<ExpenseBloc>().add(
+                            ExpenseLoadQuickAdd(now: _now),
+                          ),
+                          child: const Text('Try again'),
+                        ),
+                      )
+                    else if (noBudget)
                       AppNotice(
                         tone: AppTone.caution,
                         icon: Icons.account_balance_wallet_outlined,

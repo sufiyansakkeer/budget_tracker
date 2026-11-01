@@ -2,7 +2,7 @@ import '../entities/expense_entity.dart';
 import '../entities/expense_failure.dart';
 import '../repository/expense_repository.dart';
 
-/// Loads expenses, optionally scoped to a budget, a month or a date range.
+/// Loads expenses, optionally scoped to a budget and a date range.
 class GetExpensesUseCase {
   final ExpenseRepository repository;
 
@@ -10,16 +10,12 @@ class GetExpensesUseCase {
 
   Future<ExpenseResult<List<ExpenseEntity>>> call({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {
     try {
       final expenses = await repository.getExpenses(
         budgetId: budgetId,
-        month: month,
-        year: year,
         from: from,
         to: to,
       );

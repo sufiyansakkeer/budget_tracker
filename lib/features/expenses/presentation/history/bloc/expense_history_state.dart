@@ -22,6 +22,9 @@ enum ExpenseHistoryStatus {
 /// View mode for the expense history screen.
 enum ExpenseViewMode { singleBudget, combined }
 
+/// Progress of reading the budgets the combined view picks from.
+enum BudgetsLoad { notLoaded, loading, loaded, failed }
+
 /// Immutable state for the ExpenseHistoryBloc.
 class ExpenseHistoryState extends Equatable {
   final ExpenseHistoryStatus status;
@@ -89,6 +92,10 @@ class ExpenseHistoryState extends Equatable {
   /// Map of budget ID to BudgetEntity for efficient lookup.
   final Map<String, BudgetEntity> budgetMap;
 
+  /// Whether [allBudgets] has been read, so "no budgets" can be told apart
+  /// from "couldn't read them".
+  final BudgetsLoad budgetsLoad;
+
   const ExpenseHistoryState({
     this.status = ExpenseHistoryStatus.initial,
     this.allExpenses = const [],
@@ -111,6 +118,7 @@ class ExpenseHistoryState extends Equatable {
     this.selectedBudgetIds = const [],
     this.allBudgets = const [],
     this.budgetMap = const {},
+    this.budgetsLoad = BudgetsLoad.notLoaded,
   });
 
   /// True when the list has been loaded and shows nothing. Refreshing and
@@ -147,6 +155,7 @@ class ExpenseHistoryState extends Equatable {
     List<String>? selectedBudgetIds,
     List<BudgetEntity>? allBudgets,
     Map<String, BudgetEntity>? budgetMap,
+    BudgetsLoad? budgetsLoad,
   }) {
     return ExpenseHistoryState(
       status: status ?? this.status,
@@ -172,6 +181,7 @@ class ExpenseHistoryState extends Equatable {
       selectedBudgetIds: selectedBudgetIds ?? this.selectedBudgetIds,
       allBudgets: allBudgets ?? this.allBudgets,
       budgetMap: budgetMap ?? this.budgetMap,
+      budgetsLoad: budgetsLoad ?? this.budgetsLoad,
     );
   }
 
@@ -201,10 +211,6 @@ class ExpenseHistoryState extends Equatable {
 
   /// A combined view of budgets in different currencies.
   bool get mixesCurrencies => summaryByCurrency.length > 1;
-
-  /// Total amount spent across all visible expenses.
-  double get combinedTotalAmount =>
-      visibleExpenses.fold(0.0, (sum, e) => sum + e.amount);
 
   /// Compact label for selected budgets (e.g. "Food \u2022 Travel \u2022 Shopping +2").
   String get selectedBudgetsLabel {
@@ -239,5 +245,6 @@ class ExpenseHistoryState extends Equatable {
     selectedBudgetIds,
     allBudgets,
     budgetMap,
+    budgetsLoad,
   ];
 }

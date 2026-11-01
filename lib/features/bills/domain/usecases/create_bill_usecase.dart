@@ -10,41 +10,10 @@ class CreateBillUseCase {
   CreateBillUseCase({required this.repository});
 
   Future<BillResult<BillEntity>> call(BillEntity bill) async {
-    final titleError = BillValidator.validateTitle(bill.title);
-    if (titleError != null) {
+    final invalid = BillValidator.check(bill);
+    if (invalid != null) {
       return BillError(
-        BillFailure(type: BillErrorType.invalidInput, message: titleError),
-      );
-    }
-
-    final amountError = BillValidator.validateAmountValue(bill.amount);
-    if (amountError != null) {
-      return BillError(
-        BillFailure(type: BillErrorType.invalidInput, message: amountError),
-      );
-    }
-
-    final dueDateError = BillValidator.validateDueDate(bill.dueDate);
-    if (dueDateError != null) {
-      return BillError(
-        BillFailure(type: BillErrorType.invalidInput, message: dueDateError),
-      );
-    }
-
-    final noteError = BillValidator.validateNote(bill.note);
-    if (noteError != null) {
-      return BillError(
-        BillFailure(type: BillErrorType.invalidInput, message: noteError),
-      );
-    }
-
-    final recurrenceError = BillValidator.validateRecurrence(
-      isRecurring: bill.isRecurring,
-      recurrenceInterval: bill.recurrenceInterval,
-    );
-    if (recurrenceError != null) {
-      return BillError(
-        BillFailure(type: BillErrorType.invalidInput, message: recurrenceError),
+        BillFailure(type: BillErrorType.invalidInput, message: invalid),
       );
     }
 

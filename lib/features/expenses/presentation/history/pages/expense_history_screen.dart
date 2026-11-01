@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,6 +34,7 @@ import '../widgets/loading_more_indicator.dart';
 import '../widgets/quick_filter_chips.dart';
 import '../widgets/sort_bottom_sheet.dart';
 import '../../widgets/expense_actions_sheet.dart';
+import '../../widgets/expense_undo.dart';
 import '../../widgets/move_expense_sheet.dart';
 import '../widgets/summary_card.dart';
 import '../../quick_add/quick_add_sheet.dart';
@@ -209,6 +212,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     }
   }
 
+  /// Swipes per expense, part of its row's key: a row that comes back (its
+  /// delete failed) needs a fresh Dismissible, not the one already dismissed.
+  final Map<String, int> _swipes = {};
+
   /// Deletes right away and lets the SnackBar offer "Undo" — no dialog.
   ///
   /// The row is dropped from the list first so it is gone in the same frame;
@@ -217,6 +224,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   void _deleteWithUndo(ExpenseEntity expense) {
     final expenseBloc = context.read<ExpenseBloc?>();
     if (expenseBloc == null) return;
+    _swipes[expense.id] = (_swipes[expense.id] ?? 0) + 1;
     context.read<ExpenseHistoryBloc>().add(
       ExpenseHistoryExpenseRemoved(expense.id),
     );
@@ -273,26 +281,38 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     final bloc = context.read<ExpenseHistoryBloc>();
     final wasCombined = bloc.state.isCombinedMode;
 
-    if (bloc.state.allBudgets.isEmpty) {
+    if (!wasCombined) {
+      // Entering the combined view re-reads the budgets; wait for them.
       bloc.add(const ExpenseHistoryToggleViewMode());
+      var load = BudgetsLoad.failed;
       try {
-        await bloc.stream
-            .firstWhere((s) => s.allBudgets.isNotEmpty)
-            .timeout(const Duration(seconds: 3));
-      } catch (_) {
-        if (!mounted) return;
+        final read = await bloc.stream
+            .firstWhere(
+              (s) =>
+                  s.budgetsLoad == BudgetsLoad.loaded ||
+                  s.budgetsLoad == BudgetsLoad.failed,
+            )
+            .timeout(const Duration(seconds: 5));
+        load = read.budgetsLoad;
+      } on TimeoutException catch (e) {
+        debugPrint('[error] Loading budgets to view together: $e');
+      }
+      if (!mounted) return;
+      if (load == BudgetsLoad.failed || bloc.state.allBudgets.isEmpty) {
         bloc.add(const ExpenseHistoryExitCombinedView());
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(
-              content: Text('You need at least one budget to combine.'),
+            SnackBar(
+              content: Text(
+                load == BudgetsLoad.failed
+                    ? "Couldn't load your budgets. Try again."
+                    : 'You need at least one budget to combine.',
+              ),
             ),
           );
         return;
       }
-    } else if (!wasCombined) {
-      bloc.add(const ExpenseHistoryToggleViewMode());
     }
     if (!mounted) return;
 
@@ -395,27 +415,25 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 curr.status == ExpenseBlocStatus.error) &&
             curr.message != null,
         listener: (context, state) {
+          // A swiped row leaves the list before its delete runs; when the
+          // delete fails, read the list again so the row comes back.
+          if (state.status == ExpenseBlocStatus.error) {
+            context.read<ExpenseHistoryBloc>().add(
+              const ExpenseHistoryRefresh(),
+            );
+          }
           final deleted = state.lastAction == ExpenseAction.deleted
               ? state.lastDeleted
               : null;
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
-              SnackBar(
-                key: deleted != null ? const Key('undoDeleteSnackBar') : null,
-                content: Text(_quietMessage(state)),
-                duration: deleted != null
-                    ? const Duration(seconds: 6)
-                    : const Duration(seconds: 4),
-                action: deleted != null
-                    ? SnackBarAction(
-                        key: const Key('undoDeleteAction'),
-                        label: 'Undo',
-                        onPressed: () =>
-                            expenseBloc.add(ExpenseRestore(deleted)),
-                      )
-                    : null,
-              ),
+              deleted != null
+                  ? ExpenseUndo.snackBar(
+                      message: _quietMessage(state),
+                      onUndo: () => expenseBloc.add(ExpenseRestore(deleted)),
+                    )
+                  : SnackBar(content: Text(_quietMessage(state))),
             );
           expenseBloc.add(const ExpenseClearMessage());
         },
@@ -753,7 +771,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       AppMotion.standard,
     );
     return Dismissible(
-      key: Key('dismiss_${expense.id}'),
+      key: Key(
+        _swipes.containsKey(expense.id)
+            ? 'dismiss_${expense.id}_${_swipes[expense.id]}'
+            : 'dismiss_${expense.id}',
+      ),
       direction: DismissDirection.endToStart,
       movementDuration: dismissDuration,
       resizeDuration: dismissDuration,

@@ -1,6 +1,8 @@
 import '../entities/expense_entity.dart';
 import '../entities/expense_group.dart';
 import '../entities/expense_history_sort.dart';
+import 'sort_expenses_usecase.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Groups expenses by their local calendar date.
 ///
@@ -14,12 +16,12 @@ class GroupExpensesUseCase {
     ExpenseSortOption sort = ExpenseSortOption.newestFirst,
   }) {
     final now = DateTime.now();
-    final today = _dateOnly(now);
-    final yesterday = today.subtract(const Duration(days: 1));
+    final today = now.dateOnly;
+    final yesterday = today.addDays(-1);
     final buckets = <DateTime, List<ExpenseEntity>>{};
 
     for (final expense in expenses) {
-      final date = _dateOnly(expense.date.toLocal());
+      final date = (expense.date.toLocal()).dateOnly;
       buckets.putIfAbsent(date, () => []).add(expense);
     }
 
@@ -34,44 +36,11 @@ class GroupExpensesUseCase {
   }
 
   /// Sorts items within a single date group according to the active sort
-  /// option. Amount/alphabetical sorts apply within the group; chronological
-  /// sorts use date+time. The category sort keeps the incoming order, which
+  /// option. The category sort keeps the incoming order, which
   /// [SortExpensesUseCase] has already arranged by category name.
   void _sortWithinGroup(List<ExpenseEntity> items, ExpenseSortOption sort) {
-    switch (sort) {
-      case ExpenseSortOption.newestFirst:
-        items.sort((a, b) {
-          final byDate = b.date.compareTo(a.date);
-          if (byDate != 0) return byDate;
-          return b.time.compareTo(a.time);
-        });
-        break;
-      case ExpenseSortOption.oldestFirst:
-        items.sort((a, b) {
-          final byDate = a.date.compareTo(b.date);
-          if (byDate != 0) return byDate;
-          return a.time.compareTo(b.time);
-        });
-        break;
-      case ExpenseSortOption.highestAmount:
-        items.sort((a, b) => b.amount.compareTo(a.amount));
-        break;
-      case ExpenseSortOption.lowestAmount:
-        items.sort((a, b) => a.amount.compareTo(b.amount));
-        break;
-      case ExpenseSortOption.category:
-        // Already sorted by category name upstream; preserve that order.
-        break;
-      case ExpenseSortOption.alphabetical:
-        items.sort((a, b) {
-          final na = (a.note ?? '').toLowerCase();
-          final nb = (b.note ?? '').toLowerCase();
-          final byNote = na.compareTo(nb);
-          if (byNote != 0) return byNote;
-          return b.date.compareTo(a.date);
-        });
-        break;
-    }
+    if (sort == ExpenseSortOption.category) return;
+    items.sort(SortExpensesUseCase.comparatorFor(sort));
   }
 
   ExpenseGroupType _typeFor(DateTime date, DateTime today, DateTime yesterday) {
@@ -79,9 +48,6 @@ class GroupExpensesUseCase {
     if (_sameDay(date, yesterday)) return ExpenseGroupType.yesterday;
     return ExpenseGroupType.earlier;
   }
-
-  DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;

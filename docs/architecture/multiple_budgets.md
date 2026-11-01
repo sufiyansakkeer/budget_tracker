@@ -22,9 +22,9 @@ the active budget only. The morning notification prints one line per budget
 rather than a total.
 
 The single exception is the budget list's summary card, which adds up the
-remaining amounts of the budgets running today purely as an at-a-glance
-figure; it is labelled with the first budget's currency and is not used in
-any calculation.
+remaining amounts of the budgets running today as an at-a-glance figure, one
+total per currency. Amounts in different currencies are never added
+together, and the totals are not used in any calculation.
 
 ## The active budget
 
@@ -37,8 +37,11 @@ reports, the widget and new expenses default to.
 - Switched from the dashboard selector, the budget list or settings, always
   through `ManageBudgetUseCase.setActive`, which then fires
   `RefreshBuses.budgets` so every open screen re-reads.
-- If the stored id goes stale (the budget was deleted), callers fall back to
-  the most recent budget rather than showing an error.
+- If the stored id goes stale (the budget was deleted, or a restore brought
+  different ids), `BudgetRepositoryImpl.getActiveBudgetId` makes another
+  budget active rather than showing an error: a non-archived budget running
+  today, else the most recently started non-archived budget, else the most
+  recently started budget.
 
 ## Lifecycle
 

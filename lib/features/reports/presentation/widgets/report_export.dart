@@ -4,6 +4,7 @@ import '../../domain/entities/report_data.dart';
 import '../../domain/entities/report_failure.dart';
 import '../../domain/usecases/export_csv_usecase.dart';
 import '../../domain/usecases/export_pdf_usecase.dart';
+import '../../../../core/files/file_delivery_service.dart';
 import '../../../../core/errors/user_facing_error.dart';
 
 /// Shares the report as CSV or PDF through the system sheet, from the
@@ -24,8 +25,13 @@ abstract final class ReportExport {
     try {
       final result = csv ? await exportCsv(data) : await exportPdf(data);
       switch (result) {
-        case ReportSuccess():
-          say('$kind report ready to share.');
+        case ReportSuccess(:final data):
+          say(switch (data) {
+            FileDeliveryOutcome.shared ||
+            FileDeliveryOutcome.saved => '$kind report shared.',
+            FileDeliveryOutcome.handedOff => '$kind report ready to share.',
+            FileDeliveryOutcome.cancelled => '$kind report not shared.',
+          });
         case ReportError(:final failure):
           say(
             userFacingError(
@@ -35,7 +41,8 @@ abstract final class ReportExport {
             ),
           );
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Exporting the $kind report: $e');
       say("Couldn't export the $kind report. Try again.");
     }
   }

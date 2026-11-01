@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:monivo/core/constants/preference_keys.dart';
 import 'package:monivo/core/data/models/budget_model.dart';
 import 'package:monivo/core/database/app_database.dart';
@@ -144,7 +145,6 @@ class AppHarness {
     getExpenseByIdUseCase: GetExpenseByIdUseCase(repository: expenseRepository),
     getExpensesUseCase: GetExpensesUseCase(repository: expenseRepository),
     getCategoriesUseCase: GetCategoriesUseCase(repository: expenseRepository),
-    repository: expenseRepository,
     budgetRepository: budgetRepository,
   );
 
@@ -219,7 +219,7 @@ class AppHarness {
       remainingAmount: amount,
       currency: currency,
       startDate: start,
-      endDate: endDate ?? start.add(const Duration(days: 29)),
+      endDate: endDate ?? start.addDays(29),
       createdAt: now,
       updatedAt: now,
     );

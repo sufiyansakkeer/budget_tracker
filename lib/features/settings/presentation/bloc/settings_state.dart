@@ -16,9 +16,8 @@ class SettingsState extends Equatable {
   /// True while a biometric authentication / availability check is running.
   final bool isBiometricBusy;
 
-  /// Friendly, persistent message about biometric availability/state.
-  /// Shown as the Biometric Lock subtitle (e.g. "Not available on this device"
-  /// or "Please set up fingerprint or Face ID on your device first.").
+  /// Why the app lock can't be turned on, shown as the lock tile's subtitle
+  /// (e.g. "Set up a screen lock or fingerprint on your phone first.").
   final String? biometricMessage;
 
   /// Outcome of the latest "Check database" run, shown once then cleared.

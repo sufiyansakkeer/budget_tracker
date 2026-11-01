@@ -6,12 +6,12 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
 import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/files/file_delivery_service.dart';
 
 import '../entities/report_data.dart';
 import '../entities/report_failure.dart';
-import '../../../../core/platform/system_ui_session.dart';
+import '../services/report_insight_generator.dart';
 
 /// The fonts a report PDF is drawn with: the app's own Manrope, and the
 /// bundled Omani Rial sign as a fallback.
@@ -52,23 +52,31 @@ class PdfFonts {
 /// Generates a professional PDF report (overview, category summary, trends,
 /// insights) from [ReportData] and opens the share sheet.
 class ExportPdfUseCase {
-  const ExportPdfUseCase();
+  final FileDeliveryService delivery;
 
-  Future<ReportResult<String>> call(ReportData data) async {
+  const ExportPdfUseCase({this.delivery = const FileDeliveryService()});
+
+  /// What happened to the file: a closed share sheet is not an export.
+  Future<ReportResult<FileDeliveryOutcome>> call(ReportData data) async {
     try {
       final document = buildDocument(data, await PdfFonts.load());
       final bytes = await document.save();
       final directory = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${directory.path}/budget_report_$timestamp.pdf');
+      final fileName = 'budget_report_$timestamp.pdf';
+      final file = File('${directory.path}/$fileName');
       await file.writeAsBytes(bytes);
 
-      await SystemUiSession.run(
-        () => Share.shareXFiles([
-          XFile(file.path, mimeType: 'application/pdf'),
-        ], text: 'Budget Report PDF'),
+      return ReportSuccess(
+        await delivery.deliver(
+          file: file,
+          fileName: fileName,
+          mimeType: 'application/pdf',
+          extension: 'pdf',
+          destination: FileDestination.share,
+          shareText: 'Budget Report PDF',
+        ),
       );
-      return ReportSuccess('PDF report exported.');
     } catch (e) {
       return ReportError(
         ReportFailure(
@@ -156,21 +164,11 @@ class ExportPdfUseCase {
           pw.SizedBox(height: 16),
 
           pw.Header(level: 1, text: 'Spending Trends'),
-          pw.Text('Daily average: ${money(data.trend.dailyAverage)}'),
-          pw.Text('Weekly average: ${money(data.trend.weeklyAverage)}'),
-          pw.Text('Monthly average: ${money(data.trend.monthlyAverage)}'),
-          pw.Text(
-            'Growth vs previous period: '
-            '${(data.trend.growthRate * 100).toStringAsFixed(1)}%',
-          ),
-          pw.Text(
-            'Consistency score: '
-            '${(data.trend.consistencyScore * 100).toStringAsFixed(0)}%',
-          ),
+          for (final line in trendLines(data, money)) pw.Text(line),
           pw.SizedBox(height: 16),
 
           pw.Header(level: 1, text: 'Insights'),
-          for (final insight in _insights(data))
+          for (final insight in insightLines(data, money))
             pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 4),
               child: pw.Text('• $insight'),
@@ -181,35 +179,38 @@ class ExportPdfUseCase {
     return document;
   }
 
-  List<String> _insights(ReportData data) {
-    final insights = <String>[];
-    if (!data.isEmpty) {
-      if (data.categoryAnalytics.isNotEmpty) {
-        final top = data.categoryAnalytics.first;
-        insights.add(
-          '${top.categoryName} accounts for '
-          '${top.percentageOfTotal.toStringAsFixed(0)}% of your spending.',
-        );
-      }
-      final change = data.trend.growthRate;
-      if (change.abs() >= 0.02) {
-        insights.add(
-          change < 0
-              ? 'You\'re spending ${(change.abs() * 100).toStringAsFixed(0)}% '
-                    'less than the previous period.'
-              : 'You\'re spending ${(change.abs() * 100).toStringAsFixed(0)}% '
-                    'more than the previous period.',
-        );
-      }
-      if (data.trend.isImproving) {
-        insights.add('Your spending trend has improved.');
-      }
-    }
-    if (insights.isEmpty) {
-      insights.add('Add expenses to see personalized insights.');
-    }
-    return insights;
+  /// The "Spending Trends" lines. Growth is left out when nothing was spent
+  /// in the period before: "0.0%" would read as "no change".
+  @visibleForTesting
+  static List<String> trendLines(
+    ReportData data,
+    String Function(double amount) money,
+  ) {
+    final trend = data.trend;
+    return [
+      'Daily average: ${money(trend.dailyAverage)}',
+      'Weekly average: ${money(trend.weeklyAverage)}',
+      'Monthly average: ${money(trend.monthlyAverage)}',
+      if (trend.hasPreviousPeriod)
+        'Growth vs previous period: '
+            '${(trend.growthRate * 100).toStringAsFixed(1)}%',
+      'Consistency score: '
+          '${(trend.consistencyScore * 100).toStringAsFixed(0)}%',
+    ];
   }
+
+  /// The report's own insights, with amounts the PDF can draw.
+  @visibleForTesting
+  static List<String> insightLines(
+    ReportData data,
+    String Function(double amount) money,
+  ) => [
+    for (final insight in const ReportInsightGenerator().generate(
+      data,
+      money: money,
+    ))
+      insight.message,
+  ];
 
   /// [amount] as the PDF shows it: the currency's symbol at its real
   /// precision (OMR keeps its fils, a whole amount shows no decimals), or the

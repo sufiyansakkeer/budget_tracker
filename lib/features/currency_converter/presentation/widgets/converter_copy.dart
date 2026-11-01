@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 
 import '../../domain/entities/exchange_rate_failure.dart';
 import '../../domain/entities/rate_lookup.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// User-facing wording for the converter, kept in one place so the screen
 /// always explains where a rate came from in the same terms.
@@ -99,9 +100,7 @@ abstract final class ConverterCopy {
   static String? _relativeDay(DateTime day, DateTime now) {
     final local = now.toLocal();
     final today = DateTime(local.year, local.month, local.day);
-    final diff = today
-        .difference(DateTime(day.year, day.month, day.day))
-        .inDays;
+    final diff = calendarDaysBetween(day, today);
     if (diff == 0) return 'today';
     if (diff == 1) return 'yesterday';
     return null;
