@@ -17,6 +17,7 @@ import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.da
 import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_event.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_state.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
   @override
@@ -262,6 +263,7 @@ ExpenseBloc buildBloc(ExpenseRepository repository) {
     getExpensesUseCase: FakeGetAllUseCase(repository),
     getCategoriesUseCase: FakeGetCategoriesUseCase(repository),
     budgetRepository: FakeBudgetRepository(),
+    tabPurchases: FakeTabPurchaseUseCase(),
   );
 }
 
@@ -432,6 +434,7 @@ void main() {
       getExpensesUseCase: FakeGetAllUseCase(repository),
       getCategoriesUseCase: FakeGetCategoriesUseCase(repository),
       budgetRepository: budgetRepo,
+      tabPurchases: FakeTabPurchaseUseCase(),
     );
 
     bloc.add(ExpenseCreate(expenseWithoutBudget));

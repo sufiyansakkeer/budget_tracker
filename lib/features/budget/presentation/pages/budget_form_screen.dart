@@ -94,6 +94,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// of their own, so a currency change relabels every one of them.
   int? _expenseCount;
 
+  /// How many purchases on Pay later tabs the budget being edited holds;
+  /// null until read, or when it cannot be read (saving still checks).
+  int? _tabPurchaseCount;
+
   final FocusNode _nameFocus = FocusNode();
 
   bool get _isEditing => _budget != null;
@@ -148,6 +152,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       });
       _loadLinkedBills(budget.id);
       _loadExpenseCount(budget.id);
+      _loadTabPurchaseCount(budget.id);
     } catch (e) {
       debugPrint('[error] Loading budget ${widget.budgetId}: $e');
       if (!mounted) return;
@@ -189,6 +194,31 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       // Unknown count: the warning is worded without one.
       debugPrint('[error] Counting a budget\'s expenses: $e');
     }
+  }
+
+  /// Best effort: without a count the reason shows when saving is refused.
+  Future<void> _loadTabPurchaseCount(String budgetId) async {
+    try {
+      final count = await _manageBudget.tabPurchasesIn(budgetId);
+      if (!mounted) return;
+      setState(() => _tabPurchaseCount = count);
+    } catch (e) {
+      debugPrint('[error] Counting a budget\'s Pay later purchases: $e');
+    }
+  }
+
+  /// Why the new currency can't be saved: the budget holds purchases on
+  /// Pay later tabs in its current currency. Null when it can.
+  String? get _tabCurrencyBlock {
+    final budget = _budget;
+    final count = _tabPurchaseCount ?? 0;
+    if (budget == null || _currency == budget.currency || count <= 0) {
+      return null;
+    }
+    return BudgetCurrencyLockedException(
+      tabPurchases: count,
+      currency: budget.currency,
+    ).message;
   }
 
   /// Whether the edit changes the currency of a budget that may hold
@@ -381,6 +411,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       return;
     }
 
+    if (_tabCurrencyBlock != null) {
+      setState(
+        () => _saveError = 'Keep this budget in ${_budget!.currency} to save.',
+      );
+      return;
+    }
     if (_isEditing && !await _confirmCurrencyChange()) return;
     if (!mounted) return;
 
@@ -445,6 +481,15 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           ),
         );
       context.pop(true);
+    } on BudgetCurrencyLockedException catch (e) {
+      // The count wasn't known on screen; the use case refused.
+      debugPrint('[error] Saving budget: $e');
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _tabPurchaseCount = e.tabPurchases;
+        _saveError = 'Keep this budget in ${e.currency} to save.';
+      });
     } catch (e) {
       debugPrint('[error] Saving budget: $e');
       if (!mounted) return;
@@ -581,7 +626,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                       ],
                     ),
-                    if (_relabelsExpenses) ...[
+                    if (_tabCurrencyBlock != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      AppNotice(
+                        key: const ValueKey('budgetCurrencyTabsBlock'),
+                        tone: AppTone.critical,
+                        icon: Icons.credit_card_outlined,
+                        title: 'Currency can\'t change',
+                        message: _tabCurrencyBlock!,
+                      ),
+                    ],
+                    if (_relabelsExpenses && _tabCurrencyBlock == null) ...[
                       const SizedBox(height: AppSpacing.sm),
                       AppNotice(
                         key: const ValueKey('budgetCurrencyExpensesWarning'),

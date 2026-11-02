@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
@@ -17,10 +18,16 @@ abstract final class ExpenseUndo {
   @visibleForTesting
   static ExpenseBloc Function() blocFactory = () => getIt<ExpenseBloc>();
 
-  static void offer(ScaffoldMessengerState messenger, ExpenseEntity deleted) {
+  /// [link]: the Pay later tab link the delete removed, so Undo puts the
+  /// purchase back on its tab.
+  static void offer(
+    ScaffoldMessengerState messenger,
+    ExpenseEntity deleted, {
+    TabLinkSnapshot? link,
+  }) {
     messenger
       ..hideCurrentSnackBar()
-      ..showSnackBar(snackBar(onUndo: () => restore(deleted)));
+      ..showSnackBar(snackBar(onUndo: () => restore(deleted, link: link)));
   }
 
   /// The "deleted · Undo" SnackBar every delete shows, held longer than a
@@ -40,14 +47,17 @@ abstract final class ExpenseUndo {
   );
 
   /// Puts [expense] back and reports when that has finished.
-  static Future<void> restore(ExpenseEntity expense) async {
+  static Future<void> restore(
+    ExpenseEntity expense, {
+    TabLinkSnapshot? link,
+  }) async {
     final bloc = blocFactory();
     final done = bloc.stream.firstWhere(
       (s) =>
           s.status == ExpenseBlocStatus.success ||
           s.status == ExpenseBlocStatus.error,
     );
-    bloc.add(ExpenseRestore(expense));
+    bloc.add(ExpenseRestore(expense, link: link));
     try {
       await done.timeout(const Duration(seconds: 10));
     } catch (e) {

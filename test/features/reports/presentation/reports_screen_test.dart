@@ -24,6 +24,7 @@ import 'package:monivo/features/reports/presentation/widgets/bar_chart_card.dart
 
 import '../../../helpers/bill_ui_fakes.dart';
 import '../../expenses/presentation/expense_test_fakes.dart';
+import '../../../helpers/pay_later_fakes.dart';
 
 /// Expenses whose reads can be made to fail.
 class _FlakyExpenses extends MemoryExpenseRepository {
@@ -84,7 +85,10 @@ void main() {
     expenses = _FlakyExpenses();
     budgets = ListBudgetRepository([_household()], 'household');
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: budgets),
+      ManageBudgetUseCase(
+        repository: budgets,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
     // This budget (1–9 Oct): 9,000 across categories; the 9 days before
     // (22–30 Sep): 6,000, so this period is 50% more.

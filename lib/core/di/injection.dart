@@ -108,6 +108,24 @@ import '../../features/bills/domain/usecases/pay_bill_usecase.dart';
 import '../../features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../features/bills/domain/usecases/update_bill_usecase.dart';
 import '../../features/bills/presentation/bloc/bill_bloc.dart';
+import '../../features/pay_later/data/datasource/pay_later_local_datasource.dart';
+import '../../features/pay_later/data/services/tab_reminder_service.dart';
+import '../../features/pay_later/presentation/open_tab_from_notification.dart';
+import '../../features/pay_later/data/datasource/pay_later_local_datasource_impl.dart';
+import '../../features/pay_later/data/repository/pay_later_repository_impl.dart';
+import '../../features/pay_later/domain/repository/pay_later_repository.dart';
+import '../../features/pay_later/domain/usecases/get_pay_later_analytics_usecase.dart';
+import '../../features/pay_later/domain/usecases/get_pay_later_overview_usecase.dart';
+import '../../features/pay_later/domain/usecases/get_tab_ledger_usecase.dart';
+import '../../features/pay_later/domain/usecases/get_tabs_usecase.dart';
+import '../../features/pay_later/domain/usecases/manage_tab_usecase.dart';
+import '../../features/pay_later/domain/usecases/reconcile_tab_usecase.dart';
+import '../../features/pay_later/domain/usecases/tab_payment_usecase.dart';
+import '../../features/pay_later/domain/usecases/tab_purchase_usecase.dart';
+import '../../features/pay_later/presentation/bloc/pay_later_overview_bloc.dart';
+import '../../features/pay_later/presentation/bloc/pay_later_summary_cubit.dart';
+import '../../features/pay_later/presentation/bloc/tab_detail_bloc.dart';
+import '../../features/pay_later/presentation/bloc/tab_form_cubit.dart';
 import '../../features/app_update/data/datasources/github_release_remote_datasource.dart';
 import '../../features/app_update/data/datasources/github_release_remote_datasource_impl.dart';
 import '../../features/app_update/data/repository/app_update_repository_impl.dart';
@@ -222,7 +240,10 @@ Future<void> initDependencyInjection({
   );
 
   getIt.registerLazySingleton<ManageBudgetUseCase>(
-    () => ManageBudgetUseCase(repository: getIt<BudgetRepository>()),
+    () => ManageBudgetUseCase(
+      repository: getIt<BudgetRepository>(),
+      reconcileTabs: getIt<ReconcileTabUseCase>(),
+    ),
   );
 
   getIt.registerLazySingleton<GetBudgetListSummaryUseCase>(
@@ -389,6 +410,7 @@ Future<void> initDependencyInjection({
       getExpensesUseCase: getIt<GetExpensesUseCase>(),
       getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
+      tabPurchases: getIt<TabPurchaseUseCase>(),
     ),
   );
 
@@ -484,6 +506,9 @@ Future<void> initDependencyInjection({
       // Resolved on use: BillReminderService is registered further down.
       rescheduleBillReminders: () =>
           getIt<BillReminderService>().rescheduleAll(),
+      // Resolved on use: TabReminderService is registered further down.
+      rescheduleTabReminders: () => getIt<TabReminderService>().rescheduleAll(),
+      onPayLaterTap: openTabFromNotification,
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
@@ -493,6 +518,7 @@ Future<void> initDependencyInjection({
   getIt.registerLazySingleton<BackupService>(
     () => BackupService(
       database: getIt<AppDatabase>(),
+      reconcileTabs: getIt<ReconcileTabUseCase>(),
       recalculateRemaining: getIt<RecalculateRemainingAmountsUseCase>(),
     ),
   );
@@ -591,11 +617,106 @@ Future<void> initDependencyInjection({
     () => BillRepositoryImpl(localDataSource: getIt<BillLocalDataSource>()),
   );
 
+  // Pay Later Feature – Datasource and Repository
+  getIt.registerLazySingleton<PayLaterLocalDataSource>(
+    () => PayLaterLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<PayLaterRepository>(
+    () => PayLaterRepositoryImpl(
+      localDataSource: getIt<PayLaterLocalDataSource>(),
+    ),
+  );
+
+  // Pay Later Feature – Use Cases
+  getIt.registerLazySingleton<ReconcileTabUseCase>(
+    () => ReconcileTabUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<ManageTabUseCase>(
+    () => ManageTabUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<GetTabLedgerUseCase>(
+    () => GetTabLedgerUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<GetTabsUseCase>(
+    () => GetTabsUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<GetPayLaterOverviewUseCase>(
+    () => GetPayLaterOverviewUseCase(
+      getTabs: getIt<GetTabsUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+    ),
+  );
+  getIt.registerLazySingleton<GetPayLaterAnalyticsUseCase>(
+    () => GetPayLaterAnalyticsUseCase(
+      getTabs: getIt<GetTabsUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+    ),
+  );
+  getIt.registerLazySingleton<TabPurchaseUseCase>(
+    () => TabPurchaseUseCase(
+      expenseRepository: getIt<ExpenseRepository>(),
+      budgetRepository: getIt<BudgetRepository>(),
+      payLaterRepository: getIt<PayLaterRepository>(),
+      reconcileTab: getIt<ReconcileTabUseCase>(),
+    ),
+  );
+  getIt.registerLazySingleton<TabPaymentUseCase>(
+    () => TabPaymentUseCase(
+      repository: getIt<PayLaterRepository>(),
+      reconcileTab: getIt<ReconcileTabUseCase>(),
+    ),
+  );
+
+  // Pay Later Feature – Settle-up reminders. Started once from main();
+  // after that it re-schedules on every Pay later or day change.
+  getIt.registerLazySingleton<TabReminderService>(
+    () => TabReminderService(
+      plugin: FlutterLocalNotificationsPlugin(),
+      getTabs: getIt<GetTabsUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+    ),
+    dispose: (service) => service.dispose(),
+  );
+
+  // Pay Later Feature – Blocs and Cubits
+  getIt.registerFactory<PayLaterOverviewBloc>(
+    () => PayLaterOverviewBloc(
+      getOverview: getIt<GetPayLaterOverviewUseCase>(),
+      getAnalytics: getIt<GetPayLaterAnalyticsUseCase>(),
+    ),
+  );
+  getIt.registerFactory<PayLaterSummaryCubit>(
+    () =>
+        PayLaterSummaryCubit(getOverview: getIt<GetPayLaterOverviewUseCase>()),
+  );
+  getIt.registerFactory<TabDetailBloc>(
+    () => TabDetailBloc(
+      getLedger: getIt<GetTabLedgerUseCase>(),
+      payments: getIt<TabPaymentUseCase>(),
+      manageTab: getIt<ManageTabUseCase>(),
+      getAnalytics: getIt<GetPayLaterAnalyticsUseCase>(),
+      getCategories: getIt<GetCategoriesUseCase>(),
+    ),
+  );
+  getIt.registerFactory<TabFormCubit>(
+    () => TabFormCubit(
+      manageTab: getIt<ManageTabUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+      getCategories: getIt<GetCategoriesUseCase>(),
+      manageBudget: getIt<ManageBudgetUseCase>(),
+      appCurrency: () => getIt<CurrencyProvider>().currencyCode,
+    ),
+  );
+
   // Bills Feature – Reminder Service
   getIt.registerLazySingleton<BillReminderService>(
     () => BillReminderService(
       plugin: FlutterLocalNotificationsPlugin(),
       repository: getIt<BillRepository>(),
+      // The plugin keeps one tap handler, so every initialize passes the
+      // same one. Resolved on use.
+      onNotificationResponse: (response) =>
+          getIt<NotificationService>().handleNotificationResponse(response),
     ),
   );
 

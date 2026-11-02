@@ -16,6 +16,7 @@ import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.d
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/usecases/get_budget_list_summary_usecase_test.mocks.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 class FakeSettingsRepository implements SettingsRepository {
   @override
@@ -48,7 +49,10 @@ void main() {
     final repository = MockBudgetRepository();
     getIt.registerSingleton<BudgetRepository>(repository);
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: repository),
+      ManageBudgetUseCase(
+        repository: repository,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
     getIt.registerSingleton<CurrencyProvider>(
       CurrencyProvider(

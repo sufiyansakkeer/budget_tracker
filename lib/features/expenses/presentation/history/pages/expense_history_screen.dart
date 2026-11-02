@@ -45,6 +45,8 @@ import '../../../../../core/widgets/fade_slide_in.dart';
 import '../../../../../core/navigation/push_unique.dart';
 import '../../../../../core/widgets/app_animated_size.dart';
 import '../../../../../core/feedback/app_haptics.dart';
+import '../../../../pay_later/domain/entities/purchase_change_impact.dart';
+import '../../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
 
 /// Expense history: search, filters, sorting, day grouping, pagination,
 /// swipe-to-delete, pull-to-refresh, and the combined multi-budget view.
@@ -216,27 +218,92 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   /// delete failed) needs a fresh Dismissible, not the one already dismissed.
   final Map<String, int> _swipes = {};
 
+  /// Swiped rows the user confirmed through the payments dialog, so their
+  /// delete offers no Undo.
+  final Set<String> _confirmedDeletes = {};
+
   /// Deletes right away and lets the SnackBar offer "Undo" — no dialog.
+  /// [undoable] is false for a tab purchase whose delete the user already
+  /// confirmed (it moved payment money), which offers no Undo.
   ///
   /// The row is dropped from the list first so it is gone in the same frame;
   /// the real delete follows and its refresh confirms the list. Undo
   /// restores the expense, which then slides back in as a new row.
-  void _deleteWithUndo(ExpenseEntity expense) {
+  void _deleteWithUndo(ExpenseEntity expense, {bool undoable = true}) {
     final expenseBloc = context.read<ExpenseBloc?>();
     if (expenseBloc == null) return;
     _swipes[expense.id] = (_swipes[expense.id] ?? 0) + 1;
     context.read<ExpenseHistoryBloc>().add(
       ExpenseHistoryExpenseRemoved(expense.id),
     );
-    expenseBloc.add(ExpenseDelete(expense.id));
+    expenseBloc.add(ExpenseDelete(expense.id, undoable: undoable));
+  }
+
+  /// Expenses whose delete is being checked or confirmed right now.
+  final Set<String> _deleteChecks = {};
+
+  /// Before deleting [expense]: a tab purchase with payment money on it
+  /// says where that money goes and asks. Null when the delete must not
+  /// happen (cancelled, its payments couldn't be checked, or a delete of
+  /// it is already being checked); otherwise whether the delete may offer
+  /// Undo.
+  Future<bool?> _askBeforeDelete(
+    ExpenseBloc expenseBloc,
+    ExpenseEntity expense,
+  ) async {
+    // A second swipe or long-press while the first is still checking (or
+    // its dialog is open) must not start another delete.
+    if (!_deleteChecks.add(expense.id)) return null;
+    try {
+      return await _checkPaymentsBeforeDelete(expenseBloc, expense);
+    } finally {
+      _deleteChecks.remove(expense.id);
+    }
+  }
+
+  Future<bool?> _checkPaymentsBeforeDelete(
+    ExpenseBloc expenseBloc,
+    ExpenseEntity expense,
+  ) async {
+    final PurchaseChangeImpact? impact;
+    try {
+      impact = await expenseBloc.tabPurchases.impactOf(
+        expense.id,
+        deleting: true,
+      );
+    } catch (e) {
+      debugPrint('[error] Checking payments before deleting an expense: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(PurchaseImpactDialog.deleteCheckFailed),
+            ),
+          );
+      }
+      return null;
+    }
+    if (!mounted) return null;
+    if (impact == null || !impact.touchesPayments) return true;
+    final confirmed = await PurchaseImpactDialog.show(
+      context,
+      impact: impact,
+      deleting: true,
+    );
+    return confirmed ? false : null;
   }
 
   /// Whether a swiped row may leave. The delete itself happens once the row
   /// has finished animating out (see [_buildDismissibleRow]); deleting here
   /// would refresh the list mid-animation and make the rows below jump.
   Future<bool> _confirmDismiss(ExpenseEntity expense) async {
-    if (context.read<ExpenseBloc?>() == null) return false;
+    final expenseBloc = context.read<ExpenseBloc?>();
+    if (expenseBloc == null) return false;
     AppHaptics.threshold();
+    final undoable = await _askBeforeDelete(expenseBloc, expense);
+    if (undoable == null || !mounted) return false;
+    if (!undoable) _confirmedDeletes.add(expense.id);
     return true;
   }
 
@@ -270,8 +337,12 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           ),
         );
       case ExpenseRowAction.delete:
+        final expenseBloc = context.read<ExpenseBloc?>();
+        if (expenseBloc == null) return;
+        final undoable = await _askBeforeDelete(expenseBloc, expense);
+        if (undoable == null || !mounted) return;
         AppHaptics.confirm();
-        _deleteWithUndo(expense);
+        _deleteWithUndo(expense, undoable: undoable);
     }
   }
 
@@ -425,13 +496,15 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           final deleted = state.lastAction == ExpenseAction.deleted
               ? state.lastDeleted
               : null;
+          final link = state.lastDeletedLink;
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
               deleted != null
                   ? ExpenseUndo.snackBar(
                       message: _quietMessage(state),
-                      onUndo: () => expenseBloc.add(ExpenseRestore(deleted)),
+                      onUndo: () =>
+                          expenseBloc.add(ExpenseRestore(deleted, link: link)),
                     )
                   : SnackBar(content: Text(_quietMessage(state))),
             );
@@ -780,7 +853,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       movementDuration: dismissDuration,
       resizeDuration: dismissDuration,
       confirmDismiss: (_) => _confirmDismiss(expense),
-      onDismissed: (_) => _deleteWithUndo(expense),
+      onDismissed: (_) => _deleteWithUndo(
+        expense,
+        undoable: !_confirmedDeletes.remove(expense.id),
+      ),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.lg),

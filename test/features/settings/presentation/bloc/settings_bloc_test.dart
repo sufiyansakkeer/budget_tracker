@@ -412,6 +412,49 @@ void main() {
       await bloc.close();
     });
 
+    test('a successful restore tells pay later screens to re-read', () async {
+      // The backup replaced every tab, payment and allocation; the Pay later
+      // bus also makes the tab reminders re-schedule.
+      when(
+        restoreDataUseCase.call('/backup.json'),
+      ).thenAnswer((_) async => const SettingsSuccess('Restored.'));
+      var payLaterChanges = 0;
+      final sub = RefreshBuses.payLater.changes.listen(
+        (_) => payLaterChanges++,
+      );
+      addTearDown(sub.cancel);
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsRestoreEvent('/backup.json'));
+      await bloc.stream.firstWhere((s) => s.infoMessage != null);
+
+      expect(payLaterChanges, 1);
+      await bloc.close();
+    });
+
+    test('a failed restore tells pay later screens nothing', () async {
+      when(restoreDataUseCase.call('/backup.json')).thenAnswer(
+        (_) async => const SettingsError(
+          SettingsFailure(
+            type: SettingsErrorType.restoreFailure,
+            message: 'Failed to restore backup: disk full',
+          ),
+        ),
+      );
+      var payLaterChanges = 0;
+      final sub = RefreshBuses.payLater.changes.listen(
+        (_) => payLaterChanges++,
+      );
+      addTearDown(sub.cancel);
+
+      final bloc = buildBloc();
+      bloc.add(const SettingsRestoreEvent('/backup.json'));
+      await bloc.stream.firstWhere((s) => s.errorMessage != null);
+
+      expect(payLaterChanges, 0);
+      await bloc.close();
+    });
+
     test('a restore brings its settings back into use at once', () async {
       // Review B4: the backup replaced the settings table, but the theme,
       // currency, lock and reminders kept the old values until a restart.

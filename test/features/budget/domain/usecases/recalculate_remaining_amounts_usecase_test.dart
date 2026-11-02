@@ -9,6 +9,7 @@ import 'package:monivo/features/settings/domain/services/backup_service.dart';
 import 'package:monivo/features/settings/domain/services/import_service.dart';
 
 import '../../../../integration/app_harness.dart';
+import '../../../../helpers/pay_later_fixtures.dart';
 
 /// The budget list reads each budget's stored remaining amount. Writes that
 /// go straight to the database (import, restore) left it stale (review: the
@@ -117,6 +118,7 @@ void main() {
       'the right one', () async {
     final payload = await BackupService(
       database: app.database,
+      reconcileTabs: reconcileTabsOn(app.database),
     ).buildBackupPayload();
     final data = payload['data']! as Map<String, Object?>;
     (data['budgets']! as List)
@@ -179,6 +181,7 @@ void main() {
     );
     final backup = BackupService(
       database: app.database,
+      reconcileTabs: reconcileTabsOn(app.database),
       recalculateRemaining: recalculate,
     );
     final payload = await backup.buildBackupPayload();

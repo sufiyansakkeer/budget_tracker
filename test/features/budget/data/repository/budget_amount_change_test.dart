@@ -23,6 +23,7 @@ import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../helpers/in_memory_database.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 /// Regression tests for "editing a budget amount does not update remaining".
 ///
@@ -68,7 +69,10 @@ void main() {
       budgetRepository: budgetRepository,
     );
 
-    manageBudget = ManageBudgetUseCase(repository: budgetRepository);
+    manageBudget = ManageBudgetUseCase(
+      repository: budgetRepository,
+      reconcileTabs: FakeReconcileTabUseCase(),
+    );
     getSummary = GetBudgetSummaryUseCase(
       repository: budgetRepository,
       calculationService: calculationService,

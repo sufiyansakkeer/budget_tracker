@@ -6,9 +6,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/features/expenses/data/models/expense_model.dart';
+import 'package:monivo/features/pay_later/data/datasource/pay_later_local_datasource_impl.dart';
+import 'package:monivo/features/pay_later/data/repository/pay_later_repository_impl.dart';
+import 'package:monivo/features/pay_later/domain/entities/tab_payment.dart';
+import 'package:monivo/features/pay_later/domain/repository/pay_later_repository.dart';
 import 'package:monivo/features/settings/domain/services/backup_service.dart';
+import 'package:monivo/features/settings/domain/services/export_service.dart';
+import 'package:monivo/features/settings/domain/services/import_service.dart';
 
 import '../../../../helpers/in_memory_database.dart';
+import '../../../../helpers/pay_later_fakes.dart';
+import '../../../../helpers/pay_later_fixtures.dart';
 
 void main() {
   late AppDatabase database;
@@ -16,7 +24,10 @@ void main() {
 
   setUp(() async {
     database = await createInMemoryDatabase();
-    backupService = BackupService(database: database);
+    backupService = BackupService(
+      database: database,
+      reconcileTabs: reconcileTabsOn(database),
+    );
   });
 
   tearDown(() async {
@@ -496,4 +507,259 @@ void main() {
       );
     });
   });
+
+  group('BackupService pay later', () {
+    late Directory tempDir;
+    late PayLaterRepository payLater;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('backup_pay_later_');
+      payLater = PayLaterRepositoryImpl(
+        localDataSource: PayLaterLocalDataSourceImpl(database: database),
+      );
+    });
+
+    tearDown(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    /// Tab t1 with purchases e1 (5) and e2 (8) and a 10 payment p1,
+    /// reconciled: p1 pays e1 in full and 5 of e2.
+    Future<void> seedTab(AppDatabase db) async {
+      final repo = PayLaterRepositoryImpl(
+        localDataSource: PayLaterLocalDataSourceImpl(database: db),
+      );
+      await seedPayLaterBudget(db);
+      await repo.createTab(payLaterTab('t1'));
+      for (final (id, amount) in [('e1', 5.0), ('e2', 8.0)]) {
+        await addPayLaterExpense(db, payLaterExpense(id, amount: amount));
+        await repo.linkExpense(expenseId: id, tabId: 't1');
+      }
+      await repo.createPayment(
+        TabPayment(
+          id: 'p1',
+          tabId: 't1',
+          amount: 10,
+          paidDate: DateTime(2026, 11, 2),
+          createdAt: payLaterStamp,
+          updatedAt: payLaterStamp,
+        ),
+      );
+      await reconcileTabsOn(db).all();
+    }
+
+    Future<String> writePayload(Map<String, Object?> payload) async {
+      final file = File('${tempDir.path}/backup.json');
+      await file.writeAsString(jsonEncode(payload));
+      return file.path;
+    }
+
+    Future<Map<String, int>> payLaterCounts(AppDatabase db) async => {
+      'accounts': (await db.select(db.payLaterAccounts).get()).length,
+      'entries': (await db.select(db.payLaterEntries).get()).length,
+      'payments': (await db.select(db.payLaterPayments).get()).length,
+      'allocations': (await db.select(db.payLaterAllocations).get()).length,
+    };
+
+    Future<List<(String, String, double, bool)>> allocations() async => [
+      for (final a in await payLater.allocationsOf('t1'))
+        (a.paymentId, a.expenseId, a.amount, a.isManual),
+    ]..sort((a, b) => '${a.$1}${a.$2}'.compareTo('${b.$1}${b.$2}'));
+
+    test('a backup carries all four pay later tables', () async {
+      await seedTab(database);
+
+      final data =
+          (await backupService.buildBackupPayload())['data']!
+              as Map<String, Object?>;
+
+      expect(
+        (data['payLaterAccounts']! as List).single,
+        containsPair('id', 't1'),
+      );
+      expect(data['payLaterEntries'], hasLength(2));
+      expect(
+        (data['payLaterPayments']! as List).single,
+        containsPair('id', 'p1'),
+      );
+      expect(data['payLaterAllocations'], hasLength(2));
+    });
+
+    test('a backup is one snapshot: a write made while it reads lands '
+        'wholly after it (T15)', () async {
+      await seedTab(database);
+
+      // Started first; the purchase below is written while it reads.
+      final backup = backupService.buildBackupPayload();
+      final write = database.transaction(() async {
+        await addPayLaterExpense(database, payLaterExpense('e3', amount: 2));
+        await payLater.linkExpense(expenseId: 'e3', tabId: 't1');
+      });
+      final data = (await backup)['data']! as Map<String, Object?>;
+      await write;
+
+      // Every entry points at an expense in the same file, so the file
+      // restores (a half-seen write would break the foreign key).
+      final expenseIds = {
+        for (final e in data['expenses']! as List)
+          (e as Map<String, Object?>)['id'],
+      };
+      final entries = data['payLaterEntries']! as List;
+      expect(entries, hasLength(2));
+      for (final entry in entries) {
+        expect(
+          expenseIds,
+          contains((entry as Map<String, Object?>)['expenseId']),
+        );
+      }
+      expect(expenseIds, isNot(contains('e3')));
+    });
+
+    test('restoring an older backup leaves pay later empty', () async {
+      await seedTab(database);
+      final path = await writePayload({
+        'type': 'monivo_backup',
+        'backupFormatVersion': 2,
+        'metadata': {'schemaVersion': 8, 'appVersion': '1.0.0'},
+        'data': {
+          'budgets': [
+            {
+              'id': 'old-budget',
+              'name': 'Old',
+              'monthlyAmount': 100,
+              'remainingAmount': 100,
+              'currency': 'OMR',
+              'startDate': DateTime(2026, 10, 1).toIso8601String(),
+              'endDate': DateTime(2026, 10, 31).toIso8601String(),
+              'createdAt': DateTime(2026, 10, 1).toIso8601String(),
+              'updatedAt': DateTime(2026, 10, 1).toIso8601String(),
+            },
+          ],
+          'categories': <Object?>[],
+          'expenses': <Object?>[],
+          'settings': <String, Object?>{},
+        },
+      });
+
+      expect(await backupService.validateBackup(path), isEmpty);
+      await backupService.restore(path);
+
+      expect(await payLaterCounts(database), {
+        'accounts': 0,
+        'entries': 0,
+        'payments': 0,
+        'allocations': 0,
+      });
+      expect(
+        (await database.select(database.budgets).getSingle()).id,
+        'old-budget',
+      );
+    });
+
+    test('a restore puts every tab back with its payment history', () async {
+      await seedTab(database);
+      final before = await allocations();
+      final path = await writePayload(await backupService.buildBackupPayload());
+      // Change everything after the backup: restore must undo it.
+      await payLater.deletePayment('p1');
+      await payLater.unlinkExpense('e2');
+
+      await backupService.restore(path);
+
+      expect(await payLaterCounts(database), {
+        'accounts': 1,
+        'entries': 2,
+        'payments': 1,
+        'allocations': 2,
+      });
+      expect(await allocations(), before);
+      expect(before, [('p1', 'e1', 5.0, false), ('p1', 'e2', 5.0, false)]);
+    });
+
+    test('a restore reconciles every tab', () async {
+      await seedTab(database);
+      final payload = await backupService.buildBackupPayload();
+      // A file whose allocations are missing (edited by hand): the restore
+      // re-derives them instead of leaving the payment unapplied.
+      (payload['data']! as Map<String, Object?>)['payLaterAllocations'] =
+          <Object?>[];
+
+      await backupService.restore(await writePayload(payload));
+
+      expect(await allocations(), [
+        ('p1', 'e1', 5.0, false),
+        ('p1', 'e2', 5.0, false),
+      ]);
+    });
+
+    test('a failed reconcile rolls the whole restore back', () async {
+      await seedTab(database);
+      final path = await writePayload({
+        'type': 'monivo_backup',
+        'metadata': {'schemaVersion': 8, 'appVersion': '1.0.0'},
+        'data': {'budgets': <Object?>[], 'expenses': <Object?>[]},
+      });
+      final failing = BackupService(
+        database: database,
+        reconcileTabs: _ThrowingReconcileTabUseCase(),
+      );
+
+      await expectLater(failing.restore(path), throwsStateError);
+
+      expect(await payLaterCounts(database), {
+        'accounts': 1,
+        'entries': 2,
+        'payments': 1,
+        'allocations': 2,
+      });
+      expect(await database.select(database.expenses).get(), hasLength(2));
+    });
+
+    test('export and import ignore pay later tables', () async {
+      await seedTab(database);
+
+      // The data export carries no tab data.
+      final export = await ExportService(database: database).collectJsonData();
+      expect(
+        export.keys.where((k) => k.toLowerCase().contains('paylater')),
+        isEmpty,
+      );
+
+      // Importing a full backup brings its expenses in as ordinary
+      // expenses: no tab, payment or allocation is written.
+      final backupPath = await writePayload(
+        await backupService.buildBackupPayload(),
+      );
+      final target = await createInMemoryDatabase();
+      addTearDown(target.close);
+      await ImportService(database: target).importJson(backupPath);
+      expect(await target.select(target.expenses).get(), hasLength(2));
+      expect(await payLaterCounts(target), {
+        'accounts': 0,
+        'entries': 0,
+        'payments': 0,
+        'allocations': 0,
+      });
+
+      // Importing over a database with tabs leaves them as they were.
+      final before = await allocations();
+      await ImportService(database: database).importJson(backupPath);
+      expect(await payLaterCounts(database), {
+        'accounts': 1,
+        'entries': 2,
+        'payments': 1,
+        'allocations': 2,
+      });
+      expect(await allocations(), before);
+    });
+  });
+}
+
+/// Fails every restore reconcile, as a database error mid-restore would.
+class _ThrowingReconcileTabUseCase extends FakeReconcileTabUseCase {
+  @override
+  Future<void> all() async {
+    await super.all();
+    throw StateError('reconcile failed');
+  }
 }

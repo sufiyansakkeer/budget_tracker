@@ -215,6 +215,106 @@ abstract final class DataCodec {
         createdAt: Value(DateTime.parse(map['createdAt'] as String)),
       );
 
+  /// A Pay later tab. The settle-up rhythm goes out as its stored columns,
+  /// not as the rhythm they describe, so nothing is lost on the trip.
+  static Map<String, Object?> encodePayLaterAccount(PayLaterAccount a) => {
+    'id': a.id,
+    'name': a.name,
+    'category': a.category,
+    'currency': a.currency,
+    'note': a.note,
+    'contact': a.contact,
+    'defaultCategoryId': a.defaultCategoryId,
+    'rhythm': a.rhythm,
+    'rhythmDays': a.rhythmDays,
+    'rhythmDayOfMonth': a.rhythmDayOfMonth,
+    'rhythmAnchor': a.rhythmAnchor?.toIso8601String(),
+    'nextSettleDate': a.nextSettleDate?.toIso8601String(),
+    'reminderEnabled': a.reminderEnabled,
+    'reminderOffsetDays': a.reminderOffsetDays,
+    'isArchived': a.isArchived,
+    'createdAt': a.createdAt.toIso8601String(),
+    'updatedAt': a.updatedAt.toIso8601String(),
+  };
+
+  static PayLaterAccountsCompanion decodePayLaterAccount(Map map) =>
+      PayLaterAccountsCompanion.insert(
+        id: map['id'] as String,
+        name: map['name'] as String,
+        category: map['category'] as String,
+        currency: map['currency'] as String,
+        note: Value(map['note'] as String?),
+        contact: Value(map['contact'] as String?),
+        defaultCategoryId: Value(map['defaultCategoryId'] as String?),
+        rhythm: map['rhythm'] as String,
+        rhythmDays: Value((map['rhythmDays'] as num?)?.toInt()),
+        rhythmDayOfMonth: Value((map['rhythmDayOfMonth'] as num?)?.toInt()),
+        rhythmAnchor: Value(_optionalDate(map['rhythmAnchor'])),
+        nextSettleDate: Value(_optionalDate(map['nextSettleDate'])),
+        reminderEnabled: Value((map['reminderEnabled'] as bool?) ?? false),
+        reminderOffsetDays: Value(
+          (map['reminderOffsetDays'] as num?)?.toInt() ?? 0,
+        ),
+        isArchived: Value((map['isArchived'] as bool?) ?? false),
+        createdAt: Value(DateTime.parse(map['createdAt'] as String)),
+        updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+      );
+
+  /// The link saying an expense is on a tab.
+  static Map<String, Object?> encodePayLaterEntry(PayLaterEntry e) => {
+    'expenseId': e.expenseId,
+    'accountId': e.accountId,
+    'createdAt': e.createdAt.toIso8601String(),
+  };
+
+  static PayLaterEntriesCompanion decodePayLaterEntry(Map map) =>
+      PayLaterEntriesCompanion.insert(
+        expenseId: map['expenseId'] as String,
+        accountId: map['accountId'] as String,
+        createdAt: Value(DateTime.parse(map['createdAt'] as String)),
+      );
+
+  static Map<String, Object?> encodePayLaterPayment(PayLaterPayment p) => {
+    'id': p.id,
+    'accountId': p.accountId,
+    'amount': p.amount,
+    'paidDate': p.paidDate.toIso8601String(),
+    'note': p.note,
+    'createdAt': p.createdAt.toIso8601String(),
+    'updatedAt': p.updatedAt.toIso8601String(),
+  };
+
+  static PayLaterPaymentsCompanion decodePayLaterPayment(Map map) =>
+      PayLaterPaymentsCompanion.insert(
+        id: map['id'] as String,
+        accountId: map['accountId'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        paidDate: DateTime.parse(map['paidDate'] as String),
+        note: Value(map['note'] as String?),
+        createdAt: Value(DateTime.parse(map['createdAt'] as String)),
+        updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+      );
+
+  static Map<String, Object?> encodePayLaterAllocation(PayLaterAllocation a) =>
+      {
+        'id': a.id,
+        'paymentId': a.paymentId,
+        'expenseId': a.expenseId,
+        'amount': a.amount,
+        'isManual': a.isManual,
+        'createdAt': a.createdAt.toIso8601String(),
+      };
+
+  static PayLaterAllocationsCompanion decodePayLaterAllocation(Map map) =>
+      PayLaterAllocationsCompanion.insert(
+        id: map['id'] as String,
+        paymentId: map['paymentId'] as String,
+        expenseId: map['expenseId'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        isManual: map['isManual'] as bool,
+        createdAt: Value(DateTime.parse(map['createdAt'] as String)),
+      );
+
   /// Tags as they are stored: a JSON list of strings, or null for none.
   ///
   /// Files carry tags in three shapes, all accepted: a JSON list (a Monivo

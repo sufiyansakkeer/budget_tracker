@@ -198,6 +198,99 @@ class ConverterCurrencies extends Table {
   Set<Column> get primaryKey => {code};
 }
 
+// 11. Pay Later: tabs (accounts) the user buys on credit from.
+@DataClassName('PayLaterAccount')
+class PayLaterAccounts extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text().withLength(min: 1, max: 100)();
+
+  /// Presentation only (icon): food_dining, groceries, shopping, personal,
+  /// other.
+  TextColumn get category => text()();
+  TextColumn get currency => text()();
+  TextColumn get note => text().nullable()();
+  TextColumn get contact => text().nullable()();
+
+  /// Expense category preselected for new purchases. No foreign key: the
+  /// category may be archived or deleted later.
+  TextColumn get defaultCategoryId => text().nullable()();
+
+  /// on_demand, every_days, monthly_day, manual_date.
+  TextColumn get rhythm => text()();
+  IntColumn get rhythmDays => integer().nullable()();
+  IntColumn get rhythmDayOfMonth => integer().nullable()();
+  DateTimeColumn get rhythmAnchor => dateTime().nullable()();
+  DateTimeColumn get nextSettleDate => dateTime().nullable()();
+  BoolColumn get reminderEnabled =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get reminderOffsetDays =>
+      integer().withDefault(const Constant(0))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// 12. Pay Later entries: the link saying an expense is on a tab.
+@DataClassName('PayLaterEntry')
+@TableIndex(name: 'index_pay_later_entries_account', columns: {#accountId})
+class PayLaterEntries extends Table {
+  TextColumn get expenseId =>
+      text().references(Expenses, #id, onDelete: KeyAction.cascade)();
+  TextColumn get accountId => text().references(PayLaterAccounts, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {expenseId};
+}
+
+// 13. Pay Later payments: money handed to a tab.
+@DataClassName('PayLaterPayment')
+@TableIndex(
+  name: 'index_pay_later_payments_account_date',
+  columns: {#accountId, #paidDate},
+)
+class PayLaterPayments extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId => text().references(PayLaterAccounts, #id)();
+  RealColumn get amount => real()();
+  DateTimeColumn get paidDate => dateTime()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// 14. Pay Later allocations: how much of a payment settles which purchase.
+@DataClassName('PayLaterAllocation')
+@TableIndex(name: 'index_pay_later_allocations_payment', columns: {#paymentId})
+@TableIndex(name: 'index_pay_later_allocations_expense', columns: {#expenseId})
+class PayLaterAllocations extends Table {
+  TextColumn get id => text()();
+  TextColumn get paymentId =>
+      text().references(PayLaterPayments, #id, onDelete: KeyAction.cascade)();
+  TextColumn get expenseId => text().references(
+    PayLaterEntries,
+    #expenseId,
+    onDelete: KeyAction.cascade,
+  )();
+  RealColumn get amount => real()();
+  BoolColumn get isManual => boolean()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {paymentId, expenseId},
+  ];
+}
+
 @DriftDatabase(
   tables: [
     Budgets,
@@ -210,13 +303,17 @@ class ConverterCurrencies extends Table {
     BillPayments,
     ExchangeRates,
     ConverterCurrencies,
+    PayLaterAccounts,
+    PayLaterEntries,
+    PayLaterPayments,
+    PayLaterAllocations,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration {
@@ -334,6 +431,38 @@ class AppDatabase extends _$AppDatabase {
           if (!budgetColumns.contains('savings_target')) {
             await m.addColumn(budgets, budgets.savingsTarget);
           }
+        }
+        if (from < 9) {
+          // Pay Later: four new tables, no existing table or row changes.
+          // Created parents first so every foreign key resolves. The
+          // existence guard keeps the step idempotent; createTable creates no
+          // index, hence the explicit IF NOT EXISTS statements.
+          for (final table in <TableInfo>[
+            payLaterAccounts,
+            payLaterEntries,
+            payLaterPayments,
+            payLaterAllocations,
+          ]) {
+            if (!await _tableExists(table.actualTableName)) {
+              await m.createTable(table);
+            }
+          }
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS index_pay_later_entries_account '
+            'ON pay_later_entries (account_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS index_pay_later_payments_account_date '
+            'ON pay_later_payments (account_id, paid_date)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS index_pay_later_allocations_payment '
+            'ON pay_later_allocations (payment_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS index_pay_later_allocations_expense '
+            'ON pay_later_allocations (expense_id)',
+          );
         }
       },
       beforeOpen: (details) async {
@@ -499,6 +628,9 @@ class AppDatabase extends _$AppDatabase {
       }
     }
   }
+
+  Future<bool> _tableExists(String table) async =>
+      (await _columnNames(table)).isNotEmpty;
 
   Future<Set<String>> _columnNames(String table) async {
     final rows = await customSelect('PRAGMA table_info($table)').get();

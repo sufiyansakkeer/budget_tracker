@@ -22,6 +22,7 @@ import 'package:monivo/features/reports/presentation/pages/reports_screen.dart';
 import '../features/expenses/presentation/expense_test_fakes.dart';
 import '../helpers/bill_ui_fakes.dart';
 import 'golden_harness.dart';
+import '../helpers/pay_later_fakes.dart';
 
 void main() {
   // Everything is on fixed dates, read through the bloc's clock, so the
@@ -69,7 +70,10 @@ void main() {
     expenses = MemoryExpenseRepository();
     budgets = ListBudgetRepository([budget], budget.id);
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: budgets),
+      ManageBudgetUseCase(
+        repository: budgets,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
     for (final e in [
       spent('1', 1850, 'bills', 1),

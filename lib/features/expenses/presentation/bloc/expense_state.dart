@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 
@@ -36,6 +37,10 @@ class ExpenseState extends Equatable {
   /// another mutation happens, so a SnackBar "Undo" can bring it back.
   final ExpenseEntity? lastDeleted;
 
+  /// The tab link [lastDeleted] had, so "Undo" puts it back on its tab;
+  /// null when it was on no tab.
+  final TabLinkSnapshot? lastDeletedLink;
+
   /// Default date captured once when the Add Expense form is initialized.
   final DateTime? initialDate;
 
@@ -59,6 +64,7 @@ class ExpenseState extends Equatable {
     this.message,
     this.lastAction = ExpenseAction.none,
     this.lastDeleted,
+    this.lastDeletedLink,
     this.initialDate,
     this.initialTime,
     this.quickAddLoad = QuickAddLoad.idle,
@@ -80,7 +86,11 @@ class ExpenseState extends Equatable {
     bool clearMessage = false,
     ExpenseAction? lastAction,
     ExpenseEntity? lastDeleted,
+    TabLinkSnapshot? lastDeletedLink,
+
+    /// Clears [lastDeleted] and [lastDeletedLink] together.
     bool clearLastDeleted = false,
+    bool clearLastDeletedLink = false,
     DateTime? initialDate,
     DateTime? initialTime,
     QuickAddLoad? quickAddLoad,
@@ -95,6 +105,9 @@ class ExpenseState extends Equatable {
       message: clearMessage ? null : (message ?? this.message),
       lastAction: lastAction ?? this.lastAction,
       lastDeleted: clearLastDeleted ? null : (lastDeleted ?? this.lastDeleted),
+      lastDeletedLink: clearLastDeleted || clearLastDeletedLink
+          ? null
+          : (lastDeletedLink ?? this.lastDeletedLink),
       initialDate: initialDate ?? this.initialDate,
       initialTime: initialTime ?? this.initialTime,
       quickAddLoad: quickAddLoad ?? this.quickAddLoad,
@@ -113,6 +126,7 @@ class ExpenseState extends Equatable {
     message,
     lastAction,
     lastDeleted,
+    lastDeletedLink,
     initialDate,
     initialTime,
     quickAddLoad,

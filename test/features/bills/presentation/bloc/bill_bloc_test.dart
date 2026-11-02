@@ -90,7 +90,8 @@ class FakeBillReminderService extends BillReminderService {
   final List<String> scheduledBillIds = [];
   final List<String> cancelledBillIds = [];
 
-  FakeBillReminderService() : super(repository: FakeBillRepository());
+  FakeBillReminderService()
+    : super(repository: FakeBillRepository(), onNotificationResponse: (_) {});
 
   @override
   Future<void> scheduleReminder(BillEntity bill) async =>

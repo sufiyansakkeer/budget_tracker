@@ -31,6 +31,13 @@ import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/categories/presentation/pages/category_management_screen.dart';
 import '../../features/currency_converter/presentation/bloc/currency_converter_bloc.dart';
 import '../../features/currency_converter/presentation/pages/currency_converter_screen.dart';
+import '../../features/pay_later/presentation/bloc/pay_later_overview_bloc.dart';
+import '../../features/pay_later/presentation/bloc/pay_later_summary_cubit.dart';
+import '../../features/pay_later/presentation/bloc/tab_detail_bloc.dart';
+import '../../features/pay_later/presentation/bloc/tab_form_cubit.dart';
+import '../../features/pay_later/presentation/pages/pay_later_overview_screen.dart';
+import '../../features/pay_later/presentation/pages/tab_detail_screen.dart';
+import '../../features/pay_later/presentation/pages/tab_form_screen.dart';
 import '../../features/widgets/home_widget_service.dart';
 
 /// Sentinel value for the widget-launched add-expense deep link.
@@ -47,6 +54,7 @@ class AppRouter {
   static const String budgetsPath = '/app/budgets';
   static const String settingsPath = '/app/settings';
   static const String billsPath = '/app/bills';
+  static const String payLaterPath = '/app/pay-later';
   static const String categoriesPath = '/app/categories';
   static const String palettePath = '/app/settings/palette';
   static const String currencyConverterPath = '/app/settings/converter';
@@ -198,6 +206,68 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: payLaterPath,
+        name: 'payLater',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.page(
+          context: context,
+          state: state,
+          transition: AppTransition.sharedAxisHorizontal,
+          child: BlocProvider(
+            create: (context) => getIt<PayLaterOverviewBloc>(),
+            child: const PayLaterOverviewScreen(),
+          ),
+        ),
+        routes: [
+          GoRoute(
+            path: 'new',
+            name: 'newPayLaterTab',
+            parentNavigatorKey: rootNavigatorKey,
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.fadeScale,
+              child: BlocProvider(
+                create: (context) => getIt<TabFormCubit>(),
+                child: TabFormScreen(
+                  currency: state.uri.queryParameters['currency'],
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: ':id/edit',
+            name: 'editPayLaterTab',
+            parentNavigatorKey: rootNavigatorKey,
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.fadeScale,
+              child: BlocProvider(
+                create: (context) => getIt<TabFormCubit>(),
+                child: TabFormScreen(tabId: state.pathParameters['id']),
+              ),
+            ),
+          ),
+          // Last, so `new` and `:id/edit` match first.
+          GoRoute(
+            path: ':id',
+            name: 'payLaterTab',
+            parentNavigatorKey: rootNavigatorKey,
+            pageBuilder: (context, state) => AppPageTransitions.page(
+              context: context,
+              state: state,
+              transition: AppTransition.sharedAxisHorizontal,
+              child: BlocProvider(
+                create: (context) => getIt<TabDetailBloc>(),
+                child: TabDetailScreen(tabId: state.pathParameters['id']!),
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      GoRoute(
         path: categoriesPath,
         name: 'categories',
         pageBuilder: (context, state) => AppPageTransitions.page(
@@ -236,9 +306,18 @@ class AppRouter {
               GoRoute(
                 path: homePath,
                 name: 'dashboard',
-                builder: (context, state) => BlocProvider(
-                  create: (context) =>
-                      getIt<DashboardBloc>()..add(const DashboardLoadData()),
+                builder: (context, state) => MultiBlocProvider(
+                  providers: [
+                    BlocProvider(
+                      create: (context) =>
+                          getIt<DashboardBloc>()
+                            ..add(const DashboardLoadData()),
+                    ),
+                    BlocProvider(
+                      create: (context) =>
+                          getIt<PayLaterSummaryCubit>()..load(),
+                    ),
+                  ],
                   child: const DashboardScreen(),
                 ),
               ),

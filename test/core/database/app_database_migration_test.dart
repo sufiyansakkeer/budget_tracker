@@ -55,6 +55,11 @@ Future<AppDatabase> openUpgradedFromV7(
   void Function(sqlite.Database raw) seed,
 ) => openUpgradedFrom('schema_v7.sql', 7, seed);
 
+/// Schema v8: the last schema before Pay Later.
+Future<AppDatabase> openUpgradedFromV8(
+  void Function(sqlite.Database raw) seed,
+) => openUpgradedFrom('schema_v8.sql', 8, seed);
+
 /// `(table, from, to)` of every foreign key declared on [table].
 Future<Set<(String, String, String)>> foreignKeysOf(
   AppDatabase db,
@@ -419,6 +424,12 @@ void main() {
       expect(await schemaOf(db), fresh);
     });
 
+    test('upgrading from v8 yields the fresh-install schema', () async {
+      final db = await openUpgradedFromV8((_) {});
+      addTearDown(db.close);
+      expect(await schemaOf(db), fresh);
+    });
+
     test('the v4 fixture really differs from the current schema', () async {
       // If this fails the fixture was regenerated from the current schema
       // and the parity tests above no longer prove anything.
@@ -456,8 +467,8 @@ void main() {
 
     test('moves the user version to the current schema', () async {
       final row = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(row.data['user_version'], 8);
-      expect(db.schemaVersion, 8);
+      expect(row.data['user_version'], 9);
+      expect(db.schemaVersion, 9);
     });
 
     test('creates the exchange-rate and currency cache tables', () async {
@@ -557,10 +568,10 @@ void main() {
 
     tearDown(() => db.close());
 
-    test('moves the user version to 8', () async {
+    test('moves the user version to the current schema (9)', () async {
       final row = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(row.data['user_version'], 8);
-      expect(db.schemaVersion, 8);
+      expect(row.data['user_version'], 9);
+      expect(db.schemaVersion, 9);
     });
 
     test('adds the new columns, all null on existing rows', () async {
@@ -657,6 +668,230 @@ void main() {
       expect(tables, isNot(contains('bills')));
       expect(tables, isNot(contains('bill_payments')));
       expect(tables, contains('budgets'));
+      raw.dispose();
+    });
+  });
+
+  group('schema v8 → v9 migration (pay later)', () {
+    const payLaterTables = [
+      'pay_later_accounts',
+      'pay_later_entries',
+      'pay_later_payments',
+      'pay_later_allocations',
+    ];
+
+    Future<List<Map<String, Object?>>> dump(
+      AppDatabase db,
+      String table,
+    ) async {
+      final rows = await db
+          .customSelect('SELECT * FROM $table ORDER BY 1')
+          .get();
+      return rows.map((r) => r.data).toList();
+    }
+
+    void seedV8(sqlite.Database raw) {
+      raw.execute('''
+        INSERT INTO budgets (id, name, monthly_amount, remaining_amount,
+          currency, start_date, end_date, is_archived, created_at, updated_at)
+        VALUES ('b1', 'Home', 500, 320.5, 'OMR', 1789669800, 1792261800, 0,
+          1, 1);
+        INSERT INTO categories (id, name, icon, color_hex, is_system,
+          is_archived)
+        VALUES ('coffee', 'Coffee', 'coffee', '#123456', 0, 0);
+        INSERT INTO bills (id, title, amount, currency, category, due_date,
+          is_recurring, recurrence_type, created_at, updated_at)
+        VALUES ('bill1', 'Rent', 200, 'OMR', 'rent', 1790000000, 1,
+          'monthly', 1, 1);
+        INSERT INTO expenses (id, budget_id, amount, category_id, note, date,
+          time, created_at, updated_at, bill_id)
+        VALUES ('e1', 'b1', 179.5, 'coffee', 'beans', 1789756200,
+          1789756200, 1, 1, NULL),
+          ('e2', 'b1', 200, 'coffee', 'rent', 1789756200,
+          1789756200, 1, 1, 'bill1');
+      ''');
+    }
+
+    /// Two tabs-worth of data on a fresh upgraded database: tab `t1` with
+    /// purchases `e1`/`e2` and payment `p1` allocated to `e1`.
+    Future<AppDatabase> upgradedWithTab() async {
+      final db = await openUpgradedFromV8(seedV8);
+      addTearDown(db.close);
+      await db.customStatement('''
+        INSERT INTO pay_later_accounts (id, name, category, currency, rhythm,
+          created_at, updated_at)
+        VALUES ('t1', 'Cafeteria', 'food_dining', 'OMR', 'on_demand', 1, 1);
+        INSERT INTO pay_later_entries (expense_id, account_id, created_at)
+        VALUES ('e1', 't1', 1);
+        INSERT INTO pay_later_payments (id, account_id, amount, paid_date,
+          created_at, updated_at)
+        VALUES ('p1', 't1', 50, 1789756200, 1, 1);
+        INSERT INTO pay_later_allocations (id, payment_id, expense_id, amount,
+          is_manual, created_at)
+        VALUES ('a1', 'p1', 'e1', 50, 0, 1);
+      ''');
+      return db;
+    }
+
+    test('keeps every v8 budget, category, expense and bill row unchanged and '
+        'adds empty pay later tables', () async {
+      final before = await openUpgradedFromV8((_) {});
+      // Snapshot reference: same seed, read through a v8-shaped raw DB.
+      await before.close();
+      final raw = sqlite.sqlite3.openInMemory();
+      raw.execute(File('test/fixtures/schema_v8.sql').readAsStringSync());
+      seedV8(raw);
+      const keep = ['budgets', 'categories', 'expenses', 'bills'];
+      final expected = {
+        for (final t in keep)
+          t: raw
+              .select('SELECT * FROM $t ORDER BY 1')
+              .map((r) => Map<String, Object?>.from(r))
+              .toList(),
+      };
+      raw.dispose();
+
+      final db = await openUpgradedFromV8(seedV8);
+      addTearDown(db.close);
+      for (final t in keep) {
+        final actual = await dump(db, t);
+        // beforeOpen may seed missing default categories; seeded rows are
+        // additions, so compare only the rows that existed before.
+        final ids = expected[t]!.map((r) => r.values.first).toSet();
+        expect(
+          actual.where((r) => ids.contains(r.values.first)).toList(),
+          expected[t],
+          reason: t,
+        );
+      }
+      final version = await db.customSelect('PRAGMA user_version').getSingle();
+      expect(version.data['user_version'], 9);
+      for (final t in payLaterTables) {
+        final c = await db
+            .customSelect('SELECT COUNT(*) AS c FROM $t')
+            .getSingle();
+        expect(c.data['c'], 0, reason: t);
+      }
+    });
+
+    test('creates the pay later indexes and unique key', () async {
+      final db = await openUpgradedFromV8((_) {});
+      addTearDown(db.close);
+      final tables = await schemaOf(db);
+      expect(
+        tables['<indexes>'],
+        containsAll([
+          'index_pay_later_entries_account',
+          'index_pay_later_payments_account_date',
+          'index_pay_later_allocations_payment',
+          'index_pay_later_allocations_expense',
+        ]),
+      );
+      expect(
+        tables['pay_later_accounts'],
+        containsAll([
+          'rhythm_days',
+          'rhythm_day_of_month',
+          'rhythm_anchor',
+          'next_settle_date',
+          'reminder_enabled',
+          'reminder_offset_days',
+          'default_category_id',
+          'is_archived',
+        ]),
+      );
+      expect(
+        await foreignKeysOf(db, 'pay_later_entries'),
+        containsAll([
+          ('expenses', 'expense_id', 'id'),
+          ('pay_later_accounts', 'account_id', 'id'),
+        ]),
+      );
+      expect(
+        await foreignKeysOf(db, 'pay_later_allocations'),
+        containsAll([
+          ('pay_later_payments', 'payment_id', 'id'),
+          ('pay_later_entries', 'expense_id', 'expense_id'),
+        ]),
+      );
+    });
+
+    test(
+      'deleting an expense cascades its link and allocations, keeps the payment',
+      () async {
+        final db = await upgradedWithTab();
+        await db.customStatement("DELETE FROM expenses WHERE id = 'e1'");
+        expect(await dump(db, 'pay_later_entries'), isEmpty);
+        expect(await dump(db, 'pay_later_allocations'), isEmpty);
+        expect(await dump(db, 'pay_later_payments'), hasLength(1));
+        expect(await dump(db, 'pay_later_accounts'), hasLength(1));
+      },
+    );
+
+    test('deleting a payment cascades its allocations only', () async {
+      final db = await upgradedWithTab();
+      await db.customStatement(
+        "DELETE FROM pay_later_payments WHERE id = 'p1'",
+      );
+      expect(await dump(db, 'pay_later_allocations'), isEmpty);
+      expect(await dump(db, 'pay_later_entries'), hasLength(1));
+    });
+
+    test(
+      'an allocation cannot reference an expense that is not on a tab',
+      () async {
+        final db = await upgradedWithTab();
+        await expectLater(
+          db.customStatement('''
+            INSERT INTO pay_later_allocations (id, payment_id, expense_id,
+              amount, is_manual, created_at)
+            VALUES ('a2', 'p1', 'e2', 10, 0, 1)
+          '''),
+          throwsA(isA<SqliteException>()),
+        );
+      },
+    );
+
+    test('a payment cannot be allocated twice to the same expense', () async {
+      final db = await upgradedWithTab();
+      await expectLater(
+        db.customStatement('''
+          INSERT INTO pay_later_allocations (id, payment_id, expense_id,
+            amount, is_manual, created_at)
+          VALUES ('a2', 'p1', 'e1', 10, 0, 1)
+        '''),
+        throwsA(isA<SqliteException>()),
+      );
+    });
+
+    test('an expense can be on at most one tab', () async {
+      final db = await upgradedWithTab();
+      await db.customStatement('''
+        INSERT INTO pay_later_accounts (id, name, category, currency, rhythm,
+          created_at, updated_at)
+        VALUES ('t2', 'Other', 'other', 'OMR', 'on_demand', 1, 1)
+      ''');
+      await expectLater(
+        db.customStatement(
+          "INSERT INTO pay_later_entries (expense_id, account_id, created_at) "
+          "VALUES ('e1', 't2', 1)",
+        ),
+        throwsA(isA<SqliteException>()),
+      );
+    });
+
+    test('the v8 fixture really lacks the pay later tables', () async {
+      final raw = sqlite.sqlite3.openInMemory();
+      raw.execute(File('test/fixtures/schema_v8.sql').readAsStringSync());
+      final tables = raw
+          .select("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .map((r) => r['name'])
+          .toSet();
+      expect(
+        tables.where((t) => (t as String).startsWith('pay_later')),
+        isEmpty,
+      );
+      expect(tables, contains('expenses'));
       raw.dispose();
     });
   });

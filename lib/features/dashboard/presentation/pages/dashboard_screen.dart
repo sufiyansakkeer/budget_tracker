@@ -19,6 +19,7 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
+import '../../../pay_later/presentation/widgets/pay_later_home_row.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../bloc/dashboard_bloc.dart';
@@ -228,6 +229,7 @@ class _DashboardContent extends StatelessWidget {
             },
           ),
         ),
+        const PayLaterHomeRow(),
       ],
       secondary: [
         if (pace != null && pace.isMeaningful) ...[
@@ -344,6 +346,7 @@ class _NotRunningContent extends StatelessWidget {
             },
           ),
         ),
+        const PayLaterHomeRow(),
       ],
       secondary: [
         ..._otherBudgets(state.otherBudgetLimits),

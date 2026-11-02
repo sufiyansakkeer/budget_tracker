@@ -114,6 +114,8 @@ void main() {
     notificationService = NotificationService(
       plugin: mockPlugin,
       spendingTargetsUseCase: fakeSpendingTargetsUseCase,
+      rescheduleTabReminders: () async {},
+      onPayLaterTap: (_) {},
     );
     when(
       mockPlugin
@@ -541,11 +543,14 @@ void main() {
         billReminders = BillReminderService(
           plugin: mockPlugin,
           repository: bills,
+          onNotificationResponse: (_) {},
         );
         notificationService = NotificationService(
           plugin: mockPlugin,
           spendingTargetsUseCase: fakeSpendingTargetsUseCase,
           rescheduleBillReminders: billReminders.rescheduleAll,
+          rescheduleTabReminders: () async {},
+          onPayLaterTap: (_) {},
         );
       });
 
@@ -662,6 +667,8 @@ void main() {
           plugin: mockPlugin,
           spendingTargetsUseCase: targets ?? fakeSpendingTargetsUseCase,
           clock: () => clock,
+          rescheduleTabReminders: () async {},
+          onPayLaterTap: (_) {},
         );
 
         List<
@@ -861,6 +868,282 @@ void main() {
         });
       },
     );
+
+    group('pay later reminders: restore and tap routing', () {
+      late List<String> opened;
+      late List<String> order;
+      late NotificationService service;
+
+      /// The tap handler the platform holds: the one the latest
+      /// `initialize` call passed (a later call without one clears it).
+      DidReceiveNotificationResponseCallback? handler;
+
+      const disabled = AppSettings(
+        notifications: NotificationSettings(notificationsEnabled: false),
+      );
+
+      NotificationResponse tap(String? payload) => NotificationResponse(
+        notificationResponseType: NotificationResponseType.selectedNotification,
+        payload: payload,
+      );
+
+      NotificationService build({
+        Future<void> Function()? rescheduleTabReminders,
+        Future<void> Function()? rescheduleBillReminders,
+      }) => NotificationService(
+        plugin: mockPlugin,
+        spendingTargetsUseCase: fakeSpendingTargetsUseCase,
+        rescheduleBillReminders: rescheduleBillReminders,
+        rescheduleTabReminders:
+            rescheduleTabReminders ?? () async => order.add('tabs'),
+        onPayLaterTap: opened.add,
+      );
+
+      setUp(() {
+        stubPluginInitialization();
+        opened = [];
+        order = [];
+        handler = null;
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          handler =
+              invocation.namedArguments[#onDidReceiveNotificationResponse]
+                  as DidReceiveNotificationResponseCallback?;
+          return true;
+        });
+        when(
+          mockPlugin.cancelAllPendingNotifications(),
+        ).thenAnswer((_) async => order.add('cancel'));
+        when(
+          mockPlugin.getNotificationAppLaunchDetails(),
+        ).thenAnswer((_) async => null);
+        service = build();
+      });
+
+      test('tapping a pay later reminder opens its tab', () async {
+        await service.initialize();
+
+        handler!(tap('pay_later:tab-1'));
+
+        expect(opened, ['tab-1']);
+      });
+
+      test('other payloads open nothing', () async {
+        await service.initialize();
+
+        for (final payload in [
+          null,
+          '',
+          'daily_spending_limit',
+          'evening_summary',
+          'pay_later:',
+          'pay_later',
+          'bill:rent',
+        ]) {
+          handler!(tap(payload));
+        }
+
+        expect(opened, isEmpty);
+      });
+
+      test('the payload parser', () {
+        expect(NotificationService.payLaterTabIdFrom('pay_later:t1'), 't1');
+        expect(NotificationService.payLaterTabIdFrom('pay_later:'), isNull);
+        expect(NotificationService.payLaterTabIdFrom('t1'), isNull);
+        expect(NotificationService.payLaterTabIdFrom(null), isNull);
+      });
+
+      test('a reminder tap that launched the app opens the tab once', () async {
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            true,
+            notificationResponse: tap('pay_later:t9'),
+          ),
+        );
+
+        await service.initialize();
+        await service.initialize();
+
+        expect(opened, ['t9']);
+      });
+
+      // iOS answers false to an initialize that requests no permission,
+      // which the app's settings never do (review, fix round 1).
+      test('a cold-start reminder tap opens the tab once even when the plugin '
+          'answers false', () async {
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          handler =
+              invocation.namedArguments[#onDidReceiveNotificationResponse]
+                  as DidReceiveNotificationResponseCallback?;
+          return false;
+        });
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            true,
+            notificationResponse: tap('pay_later:t9'),
+          ),
+        );
+
+        expect(await service.initialize(), isFalse);
+        expect(await service.initialize(), isFalse);
+
+        expect(opened, ['t9']);
+        // A tap while the app runs still reaches the handler it registered.
+        handler!(tap('pay_later:t2'));
+        expect(opened, ['t9', 't2']);
+      });
+
+      test('a launch that was not a notification tap opens nothing', () async {
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            false,
+            notificationResponse: tap('pay_later:t9'),
+          ),
+        );
+
+        await service.initialize();
+
+        expect(opened, isEmpty);
+      });
+
+      test('a launch from another notification opens nothing', () async {
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            true,
+            notificationResponse: tap('daily_spending_limit'),
+          ),
+        );
+
+        await service.initialize();
+
+        expect(opened, isEmpty);
+      });
+
+      test('launch details that cannot be read do not fail start-up', () async {
+        when(
+          mockPlugin.getNotificationAppLaunchDetails(),
+        ).thenThrow(Exception('channel'));
+
+        expect(await service.initialize(), isTrue);
+        expect(opened, isEmpty);
+      });
+
+      test('scheduleAll puts the tab reminders back after clearing the '
+          'schedule, even with the daily notifications off', () async {
+        await service.scheduleAll(disabled);
+
+        expect(order, ['cancel', 'tabs']);
+      });
+
+      test('a failing tab restore still schedules the daily '
+          'notifications', () async {
+        service = build(rescheduleTabReminders: () async => throw 'boom');
+
+        await service.scheduleAll(
+          const AppSettings(
+            notifications: NotificationSettings(
+              notificationsEnabled: true,
+              morningReminderEnabled: true,
+              eveningSummaryEnabled: false,
+            ),
+          ),
+        );
+
+        verify(
+          mockPlugin.zonedSchedule(
+            NotificationService.morningReminderId,
+            any,
+            any,
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).called(1);
+      });
+
+      // The plugin keeps only the handler of the latest initialize call
+      // (the stub above stores it the same way), so the bill reminders must
+      // pass the same one or a later bill write silently stops reminder taps.
+      group('the bill reminders initialise with the same handler', () {
+        late BillReminderService billReminders;
+
+        setUp(() {
+          billReminders = BillReminderService(
+            plugin: mockPlugin,
+            repository: SafeSpendFakeBillRepository(),
+            onNotificationResponse: (response) =>
+                service.handleNotificationResponse(response),
+          );
+          service = build(rescheduleBillReminders: billReminders.rescheduleAll);
+        });
+
+        test('a pay later tap still routes after a re-schedule '
+            'initialised the bill reminders', () async {
+          await service.scheduleAll(disabled);
+
+          handler!(tap('pay_later:t1'));
+          expect(opened, ['t1']);
+        });
+
+        test('a pay later tap still routes when a bill write initialised '
+            'the plugin last (no re-schedule since)', () async {
+          await service.initialize();
+          await billReminders.initialize();
+
+          handler!(tap('pay_later:t1'));
+          expect(opened, ['t1']);
+        });
+
+        test('no initialize call ever clears the handler', () async {
+          final passed = <Object?>[];
+          when(
+            mockPlugin.initialize(
+              any,
+              onDidReceiveNotificationResponse: anyNamed(
+                'onDidReceiveNotificationResponse',
+              ),
+            ),
+          ).thenAnswer((invocation) async {
+            passed.add(
+              invocation.namedArguments[#onDidReceiveNotificationResponse],
+            );
+            return true;
+          });
+
+          await billReminders.initialize();
+          await service.scheduleAll(disabled);
+
+          expect(passed, isNotEmpty);
+          expect(passed, everyElement(isNotNull));
+        });
+
+        test('a bill reminder tap behaves as before: nothing opens', () async {
+          await service.initialize();
+          await billReminders.initialize();
+
+          // Bill reminders carry no payload.
+          handler!(tap(null));
+          handler!(tap(''));
+          handler!(tap('daily_spending_limit'));
+
+          expect(opened, isEmpty);
+        });
+      });
+    });
   });
 }
 

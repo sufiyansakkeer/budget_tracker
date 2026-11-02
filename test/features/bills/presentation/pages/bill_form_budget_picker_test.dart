@@ -17,6 +17,7 @@ import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dar
 
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 // Fixed dates far from any real "today": 2020 has ended, 2099 has not.
 BudgetEntity budget(
@@ -103,6 +104,7 @@ void main() {
         repository: ListBudgetRepository(
           budgets ?? [household, nextYear, summer, oldTrip],
         ),
+        reconcileTabs: FakeReconcileTabUseCase(),
       ),
     );
     bloc = buildTestBillBloc(bills);

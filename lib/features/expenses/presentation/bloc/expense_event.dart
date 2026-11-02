@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../domain/entities/expense_entity.dart';
 
 abstract class ExpenseEvent extends Equatable {
@@ -49,40 +50,59 @@ class ExpenseLoadById extends ExpenseEvent {
 class ExpenseCreate extends ExpenseEvent {
   final ExpenseEntity expense;
 
-  const ExpenseCreate(this.expense);
+  /// The Pay later tab the expense goes on; null ("Now") saves it exactly
+  /// as before, with no Pay later read or write.
+  final String? tabId;
+
+  const ExpenseCreate(this.expense, {this.tabId});
 
   @override
-  List<Object?> get props => [expense];
+  List<Object?> get props => [expense, tabId];
 }
 
 /// Updates an existing expense.
 class ExpenseUpdate extends ExpenseEvent {
   final ExpenseEntity expense;
 
-  const ExpenseUpdate(this.expense);
+  /// The Pay later tab the expense is on after the edit (null: none).
+  final String? tabId;
+
+  /// The expense was on a tab before the edit, so a null [tabId] takes it
+  /// off that tab. With neither, the edit saves exactly as before.
+  final bool wasOnTab;
+
+  const ExpenseUpdate(this.expense, {this.tabId, this.wasOnTab = false});
 
   @override
-  List<Object?> get props => [expense];
+  List<Object?> get props => [expense, tabId, wasOnTab];
 }
 
 /// Deletes an expense by id.
 class ExpenseDelete extends ExpenseEvent {
   final String id;
 
-  const ExpenseDelete(this.id);
+  /// False when the user already confirmed the delete (a tab purchase with
+  /// payment money on it): no "Undo" is offered afterwards.
+  final bool undoable;
+
+  const ExpenseDelete(this.id, {this.undoable = true});
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, undoable];
 }
 
 /// Re-creates an expense that was just deleted (SnackBar "Undo").
 class ExpenseRestore extends ExpenseEvent {
   final ExpenseEntity expense;
 
-  const ExpenseRestore(this.expense);
+  /// The tab link the delete removed, so the purchase comes back on its tab
+  /// with its payment money; null for an expense that was on no tab.
+  final TabLinkSnapshot? link;
+
+  const ExpenseRestore(this.expense, {this.link});
 
   @override
-  List<Object?> get props => [expense];
+  List<Object?> get props => [expense, link];
 }
 
 /// Clears transient messages (e.g. after a snackbar is shown).

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
@@ -16,7 +17,11 @@ import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
+import '../../../pay_later/domain/entities/pay_later_tab.dart';
+import '../../../pay_later/domain/entities/purchase_change_impact.dart';
+import '../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../bloc/expense_bloc.dart';
@@ -32,7 +37,9 @@ import '../../../../core/navigation/push_unique.dart';
 /// duplicate, move and delete.
 ///
 /// Delete asks nothing: the screen closes and "Undo" is offered for a few
-/// seconds, the same as swiping a row away in the list.
+/// seconds, the same as swiping a row away in the list. A purchase on a Pay
+/// later tab with payment money on it is the exception: the delete says
+/// where that money goes and asks first, with no Undo after.
 class ExpenseDetailsScreen extends StatefulWidget {
   final String expenseId;
 
@@ -53,6 +60,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   /// Name of the budget a move is heading to, for its confirmation.
   String? _movingTo;
 
+  /// The Pay later tab the expense is on and how much is paid on it; null
+  /// when on no tab (or not known).
+  ({PayLaterTab tab, double paid})? _tabInfo;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +73,20 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       bloc.add(const ExpenseLoadCategories());
     }
     _loadBudgets();
+    _loadTabInfo();
+  }
+
+  Future<void> _loadTabInfo() async {
+    try {
+      final info = await context.read<ExpenseBloc>().tabPurchases.tabInfoFor(
+        widget.expenseId,
+      );
+      if (!mounted) return;
+      setState(() => _tabInfo = info);
+    } catch (e) {
+      // Supplementary, like the budgets: the expense still renders.
+      debugPrint('[error] Loading the Pay later tab of an expense: $e');
+    }
   }
 
   Future<void> _loadBudgets() async {
@@ -89,10 +114,44 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     return null;
   }
 
-  void _delete(ExpenseEntity expense) {
-    AppHaptics.threshold();
+  /// Deletes at once with Undo, unless the expense is a tab purchase with
+  /// payment money on it: then it says where that money goes, asks, and
+  /// offers no Undo. A failed check deletes nothing.
+  Future<void> _delete(ExpenseEntity expense) async {
+    // Busy at once, so a second tap while payments are checked does nothing.
     setState(() => _deleting = true);
-    context.read<ExpenseBloc>().add(ExpenseDelete(expense.id));
+    final bloc = context.read<ExpenseBloc>();
+    final PurchaseChangeImpact? impact;
+    try {
+      impact = await bloc.tabPurchases.impactOf(expense.id, deleting: true);
+    } catch (e) {
+      debugPrint('[error] Checking payments before deleting an expense: $e');
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text(PurchaseImpactDialog.deleteCheckFailed)),
+        );
+      return;
+    }
+    if (!mounted) return;
+    var undoable = true;
+    if (impact != null && impact.touchesPayments) {
+      final confirmed = await PurchaseImpactDialog.show(
+        context,
+        impact: impact,
+        deleting: true,
+      );
+      if (!mounted) return;
+      if (!confirmed) {
+        setState(() => _deleting = false);
+        return;
+      }
+      undoable = false;
+    }
+    AppHaptics.threshold();
+    bloc.add(ExpenseDelete(expense.id, undoable: undoable));
   }
 
   Future<void> _moveToAnotherBudget(ExpenseEntity expense) async {
@@ -124,9 +183,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       context.read<ExpenseBloc>().add(const ExpenseClearMessage());
       if (state.lastAction == ExpenseAction.deleted) {
         final deleted = state.lastDeleted;
+        final link = state.lastDeletedLink;
         _leave();
         if (deleted != null) {
-          ExpenseUndo.offer(messenger, deleted);
+          ExpenseUndo.offer(messenger, deleted, link: link);
         } else {
           messenger
             ..hideCurrentSnackBar()
@@ -186,7 +246,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                   final bloc = context.read<ExpenseBloc>();
                   await context.pushUnique('/app/expenses/edit/${expense.id}');
                   // The edit screen has its own bloc; show the saved values.
-                  if (context.mounted) bloc.add(ExpenseLoadById(expense.id));
+                  if (context.mounted) {
+                    bloc.add(ExpenseLoadById(expense.id));
+                    _loadTabInfo();
+                  }
                 },
               );
             },
@@ -228,6 +291,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               expense: expense,
               category: _categoryFor(state.categories, expense.categoryId),
               budget: _budgetFor(expense),
+              tabInfo: _tabInfo,
+              onOpenTab: (tabId) async {
+                await context.pushUnique('${AppRouter.payLaterPath}/$tabId');
+                // A payment made there changes "paid X of Y" here.
+                if (mounted) _loadTabInfo();
+              },
               canMove: _budgets.any(
                 (b) => b.id != expense.budgetId && !b.isArchived,
               ),
@@ -252,6 +321,8 @@ class _Details extends StatelessWidget {
   final ExpenseEntity expense;
   final ExpenseCategory? category;
   final BudgetEntity? budget;
+  final ({PayLaterTab tab, double paid})? tabInfo;
+  final ValueChanged<String> onOpenTab;
   final bool canMove;
   final bool busy;
   final VoidCallback onDuplicate;
@@ -263,6 +334,8 @@ class _Details extends StatelessWidget {
     required this.expense,
     required this.category,
     required this.budget,
+    required this.tabInfo,
+    required this.onOpenTab,
     required this.canMove,
     required this.busy,
     required this.onDuplicate,
@@ -335,6 +408,13 @@ class _Details extends StatelessWidget {
               const SizedBox(height: AppSpacing.md),
               Divider(color: theme.colorScheme.outlineVariant),
               _Fact(label: 'Budget', value: budget?.name ?? 'Unknown budget'),
+              if (tabInfo case final info?)
+                _TabFact(
+                  tab: info.tab,
+                  paid: info.paid,
+                  amount: expense.amount,
+                  onTap: () => onOpenTab(info.tab.id),
+                ),
               _Fact(
                 label: 'Date',
                 value: DateFormat('EEE, d MMM yyyy').format(expense.date),
@@ -448,6 +528,52 @@ class _Details extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
       ],
+    );
+  }
+}
+
+/// The Pay later fact: "On Campus cafeteria · paid 2.000 of 3.500",
+/// opening the tab.
+class _TabFact extends StatelessWidget {
+  final PayLaterTab tab;
+  final double paid;
+  final double amount;
+  final VoidCallback onTap;
+
+  const _TabFact({
+    required this.tab,
+    required this.paid,
+    required this.amount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final paidText = CurrencyFormatter.format(paid, code: tab.currency);
+    final total = CurrencyFormatter.format(amount, code: tab.currency);
+    return InkWell(
+      key: const Key('expenseTabRow'),
+      onTap: onTap,
+      borderRadius: AppSpacing.borderRadiusSm,
+      child: _Fact(
+        label: 'Pay later',
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'On ${tab.name} · paid $paidText of $total',
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: AppSizes.iconSm + 4,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -11,6 +11,7 @@ import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:monivo/features/expenses/presentation/pages/expense_form_screen.dart';
 
 import '../expense_test_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 void main() {
   late MemoryExpenseRepository expenses;
@@ -27,7 +28,10 @@ void main() {
       ),
     ]);
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: budgets),
+      ManageBudgetUseCase(
+        repository: budgets,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
   });
   tearDown(() => getIt.reset());
@@ -267,7 +271,17 @@ void main() {
     });
 
     Future<void> pickTrip(WidgetTester tester) async {
-      await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+      // The "Paid" row pushed the picker below the first screen.
+      await tester.scrollUntilVisible(
+        find.byType(DropdownButtonFormField<String>),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.textContaining('Trip').last);
@@ -307,7 +321,17 @@ void main() {
       tester,
     ) async {
       await pumpForm(tester, expenseId: 'e1');
-      await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+      // The "Paid" row pushed the picker below the first screen.
+      await tester.scrollUntilVisible(
+        find.byType(DropdownButtonFormField<String>),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
 

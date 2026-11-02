@@ -2,6 +2,34 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/currency/money_math.dart';
 import '../entities/budget_filter.dart';
 import '../repository/budget_repository.dart';
+import '../../../pay_later/domain/usecases/reconcile_tab_usecase.dart';
+
+/// A budget's currency can't change while it holds purchases on Pay later
+/// tabs: a tab and its purchases share one currency (spec §2), so the tab's
+/// sum would silently mix currencies.
+class BudgetCurrencyLockedException implements Exception {
+  /// How many purchases on tabs the budget holds.
+  final int tabPurchases;
+
+  /// The budget's (and those tabs') currency.
+  final String currency;
+
+  const BudgetCurrencyLockedException({
+    required this.tabPurchases,
+    required this.currency,
+  });
+
+  /// Why, and what to do instead.
+  String get message => tabPurchases == 1
+      ? '1 purchase in this budget is on a Pay later tab in $currency. Move '
+            'it to another $currency budget or take it off its tab first.'
+      : '$tabPurchases purchases in this budget are on Pay later tabs in '
+            '$currency. Move them to another $currency budget or take them '
+            'off their tab first.';
+
+  @override
+  String toString() => 'BudgetCurrencyLockedException: $message';
+}
 
 /// Aggregates CRUD, archive, duplicate, and active-budget operations for the
 /// multi-budget system. Screens use this single use case to avoid proliferating
@@ -9,18 +37,49 @@ import '../repository/budget_repository.dart';
 class ManageBudgetUseCase {
   final BudgetRepository repository;
 
-  ManageBudgetUseCase({required this.repository});
+  /// Deleting a budget deletes its expenses, which can be purchases on Pay
+  /// later tabs; those tabs are reconciled in the same transaction.
+  final ReconcileTabUseCase reconcileTabs;
+
+  ManageBudgetUseCase({required this.repository, required this.reconcileTabs});
 
   Future<BudgetEntity> create(BudgetEntity budget) {
     return repository.createBudget(budget);
   }
 
-  Future<BudgetEntity> update(BudgetEntity budget) {
+  /// Saves [budget]. A currency change is refused with a
+  /// [BudgetCurrencyLockedException] while the budget holds purchases on
+  /// Pay later tabs; every other edit (and any edit of a budget with none)
+  /// saves as before.
+  Future<BudgetEntity> update(BudgetEntity budget) async {
+    final stored = await repository.getBudgetById(budget.id);
+    if (stored != null && stored.currency != budget.currency) {
+      final count = await reconcileTabs.countPurchasesInBudget(budget.id);
+      if (count > 0) {
+        throw BudgetCurrencyLockedException(
+          tabPurchases: count,
+          currency: stored.currency,
+        );
+      }
+    }
     return repository.updateBudget(budget);
   }
 
+  /// Deletes the budget and every expense in it. Pay later tabs that had a
+  /// purchase in it are reconciled in the same transaction, so payment
+  /// money moves to other purchases or stays as credit, or nothing at all
+  /// is deleted.
   Future<void> delete(String id) {
-    return repository.deleteBudget(id);
+    return reconcileTabs.aroundBudgetDelete(
+      id,
+      () => repository.deleteBudget(id),
+    );
+  }
+
+  /// How many purchases on Pay later tabs the budget holds, for the delete
+  /// confirmation. Throws on a database failure.
+  Future<int> tabPurchasesIn(String id) {
+    return reconcileTabs.countPurchasesInBudget(id);
   }
 
   Future<List<BudgetEntity>> getAll({BudgetQueryOptions? options}) {

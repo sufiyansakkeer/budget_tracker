@@ -375,6 +375,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => context.pushUnique('/app/bills'),
               ),
               SettingsTile(
+                key: const Key('settingsPayLaterTile'),
+                icon: Icons.credit_card_outlined,
+                title: 'Pay later',
+                subtitle: 'Tabs for things you buy now and pay for later',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.pushUnique(AppRouter.payLaterPath),
+              ),
+              SettingsTile(
                 icon: Icons.payments_outlined,
                 title: 'Currency',
                 subtitle: 'Default for new budgets',

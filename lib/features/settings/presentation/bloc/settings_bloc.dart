@@ -467,10 +467,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     switch (result) {
       case SettingsSuccess(:final data):
         // Every table was replaced: tabs stay mounted, so tell them to
-        // re-read (dashboard, budgets, expenses, bills, widget).
+        // re-read (dashboard, budgets, expenses, bills, Pay later, widget).
+        // The Pay later bus also re-schedules the tab reminders.
         RefreshBuses.budgets.notifyChanged();
         RefreshBuses.expenses.notifyChanged();
         RefreshBuses.bills.notifyChanged();
+        RefreshBuses.payLater.notifyChanged();
         debugPrint('[settings] $data');
         // The settings came from the backup too. Re-read them and schedule
         // the reminders they describe (with reminders off, scheduling

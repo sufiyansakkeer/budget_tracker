@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
+import '../../../pay_later/domain/usecases/reconcile_tab_usecase.dart';
 import 'data_codec.dart';
 
 /// Metadata captured alongside a backup.
@@ -51,7 +52,13 @@ class ValidationError {
 ///
 /// The backup format is versioned and includes all application tables:
 /// budgets, categories, expenses, settings, recurring expenses,
-/// savings goals, bills, and bill payments.
+/// savings goals, bills, bill payments, and the four Pay later tables (tabs,
+/// their purchases, payments and allocations).
+///
+/// Backups from before Pay later lack its keys; they restore with no tabs.
+/// The format version stays at 2: a missing key reads as an empty list, and
+/// an older app rejects a newer backup by its schema version, so it can never
+/// restore one and silently drop the tabs.
 class BackupService {
   static const int _backupFormatVersion = 2;
 
@@ -67,11 +74,17 @@ class BackupService {
   /// which writes expenses straight to the database.
   final RecalculateRemainingAmountsUseCase? _recalculateRemaining;
 
+  /// Re-derives every tab's automatic allocations inside the restore's
+  /// transaction, so a restore never leaves a payment half-applied.
+  final ReconcileTabUseCase _reconcileTabs;
+
   BackupService({
     required AppDatabase database,
+    required ReconcileTabUseCase reconcileTabs,
     Future<String> Function()? appVersionResolver,
     RecalculateRemainingAmountsUseCase? recalculateRemaining,
   }) : _database = database,
+       _reconcileTabs = reconcileTabs,
        _appVersionResolver = appVersionResolver ?? _platformAppVersion,
        _recalculateRemaining = recalculateRemaining;
 
@@ -477,7 +490,13 @@ class BackupService {
     }
   }
 
-  Future<Map<String, Object?>> _collectData() async {
+  /// Every table, read in one transaction: a write landing mid-backup
+  /// (e.g. the start-up reconcile) is either wholly in the file or not at
+  /// all, so no row points at one the file lacks and the file restores.
+  Future<Map<String, Object?>> _collectData() =>
+      _database.transaction(_readAllTables);
+
+  Future<Map<String, Object?>> _readAllTables() async {
     final expenses = await (_database.select(_database.expenses)).get();
     final categories = await (_database.select(_database.categories)).get();
     final budgets = await (_database.select(_database.budgets)).get();
@@ -488,6 +507,18 @@ class BackupService {
     final savingsGoals = await (_database.select(_database.savingsGoals)).get();
     final bills = await (_database.select(_database.bills)).get();
     final billPayments = await (_database.select(_database.billPayments)).get();
+    final payLaterAccounts = await (_database.select(
+      _database.payLaterAccounts,
+    )).get();
+    final payLaterEntries = await (_database.select(
+      _database.payLaterEntries,
+    )).get();
+    final payLaterPayments = await (_database.select(
+      _database.payLaterPayments,
+    )).get();
+    final payLaterAllocations = await (_database.select(
+      _database.payLaterAllocations,
+    )).get();
 
     return <String, Object?>{
       'budgets': budgets.map(DataCodec.encodeBudget).toList(),
@@ -500,14 +531,32 @@ class BackupService {
       'savingsGoals': savingsGoals.map(DataCodec.encodeSavingsGoal).toList(),
       'bills': bills.map(DataCodec.encodeBill).toList(),
       'billPayments': billPayments.map(DataCodec.encodeBillPayment).toList(),
+      'payLaterAccounts': payLaterAccounts
+          .map(DataCodec.encodePayLaterAccount)
+          .toList(),
+      'payLaterEntries': payLaterEntries
+          .map(DataCodec.encodePayLaterEntry)
+          .toList(),
+      'payLaterPayments': payLaterPayments
+          .map(DataCodec.encodePayLaterPayment)
+          .toList(),
+      'payLaterAllocations': payLaterAllocations
+          .map(DataCodec.encodePayLaterAllocation)
+          .toList(),
     };
   }
 
-  /// Replaces all table contents with the data from a backup payload.
-  /// The operation is atomic — either all tables are updated or none.
+  /// Replaces all table contents with the data from a backup payload, then
+  /// reconciles every tab. The operation is atomic — either all tables are
+  /// updated and reconciled, or none.
   Future<void> _replaceAll(Map<String, Object?> data) async {
     await _database.transaction(() async {
-      // Clear in dependency order (children before parents).
+      // Clear in dependency order (children before parents). Pay later rows
+      // go first: entries point at expenses, and nothing cascades to tabs.
+      await (_database.delete(_database.payLaterAllocations)).go();
+      await (_database.delete(_database.payLaterPayments)).go();
+      await (_database.delete(_database.payLaterEntries)).go();
+      await (_database.delete(_database.payLaterAccounts)).go();
       await (_database.delete(_database.billPayments)).go();
       await (_database.delete(_database.expenses)).go();
       await (_database.delete(_database.bills)).go();
@@ -585,6 +634,34 @@ class BackupService {
             .into(_database.billPayments)
             .insert(DataCodec.decodeBillPayment(map));
       }
+
+      // Pay later, parents first and after the expenses its entries point
+      // at. A backup from before Pay later has none of these keys.
+      for (final map in records('payLaterAccounts')) {
+        await _database
+            .into(_database.payLaterAccounts)
+            .insert(DataCodec.decodePayLaterAccount(map));
+      }
+      for (final map in records('payLaterEntries')) {
+        await _database
+            .into(_database.payLaterEntries)
+            .insert(DataCodec.decodePayLaterEntry(map));
+      }
+      for (final map in records('payLaterPayments')) {
+        await _database
+            .into(_database.payLaterPayments)
+            .insert(DataCodec.decodePayLaterPayment(map));
+      }
+      for (final map in records('payLaterAllocations')) {
+        await _database
+            .into(_database.payLaterAllocations)
+            .insert(DataCodec.decodePayLaterAllocation(map));
+      }
+
+      // Re-derive the automatic allocations from what was restored (a file
+      // edited by hand, or written mid-change). Its own transaction nests
+      // here as a savepoint, so a failure rolls the whole restore back.
+      await _reconcileTabs.all();
     });
   }
 }

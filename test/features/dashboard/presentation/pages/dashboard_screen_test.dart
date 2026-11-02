@@ -14,8 +14,10 @@ import 'package:monivo/features/dashboard/presentation/bloc/dashboard_state.dart
 import 'package:monivo/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/free_to_spend_summary.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_breakdown_card.dart';
+import 'package:monivo/features/pay_later/presentation/bloc/pay_later_summary_cubit.dart';
 
 import '../widgets/safe_to_spend_fixtures.dart';
+import '../../../pay_later/presentation/fake_pay_later_summary_cubit.dart';
 
 /// A DashboardBloc that only holds a given state; events are ignored.
 class _StaticDashboardBloc extends Bloc<DashboardEvent, DashboardState>
@@ -56,14 +58,19 @@ void main() {
   }) async {
     final bloc = _StaticDashboardBloc(state);
     addTearDown(bloc.close);
+    final payLater = FakePayLaterSummaryCubit();
+    addTearDown(payLater.close);
     tester.view.physicalSize = Size(width * 2, 4000);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
-        home: BlocProvider<DashboardBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<DashboardBloc>.value(value: bloc),
+            BlocProvider<PayLaterSummaryCubit>.value(value: payLater),
+          ],
           child: const DashboardScreen(),
         ),
       ),

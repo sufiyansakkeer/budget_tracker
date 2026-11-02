@@ -20,6 +20,7 @@ import '../../../../helpers/bill_payment_fakes.dart';
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
 import 'budget_form_screen_test.dart' show FakeSettingsRepository;
+import '../../../../helpers/pay_later_fakes.dart';
 
 BudgetEntity augustBudget({double? reserved, double? savings}) => BudgetEntity(
   id: 'aug',
@@ -61,7 +62,10 @@ void main() {
     budgets = ListBudgetRepository();
     getIt
       ..registerSingleton<ManageBudgetUseCase>(
-        ManageBudgetUseCase(repository: budgets),
+        ManageBudgetUseCase(
+          repository: budgets,
+          reconcileTabs: FakeReconcileTabUseCase(),
+        ),
       )
       ..registerSingleton<CurrencyProvider>(
         CurrencyProvider(
@@ -362,6 +366,52 @@ void main() {
       await tester.tap(find.text('Change currency'));
       await tester.pumpAndSettle();
       expect(budgets.budgets.single.currency, 'OMR');
+    });
+
+    testWidgets('a budget holding tab purchases keeps its currency and '
+        'says why (I1)', (tester) async {
+      await getIt.unregister<ManageBudgetUseCase>();
+      getIt.registerSingleton<ManageBudgetUseCase>(
+        ManageBudgetUseCase(
+          repository: budgets,
+          reconcileTabs: FakeReconcileTabUseCase()..purchasesInBudget = 2,
+        ),
+      );
+      budgets.budgets.add(augustBudget());
+      registerExpenses([spent('a'), spent('b')]);
+      await pumpForm(tester, budgetId: 'aug');
+
+      const why =
+          '2 purchases in this budget are on Pay later tabs in INR. Move '
+          'them to another INR budget or take them off their tab first.';
+      expect(find.text(why), findsNothing);
+      await pickCurrency(tester, 'OMR');
+      expect(find.text(why), findsOneWidget);
+
+      await save(tester, 'Save changes');
+      expect(find.text('Change currency to OMR?'), findsNothing);
+      expect(budgets.budgets.single.currency, 'INR', reason: 'not saved');
+      // The form is a lazy list: the reason under Save is built once
+      // scrolled to.
+      const saveError = 'Keep this budget in INR to save.';
+      await tester.scrollUntilVisible(
+        find.text(saveError),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text(saveError), findsOneWidget);
+
+      // Back to INR: the reason goes and other edits save.
+      await tester.scrollUntilVisible(
+        find.byType(DropdownButton<String>),
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await pickCurrency(tester, 'INR');
+      expect(find.text(why), findsNothing);
+      await save(tester, 'Save changes');
+      expect(budgets.budgets.single.currency, 'INR');
+      expect(find.text('Home'), findsOneWidget);
     });
 
     testWidgets('a budget with no expenses changes currency without asking', (

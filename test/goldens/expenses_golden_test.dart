@@ -22,6 +22,7 @@ import 'package:monivo/features/expenses/presentation/quick_add/quick_add_sheet.
 
 import '../features/expenses/presentation/expense_test_fakes.dart';
 import 'golden_harness.dart';
+import '../helpers/pay_later_fakes.dart';
 
 /// Holds one state; events are ignored.
 class _StaticHistoryBloc extends Bloc<ExpenseHistoryEvent, ExpenseHistoryState>
@@ -198,7 +199,10 @@ void main() {
   testWidgets('expense details', (tester) async {
     await getIt.reset();
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: StubBudgetRepository([october])),
+      ManageBudgetUseCase(
+        repository: StubBudgetRepository([october]),
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
     addTearDown(getIt.reset);
     final gift = spent(

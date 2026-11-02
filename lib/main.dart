@@ -24,6 +24,9 @@ import 'features/app_update/presentation/bloc/app_update_state.dart';
 import 'features/app_update/presentation/widgets/update_dialog_service.dart';
 import 'features/budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 import 'features/expenses/data/services/receipt_storage_service.dart';
+import 'features/pay_later/data/services/tab_reminder_service.dart';
+import 'features/pay_later/domain/usecases/reconcile_tab_usecase.dart';
+import 'features/pay_later/presentation/pay_later_startup.dart';
 import 'features/settings/presentation/bloc/theme/theme_bloc.dart';
 import 'features/settings/presentation/bloc/theme/theme_state.dart';
 import 'features/widgets/home_widget_service.dart';
@@ -74,6 +77,15 @@ Future<void> main() async {
   // those recalculated them) are repaired once, in the background.
   _repairStoredRemainingAmountsOnStartup();
   _deleteUnusedReceiptsOnStartup();
+
+  // Settle-up reminders follow every Pay later change from here on (the
+  // start-up reconcile below is the first one).
+  di.getIt<TabReminderService>().start();
+
+  // Every Pay later write reconciles its tab in the same transaction; this
+  // is only a safety net for a database written outside those paths (e.g.
+  // by an older build). Idempotent, in the background, never fatal.
+  unawaited(reconcilePayLaterTabsOnStartup(di.getIt<ReconcileTabUseCase>()));
 
   // ── Home Widget: configure iOS App Group for data sharing ────────────
   await _configureHomeWidget();

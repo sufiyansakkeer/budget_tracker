@@ -134,7 +134,7 @@ class ListBudgetRepository implements BudgetRepository {
 /// Reminders that do nothing (no notification plugin in widget tests).
 class NoopBillReminderService extends BillReminderService {
   NoopBillReminderService(BillRepository repository)
-    : super(repository: repository);
+    : super(repository: repository, onNotificationResponse: (_) {});
 
   @override
   Future<void> initialize() async {}

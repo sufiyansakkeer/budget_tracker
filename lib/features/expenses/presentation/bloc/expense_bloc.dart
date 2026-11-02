@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
+import '../../../pay_later/domain/entities/purchase_change_impact.dart';
+import '../../../pay_later/domain/usecases/tab_purchase_usecase.dart';
 import '../expense_failure_copy.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/entities/expense_failure.dart';
@@ -30,6 +32,11 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   final BudgetRepository budgetRepository;
   final RankCategoriesByUseUseCase rankCategoriesByUse;
 
+  /// Purchases on Pay later tabs. Only an event that names a tab (or an
+  /// edit or delete of an expense already on one) goes through it; "Now"
+  /// expenses keep their exact path.
+  final TabPurchaseUseCase tabPurchases;
+
   ExpenseBloc({
     required this.createExpenseUseCase,
     required this.updateExpenseUseCase,
@@ -38,6 +45,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     required this.getExpensesUseCase,
     required this.getCategoriesUseCase,
     required this.budgetRepository,
+    required this.tabPurchases,
     this.rankCategoriesByUse = const RankCategoriesByUseUseCase(),
   }) : super(const ExpenseState()) {
     on<ExpenseLoadCategories>(_onLoadCategories);
@@ -206,10 +214,14 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
       return;
     }
 
-    final result = await createExpenseUseCase(expense);
+    final tabId = event.tabId;
+    final result = tabId == null
+        ? await createExpenseUseCase(expense)
+        : await tabPurchases.create(expense, tabId: tabId);
     switch (result) {
       case ExpenseSuccess():
         RefreshBuses.expenses.notifyChanged();
+        if (tabId != null) RefreshBuses.payLater.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
@@ -235,10 +247,14 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   ) async {
     emit(state.copyWith(status: ExpenseBlocStatus.updating));
 
-    final result = await updateExpenseUseCase(event.expense);
+    final onTab = event.tabId != null || event.wasOnTab;
+    final result = onTab
+        ? await tabPurchases.update(event.expense, tabId: event.tabId)
+        : await updateExpenseUseCase(event.expense);
     switch (result) {
       case ExpenseSuccess():
         RefreshBuses.expenses.notifyChanged();
+        if (onTab) RefreshBuses.payLater.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
@@ -261,34 +277,62 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   /// Deletes immediately (no confirmation dialog) and remembers the row so
   /// the UI can offer "Undo"; [ExpenseRestore] re-creates it with the same
   /// id, so budgets, reports and the widget stay consistent either way.
+  ///
+  /// A purchase on a Pay later tab is deleted through [tabPurchases], which
+  /// reconciles its tab and returns the link, kept for "Undo". If the tab
+  /// can't be read the delete fails rather than skip the reconcile.
+  /// [ExpenseDelete.undoable] false (the user already confirmed) keeps
+  /// nothing to undo.
   Future<void> _onDelete(
     ExpenseDelete event,
     Emitter<ExpenseState> emit,
   ) async {
     emit(state.copyWith(status: ExpenseBlocStatus.deleting));
 
+    const failed = "Couldn't delete the expense. Try again.";
+    final String? tabId;
+    try {
+      tabId = await tabPurchases.tabIdFor(event.id);
+    } catch (e) {
+      debugPrint('[error] Reading the Pay later tab of an expense: $e');
+      emit(state.copyWith(status: ExpenseBlocStatus.error, message: failed));
+      return;
+    }
+
     ExpenseEntity? snapshot;
     final loaded = await getExpenseByIdUseCase(event.id);
     if (loaded case ExpenseSuccess(:final data)) snapshot = data;
 
-    final result = await deleteExpenseUseCase(event.id);
+    final ExpenseResult<TabLinkSnapshot?> result;
+    if (tabId == null) {
+      result = switch (await deleteExpenseUseCase(event.id)) {
+        ExpenseSuccess() => const ExpenseSuccess(null),
+        ExpenseError(:final failure) => ExpenseError(failure),
+      };
+    } else {
+      result = await tabPurchases.delete(event.id);
+    }
     switch (result) {
-      case ExpenseSuccess():
+      case ExpenseSuccess(:final data):
         RefreshBuses.expenses.notifyChanged();
+        if (tabId != null) RefreshBuses.payLater.notifyChanged();
+        final deleted = event.undoable ? snapshot : null;
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
             message: 'Expense deleted',
             lastAction: ExpenseAction.deleted,
-            lastDeleted: snapshot,
-            clearLastDeleted: snapshot == null,
+            lastDeleted: deleted,
+            clearLastDeleted: deleted == null,
+            lastDeletedLink: data,
+            clearLastDeletedLink: data == null,
           ),
         );
       case ExpenseError(:final failure):
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.error,
-            message: failure.shown("Couldn't delete the expense. Try again."),
+            message: failure.shown(failed),
           ),
         );
     }
@@ -300,10 +344,14 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   ) async {
     emit(state.copyWith(status: ExpenseBlocStatus.creating));
 
-    final result = await createExpenseUseCase(event.expense);
+    final link = event.link;
+    final result = link == null
+        ? await createExpenseUseCase(event.expense)
+        : await tabPurchases.restore(event.expense, link);
     switch (result) {
       case ExpenseSuccess():
         RefreshBuses.expenses.notifyChanged();
+        if (link != null) RefreshBuses.payLater.notifyChanged();
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,

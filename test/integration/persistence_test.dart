@@ -25,6 +25,8 @@ import 'package:monivo/features/settings/domain/services/backup_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../helpers/pay_later_fixtures.dart';
+
 /// One "run" of the app against a database *file*: the real datasources and
 /// repositories over a Drift connection that is closed at the end, so the
 /// next [Session] on the same file starts exactly like the app after being
@@ -311,6 +313,7 @@ void main() {
         );
         payload = await BackupService(
           database: app.database,
+          reconcileTabs: reconcileTabsOn(app.database),
           appVersionResolver: () async => 'test',
         ).buildBackupPayload();
       });
@@ -322,6 +325,7 @@ void main() {
         await app.budgets.setActiveBudgetId('current');
         await BackupService(
           database: app.database,
+          reconcileTabs: reconcileTabsOn(app.database),
           appVersionResolver: () async => 'test',
         ).restore(backupFile.path);
       });

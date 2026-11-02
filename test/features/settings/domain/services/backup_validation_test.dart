@@ -7,6 +7,7 @@ import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/features/settings/domain/services/backup_service.dart';
 
 import '../../../../helpers/in_memory_database.dart';
+import '../../../../helpers/pay_later_fixtures.dart';
 
 void main() {
   late AppDatabase database;
@@ -14,7 +15,10 @@ void main() {
 
   setUp(() async {
     database = await createInMemoryDatabase();
-    service = BackupService(database: database);
+    service = BackupService(
+      database: database,
+      reconcileTabs: reconcileTabsOn(database),
+    );
   });
 
   tearDown(() async {

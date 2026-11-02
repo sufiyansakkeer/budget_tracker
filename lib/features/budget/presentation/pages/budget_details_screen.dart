@@ -225,18 +225,39 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     }, failed: "Couldn't duplicate the budget.");
   }
 
+  /// Purchases on Pay later tabs inside this budget, for the delete
+  /// confirmation. Null when they can't be counted: the dialog then just
+  /// doesn't mention them.
+  Future<int?> _tabPurchases() async {
+    try {
+      return await _manageBudget.tabPurchasesIn(widget.budgetId);
+    } catch (e) {
+      debugPrint('[error] Counting Pay later purchases in a budget: $e');
+      return null;
+    }
+  }
+
+  static String _tabsLine(int count) => count == 1
+      ? ' 1 purchase on a Pay later tab will be removed from its tab; any '
+            'money paid on it moves to other purchases or stays as credit.'
+      : ' $count purchases on Pay later tabs will be removed from their '
+            'tabs; any money paid on them moves to other purchases or stays '
+            'as credit.';
+
   Future<void> _delete() async {
     final linked = (await _linkedBills()).length;
+    final tabPurchases = await _tabPurchases();
     if (!mounted) return;
     final billsLine = linked == 0
         ? ''
         : ' $linked ${_bills(linked)} paid from it will become not linked.';
+    final tabsLine = (tabPurchases ?? 0) == 0 ? '' : _tabsLine(tabPurchases!);
     final confirmed = await ConfirmationDialog.show(
       context: context,
       title: 'Delete this budget?',
       message:
           'This permanently deletes "${_budget?.name}" and every expense '
-          'recorded in it.$billsLine This cannot be undone.',
+          'recorded in it.$billsLine$tabsLine This cannot be undone.',
       confirmLabel: 'Delete',
       icon: Icons.delete_forever_rounded,
       isDestructive: true,
@@ -251,6 +272,9 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
         rethrow;
       }
       RefreshBuses.budgets.notifyChanged();
+      // Tabs that had a purchase in the budget were reconciled; when the
+      // count failed, tell Pay later screens anyway.
+      if (tabPurchases != 0) RefreshBuses.payLater.notifyChanged();
       if (!mounted) return;
       _notify('Budget deleted');
       context.pop(true);

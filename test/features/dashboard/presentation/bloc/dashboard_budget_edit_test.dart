@@ -27,6 +27,7 @@ import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../helpers/in_memory_database.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 /// Verifies that the Dashboard rebuilds with the updated budget amount after
 /// a budget is edited through the normal ManageBudgetUseCase → repository
@@ -64,7 +65,10 @@ void main() {
       localDataSource: expenseDataSource,
       budgetRepository: budgetRepository,
     );
-    manageBudget = ManageBudgetUseCase(repository: budgetRepository);
+    manageBudget = ManageBudgetUseCase(
+      repository: budgetRepository,
+      reconcileTabs: FakeReconcileTabUseCase(),
+    );
 
     final billRepository = BillRepositoryImpl(
       localDataSource: BillLocalDataSourceImpl(database: database),

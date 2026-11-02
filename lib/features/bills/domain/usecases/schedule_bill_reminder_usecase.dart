@@ -21,14 +21,22 @@ class BillReminderService {
 
   final FlutterLocalNotificationsPlugin _plugin;
   final BillRepository _repository;
+
+  /// The app's one notification tap handler
+  /// ([NotificationService.handleNotificationResponse]). The plugin keeps
+  /// only the handler of its latest initialize call, so this one must pass
+  /// it too or a Pay later reminder tap would stop opening its tab.
+  final DidReceiveNotificationResponseCallback _onNotificationResponse;
   bool _initialized = false;
   bool _timeZonesConfigured = false;
 
   BillReminderService({
     FlutterLocalNotificationsPlugin? plugin,
     required BillRepository repository,
+    required DidReceiveNotificationResponseCallback onNotificationResponse,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
-       _repository = repository;
+       _repository = repository,
+       _onNotificationResponse = onNotificationResponse;
 
   /// Ensures the notification plugin and timezone are configured.
   Future<void> initialize() async {
@@ -42,7 +50,10 @@ class BillReminderService {
       requestSoundPermission: false,
     );
     const settings = InitializationSettings(android: android, iOS: ios);
-    await _plugin.initialize(settings);
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
 
     // Create notification channel for Android.
     final androidPlugin = _plugin

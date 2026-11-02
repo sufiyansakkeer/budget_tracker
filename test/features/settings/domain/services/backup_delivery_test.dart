@@ -13,6 +13,7 @@ import 'package:monivo/features/settings/domain/usecases/export_data_usecase.dar
 import 'package:monivo/features/settings/domain/usecases/restore_data_usecase.dart';
 
 import '../../../../helpers/in_memory_database.dart';
+import '../../../../helpers/pay_later_fixtures.dart';
 
 /// UX-002: "Back up" wrote a file into the app's private storage and said
 /// "Backup created." — the user could never reach it. UX-003: the JSON
@@ -174,7 +175,10 @@ void main() {
       final file = File('${Directory.systemTemp.path}/ux003_export.json');
       await file.writeAsString(jsonEncode(data));
       final useCase = RestoreDataUseCase(
-        backupService: BackupService(database: database),
+        backupService: BackupService(
+          database: database,
+          reconcileTabs: reconcileTabsOn(database),
+        ),
       );
 
       final result = await useCase(file.path);
@@ -190,12 +194,16 @@ void main() {
       await seed();
       final payload = await BackupService(
         database: database,
+        reconcileTabs: reconcileTabsOn(database),
       ).buildBackupPayload();
       final file = File('${Directory.systemTemp.path}/ux003_backup.json');
       await file.writeAsString(jsonEncode(payload));
 
       final result = await RestoreDataUseCase(
-        backupService: BackupService(database: database),
+        backupService: BackupService(
+          database: database,
+          reconcileTabs: reconcileTabsOn(database),
+        ),
       )(file.path);
 
       expect(result, isA<SettingsSuccess>());
@@ -207,7 +215,11 @@ void main() {
 /// path_provider, which tests do not have.
 class _TempBackupService extends BackupService {
   _TempBackupService(AppDatabase database)
-    : super(database: database, appVersionResolver: () async => '1.0.0');
+    : super(
+        database: database,
+        reconcileTabs: reconcileTabsOn(database),
+        appVersionResolver: () async => '1.0.0',
+      );
 
   @override
   Future<String> createBackup() async {

@@ -11,6 +11,8 @@ import 'package:monivo/features/expenses/domain/usecases/get_expense_by_id_useca
 import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/update_expense_usecase.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
+import 'package:monivo/features/pay_later/domain/usecases/tab_purchase_usecase.dart';
+import '../../../helpers/pay_later_fakes.dart';
 
 /// Expenses kept in a map, with the date-range and budget filters the real
 /// datasource applies.
@@ -162,11 +164,13 @@ BudgetEntity testBudget({
   isArchived: archived,
 );
 
-/// A real [ExpenseBloc] over the in-memory repositories.
+/// A real [ExpenseBloc] over the in-memory repositories. [tabPurchases]
+/// defaults to a fake on which no expense is on a tab.
 ExpenseBloc memoryExpenseBloc(
   MemoryExpenseRepository expenses,
-  StubBudgetRepository budgets,
-) => ExpenseBloc(
+  StubBudgetRepository budgets, {
+  TabPurchaseUseCase? tabPurchases,
+}) => ExpenseBloc(
   createExpenseUseCase: CreateExpenseUseCase(repository: expenses),
   updateExpenseUseCase: UpdateExpenseUseCase(repository: expenses),
   deleteExpenseUseCase: DeleteExpenseUseCase(repository: expenses),
@@ -174,4 +178,5 @@ ExpenseBloc memoryExpenseBloc(
   getExpensesUseCase: GetExpensesUseCase(repository: expenses),
   getCategoriesUseCase: GetCategoriesUseCase(repository: expenses),
   budgetRepository: budgets,
+  tabPurchases: tabPurchases ?? FakeTabPurchaseUseCase(),
 );

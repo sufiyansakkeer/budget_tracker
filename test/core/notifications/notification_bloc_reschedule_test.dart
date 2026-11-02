@@ -26,6 +26,8 @@ class RecordingNotificationService extends NotificationService {
           calculationService: BudgetCalculationService(),
           safeToSpend: fakeSafeToSpendUseCase(repository),
         ),
+        rescheduleTabReminders: () async {},
+        onPayLaterTap: (_) {},
       );
 
   int scheduleCount = 0;
