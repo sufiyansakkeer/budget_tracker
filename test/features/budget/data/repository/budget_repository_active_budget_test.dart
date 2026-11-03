@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/constants/preference_keys.dart';
 import 'package:monivo/core/database/app_database.dart';
@@ -36,7 +37,7 @@ void main() {
       remainingAmount: 1000,
       currency: 'INR',
       startDate: s,
-      endDate: end ?? s.add(const Duration(days: 29)),
+      endDate: end ?? s.addDays(29),
       isArchived: archived,
       createdAt: now,
       updatedAt: now,

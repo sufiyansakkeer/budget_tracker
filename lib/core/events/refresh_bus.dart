@@ -20,9 +20,6 @@ class RefreshBus {
   /// Emits every time [notifyChanged] is called.
   Stream<void> get changes => _controller.stream;
 
-  /// Whether at least one listener is currently subscribed.
-  bool get hasListeners => _controller.hasListener;
-
   /// Notifies every listener that the data behind this bus changed.
   void notifyChanged() {
     if (!_controller.isClosed) {
@@ -47,6 +44,9 @@ abstract final class RefreshBuses {
 
   /// Bill created, edited, deleted, paid or unpaid.
   static final RefreshBus bills = RefreshBus('bills');
+
+  /// Pay Later tab, purchase link or payment created, changed or removed.
+  static final RefreshBus payLater = RefreshBus('payLater');
 
   /// The calendar day changed while the app stayed alive (seen on resume or
   /// at midnight), so every "today" figure must be worked out again.

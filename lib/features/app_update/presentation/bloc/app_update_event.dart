@@ -16,8 +16,3 @@ class AppUpdateCheckOnLaunch extends AppUpdateEvent {
 class AppUpdateManualCheck extends AppUpdateEvent {
   const AppUpdateManualCheck();
 }
-
-/// The user dismissed the update dialog.
-class AppUpdateDismissed extends AppUpdateEvent {
-  const AppUpdateDismissed();
-}

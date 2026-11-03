@@ -28,8 +28,6 @@ class AppLockState extends Equatable {
 
   const AppLockState({this.status = AppLockStatus.checking, this.errorMessage});
 
-  bool get isLocked => status != AppLockStatus.unlocked;
-
   bool get isAuthenticating => status == AppLockStatus.authenticating;
 
   AppLockState copyWith({

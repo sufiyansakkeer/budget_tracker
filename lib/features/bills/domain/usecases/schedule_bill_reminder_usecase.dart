@@ -4,6 +4,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../settings/domain/services/notification_service.dart';
 import '../entities/bill_entity.dart';
 import '../repository/bill_repository.dart';
@@ -20,14 +21,22 @@ class BillReminderService {
 
   final FlutterLocalNotificationsPlugin _plugin;
   final BillRepository _repository;
+
+  /// The app's one notification tap handler
+  /// ([NotificationService.handleNotificationResponse]). The plugin keeps
+  /// only the handler of its latest initialize call, so this one must pass
+  /// it too or a Pay later reminder tap would stop opening its tab.
+  final DidReceiveNotificationResponseCallback _onNotificationResponse;
   bool _initialized = false;
   bool _timeZonesConfigured = false;
 
   BillReminderService({
     FlutterLocalNotificationsPlugin? plugin,
     required BillRepository repository,
+    required DidReceiveNotificationResponseCallback onNotificationResponse,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
-       _repository = repository;
+       _repository = repository,
+       _onNotificationResponse = onNotificationResponse;
 
   /// Ensures the notification plugin and timezone are configured.
   Future<void> initialize() async {
@@ -41,7 +50,10 @@ class BillReminderService {
       requestSoundPermission: false,
     );
     const settings = InitializationSettings(android: android, iOS: ios);
-    await _plugin.initialize(settings);
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
 
     // Create notification channel for Android.
     final androidPlugin = _plugin
@@ -101,25 +113,7 @@ class BillReminderService {
       iOS: iosDetails,
     );
 
-    final daysUntil = bill.dueDate
-        .difference(DateTime(now.year, now.month, now.day))
-        .inDays;
-    final String title;
-    final String body;
-
-    if (daysUntil <= 0) {
-      title = 'Bill Due Today';
-      body =
-          'Your ${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due today.';
-    } else if (daysUntil == 1) {
-      title = "Tomorrow's Bill";
-      body =
-          '${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due tomorrow.';
-    } else {
-      title = 'Upcoming Bill';
-      body =
-          '${bill.title} bill of ${bill.currency}${bill.amount.toStringAsFixed(0)} is due in $daysUntil days.';
-    }
+    final (title, body) = reminderText(bill);
 
     try {
       await _plugin.zonedSchedule(
@@ -139,6 +133,30 @@ class BillReminderService {
         '[BillReminder] Failed to schedule notification for ${bill.title}: $e',
       );
     }
+  }
+
+  /// The reminder's title and text, for the day it fires: that is
+  /// [BillEntity.reminderOffsetDays] before the due date, whenever it was
+  /// scheduled.
+  static (String, String) reminderText(BillEntity bill) {
+    final amount = CurrencyFormatter.format(bill.amount, code: bill.currency);
+    final daysBefore = bill.reminderOffsetDays;
+    if (daysBefore <= 0) {
+      return (
+        'Bill Due Today',
+        'Your ${bill.title} bill of $amount is due today.',
+      );
+    }
+    if (daysBefore == 1) {
+      return (
+        "Tomorrow's Bill",
+        '${bill.title} bill of $amount is due tomorrow.',
+      );
+    }
+    return (
+      'Upcoming Bill',
+      '${bill.title} bill of $amount is due in $daysBefore days.',
+    );
   }
 
   /// Cancels a reminder notification for the given bill.
@@ -171,30 +189,6 @@ class BillReminderService {
     } catch (e) {
       debugPrint('[BillReminder] Failed to reschedule all: $e');
     }
-  }
-
-  /// Checks if notification permission is enabled.
-  Future<bool> areNotificationsEnabled() async {
-    await initialize();
-
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (android != null) {
-      return await android.areNotificationsEnabled() ?? false;
-    }
-
-    final ios = _plugin
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >();
-    if (ios != null) {
-      final settings = await ios.checkPermissions();
-      return settings?.isEnabled ?? false;
-    }
-
-    return true;
   }
 
   Future<void> _configureLocalTimeZone() async {

@@ -5,7 +5,6 @@ import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart'
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../entities/budget_daily_limit_entity.dart';
 import '../entities/smart_insight_entity.dart';
-import '../entities/spending_target_entity.dart';
 import '../entities/spending_target_status.dart';
 
 /// Deterministic, rule-based Smart Insights engine (no AI, no network).
@@ -22,20 +21,18 @@ class GetSmartInsightsUseCase {
 
   /// Derives a prioritized list of [SmartInsight] messages from [summary].
   ///
-  /// Optionally accepts [spendingTarget] (the active budget's daily/weekly
-  /// target) and [budgetDailyLimits] for per-budget insights. Insights are
-  /// ordered by severity so the most important message appears first on the
-  /// Dashboard.
+  /// Optionally accepts [budgetDailyLimits] for per-budget insights.
+  /// Insights are ordered by severity so the most important message appears
+  /// first on the Dashboard.
   ///
-  /// When [safeToSpend] (the active budget's engine result) is given, the
-  /// rules built on the summary's bill-blind daily figure and forecast
-  /// (today's overspending, pace, projections, daily/weekly targets, and the
-  /// active budget's per-budget daily/weekly insights) are replaced by ONE
+  /// Insights need [safeToSpend], the active budget's engine result: without
+  /// it there is no daily figure on Home to compare against, and the old
+  /// summary-based lines (bill-blind) contradicted the hero, so none are
+  /// returned. With it, the summary's forecast is replaced by ONE
   /// forecast insight from the engine, so insights never contradict Today's
   /// Safe Spending shown above them.
   List<SmartInsight> call(
     BudgetSummaryEntity summary, {
-    SpendingTargetEntity? spendingTarget,
     List<BudgetDailyLimitEntity>? budgetDailyLimits,
     SafeToSpendEntity? safeToSpend,
   }) {
@@ -50,16 +47,16 @@ class GetSmartInsightsUseCase {
       ];
     }
 
-    final insights = <SmartInsight>[];
     final engine = safeToSpend;
+    if (engine == null) return const [];
+
+    final insights = <SmartInsight>[];
 
     // The engine result covers the active budget; its old per-budget daily
     // and weekly insights would repeat (or contradict) the hero.
-    final otherLimits = engine == null || budgetDailyLimits == null
-        ? budgetDailyLimits
-        : budgetDailyLimits
-              .where((bl) => bl.budgetId != engine.budgetId)
-              .toList();
+    final otherLimits = budgetDailyLimits
+        ?.where((bl) => bl.budgetId != engine.budgetId)
+        .toList();
 
     // 1. Per-budget insights (highest priority — budget-specific).
     if (otherLimits != null && otherLimits.isNotEmpty) {
@@ -73,11 +70,7 @@ class GetSmartInsightsUseCase {
 
     // 3. Projected overspending / budget risk.
     if (insights.length < 3) {
-      if (engine == null) {
-        _addProjectedOverspending(summary, insights);
-      } else {
-        _addEngineForecastShort(engine, insights);
-      }
+      _addEngineForecastShort(engine, insights);
     }
 
     // 4. Per-budget weekly insights.
@@ -92,39 +85,14 @@ class GetSmartInsightsUseCase {
       _addPerBudgetProgressInsights(budgetDailyLimits, insights);
     }
 
-    // 6–8 rely on the summary's bill-blind daily figure.
-    if (engine == null) {
-      // 6. Today overspending (fallback).
-      if (insights.length < 3) {
-        _addTodayOverspending(summary, insights);
-      }
-
-      // 7. Spending target insights (legacy fallback).
-      if (spendingTarget != null && insights.length < 3) {
-        _addWeeklyTargetInsight(spendingTarget, summary.currency, insights);
-      }
-      if (spendingTarget != null && insights.length < 3) {
-        _addDailyTargetInsight(spendingTarget, summary.currency, insights);
-      }
-
-      // 8. Spending pace relative to safe allowance.
-      if (insights.length < 3) {
-        _addSpendingPace(summary, insights);
-      }
-    }
-
-    // 9. Budget progress.
+    // 6. Budget progress.
     if (insights.length < 3) {
       _addBudgetProgress(summary, insights);
     }
 
-    // 10. Positive / projected savings.
+    // 7. Positive forecast.
     if (insights.length < 3) {
-      if (engine == null) {
-        _addPositive(summary, insights);
-      } else {
-        _addEnginePositive(engine, insights);
-      }
+      _addEnginePositive(engine, insights);
     }
 
     // Fallback: generic informational message using real data.
@@ -251,77 +219,6 @@ class GetSmartInsightsUseCase {
     );
   }
 
-  void _addTodayOverspending(
-    BudgetSummaryEntity summary,
-    List<SmartInsight> insights,
-  ) {
-    if (summary.todayOverspending <= 0 || insights.length >= 3) return;
-    insights.add(
-      SmartInsight(
-        id: 'today_overspending',
-        message:
-            "You've spent "
-            '${_money(summary.todayOverspending, summary.currency)} over '
-            "Today's Safe Spending in your active budget.",
-        type: InsightType.warning,
-      ),
-    );
-  }
-
-  void _addProjectedOverspending(
-    BudgetSummaryEntity summary,
-    List<SmartInsight> insights,
-  ) {
-    if (summary.expectedOverspending <= 0 || insights.length >= 3) return;
-    insights.add(
-      SmartInsight(
-        id: 'projected_overspending',
-        message:
-            'At your current daily average, this budget may end its period '
-            'about ${_money(summary.expectedOverspending, summary.currency)} '
-            'over its amount.',
-        type: InsightType.warning,
-      ),
-    );
-  }
-
-  void _addSpendingPace(
-    BudgetSummaryEntity summary,
-    List<SmartInsight> insights,
-  ) {
-    if (summary.averageDailySpending <= 0) return;
-
-    final safe = summary.dailySafeSpending;
-    if (safe <= 0) return;
-
-    final diff = safe - summary.averageDailySpending;
-    final pct = (diff.abs() / safe * 100).toStringAsFixed(0);
-
-    if (diff >= 0) {
-      insights.add(
-        SmartInsight(
-          id: 'spending_pace_under',
-          message:
-              "You're averaging about "
-              "${_money(diff, summary.currency)} less per day than Today's "
-              'Safe Spending.',
-          type: InsightType.positive,
-        ),
-      );
-    } else {
-      insights.add(
-        SmartInsight(
-          id: 'spending_pace_over',
-          message:
-              "You're averaging about "
-              "${_money(diff.abs(), summary.currency)} more per day than "
-              "Today's Safe Spending ($pct% over).",
-          type: InsightType.warning,
-        ),
-      );
-    }
-  }
-
   void _addBudgetProgress(
     BudgetSummaryEntity summary,
     List<SmartInsight> insights,
@@ -339,106 +236,6 @@ class GetSmartInsightsUseCase {
         type: usedPercent >= 80 ? InsightType.warning : InsightType.info,
       ),
     );
-  }
-
-  void _addDailyTargetInsight(
-    SpendingTargetEntity target,
-    String currency,
-    List<SmartInsight> insights,
-  ) {
-    if (target.dailyTarget <= 0) return;
-
-    if (target.dailyStatus == SpendingTargetStatus.exceeded) {
-      insights.add(
-        SmartInsight(
-          id: 'daily_target_exceeded',
-          message:
-              "You've spent ${_money(target.dailyExceeded, currency)} over "
-              "Today's Safe Spending.",
-          type: InsightType.warning,
-        ),
-      );
-    } else if (target.dailyStatus == SpendingTargetStatus.nearLimit) {
-      final pct = (target.dailyProgress * 100).round();
-      insights.add(
-        SmartInsight(
-          id: 'daily_target_near',
-          message:
-              "You're at $pct% of Today's Safe Spending "
-              '(${_money(target.dailyRemaining, currency)} left today).',
-          type: InsightType.warning,
-        ),
-      );
-    } else if (target.dailyProgress > 0) {
-      final pct = (target.dailyProgress * 100).round();
-      insights.add(
-        SmartInsight(
-          id: 'daily_target_on_track',
-          message:
-              "You're at $pct% of Today's Safe Spending with "
-              '${_money(target.dailyRemaining, currency)} left today.',
-          type: InsightType.positive,
-        ),
-      );
-    }
-  }
-
-  void _addWeeklyTargetInsight(
-    SpendingTargetEntity target,
-    String currency,
-    List<SmartInsight> insights,
-  ) {
-    if (target.weeklyTarget <= 0) return;
-
-    if (target.weeklyStatus == SpendingTargetStatus.exceeded) {
-      insights.add(
-        SmartInsight(
-          id: 'weekly_target_exceeded',
-          message:
-              "This week's spending is "
-              "${_money(target.weeklyExceeded, currency)} over this budget's "
-              'weekly share. Spending less over the next few days helps you '
-              'stay within the budget period.',
-          type: InsightType.negative,
-        ),
-      );
-    } else if (target.weeklyProgress > 0) {
-      final pct = (target.weeklyProgress * 100).round();
-      insights.add(
-        SmartInsight(
-          id: 'weekly_target_status',
-          message:
-              "You've used $pct% of this budget's weekly share with "
-              '${_money(target.weeklyRemaining, currency)} left this week.',
-          type: target.weeklyStatus == SpendingTargetStatus.nearLimit
-              ? InsightType.warning
-              : InsightType.positive,
-        ),
-      );
-    }
-  }
-
-  void _addPositive(BudgetSummaryEntity summary, List<SmartInsight> insights) {
-    if (summary.expectedSavings > 0) {
-      insights.add(
-        SmartInsight(
-          id: 'on_track_savings',
-          message:
-              'At your current daily average, this budget should end its '
-              'period with about '
-              '${_money(summary.expectedSavings, summary.currency)} left.',
-          type: InsightType.positive,
-        ),
-      );
-    } else if (summary.status == BudgetStatus.underBudget) {
-      insights.add(
-        const SmartInsight(
-          id: 'under_budget',
-          message: "You're within this budget. Keep it up!",
-          type: InsightType.positive,
-        ),
-      );
-    }
   }
 
   // ── Safe-to-spend engine insights ───────────────────────────────────────

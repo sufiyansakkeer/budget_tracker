@@ -2,31 +2,39 @@ import 'dart:io';
 
 import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../entities/report_data.dart';
 import '../entities/report_failure.dart';
-import '../../../../core/platform/system_ui_session.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/files/file_delivery_service.dart';
 
 /// Exports the filtered expenses and summary statistics to a CSV file and
 /// opens the share sheet.
 class ExportCsvUseCase {
-  const ExportCsvUseCase();
+  final FileDeliveryService delivery;
 
-  Future<ReportResult<String>> call(ReportData data) async {
+  const ExportCsvUseCase({this.delivery = const FileDeliveryService()});
+
+  /// What happened to the file: a closed share sheet is not an export.
+  Future<ReportResult<FileDeliveryOutcome>> call(ReportData data) async {
     try {
       final csv = _buildCsv(data);
       final directory = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${directory.path}/budget_report_$timestamp.csv');
+      final fileName = 'budget_report_$timestamp.csv';
+      final file = File('${directory.path}/$fileName');
       await file.writeAsString(csv);
 
-      await SystemUiSession.run(
-        () => Share.shareXFiles([
-          XFile(file.path, mimeType: 'text/csv'),
-        ], text: 'Budget Report CSV'),
+      return ReportSuccess(
+        await delivery.deliver(
+          file: file,
+          fileName: fileName,
+          mimeType: 'text/csv',
+          extension: 'csv',
+          destination: FileDestination.share,
+          shareText: 'Budget Report CSV',
+        ),
       );
-      return ReportSuccess('CSV report exported.');
     } catch (e) {
       return ReportError(
         ReportFailure(
@@ -38,18 +46,22 @@ class ExportCsvUseCase {
   }
 
   String _buildCsv(ReportData data) {
+    // At the currency's precision: sums and averages of doubles end in
+    // ...0000000004 otherwise.
+    final digits = CurrencyFormatter.decimalDigitsFor(data.currency ?? '');
+    String money(double amount) => amount.toStringAsFixed(digits);
     final rows = <List<Object?>>[
       [
         'Expense Report - ${data.range.start.toIso8601String().substring(0, 10)} '
             'to ${data.range.end.toIso8601String().substring(0, 10)}',
       ],
       [],
-      ['Total Spending', data.overview.totalSpending],
+      ['Total Spending', money(data.overview.totalSpending)],
       ['Total Transactions', data.overview.totalTransactions],
-      ['Average Daily Spending', data.overview.averageDailySpending],
-      ['Average Transaction', data.overview.averageTransactionAmount],
-      ['Highest Expense', data.overview.highestExpense],
-      ['Lowest Expense', data.overview.lowestExpense],
+      ['Average Daily Spending', money(data.overview.averageDailySpending)],
+      ['Average Transaction', money(data.overview.averageTransactionAmount)],
+      ['Highest Expense', money(data.overview.highestExpense)],
+      ['Lowest Expense', money(data.overview.lowestExpense)],
       [],
       ['Date', 'Amount', 'Category', 'Note', 'Tags', 'Receipt'],
     ];
@@ -59,7 +71,7 @@ class ExportCsvUseCase {
     for (final expense in data.filteredExpenses) {
       rows.add([
         expense.date.toIso8601String().substring(0, 10),
-        expense.amount,
+        money(expense.amount),
         nameById[expense.categoryId] ?? expense.categoryId,
         expense.note ?? '',
         expense.tags.join(', '),

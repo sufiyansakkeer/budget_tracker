@@ -148,14 +148,6 @@ class BudgetRepositoryImpl implements BudgetRepository {
   }
 
   @override
-  Future<int> getRemainingDays(String budgetId, {DateTime? referenceDate}) {
-    return localDataSource.getRemainingDays(
-      budgetId,
-      referenceDate: referenceDate,
-    );
-  }
-
-  @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
     DateTime? referenceDate,
@@ -207,6 +199,7 @@ class BudgetRepositoryImpl implements BudgetRepository {
     final newRemaining = calculationService.calculateRemainingBudget(
       monthlyAmount: budget.monthlyAmount,
       totalSpent: statistics.totalSpent,
+      currency: budget.currency,
     );
 
     final updatedBudget = budget.copyWith(remainingAmount: newRemaining);

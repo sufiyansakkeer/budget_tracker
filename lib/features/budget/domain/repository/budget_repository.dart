@@ -1,8 +1,6 @@
 import '../../../../core/domain/entities/budget_entity.dart';
-import '../entities/budget_analytics_entity.dart';
 import '../entities/budget_error.dart';
 import '../entities/budget_filter.dart';
-import '../entities/budget_summary_entity.dart';
 import '../entities/monthly_statistics_entity.dart';
 
 /// Contract for budget data access consumed by use cases and the calculation engine.
@@ -55,9 +53,6 @@ abstract class BudgetRepository {
   /// Returns total spending for [referenceDate]'s calendar day within the budget.
   Future<double> getTodaySpending(String budgetId, {DateTime? referenceDate});
 
-  /// Returns remaining days in the budget period including today.
-  Future<int> getRemainingDays(String budgetId, {DateTime? referenceDate});
-
   /// Builds calculation input from repository data for the given budget.
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
@@ -87,7 +82,3 @@ class BudgetCalculationContext {
     required this.referenceDate,
   });
 }
-
-/// Type alias re-export for convenience in repository consumers.
-typedef BudgetSummaryResult = BudgetResult<BudgetSummaryEntity>;
-typedef BudgetAnalyticsResult = BudgetResult<BudgetAnalyticsEntity>;

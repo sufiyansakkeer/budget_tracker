@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:monivo/features/expenses/presentation/pages/expense_form_screen.dart';
 
 import '../expense_test_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 void main() {
   late MemoryExpenseRepository expenses;
@@ -26,7 +28,10 @@ void main() {
       ),
     ]);
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: budgets),
+      ManageBudgetUseCase(
+        repository: budgets,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
   });
   tearDown(() => getIt.reset());
@@ -101,7 +106,7 @@ void main() {
   testWidgets('"More details" arrives filled in and saves as entered', (
     tester,
   ) async {
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    final yesterday = DateTime.now().addDays(-1);
     final day = DateTime(yesterday.year, yesterday.month, yesterday.day);
     await pumpForm(
       tester,
@@ -266,7 +271,17 @@ void main() {
     });
 
     Future<void> pickTrip(WidgetTester tester) async {
-      await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+      // The "Paid" row pushed the picker below the first screen.
+      await tester.scrollUntilVisible(
+        find.byType(DropdownButtonFormField<String>),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.textContaining('Trip').last);
@@ -306,7 +321,17 @@ void main() {
       tester,
     ) async {
       await pumpForm(tester, expenseId: 'e1');
-      await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+      // The "Paid" row pushed the picker below the first screen.
+      await tester.scrollUntilVisible(
+        find.byType(DropdownButtonFormField<String>),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
 
@@ -358,6 +383,37 @@ void main() {
 
       expect(find.text('7.125'), findsOneWidget);
       expect(find.text('7.13'), findsNothing);
+    });
+
+    testWidgets('an expense in an archived budget saves with that budget\'s '
+        'decimals', (tester) async {
+      // The form listed only unarchived budgets, so the expense's own budget
+      // was missing: OMR 7.125 was checked against two decimals and refused.
+      final today = DateTime.now();
+      budgets.budgets['personal'] = testBudget(
+        currency: 'OMR',
+        start: DateTime(today.year, today.month, today.day - 20),
+        end: DateTime(today.year, today.month, today.day + 10),
+        archived: true,
+      );
+      final day = DateTime(today.year, today.month, today.day);
+      expenses.store['omr'] = ExpenseEntity(
+        id: 'omr',
+        budgetId: 'personal',
+        amount: 7.125,
+        categoryId: 'food',
+        date: day,
+        time: day.add(const Duration(hours: 9)),
+        createdAt: day,
+        updatedAt: day,
+      );
+      await pumpForm(tester, expenseId: 'omr');
+
+      await tapSave(tester);
+
+      expect(find.textContaining('decimal places'), findsNothing);
+      expect(expenses.store['omr']!.amount, 7.125);
+      expect(expenses.store['omr']!.budgetId, 'personal');
     });
   });
 }

@@ -1,22 +1,26 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/features/settings/domain/entities/settings_failure.dart';
 import 'package:monivo/features/settings/domain/services/backup_service.dart';
 import 'package:monivo/features/settings/domain/services/export_service.dart';
-import 'package:monivo/features/settings/domain/services/file_delivery_service.dart';
+import 'package:monivo/core/files/file_delivery_service.dart';
 import 'package:monivo/features/settings/domain/usecases/backup_data_usecase.dart';
+import 'package:monivo/features/settings/domain/usecases/export_data_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/restore_data_usecase.dart';
 
 import '../../../../helpers/in_memory_database.dart';
+import '../../../../helpers/pay_later_fixtures.dart';
 
 /// UX-002: "Back up" wrote a file into the app's private storage and said
 /// "Backup created." — the user could never reach it. UX-003: the JSON
 /// export was named and shared as a backup, and Restore rejected it as
 /// damaged.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late AppDatabase database;
 
   setUp(() async => database = await createInMemoryDatabase());
@@ -94,6 +98,58 @@ void main() {
     });
   });
 
+  group('a data export says what happened to the file', () {
+    setUp(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            (_) async => Directory.systemTemp.path,
+          );
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            null,
+          );
+    });
+
+    for (final csv in [true, false]) {
+      final kind = csv ? 'CSV' : 'data file';
+      test('a closed share sheet is not "$kind exported"', () async {
+        await seed();
+        final delivery = _Delivery(FileDeliveryOutcome.cancelled);
+        final useCase = ExportDataUseCase(
+          exportService: ExportService(database: database, delivery: delivery),
+        );
+
+        final result = await useCase(csv: csv);
+
+        expect((result as SettingsSuccess<String>).data, 'Export cancelled.');
+        expect(delivery.destination, FileDestination.share);
+        expect(delivery.extension, csv ? 'csv' : 'json');
+        await delivery.file!.delete();
+      });
+
+      test('a shared $kind says so', () async {
+        await seed();
+        final delivery = _Delivery(FileDeliveryOutcome.shared);
+        final useCase = ExportDataUseCase(
+          exportService: ExportService(database: database, delivery: delivery),
+        );
+
+        final result = await useCase(csv: csv);
+
+        expect(
+          (result as SettingsSuccess<String>).data,
+          csv ? 'CSV exported.' : 'Data file exported.',
+        );
+        await delivery.file!.delete();
+      });
+    }
+  });
+
   group('UX-003: exports and backups are told apart', () {
     test('a data export is marked as one', () async {
       final data = await ExportService(database: database).collectJsonData();
@@ -119,7 +175,10 @@ void main() {
       final file = File('${Directory.systemTemp.path}/ux003_export.json');
       await file.writeAsString(jsonEncode(data));
       final useCase = RestoreDataUseCase(
-        backupService: BackupService(database: database),
+        backupService: BackupService(
+          database: database,
+          reconcileTabs: reconcileTabsOn(database),
+        ),
       );
 
       final result = await useCase(file.path);
@@ -135,12 +194,16 @@ void main() {
       await seed();
       final payload = await BackupService(
         database: database,
+        reconcileTabs: reconcileTabsOn(database),
       ).buildBackupPayload();
       final file = File('${Directory.systemTemp.path}/ux003_backup.json');
       await file.writeAsString(jsonEncode(payload));
 
       final result = await RestoreDataUseCase(
-        backupService: BackupService(database: database),
+        backupService: BackupService(
+          database: database,
+          reconcileTabs: reconcileTabsOn(database),
+        ),
       )(file.path);
 
       expect(result, isA<SettingsSuccess>());
@@ -152,7 +215,11 @@ void main() {
 /// path_provider, which tests do not have.
 class _TempBackupService extends BackupService {
   _TempBackupService(AppDatabase database)
-    : super(database: database, appVersionResolver: () async => '1.0.0');
+    : super(
+        database: database,
+        reconcileTabs: reconcileTabsOn(database),
+        appVersionResolver: () async => '1.0.0',
+      );
 
   @override
   Future<String> createBackup() async {

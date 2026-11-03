@@ -16,7 +16,6 @@ class AppUpdateBloc extends Bloc<AppUpdateEvent, AppUpdateState> {
       super(const AppUpdateInitial()) {
     on<AppUpdateCheckOnLaunch>(_onCheckOnLaunch);
     on<AppUpdateManualCheck>(_onManualCheck);
-    on<AppUpdateDismissed>(_onDismissed);
   }
 
   Future<void> _onCheckOnLaunch(
@@ -70,10 +69,5 @@ class AppUpdateBloc extends Bloc<AppUpdateEvent, AppUpdateState> {
         );
         break;
     }
-  }
-
-  void _onDismissed(AppUpdateDismissed event, Emitter<AppUpdateState> emit) {
-    // Reset so manual checks from settings can still emit update-available.
-    // But do NOT reset _launchDialogShown — it stays true for this session.
   }
 }

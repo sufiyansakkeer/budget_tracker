@@ -51,11 +51,28 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
 
   Future<void> _pick(ImageSourceOption option) async {
     final service = ReceiptStorageService.instance;
-    final path = switch (option) {
-      ImageSourceOption.camera => await service.captureReceipt(),
-      ImageSourceOption.gallery => await service.pickReceiptFromGallery(),
-    };
-    if (path != null) widget.onChanged(path);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final path = switch (option) {
+        ImageSourceOption.camera => await service.captureReceipt(),
+        ImageSourceOption.gallery => await service.pickReceiptFromGallery(),
+      };
+      if (path != null) widget.onChanged(path);
+    } catch (e) {
+      // Camera access denied, no camera, a full disk.
+      debugPrint('[error] Attaching a receipt: $e');
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              option == ImageSourceOption.camera
+                  ? "Couldn't open the camera. Check Monivo can use it."
+                  : "Couldn't attach that image. Try another.",
+            ),
+          ),
+        );
+    }
   }
 
   Future<void> _showPicker() async {

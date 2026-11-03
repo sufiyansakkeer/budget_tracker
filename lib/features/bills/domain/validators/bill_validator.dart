@@ -1,5 +1,6 @@
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/currency/money_math.dart';
+import '../entities/bill_entity.dart';
 
 /// Reusable, pure validation logic for bill inputs.
 /// Kept outside the UI so it can be unit-tested independently.
@@ -59,12 +60,13 @@ class BillValidator {
     return null;
   }
 
-  /// Validates a due date is not in the past.
-  static String? validateDueDate(DateTime? date, {DateTime? now}) {
+  /// Validates that a due date is set. A past date is allowed: the bill is
+  /// then overdue.
+  static String? validateDueDate(DateTime? date) {
     if (date == null) {
       return 'Please select a due date';
     }
-    return null; // Bills CAN have past due dates (overdue).
+    return null;
   }
 
   /// Validates a note length.
@@ -87,6 +89,18 @@ class BillValidator {
     }
     return null;
   }
+
+  /// Every rule a bill must meet to be saved, the same for a new bill and an
+  /// edit. Returns the first problem, or null when the bill is valid.
+  static String? check(BillEntity bill) =>
+      validateTitle(bill.title) ??
+      validateAmountValue(bill.amount) ??
+      validateDueDate(bill.dueDate) ??
+      validateNote(bill.note) ??
+      validateRecurrence(
+        isRecurring: bill.isRecurring,
+        recurrenceInterval: bill.recurrenceInterval,
+      );
 
   /// Validates reminder offset.
   static String? validateReminderOffset(int offsetDays) {

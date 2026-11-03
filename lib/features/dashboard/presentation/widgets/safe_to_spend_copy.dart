@@ -43,14 +43,6 @@ abstract final class SafeToSpendCopy {
     return units != 0 && value < 0 ? '−$text' : text;
   }
 
-  /// Decimals to show an exact [value] with: the currency's when it has a
-  /// fraction at that precision, otherwise none.
-  static int digitsFor(double value, String currency) {
-    final digits = CurrencyFormatter.decimalDigitsFor(currency);
-    final factor = _pow10(digits);
-    return (value.abs() * factor).round() % factor == 0 ? 0 : digits;
-  }
-
   /// A "safe" figure, floored to the digits shown (never more than is safe).
   static String safeAmount(double value, String currency) =>
       CurrencyFormatter.formatFloored(value, code: currency);
@@ -219,10 +211,6 @@ abstract final class SafeToSpendCopy {
   }
 
   // ── Hero ─────────────────────────────────────────────────────────────────
-
-  /// "Groceries · until 31 Oct".
-  static String heroSubline(SafeToSpendEntity e) =>
-      '${e.budgetName} · until ${date(e.endDate)}';
 
   /// One label for the hero's figures, read as a single unit.
   static String heroSemantics(SafeToSpendEntity e) {

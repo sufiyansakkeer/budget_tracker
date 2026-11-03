@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
@@ -14,6 +16,7 @@ import 'package:monivo/features/budget/presentation/pages/budget_list_screen.dar
 import 'package:monivo/features/budget/presentation/widgets/budget_list_items.dart';
 
 import '../../../../helpers/bill_ui_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 /// Budgets whose statistics can be set per budget.
 class _StatsBudgetRepository extends ListBudgetRepository {
@@ -30,6 +33,15 @@ class _StatsBudgetRepository extends ListBudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => stats[budgetId] ?? MonthlyStatisticsEntity.empty;
+
+  /// Makes a delete fail, as when the database is busy.
+  bool failDelete = false;
+
+  @override
+  Future<void> deleteBudget(String id) async {
+    if (failDelete) throw Exception('database is locked');
+    await super.deleteBudget(id);
+  }
 }
 
 BudgetEntity _budget(
@@ -95,6 +107,7 @@ void main() {
   );
 
   late _StatsBudgetRepository repository;
+  late FakeReconcileTabUseCase reconcileTabs;
 
   Future<void> register(
     List<BudgetEntity> budgets,
@@ -103,9 +116,13 @@ void main() {
   }) async {
     await getIt.reset();
     repository = _StatsBudgetRepository(budgets, activeId, stats: stats);
+    reconcileTabs = FakeReconcileTabUseCase();
     getIt
       ..registerSingleton<ManageBudgetUseCase>(
-        ManageBudgetUseCase(repository: repository),
+        ManageBudgetUseCase(
+          repository: repository,
+          reconcileTabs: reconcileTabs,
+        ),
       )
       ..registerSingleton<BudgetRepository>(repository)
       ..registerSingleton<GetBudgetListSummaryUseCase>(
@@ -244,6 +261,156 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.activeId, 'personal');
       expect(find.byKey(const Key('budgetAddExpense')), findsOneWidget);
+    });
+
+    testWidgets('after a failed delete the screen still follows changes', (
+      tester,
+    ) async {
+      await register([household, personal], 'household');
+      repository.failDelete = true;
+      await pump(tester, const BudgetDetailsScreen(budgetId: 'personal'));
+
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining("Couldn't delete the budget."), findsOne);
+
+      // Renamed elsewhere: the details screen picks it up.
+      final index = repository.budgets.indexWhere((b) => b.id == 'personal');
+      repository.budgets[index] = personal.copyWith(name: 'Renamed');
+      RefreshBuses.budgets.notifyChanged();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Renamed'), findsWidgets);
+    });
+
+    group('delete confirmation with Pay later purchases', () {
+      Future<void> openDelete(WidgetTester tester) async {
+        await pump(tester, const BudgetDetailsScreen(budgetId: 'personal'));
+        await tester.tap(find.byTooltip('More actions'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+      }
+
+      const tabLine =
+          '3 purchases on Pay later tabs will be removed from their tabs; '
+          'any money paid on them moves to other purchases or stays as '
+          'credit.';
+
+      testWidgets('names the tab purchases inside the budget and tells '
+          'Pay later screens after the delete', (tester) async {
+        await register([household, personal], 'household');
+        reconcileTabs.purchasesInBudget = 3;
+        var payLaterNotices = 0;
+        final subscription = RefreshBuses.payLater.changes.listen(
+          (_) => payLaterNotices++,
+        );
+        addTearDown(subscription.cancel);
+        // A real router, so the screen can pop once the budget is gone.
+        tester.view.physicalSize = const Size(400, 1200);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp.router(
+            theme: AppTheme.lightTheme,
+            routerConfig: GoRouter(
+              initialLocation: '/budget',
+              routes: [
+                GoRoute(
+                  path: '/',
+                  builder: (_, _) => const Scaffold(body: Text('Budgets')),
+                  routes: [
+                    GoRoute(
+                      path: 'budget',
+                      builder: (_, _) =>
+                          const BudgetDetailsScreen(budgetId: 'personal'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('More actions'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining(tabLine), findsOneWidget);
+        expect(
+          reconcileTabs.calls,
+          contains('countPurchasesInBudget:personal'),
+        );
+
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+        expect(reconcileTabs.calls, contains('aroundBudgetDelete:personal'));
+        expect(repository.budgets.any((b) => b.id == 'personal'), isFalse);
+        expect(find.text('Budget deleted'), findsOneWidget);
+        expect(find.text('Budgets'), findsOneWidget);
+        expect(payLaterNotices, 1);
+      });
+
+      testWidgets('says "1 purchase" in the singular', (tester) async {
+        await register([household, personal], 'household');
+        reconcileTabs.purchasesInBudget = 1;
+        await openDelete(tester);
+
+        expect(
+          find.textContaining(
+            '1 purchase on a Pay later tab will be removed from its tab; '
+            'any money paid on it moves to other purchases or stays as '
+            'credit.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('leaves the line out when there are none', (tester) async {
+        await register([household, personal], 'household');
+        var payLaterNotices = 0;
+        final subscription = RefreshBuses.payLater.changes.listen(
+          (_) => payLaterNotices++,
+        );
+        addTearDown(subscription.cancel);
+        await openDelete(tester);
+
+        expect(find.text('Delete this budget?'), findsOneWidget);
+        expect(find.textContaining('Pay later'), findsNothing);
+
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+        expect(payLaterNotices, 0);
+      });
+
+      testWidgets('still asks, without the line, when the count fails', (
+        tester,
+      ) async {
+        await register([household, personal], 'household');
+        reconcileTabs.countError = StateError('database is locked');
+        var payLaterNotices = 0;
+        final subscription = RefreshBuses.payLater.changes.listen(
+          (_) => payLaterNotices++,
+        );
+        addTearDown(subscription.cancel);
+        await openDelete(tester);
+
+        expect(find.text('Delete this budget?'), findsOneWidget);
+        expect(find.textContaining('Pay later'), findsNothing);
+
+        // The delete still runs, reconciling tabs, and Pay later screens
+        // are told (the count is unknown, so tabs may have changed).
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+        expect(reconcileTabs.calls, contains('aroundBudgetDelete:personal'));
+        expect(repository.budgets.any((b) => b.id == 'personal'), isFalse);
+        expect(payLaterNotices, 1);
+      });
     });
 
     testWidgets('an archived budget offers neither, only Restore', (

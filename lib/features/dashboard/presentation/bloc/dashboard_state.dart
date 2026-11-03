@@ -7,7 +7,6 @@ import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../../domain/entities/smart_insight_entity.dart';
 import '../../domain/entities/spending_pace.dart';
-import '../../domain/entities/spending_target_entity.dart';
 
 abstract class DashboardState extends Equatable {
   const DashboardState();
@@ -30,8 +29,9 @@ class DashboardLoaded extends DashboardState {
   final List<SmartInsight> insights;
   final List<BillEntity> upcomingBills;
 
-  /// Legacy daily/weekly target for the active budget only (never combined).
-  final SpendingTargetEntity? spendingTarget;
+  /// The bills could not be read, so [upcomingBills] is empty for that
+  /// reason rather than because none are due.
+  final bool upcomingBillsUnavailable;
 
   /// Per-budget daily spending limits — one entry per active budget.
   ///
@@ -58,7 +58,7 @@ class DashboardLoaded extends DashboardState {
     required this.recentExpenses,
     required this.insights,
     this.upcomingBills = const [],
-    this.spendingTarget,
+    this.upcomingBillsUnavailable = false,
     this.budgetDailyLimits = const [],
     this.activeBudgetId,
     this.activeBudgetArchived = false,
@@ -92,7 +92,7 @@ class DashboardLoaded extends DashboardState {
     recentExpenses,
     insights,
     upcomingBills,
-    spendingTarget,
+    upcomingBillsUnavailable,
     budgetDailyLimits,
     activeBudgetId,
     activeBudgetArchived,
@@ -110,6 +110,9 @@ class DashboardNotRunning extends DashboardState {
   final List<RecentExpenseEntity> recentExpenses;
   final List<BillEntity> upcomingBills;
 
+  /// The bills could not be read (see [DashboardLoaded.upcomingBillsUnavailable]).
+  final bool upcomingBillsUnavailable;
+
   /// Daily limits of the other budgets that are running today.
   final List<BudgetDailyLimitEntity> otherBudgetLimits;
 
@@ -118,6 +121,7 @@ class DashboardNotRunning extends DashboardState {
     required this.safeToSpend,
     this.recentExpenses = const [],
     this.upcomingBills = const [],
+    this.upcomingBillsUnavailable = false,
     this.otherBudgetLimits = const [],
   });
 
@@ -127,6 +131,7 @@ class DashboardNotRunning extends DashboardState {
     safeToSpend,
     recentExpenses,
     upcomingBills,
+    upcomingBillsUnavailable,
     otherBudgetLimits,
   ];
 }

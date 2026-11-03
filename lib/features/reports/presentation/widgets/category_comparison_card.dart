@@ -13,6 +13,7 @@ import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../domain/entities/category_comparison.dart';
 import '../../domain/entities/report_period.dart';
 import 'chart_card.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Which categories moved most versus the previous period.
 ///
@@ -45,8 +46,8 @@ class CategoryComparisonCard extends StatelessWidget {
     final rows = comparison.take(maxRows).toList();
     final iconById = {for (final c in categories) c.id: c.icon};
     final days = range.dayCount;
-    final previousStart = range.start.subtract(Duration(days: days));
-    final previousEnd = range.start.subtract(const Duration(days: 1));
+    final previousStart = range.start.addDays(-days);
+    final previousEnd = range.start.addDays(-1);
     final fmt = DateFormat('d MMM');
     final s = CurrencyFormatter.symbolFor(currency);
 

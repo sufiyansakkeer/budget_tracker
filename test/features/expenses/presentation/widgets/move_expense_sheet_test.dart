@@ -93,4 +93,24 @@ void main() {
 
     expect(results.single?.id, 'home');
   });
+  // Pay later spec §5: a purchase on a tab can't move to a budget in
+  // another currency. Its budget is in the tab's currency, so the sheet's
+  // same-currency rule already blocks it; nothing tab-specific is needed.
+  testWidgets('a tab purchase can only move within its tab\'s currency', (
+    tester,
+  ) async {
+    final results = await open(tester);
+
+    expect(
+      tester.widget<ListTile>(find.byKey(const Key('moveTarget_trip'))).enabled,
+      isFalse,
+    );
+    await tester.tap(find.byKey(const Key('moveTarget_trip')));
+    await tester.pumpAndSettle();
+    expect(results, isEmpty);
+
+    await tester.tap(find.byKey(const Key('moveTarget_home')));
+    await tester.pumpAndSettle();
+    expect(results.single?.currency, 'INR');
+  });
 }

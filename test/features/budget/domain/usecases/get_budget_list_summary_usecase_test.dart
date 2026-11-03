@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
@@ -25,8 +26,8 @@ void main() {
     // Relative to the real clock: BudgetEntity.isActive uses DateTime.now().
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final startDate = today.subtract(const Duration(days: 10));
-    final endDate = today.add(const Duration(days: 20));
+    final startDate = today.addDays(-10);
+    final endDate = today.addDays(20);
 
     test('returns empty summary when no budgets exist', () async {
       when(
@@ -166,8 +167,8 @@ void main() {
         monthlyAmount: 10000,
         remainingAmount: 8000,
         currency: 'INR',
-        startDate: today.subtract(const Duration(days: 60)),
-        endDate: today.subtract(const Duration(days: 30)),
+        startDate: today.addDays(-60),
+        endDate: today.addDays(-30),
         isArchived: false,
         createdAt: now,
         updatedAt: now,

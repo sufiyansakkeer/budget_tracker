@@ -18,6 +18,7 @@ import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import '../../../../helpers/bill_payment_fakes.dart';
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 final household = BudgetEntity(
   id: 'household',
@@ -65,7 +66,10 @@ void main() {
     getIt
       ..registerSingleton<BillRepository>(bills)
       ..registerSingleton<ManageBudgetUseCase>(
-        ManageBudgetUseCase(repository: ListBudgetRepository([household])),
+        ManageBudgetUseCase(
+          repository: ListBudgetRepository([household]),
+          reconcileTabs: FakeReconcileTabUseCase(),
+        ),
       )
       ..registerSingleton<PayBillUseCase>(payBill)
       ..registerSingleton<MarkBillUnpaidUseCase>(
@@ -176,7 +180,10 @@ void main() {
       Future<void> useBudget(BudgetEntity budget) async {
         await getIt.unregister<ManageBudgetUseCase>();
         getIt.registerSingleton<ManageBudgetUseCase>(
-          ManageBudgetUseCase(repository: ListBudgetRepository([budget])),
+          ManageBudgetUseCase(
+            repository: ListBudgetRepository([budget]),
+            reconcileTabs: FakeReconcileTabUseCase(),
+          ),
         );
       }
 

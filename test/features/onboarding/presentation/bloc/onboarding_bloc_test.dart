@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 class FakeOnboardingRepository implements OnboardingRepository {
   bool isFirstLaunch = true;
   onboarding.BudgetEntity? createdBudget;
+  final createdIds = <String>{};
 
   @override
   Future<bool> checkIsFirstLaunch() async => isFirstLaunch;
@@ -27,10 +28,15 @@ class FakeOnboardingRepository implements OnboardingRepository {
   @override
   Future<void> createInitialBudget(onboarding.BudgetEntity budget) async {
     createdBudget = budget;
+    createdIds.add(budget.id);
   }
 }
 
 class FakeBudgetRepository implements BudgetRepository {
+  /// How many of the next setActiveBudgetId calls fail.
+  int failActivations = 0;
+  String? activeId;
+
   @override
   Future<T> transaction<T>(Future<T> Function() action) => action();
 
@@ -41,7 +47,13 @@ class FakeBudgetRepository implements BudgetRepository {
   Future<String?> getActiveBudgetId() async => null;
 
   @override
-  Future<void> setActiveBudgetId(String budgetId) async {}
+  Future<void> setActiveBudgetId(String budgetId) async {
+    if (failActivations > 0) {
+      failActivations--;
+      throw StateError('preferences unavailable');
+    }
+    activeId = budgetId;
+  }
 
   @override
   Future<BudgetEntity?> getBudgetById(String id) async => null;
@@ -89,12 +101,6 @@ class FakeBudgetRepository implements BudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => 0;
-
-  @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 1;
 
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
@@ -291,6 +297,35 @@ void main() {
       },
     );
 
+    test('a failed step leaves onboarding open, and a retry makes no second '
+        'budget', () async {
+      budgetRepository.failActivations = 1;
+      final bloc = buildBloc()
+        ..emit(
+          OnboardingState(
+            startDate: DateTime(2026, 8, 1),
+            endDate: DateTime(2026, 8, 31),
+            budgetNameInput: 'Personal',
+            monthlyBudgetInput: '30000',
+            parsedBudget: 30000.0,
+          ),
+        );
+
+      bloc.add(const OnboardingSubmittedEvent());
+      await bloc.stream.firstWhere((s) => s.status == OnboardingStatus.failure);
+      // Not marked done: the app would leave onboarding with no active
+      // budget.
+      expect(onboardingRepository.isFirstLaunch, isTrue);
+
+      bloc.add(const OnboardingSubmittedEvent());
+      await bloc.stream.firstWhere((s) => s.status == OnboardingStatus.success);
+
+      expect(onboardingRepository.createdIds, hasLength(1));
+      expect(budgetRepository.activeId, onboardingRepository.createdIds.single);
+      expect(onboardingRepository.isFirstLaunch, isFalse);
+      await bloc.close();
+    });
+
     blocTest<OnboardingBloc, OnboardingState>(
       'invalid form does not proceed',
       build: buildBloc,
@@ -366,5 +401,38 @@ void main() {
             .having((s) => s.endDate, 'endDate', DateTime(2026, 3, 8)),
       ],
     );
+  });
+
+  group('the amount follows the budget rules', () {
+    test('an amount past the limit is refused, not taken on', () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+      bloc.add(
+        const OnboardingCurrencySelectedEvent(code: 'OMR', symbol: 'OMR'),
+      );
+      bloc.add(const OnboardingBudgetInputChangedEvent('10000000000000'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.parsedBudget, isNull);
+      expect(bloc.state.budgetValidationError, isNotNull);
+    });
+
+    test('changing the currency checks the amount again', () async {
+      // 12.125 is fine in OMR (three decimals) but not in INR (two).
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+      bloc.add(
+        const OnboardingCurrencySelectedEvent(code: 'OMR', symbol: 'OMR'),
+      );
+      bloc.add(const OnboardingBudgetInputChangedEvent('12.125'));
+      await Future<void>.delayed(Duration.zero);
+      expect(bloc.state.parsedBudget, 12.125);
+
+      bloc.add(const OnboardingCurrencySelectedEvent(code: 'INR', symbol: '₹'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.parsedBudget, isNull);
+      expect(bloc.state.budgetValidationError, isNotNull);
+    });
   });
 }

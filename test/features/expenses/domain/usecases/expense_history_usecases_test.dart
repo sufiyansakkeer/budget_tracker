@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
@@ -320,15 +321,13 @@ void main() {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final groups = useCase([
-        expense(id: 'yesterday', date: today.subtract(const Duration(days: 1))),
-        expense(id: 'older', date: today.subtract(const Duration(days: 2))),
+        expense(id: 'yesterday', date: today.addDays(-1)),
+        expense(id: 'older', date: today.addDays(-2)),
       ]);
 
       expect(groups.map((group) => group.label), [
         'Yesterday',
-        DateFormat(
-          'd MMM yyyy',
-        ).format(today.subtract(const Duration(days: 2))),
+        DateFormat('d MMM yyyy').format(today.addDays(-2)),
       ]);
     });
 
@@ -354,7 +353,7 @@ void main() {
     test('groups today and earlier', () {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      final old = today.subtract(const Duration(days: 100));
+      final old = today.addDays(-100);
       final groups = useCase([
         expense(id: '1', date: today),
         expense(id: '2', date: old),
@@ -367,7 +366,7 @@ void main() {
     test('groups yesterday correctly', () {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      final yesterday = today.subtract(const Duration(days: 1));
+      final yesterday = today.addDays(-1);
       final groups = useCase([expense(id: '1', date: yesterday)]);
       expect(groups.length, 1);
       expect(groups.first.type.label, 'Yesterday');

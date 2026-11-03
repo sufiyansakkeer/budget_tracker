@@ -21,18 +21,27 @@ import '../../helpers/safe_to_spend_fakes.dart';
 class RecordingNotificationService extends NotificationService {
   RecordingNotificationService(FakeBudgetRepository repository)
     : super(
-        budgetRepository: repository,
-        calculationService: BudgetCalculationService(),
         spendingTargetsUseCase: GetSpendingTargetsUseCase(
           repository: repository,
           calculationService: BudgetCalculationService(),
           safeToSpend: fakeSafeToSpendUseCase(repository),
         ),
+        rescheduleTabReminders: () async {},
+        onPayLaterTap: (_) {},
       );
 
   int scheduleCount = 0;
   AppSettings? lastSettings;
   bool throwOnSchedule = false;
+
+  /// What the permission prompt answers at startup.
+  bool grantPermission = true;
+
+  @override
+  Future<bool> initialize() async => true;
+
+  @override
+  Future<bool> requestPermission() async => grantPermission;
 
   @override
   Future<void> scheduleAll(AppSettings settings) async {
@@ -106,6 +115,20 @@ void main() {
     addTearDown(bloc.close);
 
     RefreshBuses.bills.notifyChanged();
+    await Future<void>.delayed(debounce * 4);
+
+    expect(service.scheduleCount, 1);
+  });
+
+  test('after the permission was refused at startup, data changes still '
+      're-schedule (it can be allowed later in system settings)', () async {
+    service.grantPermission = false;
+    final bloc = build();
+    addTearDown(bloc.close);
+    await bloc.initializeOnStartup();
+    expect(bloc.state.status, NotificationStatus.permissionDenied);
+
+    RefreshBuses.expenses.notifyChanged();
     await Future<void>.delayed(debounce * 4);
 
     expect(service.scheduleCount, 1);

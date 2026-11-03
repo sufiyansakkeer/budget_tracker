@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -23,6 +24,8 @@ import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart'
 import 'package:monivo/features/settings/domain/services/backup_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/pay_later_fixtures.dart';
 
 /// One "run" of the app against a database *file*: the real datasources and
 /// repositories over a Drift connection that is closed at the end, so the
@@ -117,7 +120,7 @@ void main() {
       remainingAmount: amount,
       currency: currency,
       startDate: s,
-      endDate: end ?? s.add(const Duration(days: 30)),
+      endDate: end ?? s.addDays(30),
       color: color,
       notes: notes,
       createdAt: createdAt,
@@ -310,6 +313,7 @@ void main() {
         );
         payload = await BackupService(
           database: app.database,
+          reconcileTabs: reconcileTabsOn(app.database),
           appVersionResolver: () async => 'test',
         ).buildBackupPayload();
       });
@@ -321,6 +325,7 @@ void main() {
         await app.budgets.setActiveBudgetId('current');
         await BackupService(
           database: app.database,
+          reconcileTabs: reconcileTabsOn(app.database),
           appVersionResolver: () async => 'test',
         ).restore(backupFile.path);
       });
@@ -395,13 +400,9 @@ void main() {
             updatedAt: createdAt,
           );
       await run((app) async {
-        await app.bills.createBill(
-          bill('overdue', todayDate.subtract(const Duration(days: 3))),
-        );
+        await app.bills.createBill(bill('overdue', todayDate.addDays(-3)));
         await app.bills.createBill(bill('today', todayDate));
-        await app.bills.createBill(
-          bill('soon', todayDate.add(const Duration(days: 5))),
-        );
+        await app.bills.createBill(bill('soon', todayDate.addDays(5)));
         await app.bills.createBill(bill('done', todayDate, paid: true));
       });
 

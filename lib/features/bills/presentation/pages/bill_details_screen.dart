@@ -83,8 +83,9 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
         _budgetsById = {for (final b in budgets) b.id: b};
         _budgetsLoaded = true;
       });
-    } catch (_) {
+    } catch (e) {
       // The "Paid from" line falls back to a neutral label.
+      debugPrint('[error] Loading budgets for a bill: $e');
     }
   }
 
@@ -110,7 +111,8 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
         _payments = payments;
         _paymentsFailed = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading bill payments: $e');
       if (mounted) setState(() => _paymentsFailed = true);
     }
   }

@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/database/app_database.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
@@ -26,6 +27,7 @@ import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../helpers/in_memory_database.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 /// Verifies that the Dashboard rebuilds with the updated budget amount after
 /// a budget is edited through the normal ManageBudgetUseCase → repository
@@ -63,7 +65,10 @@ void main() {
       localDataSource: expenseDataSource,
       budgetRepository: budgetRepository,
     );
-    manageBudget = ManageBudgetUseCase(repository: budgetRepository);
+    manageBudget = ManageBudgetUseCase(
+      repository: budgetRepository,
+      reconcileTabs: FakeReconcileTabUseCase(),
+    );
 
     final billRepository = BillRepositoryImpl(
       localDataSource: BillLocalDataSourceImpl(database: database),
@@ -98,8 +103,8 @@ void main() {
 
     final now = DateTime.now();
     today = DateTime(now.year, now.month, now.day);
-    periodStart = today.subtract(const Duration(days: 9));
-    periodEnd = today.add(const Duration(days: 20));
+    periodStart = today.addDays(-9);
+    periodEnd = today.addDays(20);
   });
 
   tearDown(() async {
@@ -185,10 +190,6 @@ void main() {
       limitA.dailyLimit,
       closeTo(after.budgetSummary.dailySafeSpending, 1e-9),
     );
-
-    // Spending target derived for the active budget.
-    expect(after.spendingTarget, isNotNull);
-    expect(after.spendingTarget!.dailyTarget, closeTo(limitA.dailyLimit, 1e-9));
 
     // Smart insights are regenerated from the new summary (never empty).
     expect(after.insights, isNotEmpty);

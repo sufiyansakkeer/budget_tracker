@@ -256,18 +256,15 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
       return;
     }
     setState(() => _isLaunching = true);
-    try {
-      await UpdateDialogService.viewRelease(widget.result);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(content: Text('Unable to open the release page.')),
-          );
-      }
-    } finally {
-      if (mounted) setState(() => _isLaunching = false);
+    final opened = await UpdateDialogService.viewRelease(widget.result);
+    if (!mounted) return;
+    setState(() => _isLaunching = false);
+    if (!opened) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Unable to open the release page.')),
+        );
     }
   }
 

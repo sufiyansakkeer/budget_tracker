@@ -79,12 +79,6 @@ class BiometricService {
     );
   }
 
-  /// Whether the device can use biometrics at all.
-  Future<bool> canUseBiometrics() async {
-    final availability = await getAvailability();
-    return availability.isDeviceSupported && availability.hasBiometrics;
-  }
-
   /// Prompts the user to unlock the app with biometrics or the device's
   /// screen lock, and says how it went. Never reports [LockAuthResult.success]
   /// unless the platform confirmed the user.

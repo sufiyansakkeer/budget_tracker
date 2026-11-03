@@ -41,6 +41,8 @@ No repository or environment variables are required. The CI workflows pin `FLUTT
 
 The version lives only in `pubspec.yaml` (`1.0.0+1` at the time of writing). A version that has no `vX.Y.Z` tag yet is released exactly as written: merging with `1.0.0+1` publishes `v1.0.0`, tags the merge commit and makes no version commit. Once that tag exists, each later `main` release increments the patch and build components (`1.0.0+1` becomes `1.0.1+2`) and commits the new version. To ship a minor or major version, set it in `pubspec.yaml` in the pull request (for example `1.1.0+5`); the merge releases it as written. `pubspec.yaml` is the only version source. Flutter maps the name to Android `versionName`/iOS `CFBundleShortVersionString` and the build number to Android `versionCode`/iOS `CFBundleVersion`; the release build also passes both values explicitly to Flutter.
 
+The release text comes from `RELEASE_NOTES.md` when its first line is `# Monivo X.Y.Z` for the version being released; otherwise it is just the version and build number. The app's update dialog shows this text under "What's new?", so update `RELEASE_NOTES.md` and its heading in the pull request that ships a version worth describing.
+
 Do not create release tags manually for normal production releases. The workflow creates `v1.0.3` from `1.0.3+3`:
 
 ```bash

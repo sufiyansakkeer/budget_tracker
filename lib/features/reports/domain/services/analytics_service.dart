@@ -6,7 +6,6 @@ import '../../../expenses/domain/entities/expense_history_filter.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../entities/category_analytics.dart';
 import '../entities/category_comparison.dart';
-import '../entities/category_slice.dart';
 import '../entities/daily_spending_point.dart';
 import '../entities/monthly_spending_bucket.dart';
 import '../entities/report_data.dart';
@@ -14,7 +13,7 @@ import '../entities/report_overview.dart';
 import '../entities/report_period.dart';
 import '../entities/spending_trend.dart';
 import '../entities/time_analytics.dart';
-import '../entities/weekly_comparison.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Pure calculation engine for all report analytics.
 ///
@@ -22,7 +21,10 @@ import '../entities/weekly_comparison.dart';
 /// deterministic and unit-testable. Existing repositories and the Budget
 /// Engine supply inputs; this service only derives report aggregates.
 class AnalyticsService {
-  const AnalyticsService();
+  /// "Now", for telling whether a range ends today; replaced in tests.
+  final DateTime Function() clock;
+
+  const AnalyticsService({this.clock = DateTime.now});
 
   /// Builds a complete [ReportData] snapshot for [range] from filtered expenses.
   ///
@@ -41,16 +43,6 @@ class AnalyticsService {
     double currentMonthSpent = 0,
     double currentMonthBudget = 0,
   }) {
-    final weeklyComparison =
-        range.period == ReportPeriod.thisWeek ||
-            range.period == ReportPeriod.lastWeek
-        ? calculateWeeklyComparison(
-            expenses: filteredExpenses,
-            range: range,
-            comparisonExpenses: comparisonExpenses,
-          )
-        : null;
-
     // Computed once and threaded through: the trend and the time analytics
     // each recomputed the same zero-filled series.
     final dailySpending = calculateDailySpending(
@@ -72,10 +64,6 @@ class AnalyticsService {
         expenses: filteredExpenses,
         range: range,
       ),
-      categorySlices: calculateCategorySlices(
-        expenses: filteredExpenses,
-        categories: categories,
-      ),
       categoryAnalytics: calculateCategoryAnalytics(
         expenses: filteredExpenses,
         categories: categories,
@@ -96,7 +84,6 @@ class AnalyticsService {
         comparisonExpenses: comparisonExpenses,
         dailySpending: dailySpending,
       ),
-      weeklyComparison: weeklyComparison,
       currency: currency,
       currentBudget: currentBudget,
       currentMonthSpent: currentMonthSpent,
@@ -138,14 +125,14 @@ class AnalyticsService {
   }) {
     final byDay = <DateTime, double>{};
     for (final expense in expenses) {
-      final day = _dateOnly(expense.date);
+      final day = expense.date.dateOnly;
       byDay[day] = (byDay[day] ?? 0) + expense.amount;
     }
 
     final points = <DailySpendingPoint>[];
     for (var i = 0; i < range.dayCount; i++) {
-      final date = range.start.add(Duration(days: i));
-      final key = _dateOnly(date);
+      final date = range.start.addDays(i);
+      final key = date.dateOnly;
       points.add(DailySpendingPoint(date: key, amount: byDay[key] ?? 0));
     }
     return points;
@@ -171,10 +158,10 @@ class AnalyticsService {
     var cursor = _startOfWeek(range.start);
     while (!cursor.isAfter(range.end)) {
       final weekStart = cursor;
-      final weekEnd = cursor.add(const Duration(days: 6));
+      final weekEnd = cursor.addDays(6);
       var amount = 0.0;
       for (final expense in expenses) {
-        final d = _dateOnly(expense.date);
+        final d = expense.date.dateOnly;
         if (!d.isBefore(weekStart) && !d.isAfter(weekEnd)) {
           amount += expense.amount;
         }
@@ -186,7 +173,7 @@ class AnalyticsService {
           startDate: weekStart,
         ),
       );
-      cursor = weekEnd.add(const Duration(days: 1));
+      cursor = weekEnd.addDays(1);
     }
     return buckets;
   }
@@ -203,7 +190,7 @@ class AnalyticsService {
       final monthEnd = DateTime(cursor.year, cursor.month + 1, 0);
       var amount = 0.0;
       for (final expense in expenses) {
-        final d = _dateOnly(expense.date);
+        final d = expense.date.dateOnly;
         if (!d.isBefore(monthStart) && !d.isAfter(monthEnd)) {
           amount += expense.amount;
         }
@@ -218,38 +205,6 @@ class AnalyticsService {
       cursor = DateTime(cursor.year, cursor.month + 1, 1);
     }
     return buckets;
-  }
-
-  /// Category distribution for the pie chart (as percentages of total).
-  List<CategorySlice> calculateCategorySlices({
-    required List<ExpenseEntity> expenses,
-    required List<ExpenseCategory> categories,
-  }) {
-    if (expenses.isEmpty) return const [];
-
-    final totals = <String, double>{};
-    for (final expense in expenses) {
-      totals[expense.categoryId] =
-          (totals[expense.categoryId] ?? 0) + expense.amount;
-    }
-
-    final total = totals.values.fold(0.0, (a, b) => a + b);
-    final nameById = {for (final c in categories) c.id: c.name};
-    final colorById = {for (final c in categories) c.id: c.colorHex};
-
-    final slices = totals.entries.map((entry) {
-      final categoryId = entry.key;
-      return CategorySlice(
-        categoryId: categoryId,
-        categoryName: nameById[categoryId] ?? 'Unknown',
-        colorHex: colorById[categoryId] ?? '#8395A7',
-        amount: entry.value,
-        percentage: total <= 0 ? 0 : (entry.value / total) * 100,
-      );
-    }).toList();
-
-    slices.sort((a, b) => b.amount.compareTo(a.amount));
-    return slices;
   }
 
   /// Full per-category analytics sorted by highest spending first.
@@ -270,23 +225,13 @@ class AnalyticsService {
 
     final result = perCategory.entries.map((entry) {
       final list = entry.value;
-      var sum = 0.0;
-      var highest = double.negativeInfinity;
-      var lowest = double.infinity;
-      for (final expense in list) {
-        sum += expense.amount;
-        if (expense.amount > highest) highest = expense.amount;
-        if (expense.amount < lowest) lowest = expense.amount;
-      }
+      final sum = list.fold<double>(0, (total, e) => total + e.amount);
       return CategoryAnalytics(
         categoryId: entry.key,
         categoryName: nameById[entry.key] ?? 'Unknown',
         colorHex: colorById[entry.key] ?? '#8395A7',
         totalAmount: sum,
         transactionCount: list.length,
-        averageTransaction: sum / list.length,
-        highestTransaction: highest,
-        lowestTransaction: lowest,
         percentageOfTotal: total <= 0 ? 0 : (sum / total) * 100,
       );
     }).toList();
@@ -308,20 +253,20 @@ class AnalyticsService {
     List<ExpenseEntity>? comparisonExpenses,
   }) {
     final dayCount = range.dayCount < 1 ? 1 : range.dayCount;
-    final currentStart = _dateOnly(range.start);
-    final currentEnd = _dateOnly(range.end);
-    final previousStart = currentStart.subtract(Duration(days: dayCount));
-    final previousEnd = currentStart.subtract(const Duration(days: 1));
+    final currentStart = range.start.dateOnly;
+    final currentEnd = range.end.dateOnly;
+    final previousStart = currentStart.addDays(-dayCount);
+    final previousEnd = currentStart.addDays(-1);
 
     final current = <String, double>{};
     for (final e in expenses) {
-      final d = _dateOnly(e.date);
+      final d = e.date.dateOnly;
       if (d.isBefore(currentStart) || d.isAfter(currentEnd)) continue;
       current[e.categoryId] = (current[e.categoryId] ?? 0) + e.amount;
     }
     final previous = <String, double>{};
     for (final e in comparisonExpenses ?? expenses) {
-      final d = _dateOnly(e.date);
+      final d = e.date.dateOnly;
       if (d.isBefore(previousStart) || d.isAfter(previousEnd)) continue;
       previous[e.categoryId] = (previous[e.categoryId] ?? 0) + e.amount;
     }
@@ -349,15 +294,13 @@ class AnalyticsService {
     return result;
   }
 
-  /// Time-based analytics: most/least active days, weekday & weekend totals.
+  /// Time-based analytics: the heaviest weekday, weekday & weekend totals.
   TimeAnalytics calculateTimeAnalytics({
     required List<ExpenseEntity> expenses,
     required ReportRange range,
   }) {
     if (expenses.isEmpty) return TimeAnalytics.empty;
 
-    final byDay = <DateTime, double>{};
-    final countByDay = <DateTime, int>{};
     final byWeekday = <int, double>{};
     final byWeekdayCount = <int, int>{};
 
@@ -365,10 +308,6 @@ class AnalyticsService {
     var weekendSpending = 0.0;
 
     for (final expense in expenses) {
-      final day = _dateOnly(expense.date);
-      byDay[day] = (byDay[day] ?? 0) + expense.amount;
-      countByDay[day] = (countByDay[day] ?? 0) + 1;
-
       final weekday = expense.date.weekday;
       byWeekday[weekday] = (byWeekday[weekday] ?? 0) + expense.amount;
       byWeekdayCount[weekday] = (byWeekdayCount[weekday] ?? 0) + 1;
@@ -377,36 +316,6 @@ class AnalyticsService {
         weekendSpending += expense.amount;
       } else {
         weekdaySpending += expense.amount;
-      }
-    }
-
-    DateTime? mostExpensiveDay;
-    DateTime? cheapestDay;
-    DateTime? mostActiveDay;
-    DateTime? leastActiveDay;
-    var maxAmount = double.negativeInfinity;
-    var minAmount = double.infinity;
-    var maxCount = -1;
-    var minCount = double.infinity;
-
-    for (final entry in byDay.entries) {
-      if (entry.value > maxAmount) {
-        maxAmount = entry.value;
-        mostExpensiveDay = entry.key;
-      }
-      if (entry.value < minAmount) {
-        minAmount = entry.value;
-        cheapestDay = entry.key;
-      }
-    }
-    for (final entry in countByDay.entries) {
-      if (entry.value > maxCount) {
-        maxCount = entry.value;
-        mostActiveDay = entry.key;
-      }
-      if (entry.value < minCount) {
-        minCount = entry.value.toDouble();
-        leastActiveDay = entry.key;
       }
     }
 
@@ -431,10 +340,6 @@ class AnalyticsService {
     }
 
     return TimeAnalytics(
-      mostExpensiveDay: mostExpensiveDay,
-      cheapestDay: cheapestDay,
-      mostActiveDay: mostActiveDay,
-      leastActiveDay: leastActiveDay,
       highestSpendingWeekday: highestWeekday,
       weekdaySpending: weekdaySpending,
       weekendSpending: weekendSpending,
@@ -465,13 +370,13 @@ class AnalyticsService {
 
     // Growth vs the immediately preceding equivalent-length range.
     var growthRate = 0.0;
-    final previousStart = range.start.subtract(Duration(days: dayCount));
-    final previousEnd = range.start.subtract(const Duration(days: 1));
+    final previousStart = range.start.addDays(-dayCount);
+    final previousEnd = range.start.addDays(-1);
     final previousTotal = (comparisonExpenses ?? expenses)
         .where((e) {
-          final d = _dateOnly(e.date);
-          return !d.isBefore(_dateOnly(previousStart)) &&
-              !d.isAfter(_dateOnly(previousEnd));
+          final d = e.date.dateOnly;
+          return !d.isBefore(previousStart.dateOnly) &&
+              !d.isAfter(previousEnd.dateOnly);
         })
         .fold<double>(0, (s, e) => s + e.amount);
 
@@ -496,15 +401,19 @@ class AnalyticsService {
       consistencyScore = (1 - cv).clamp(0.0, 1.0).toDouble();
     }
 
-    // Improving if the second half of the range is below the first half.
+    // Improving if the second half of the range is below the first half,
+    // over completed days: when the range ends today, today is still being
+    // spent and would make the second half look better.
+    final endsToday = calendarDaysBetween(range.end, clock()) == 0;
+    final completedDays = endsToday ? dayCount - 1 : dayCount;
     var improving = false;
-    if (dayCount >= 2) {
-      final split = dayCount ~/ 2;
+    if (completedDays >= 2) {
+      final split = completedDays ~/ 2;
       final firstHalf = _sumRange(expenses, range.start, split);
       final secondHalf = _sumRange(
         expenses,
-        range.start.add(Duration(days: split)),
-        dayCount - split,
+        range.start.addDays(split),
+        completedDays - split,
       );
       if (firstHalf > 0) {
         improving = secondHalf < firstHalf;
@@ -516,49 +425,18 @@ class AnalyticsService {
       weeklyAverage: weeklyAverage,
       monthlyAverage: monthlyAverage,
       growthRate: growthRate,
+      hasPreviousPeriod: previousTotal > 0,
       consistencyScore: consistencyScore,
       isImproving: improving,
     );
   }
 
-  /// Compares the selected range against the equal-length period immediately
-  /// before it (for a full week, that is the previous week).
-  ///
-  /// [comparisonExpenses], when provided, is searched for the preceding range
-  /// instead of [expenses].
-  WeeklyComparison calculateWeeklyComparison({
-    required List<ExpenseEntity> expenses,
-    required ReportRange range,
-    List<ExpenseEntity>? comparisonExpenses,
-  }) {
-    final current = _sumRange(expenses, range.start, range.dayCount);
-
-    final previousStart = range.start.subtract(Duration(days: range.dayCount));
-    final previous = _sumRange(
-      comparisonExpenses ?? expenses,
-      previousStart,
-      range.dayCount,
-    );
-
-    final difference = current - previous;
-    final percentageChange = previous > 0
-        ? ((current - previous) / previous) * 100
-        : (current > 0 ? 100.0 : 0.0);
-
-    return WeeklyComparison(
-      currentWeekSpending: current,
-      previousWeekSpending: previous,
-      difference: difference,
-      percentageChange: percentageChange,
-    );
-  }
-
   double _sumRange(List<ExpenseEntity> expenses, DateTime start, int days) {
-    final end = start.add(Duration(days: days - 1));
+    final end = start.addDays(days - 1);
     var total = 0.0;
     for (final expense in expenses) {
-      final d = _dateOnly(expense.date);
-      if (!d.isBefore(_dateOnly(start)) && !d.isAfter(_dateOnly(end))) {
+      final d = expense.date.dateOnly;
+      if (!d.isBefore(start.dateOnly) && !d.isAfter(end.dateOnly)) {
         total += expense.amount;
       }
     }
@@ -566,8 +444,8 @@ class AnalyticsService {
   }
 
   DateTime _startOfWeek(DateTime date) {
-    final day = _dateOnly(date);
-    return day.subtract(Duration(days: day.weekday - DateTime.monday));
+    final day = date.dateOnly;
+    return day.addDays(DateTime.monday - day.weekday);
   }
 
   String _bucketLabel(DateTime weekStart, DateTime rangeEnd) {
@@ -591,7 +469,4 @@ class AnalyticsService {
     ];
     return months[month.month - 1];
   }
-
-  DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
 }

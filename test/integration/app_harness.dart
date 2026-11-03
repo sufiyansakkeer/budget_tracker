@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:monivo/core/constants/preference_keys.dart';
 import 'package:monivo/core/data/models/budget_model.dart';
 import 'package:monivo/core/database/app_database.dart';
@@ -47,6 +48,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../helpers/in_memory_database.dart';
+import '../helpers/pay_later_fakes.dart';
 
 /// Wires the real datasources, repositories, use cases and BLoCs against an
 /// in-memory database — the same object graph `initDependencyInjection`
@@ -55,7 +57,10 @@ import '../helpers/in_memory_database.dart';
 /// Tests built on this exercise a whole flow end to end: a BLoC event goes
 /// through its use case and repository into SQLite, and the resulting state
 /// is read back through other features' BLoCs. Only platform services
-/// (notifications, biometrics, widgets, file pickers) are left out.
+/// (notifications, biometrics, widgets, file pickers) are left out, and Pay
+/// later, which is faked here ([FakeReconcileTabUseCase],
+/// [FakeTabPurchaseUseCase]): its real-database coverage lives in the Pay
+/// later use-case tests (`test/features/pay_later/`).
 class AppHarness {
   final AppDatabase database;
   final SharedPreferences preferences;
@@ -119,7 +124,10 @@ class AppHarness {
       expenseRepository: expenseRepository,
       billRepository: billRepository,
       calculationService: calculationService,
-      manageBudget: ManageBudgetUseCase(repository: budgetRepository),
+      manageBudget: ManageBudgetUseCase(
+        repository: budgetRepository,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
       getBudgetSummary: GetBudgetSummaryUseCase(
         repository: budgetRepository,
         calculationService: calculationService,
@@ -144,8 +152,8 @@ class AppHarness {
     getExpenseByIdUseCase: GetExpenseByIdUseCase(repository: expenseRepository),
     getExpensesUseCase: GetExpensesUseCase(repository: expenseRepository),
     getCategoriesUseCase: GetCategoriesUseCase(repository: expenseRepository),
-    repository: expenseRepository,
     budgetRepository: budgetRepository,
+    tabPurchases: FakeTabPurchaseUseCase(),
   );
 
   ExpenseHistoryBloc historyBloc() => ExpenseHistoryBloc(
@@ -219,7 +227,7 @@ class AppHarness {
       remainingAmount: amount,
       currency: currency,
       startDate: start,
-      endDate: endDate ?? start.add(const Duration(days: 29)),
+      endDate: endDate ?? start.addDays(29),
       createdAt: now,
       updatedAt: now,
     );

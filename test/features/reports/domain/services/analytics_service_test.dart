@@ -77,30 +77,6 @@ void main() {
     });
   });
 
-  group('calculateCategorySlices', () {
-    test('returns empty for no expenses', () {
-      final slices = service.calculateCategorySlices(
-        expenses: const [],
-        categories: categories,
-      );
-      expect(slices, isEmpty);
-    });
-
-    test('computes percentages and sorts by amount descending', () {
-      final slices = service.calculateCategorySlices(
-        expenses: [
-          expense(id: '1', amount: 300, categoryId: 'food'),
-          expense(id: '2', amount: 100, categoryId: 'grocery'),
-        ],
-        categories: categories,
-      );
-      expect(slices.length, 2);
-      expect(slices.first.categoryId, 'food');
-      expect(slices.first.percentage, 75);
-      expect(slices.last.percentage, 25);
-    });
-  });
-
   group('calculateCategoryAnalytics', () {
     test('returns empty for no expenses', () {
       final result = service.calculateCategoryAnalytics(
@@ -124,9 +100,6 @@ void main() {
       expect(result.first.categoryId, 'food');
       expect(result.first.totalAmount, 300);
       expect(result.first.transactionCount, 2);
-      expect(result.first.averageTransaction, 150);
-      expect(result.first.highestTransaction, 200);
-      expect(result.first.lowestTransaction, 100);
       expect(result.first.percentageOfTotal, 300 / 350 * 100);
     });
   });
@@ -160,11 +133,37 @@ void main() {
       );
       expect(analytics.weekdaySpending, 100);
       expect(analytics.weekendSpending, 200);
-      expect(analytics.mostExpensiveDay, DateTime(2026, 8, 1));
+      expect(analytics.highestSpendingWeekday, DateTime(2026, 8, 1).weekday);
     });
   });
 
   group('calculateTrend', () {
+    test('a range that ends today compares completed days only', () {
+      // On 2 August, with spending on the 1st and none yet today: today is
+      // still being spent, so it is not "a better second half".
+      final trend = AnalyticsService(clock: () => DateTime(2026, 8, 2, 10))
+          .calculateTrend(
+            expenses: [
+              ExpenseEntity(
+                id: 'a',
+                budgetId: 'b',
+                amount: 500,
+                categoryId: 'food',
+                date: DateTime(2026, 8, 1),
+                time: DateTime(2026, 8, 1, 12),
+                createdAt: DateTime(2026, 8, 1),
+                updatedAt: DateTime(2026, 8, 1),
+              ),
+            ],
+            range: ReportRange(
+              start: DateTime(2026, 8, 1),
+              end: DateTime(2026, 8, 2),
+              period: ReportPeriod.thisMonth,
+            ),
+          );
+      expect(trend.isImproving, isFalse);
+    });
+
     test('returns empty for no expenses', () {
       final trend = service.calculateTrend(
         expenses: const [],
@@ -194,27 +193,6 @@ void main() {
     });
   });
 
-  group('calculateWeeklyComparison', () {
-    test('computes difference and percentage change', () {
-      final range = ReportRange(
-        start: DateTime(2026, 8, 3),
-        end: DateTime(2026, 8, 9),
-        period: ReportPeriod.thisWeek,
-      );
-      final comparison = service.calculateWeeklyComparison(
-        expenses: [
-          expense(id: '1', amount: 100, date: DateTime(2026, 8, 3)),
-          expense(id: '2', amount: 50, date: DateTime(2026, 7, 27)),
-        ],
-        range: range,
-      );
-      expect(comparison.currentWeekSpending, 100);
-      expect(comparison.previousWeekSpending, 50);
-      expect(comparison.difference, 50);
-      expect(comparison.percentageChange, 100);
-    });
-  });
-
   group('buildReportData', () {
     test('produces a complete ReportData snapshot', () {
       final range = ReportRange(
@@ -230,7 +208,6 @@ void main() {
       );
       expect(data.overview.totalSpending, 100);
       expect(data.dailySpending.length, 31);
-      expect(data.categorySlices.length, 1);
       expect(data.categoryAnalytics.length, 1);
       expect(data.isEmpty, false);
     });

@@ -94,12 +94,6 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async => 0;
 
   @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 1;
-
-  @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
     DateTime? referenceDate,

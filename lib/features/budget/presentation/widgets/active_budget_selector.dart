@@ -7,7 +7,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../../../../core/constants/app_motion.dart';
@@ -66,6 +66,10 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
   BudgetEntity? _active;
   bool _loading = true;
 
+  /// The last read failed. With a budget already shown it stays on screen;
+  /// without one the selector says it couldn't load instead of "none".
+  bool _loadFailed = false;
+
   @override
   void initState() {
     super.initState();
@@ -86,10 +90,15 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
       setState(() {
         _active = active;
         _loading = false;
+        _loadFailed = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading the active budget: $e');
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _loadFailed = true;
+      });
     }
   }
 
@@ -112,20 +121,28 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
   Widget _buildContent(BuildContext context) {
     final theme = Theme.of(context);
     final budget = _active;
+    // Nothing to show and the read failed: retrying is the useful tap, as
+    // the switcher would read the same failing data.
+    final unreadable = budget == null && _loadFailed;
+    final VoidCallback onTap = unreadable
+        ? _loadActive
+        : () => ActiveBudgetSelector.open(context);
 
     return Semantics(
       button: true,
-      label: budget == null
+      label: unreadable
+          ? "Couldn't load your budget. Tap to try again"
+          : budget == null
           ? 'Choose a budget'
           : 'Active budget ${budget.name}, '
                 '${formatDateRange(budget.startDate, budget.endDate)}. '
                 'Tap to switch budget',
-      onTap: () => ActiveBudgetSelector.open(context),
+      onTap: onTap,
       excludeSemantics: true,
       // A quiet, borderless row: a control, not a card among cards.
       child: AppSurface(
         level: SurfaceLevel.sunken,
-        onTap: () => ActiveBudgetSelector.open(context),
+        onTap: onTap,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.smd,
           vertical: AppSpacing.sm,
@@ -168,13 +185,17 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      budget?.name ?? 'Choose a budget',
+                      unreadable
+                          ? "Couldn't load your budget"
+                          : budget?.name ?? 'Choose a budget',
                       style: theme.textTheme.titleSmall,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      budget == null
+                      unreadable
+                          ? 'Tap to try again'
+                          : budget == null
                           ? 'No active budget selected'
                           : formatDateRange(budget.startDate, budget.endDate),
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -189,7 +210,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
             ),
             const SizedBox(width: AppSpacing.sm),
             Icon(
-              Icons.unfold_more_rounded,
+              unreadable ? Icons.refresh_rounded : Icons.unfold_more_rounded,
               size: AppSizes.iconMd,
               color: theme.colorScheme.onSurfaceVariant,
             ),

@@ -5338,6 +5338,2145 @@ class ConverterCurrenciesCompanion
   }
 }
 
+class $PayLaterAccountsTable extends PayLaterAccounts
+    with TableInfo<$PayLaterAccountsTable, PayLaterAccount> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PayLaterAccountsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 100,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contactMeta = const VerificationMeta(
+    'contact',
+  );
+  @override
+  late final GeneratedColumn<String> contact = GeneratedColumn<String>(
+    'contact',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _defaultCategoryIdMeta = const VerificationMeta(
+    'defaultCategoryId',
+  );
+  @override
+  late final GeneratedColumn<String> defaultCategoryId =
+      GeneratedColumn<String>(
+        'default_category_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _rhythmMeta = const VerificationMeta('rhythm');
+  @override
+  late final GeneratedColumn<String> rhythm = GeneratedColumn<String>(
+    'rhythm',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rhythmDaysMeta = const VerificationMeta(
+    'rhythmDays',
+  );
+  @override
+  late final GeneratedColumn<int> rhythmDays = GeneratedColumn<int>(
+    'rhythm_days',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rhythmDayOfMonthMeta = const VerificationMeta(
+    'rhythmDayOfMonth',
+  );
+  @override
+  late final GeneratedColumn<int> rhythmDayOfMonth = GeneratedColumn<int>(
+    'rhythm_day_of_month',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rhythmAnchorMeta = const VerificationMeta(
+    'rhythmAnchor',
+  );
+  @override
+  late final GeneratedColumn<DateTime> rhythmAnchor = GeneratedColumn<DateTime>(
+    'rhythm_anchor',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nextSettleDateMeta = const VerificationMeta(
+    'nextSettleDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextSettleDate =
+      GeneratedColumn<DateTime>(
+        'next_settle_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _reminderEnabledMeta = const VerificationMeta(
+    'reminderEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> reminderEnabled = GeneratedColumn<bool>(
+    'reminder_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reminder_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _reminderOffsetDaysMeta =
+      const VerificationMeta('reminderOffsetDays');
+  @override
+  late final GeneratedColumn<int> reminderOffsetDays = GeneratedColumn<int>(
+    'reminder_offset_days',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    category,
+    currency,
+    note,
+    contact,
+    defaultCategoryId,
+    rhythm,
+    rhythmDays,
+    rhythmDayOfMonth,
+    rhythmAnchor,
+    nextSettleDate,
+    reminderEnabled,
+    reminderOffsetDays,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pay_later_accounts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PayLaterAccount> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_currencyMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('contact')) {
+      context.handle(
+        _contactMeta,
+        contact.isAcceptableOrUnknown(data['contact']!, _contactMeta),
+      );
+    }
+    if (data.containsKey('default_category_id')) {
+      context.handle(
+        _defaultCategoryIdMeta,
+        defaultCategoryId.isAcceptableOrUnknown(
+          data['default_category_id']!,
+          _defaultCategoryIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rhythm')) {
+      context.handle(
+        _rhythmMeta,
+        rhythm.isAcceptableOrUnknown(data['rhythm']!, _rhythmMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rhythmMeta);
+    }
+    if (data.containsKey('rhythm_days')) {
+      context.handle(
+        _rhythmDaysMeta,
+        rhythmDays.isAcceptableOrUnknown(data['rhythm_days']!, _rhythmDaysMeta),
+      );
+    }
+    if (data.containsKey('rhythm_day_of_month')) {
+      context.handle(
+        _rhythmDayOfMonthMeta,
+        rhythmDayOfMonth.isAcceptableOrUnknown(
+          data['rhythm_day_of_month']!,
+          _rhythmDayOfMonthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rhythm_anchor')) {
+      context.handle(
+        _rhythmAnchorMeta,
+        rhythmAnchor.isAcceptableOrUnknown(
+          data['rhythm_anchor']!,
+          _rhythmAnchorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_settle_date')) {
+      context.handle(
+        _nextSettleDateMeta,
+        nextSettleDate.isAcceptableOrUnknown(
+          data['next_settle_date']!,
+          _nextSettleDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reminder_enabled')) {
+      context.handle(
+        _reminderEnabledMeta,
+        reminderEnabled.isAcceptableOrUnknown(
+          data['reminder_enabled']!,
+          _reminderEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reminder_offset_days')) {
+      context.handle(
+        _reminderOffsetDaysMeta,
+        reminderOffsetDays.isAcceptableOrUnknown(
+          data['reminder_offset_days']!,
+          _reminderOffsetDaysMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PayLaterAccount map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PayLaterAccount(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      contact: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contact'],
+      ),
+      defaultCategoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}default_category_id'],
+      ),
+      rhythm: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rhythm'],
+      )!,
+      rhythmDays: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rhythm_days'],
+      ),
+      rhythmDayOfMonth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rhythm_day_of_month'],
+      ),
+      rhythmAnchor: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}rhythm_anchor'],
+      ),
+      nextSettleDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_settle_date'],
+      ),
+      reminderEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reminder_enabled'],
+      )!,
+      reminderOffsetDays: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reminder_offset_days'],
+      )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PayLaterAccountsTable createAlias(String alias) {
+    return $PayLaterAccountsTable(attachedDatabase, alias);
+  }
+}
+
+class PayLaterAccount extends DataClass implements Insertable<PayLaterAccount> {
+  final String id;
+  final String name;
+
+  /// Presentation only (icon): food_dining, groceries, shopping, personal,
+  /// other.
+  final String category;
+  final String currency;
+  final String? note;
+  final String? contact;
+
+  /// Expense category preselected for new purchases. No foreign key: the
+  /// category may be archived or deleted later.
+  final String? defaultCategoryId;
+
+  /// on_demand, every_days, monthly_day, manual_date.
+  final String rhythm;
+  final int? rhythmDays;
+  final int? rhythmDayOfMonth;
+  final DateTime? rhythmAnchor;
+  final DateTime? nextSettleDate;
+  final bool reminderEnabled;
+  final int reminderOffsetDays;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const PayLaterAccount({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.currency,
+    this.note,
+    this.contact,
+    this.defaultCategoryId,
+    required this.rhythm,
+    this.rhythmDays,
+    this.rhythmDayOfMonth,
+    this.rhythmAnchor,
+    this.nextSettleDate,
+    required this.reminderEnabled,
+    required this.reminderOffsetDays,
+    required this.isArchived,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['category'] = Variable<String>(category);
+    map['currency'] = Variable<String>(currency);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    if (!nullToAbsent || contact != null) {
+      map['contact'] = Variable<String>(contact);
+    }
+    if (!nullToAbsent || defaultCategoryId != null) {
+      map['default_category_id'] = Variable<String>(defaultCategoryId);
+    }
+    map['rhythm'] = Variable<String>(rhythm);
+    if (!nullToAbsent || rhythmDays != null) {
+      map['rhythm_days'] = Variable<int>(rhythmDays);
+    }
+    if (!nullToAbsent || rhythmDayOfMonth != null) {
+      map['rhythm_day_of_month'] = Variable<int>(rhythmDayOfMonth);
+    }
+    if (!nullToAbsent || rhythmAnchor != null) {
+      map['rhythm_anchor'] = Variable<DateTime>(rhythmAnchor);
+    }
+    if (!nullToAbsent || nextSettleDate != null) {
+      map['next_settle_date'] = Variable<DateTime>(nextSettleDate);
+    }
+    map['reminder_enabled'] = Variable<bool>(reminderEnabled);
+    map['reminder_offset_days'] = Variable<int>(reminderOffsetDays);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  PayLaterAccountsCompanion toCompanion(bool nullToAbsent) {
+    return PayLaterAccountsCompanion(
+      id: Value(id),
+      name: Value(name),
+      category: Value(category),
+      currency: Value(currency),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      contact: contact == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contact),
+      defaultCategoryId: defaultCategoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultCategoryId),
+      rhythm: Value(rhythm),
+      rhythmDays: rhythmDays == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rhythmDays),
+      rhythmDayOfMonth: rhythmDayOfMonth == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rhythmDayOfMonth),
+      rhythmAnchor: rhythmAnchor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rhythmAnchor),
+      nextSettleDate: nextSettleDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextSettleDate),
+      reminderEnabled: Value(reminderEnabled),
+      reminderOffsetDays: Value(reminderOffsetDays),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory PayLaterAccount.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PayLaterAccount(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      category: serializer.fromJson<String>(json['category']),
+      currency: serializer.fromJson<String>(json['currency']),
+      note: serializer.fromJson<String?>(json['note']),
+      contact: serializer.fromJson<String?>(json['contact']),
+      defaultCategoryId: serializer.fromJson<String?>(
+        json['defaultCategoryId'],
+      ),
+      rhythm: serializer.fromJson<String>(json['rhythm']),
+      rhythmDays: serializer.fromJson<int?>(json['rhythmDays']),
+      rhythmDayOfMonth: serializer.fromJson<int?>(json['rhythmDayOfMonth']),
+      rhythmAnchor: serializer.fromJson<DateTime?>(json['rhythmAnchor']),
+      nextSettleDate: serializer.fromJson<DateTime?>(json['nextSettleDate']),
+      reminderEnabled: serializer.fromJson<bool>(json['reminderEnabled']),
+      reminderOffsetDays: serializer.fromJson<int>(json['reminderOffsetDays']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'category': serializer.toJson<String>(category),
+      'currency': serializer.toJson<String>(currency),
+      'note': serializer.toJson<String?>(note),
+      'contact': serializer.toJson<String?>(contact),
+      'defaultCategoryId': serializer.toJson<String?>(defaultCategoryId),
+      'rhythm': serializer.toJson<String>(rhythm),
+      'rhythmDays': serializer.toJson<int?>(rhythmDays),
+      'rhythmDayOfMonth': serializer.toJson<int?>(rhythmDayOfMonth),
+      'rhythmAnchor': serializer.toJson<DateTime?>(rhythmAnchor),
+      'nextSettleDate': serializer.toJson<DateTime?>(nextSettleDate),
+      'reminderEnabled': serializer.toJson<bool>(reminderEnabled),
+      'reminderOffsetDays': serializer.toJson<int>(reminderOffsetDays),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  PayLaterAccount copyWith({
+    String? id,
+    String? name,
+    String? category,
+    String? currency,
+    Value<String?> note = const Value.absent(),
+    Value<String?> contact = const Value.absent(),
+    Value<String?> defaultCategoryId = const Value.absent(),
+    String? rhythm,
+    Value<int?> rhythmDays = const Value.absent(),
+    Value<int?> rhythmDayOfMonth = const Value.absent(),
+    Value<DateTime?> rhythmAnchor = const Value.absent(),
+    Value<DateTime?> nextSettleDate = const Value.absent(),
+    bool? reminderEnabled,
+    int? reminderOffsetDays,
+    bool? isArchived,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => PayLaterAccount(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    category: category ?? this.category,
+    currency: currency ?? this.currency,
+    note: note.present ? note.value : this.note,
+    contact: contact.present ? contact.value : this.contact,
+    defaultCategoryId: defaultCategoryId.present
+        ? defaultCategoryId.value
+        : this.defaultCategoryId,
+    rhythm: rhythm ?? this.rhythm,
+    rhythmDays: rhythmDays.present ? rhythmDays.value : this.rhythmDays,
+    rhythmDayOfMonth: rhythmDayOfMonth.present
+        ? rhythmDayOfMonth.value
+        : this.rhythmDayOfMonth,
+    rhythmAnchor: rhythmAnchor.present ? rhythmAnchor.value : this.rhythmAnchor,
+    nextSettleDate: nextSettleDate.present
+        ? nextSettleDate.value
+        : this.nextSettleDate,
+    reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+    reminderOffsetDays: reminderOffsetDays ?? this.reminderOffsetDays,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  PayLaterAccount copyWithCompanion(PayLaterAccountsCompanion data) {
+    return PayLaterAccount(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      category: data.category.present ? data.category.value : this.category,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      note: data.note.present ? data.note.value : this.note,
+      contact: data.contact.present ? data.contact.value : this.contact,
+      defaultCategoryId: data.defaultCategoryId.present
+          ? data.defaultCategoryId.value
+          : this.defaultCategoryId,
+      rhythm: data.rhythm.present ? data.rhythm.value : this.rhythm,
+      rhythmDays: data.rhythmDays.present
+          ? data.rhythmDays.value
+          : this.rhythmDays,
+      rhythmDayOfMonth: data.rhythmDayOfMonth.present
+          ? data.rhythmDayOfMonth.value
+          : this.rhythmDayOfMonth,
+      rhythmAnchor: data.rhythmAnchor.present
+          ? data.rhythmAnchor.value
+          : this.rhythmAnchor,
+      nextSettleDate: data.nextSettleDate.present
+          ? data.nextSettleDate.value
+          : this.nextSettleDate,
+      reminderEnabled: data.reminderEnabled.present
+          ? data.reminderEnabled.value
+          : this.reminderEnabled,
+      reminderOffsetDays: data.reminderOffsetDays.present
+          ? data.reminderOffsetDays.value
+          : this.reminderOffsetDays,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterAccount(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('category: $category, ')
+          ..write('currency: $currency, ')
+          ..write('note: $note, ')
+          ..write('contact: $contact, ')
+          ..write('defaultCategoryId: $defaultCategoryId, ')
+          ..write('rhythm: $rhythm, ')
+          ..write('rhythmDays: $rhythmDays, ')
+          ..write('rhythmDayOfMonth: $rhythmDayOfMonth, ')
+          ..write('rhythmAnchor: $rhythmAnchor, ')
+          ..write('nextSettleDate: $nextSettleDate, ')
+          ..write('reminderEnabled: $reminderEnabled, ')
+          ..write('reminderOffsetDays: $reminderOffsetDays, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    category,
+    currency,
+    note,
+    contact,
+    defaultCategoryId,
+    rhythm,
+    rhythmDays,
+    rhythmDayOfMonth,
+    rhythmAnchor,
+    nextSettleDate,
+    reminderEnabled,
+    reminderOffsetDays,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PayLaterAccount &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.category == this.category &&
+          other.currency == this.currency &&
+          other.note == this.note &&
+          other.contact == this.contact &&
+          other.defaultCategoryId == this.defaultCategoryId &&
+          other.rhythm == this.rhythm &&
+          other.rhythmDays == this.rhythmDays &&
+          other.rhythmDayOfMonth == this.rhythmDayOfMonth &&
+          other.rhythmAnchor == this.rhythmAnchor &&
+          other.nextSettleDate == this.nextSettleDate &&
+          other.reminderEnabled == this.reminderEnabled &&
+          other.reminderOffsetDays == this.reminderOffsetDays &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class PayLaterAccountsCompanion extends UpdateCompanion<PayLaterAccount> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> category;
+  final Value<String> currency;
+  final Value<String?> note;
+  final Value<String?> contact;
+  final Value<String?> defaultCategoryId;
+  final Value<String> rhythm;
+  final Value<int?> rhythmDays;
+  final Value<int?> rhythmDayOfMonth;
+  final Value<DateTime?> rhythmAnchor;
+  final Value<DateTime?> nextSettleDate;
+  final Value<bool> reminderEnabled;
+  final Value<int> reminderOffsetDays;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const PayLaterAccountsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.category = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.note = const Value.absent(),
+    this.contact = const Value.absent(),
+    this.defaultCategoryId = const Value.absent(),
+    this.rhythm = const Value.absent(),
+    this.rhythmDays = const Value.absent(),
+    this.rhythmDayOfMonth = const Value.absent(),
+    this.rhythmAnchor = const Value.absent(),
+    this.nextSettleDate = const Value.absent(),
+    this.reminderEnabled = const Value.absent(),
+    this.reminderOffsetDays = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PayLaterAccountsCompanion.insert({
+    required String id,
+    required String name,
+    required String category,
+    required String currency,
+    this.note = const Value.absent(),
+    this.contact = const Value.absent(),
+    this.defaultCategoryId = const Value.absent(),
+    required String rhythm,
+    this.rhythmDays = const Value.absent(),
+    this.rhythmDayOfMonth = const Value.absent(),
+    this.rhythmAnchor = const Value.absent(),
+    this.nextSettleDate = const Value.absent(),
+    this.reminderEnabled = const Value.absent(),
+    this.reminderOffsetDays = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       category = Value(category),
+       currency = Value(currency),
+       rhythm = Value(rhythm);
+  static Insertable<PayLaterAccount> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? category,
+    Expression<String>? currency,
+    Expression<String>? note,
+    Expression<String>? contact,
+    Expression<String>? defaultCategoryId,
+    Expression<String>? rhythm,
+    Expression<int>? rhythmDays,
+    Expression<int>? rhythmDayOfMonth,
+    Expression<DateTime>? rhythmAnchor,
+    Expression<DateTime>? nextSettleDate,
+    Expression<bool>? reminderEnabled,
+    Expression<int>? reminderOffsetDays,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (category != null) 'category': category,
+      if (currency != null) 'currency': currency,
+      if (note != null) 'note': note,
+      if (contact != null) 'contact': contact,
+      if (defaultCategoryId != null) 'default_category_id': defaultCategoryId,
+      if (rhythm != null) 'rhythm': rhythm,
+      if (rhythmDays != null) 'rhythm_days': rhythmDays,
+      if (rhythmDayOfMonth != null) 'rhythm_day_of_month': rhythmDayOfMonth,
+      if (rhythmAnchor != null) 'rhythm_anchor': rhythmAnchor,
+      if (nextSettleDate != null) 'next_settle_date': nextSettleDate,
+      if (reminderEnabled != null) 'reminder_enabled': reminderEnabled,
+      if (reminderOffsetDays != null)
+        'reminder_offset_days': reminderOffsetDays,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PayLaterAccountsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? category,
+    Value<String>? currency,
+    Value<String?>? note,
+    Value<String?>? contact,
+    Value<String?>? defaultCategoryId,
+    Value<String>? rhythm,
+    Value<int?>? rhythmDays,
+    Value<int?>? rhythmDayOfMonth,
+    Value<DateTime?>? rhythmAnchor,
+    Value<DateTime?>? nextSettleDate,
+    Value<bool>? reminderEnabled,
+    Value<int>? reminderOffsetDays,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return PayLaterAccountsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      currency: currency ?? this.currency,
+      note: note ?? this.note,
+      contact: contact ?? this.contact,
+      defaultCategoryId: defaultCategoryId ?? this.defaultCategoryId,
+      rhythm: rhythm ?? this.rhythm,
+      rhythmDays: rhythmDays ?? this.rhythmDays,
+      rhythmDayOfMonth: rhythmDayOfMonth ?? this.rhythmDayOfMonth,
+      rhythmAnchor: rhythmAnchor ?? this.rhythmAnchor,
+      nextSettleDate: nextSettleDate ?? this.nextSettleDate,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderOffsetDays: reminderOffsetDays ?? this.reminderOffsetDays,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (contact.present) {
+      map['contact'] = Variable<String>(contact.value);
+    }
+    if (defaultCategoryId.present) {
+      map['default_category_id'] = Variable<String>(defaultCategoryId.value);
+    }
+    if (rhythm.present) {
+      map['rhythm'] = Variable<String>(rhythm.value);
+    }
+    if (rhythmDays.present) {
+      map['rhythm_days'] = Variable<int>(rhythmDays.value);
+    }
+    if (rhythmDayOfMonth.present) {
+      map['rhythm_day_of_month'] = Variable<int>(rhythmDayOfMonth.value);
+    }
+    if (rhythmAnchor.present) {
+      map['rhythm_anchor'] = Variable<DateTime>(rhythmAnchor.value);
+    }
+    if (nextSettleDate.present) {
+      map['next_settle_date'] = Variable<DateTime>(nextSettleDate.value);
+    }
+    if (reminderEnabled.present) {
+      map['reminder_enabled'] = Variable<bool>(reminderEnabled.value);
+    }
+    if (reminderOffsetDays.present) {
+      map['reminder_offset_days'] = Variable<int>(reminderOffsetDays.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterAccountsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('category: $category, ')
+          ..write('currency: $currency, ')
+          ..write('note: $note, ')
+          ..write('contact: $contact, ')
+          ..write('defaultCategoryId: $defaultCategoryId, ')
+          ..write('rhythm: $rhythm, ')
+          ..write('rhythmDays: $rhythmDays, ')
+          ..write('rhythmDayOfMonth: $rhythmDayOfMonth, ')
+          ..write('rhythmAnchor: $rhythmAnchor, ')
+          ..write('nextSettleDate: $nextSettleDate, ')
+          ..write('reminderEnabled: $reminderEnabled, ')
+          ..write('reminderOffsetDays: $reminderOffsetDays, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PayLaterEntriesTable extends PayLaterEntries
+    with TableInfo<$PayLaterEntriesTable, PayLaterEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PayLaterEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _expenseIdMeta = const VerificationMeta(
+    'expenseId',
+  );
+  @override
+  late final GeneratedColumn<String> expenseId = GeneratedColumn<String>(
+    'expense_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES expenses (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pay_later_accounts (id)',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [expenseId, accountId, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pay_later_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PayLaterEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('expense_id')) {
+      context.handle(
+        _expenseIdMeta,
+        expenseId.isAcceptableOrUnknown(data['expense_id']!, _expenseIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expenseIdMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {expenseId};
+  @override
+  PayLaterEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PayLaterEntry(
+      expenseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}expense_id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PayLaterEntriesTable createAlias(String alias) {
+    return $PayLaterEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class PayLaterEntry extends DataClass implements Insertable<PayLaterEntry> {
+  final String expenseId;
+  final String accountId;
+  final DateTime createdAt;
+  const PayLaterEntry({
+    required this.expenseId,
+    required this.accountId,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['expense_id'] = Variable<String>(expenseId);
+    map['account_id'] = Variable<String>(accountId);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  PayLaterEntriesCompanion toCompanion(bool nullToAbsent) {
+    return PayLaterEntriesCompanion(
+      expenseId: Value(expenseId),
+      accountId: Value(accountId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory PayLaterEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PayLaterEntry(
+      expenseId: serializer.fromJson<String>(json['expenseId']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'expenseId': serializer.toJson<String>(expenseId),
+      'accountId': serializer.toJson<String>(accountId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  PayLaterEntry copyWith({
+    String? expenseId,
+    String? accountId,
+    DateTime? createdAt,
+  }) => PayLaterEntry(
+    expenseId: expenseId ?? this.expenseId,
+    accountId: accountId ?? this.accountId,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  PayLaterEntry copyWithCompanion(PayLaterEntriesCompanion data) {
+    return PayLaterEntry(
+      expenseId: data.expenseId.present ? data.expenseId.value : this.expenseId,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterEntry(')
+          ..write('expenseId: $expenseId, ')
+          ..write('accountId: $accountId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(expenseId, accountId, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PayLaterEntry &&
+          other.expenseId == this.expenseId &&
+          other.accountId == this.accountId &&
+          other.createdAt == this.createdAt);
+}
+
+class PayLaterEntriesCompanion extends UpdateCompanion<PayLaterEntry> {
+  final Value<String> expenseId;
+  final Value<String> accountId;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const PayLaterEntriesCompanion({
+    this.expenseId = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PayLaterEntriesCompanion.insert({
+    required String expenseId,
+    required String accountId,
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : expenseId = Value(expenseId),
+       accountId = Value(accountId);
+  static Insertable<PayLaterEntry> custom({
+    Expression<String>? expenseId,
+    Expression<String>? accountId,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (expenseId != null) 'expense_id': expenseId,
+      if (accountId != null) 'account_id': accountId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PayLaterEntriesCompanion copyWith({
+    Value<String>? expenseId,
+    Value<String>? accountId,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return PayLaterEntriesCompanion(
+      expenseId: expenseId ?? this.expenseId,
+      accountId: accountId ?? this.accountId,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (expenseId.present) {
+      map['expense_id'] = Variable<String>(expenseId.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterEntriesCompanion(')
+          ..write('expenseId: $expenseId, ')
+          ..write('accountId: $accountId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PayLaterPaymentsTable extends PayLaterPayments
+    with TableInfo<$PayLaterPaymentsTable, PayLaterPayment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PayLaterPaymentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pay_later_accounts (id)',
+    ),
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _paidDateMeta = const VerificationMeta(
+    'paidDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> paidDate = GeneratedColumn<DateTime>(
+    'paid_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    amount,
+    paidDate,
+    note,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pay_later_payments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PayLaterPayment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('paid_date')) {
+      context.handle(
+        _paidDateMeta,
+        paidDate.isAcceptableOrUnknown(data['paid_date']!, _paidDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_paidDateMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PayLaterPayment map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PayLaterPayment(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      paidDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}paid_date'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PayLaterPaymentsTable createAlias(String alias) {
+    return $PayLaterPaymentsTable(attachedDatabase, alias);
+  }
+}
+
+class PayLaterPayment extends DataClass implements Insertable<PayLaterPayment> {
+  final String id;
+  final String accountId;
+  final double amount;
+  final DateTime paidDate;
+  final String? note;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const PayLaterPayment({
+    required this.id,
+    required this.accountId,
+    required this.amount,
+    required this.paidDate,
+    this.note,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['account_id'] = Variable<String>(accountId);
+    map['amount'] = Variable<double>(amount);
+    map['paid_date'] = Variable<DateTime>(paidDate);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  PayLaterPaymentsCompanion toCompanion(bool nullToAbsent) {
+    return PayLaterPaymentsCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      amount: Value(amount),
+      paidDate: Value(paidDate),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory PayLaterPayment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PayLaterPayment(
+      id: serializer.fromJson<String>(json['id']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      amount: serializer.fromJson<double>(json['amount']),
+      paidDate: serializer.fromJson<DateTime>(json['paidDate']),
+      note: serializer.fromJson<String?>(json['note']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'accountId': serializer.toJson<String>(accountId),
+      'amount': serializer.toJson<double>(amount),
+      'paidDate': serializer.toJson<DateTime>(paidDate),
+      'note': serializer.toJson<String?>(note),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  PayLaterPayment copyWith({
+    String? id,
+    String? accountId,
+    double? amount,
+    DateTime? paidDate,
+    Value<String?> note = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => PayLaterPayment(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    amount: amount ?? this.amount,
+    paidDate: paidDate ?? this.paidDate,
+    note: note.present ? note.value : this.note,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  PayLaterPayment copyWithCompanion(PayLaterPaymentsCompanion data) {
+    return PayLaterPayment(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      paidDate: data.paidDate.present ? data.paidDate.value : this.paidDate,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterPayment(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('amount: $amount, ')
+          ..write('paidDate: $paidDate, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, accountId, amount, paidDate, note, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PayLaterPayment &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.amount == this.amount &&
+          other.paidDate == this.paidDate &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class PayLaterPaymentsCompanion extends UpdateCompanion<PayLaterPayment> {
+  final Value<String> id;
+  final Value<String> accountId;
+  final Value<double> amount;
+  final Value<DateTime> paidDate;
+  final Value<String?> note;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const PayLaterPaymentsCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.paidDate = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PayLaterPaymentsCompanion.insert({
+    required String id,
+    required String accountId,
+    required double amount,
+    required DateTime paidDate,
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       accountId = Value(accountId),
+       amount = Value(amount),
+       paidDate = Value(paidDate);
+  static Insertable<PayLaterPayment> custom({
+    Expression<String>? id,
+    Expression<String>? accountId,
+    Expression<double>? amount,
+    Expression<DateTime>? paidDate,
+    Expression<String>? note,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (amount != null) 'amount': amount,
+      if (paidDate != null) 'paid_date': paidDate,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PayLaterPaymentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? accountId,
+    Value<double>? amount,
+    Value<DateTime>? paidDate,
+    Value<String?>? note,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return PayLaterPaymentsCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      amount: amount ?? this.amount,
+      paidDate: paidDate ?? this.paidDate,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (paidDate.present) {
+      map['paid_date'] = Variable<DateTime>(paidDate.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterPaymentsCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('amount: $amount, ')
+          ..write('paidDate: $paidDate, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PayLaterAllocationsTable extends PayLaterAllocations
+    with TableInfo<$PayLaterAllocationsTable, PayLaterAllocation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PayLaterAllocationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _paymentIdMeta = const VerificationMeta(
+    'paymentId',
+  );
+  @override
+  late final GeneratedColumn<String> paymentId = GeneratedColumn<String>(
+    'payment_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pay_later_payments (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _expenseIdMeta = const VerificationMeta(
+    'expenseId',
+  );
+  @override
+  late final GeneratedColumn<String> expenseId = GeneratedColumn<String>(
+    'expense_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pay_later_entries (expense_id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isManualMeta = const VerificationMeta(
+    'isManual',
+  );
+  @override
+  late final GeneratedColumn<bool> isManual = GeneratedColumn<bool>(
+    'is_manual',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_manual" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    paymentId,
+    expenseId,
+    amount,
+    isManual,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pay_later_allocations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PayLaterAllocation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('payment_id')) {
+      context.handle(
+        _paymentIdMeta,
+        paymentId.isAcceptableOrUnknown(data['payment_id']!, _paymentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_paymentIdMeta);
+    }
+    if (data.containsKey('expense_id')) {
+      context.handle(
+        _expenseIdMeta,
+        expenseId.isAcceptableOrUnknown(data['expense_id']!, _expenseIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expenseIdMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('is_manual')) {
+      context.handle(
+        _isManualMeta,
+        isManual.isAcceptableOrUnknown(data['is_manual']!, _isManualMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_isManualMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {paymentId, expenseId},
+  ];
+  @override
+  PayLaterAllocation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PayLaterAllocation(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      paymentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payment_id'],
+      )!,
+      expenseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}expense_id'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      isManual: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_manual'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PayLaterAllocationsTable createAlias(String alias) {
+    return $PayLaterAllocationsTable(attachedDatabase, alias);
+  }
+}
+
+class PayLaterAllocation extends DataClass
+    implements Insertable<PayLaterAllocation> {
+  final String id;
+  final String paymentId;
+  final String expenseId;
+  final double amount;
+  final bool isManual;
+  final DateTime createdAt;
+  const PayLaterAllocation({
+    required this.id,
+    required this.paymentId,
+    required this.expenseId,
+    required this.amount,
+    required this.isManual,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['payment_id'] = Variable<String>(paymentId);
+    map['expense_id'] = Variable<String>(expenseId);
+    map['amount'] = Variable<double>(amount);
+    map['is_manual'] = Variable<bool>(isManual);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  PayLaterAllocationsCompanion toCompanion(bool nullToAbsent) {
+    return PayLaterAllocationsCompanion(
+      id: Value(id),
+      paymentId: Value(paymentId),
+      expenseId: Value(expenseId),
+      amount: Value(amount),
+      isManual: Value(isManual),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory PayLaterAllocation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PayLaterAllocation(
+      id: serializer.fromJson<String>(json['id']),
+      paymentId: serializer.fromJson<String>(json['paymentId']),
+      expenseId: serializer.fromJson<String>(json['expenseId']),
+      amount: serializer.fromJson<double>(json['amount']),
+      isManual: serializer.fromJson<bool>(json['isManual']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'paymentId': serializer.toJson<String>(paymentId),
+      'expenseId': serializer.toJson<String>(expenseId),
+      'amount': serializer.toJson<double>(amount),
+      'isManual': serializer.toJson<bool>(isManual),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  PayLaterAllocation copyWith({
+    String? id,
+    String? paymentId,
+    String? expenseId,
+    double? amount,
+    bool? isManual,
+    DateTime? createdAt,
+  }) => PayLaterAllocation(
+    id: id ?? this.id,
+    paymentId: paymentId ?? this.paymentId,
+    expenseId: expenseId ?? this.expenseId,
+    amount: amount ?? this.amount,
+    isManual: isManual ?? this.isManual,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  PayLaterAllocation copyWithCompanion(PayLaterAllocationsCompanion data) {
+    return PayLaterAllocation(
+      id: data.id.present ? data.id.value : this.id,
+      paymentId: data.paymentId.present ? data.paymentId.value : this.paymentId,
+      expenseId: data.expenseId.present ? data.expenseId.value : this.expenseId,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      isManual: data.isManual.present ? data.isManual.value : this.isManual,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterAllocation(')
+          ..write('id: $id, ')
+          ..write('paymentId: $paymentId, ')
+          ..write('expenseId: $expenseId, ')
+          ..write('amount: $amount, ')
+          ..write('isManual: $isManual, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, paymentId, expenseId, amount, isManual, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PayLaterAllocation &&
+          other.id == this.id &&
+          other.paymentId == this.paymentId &&
+          other.expenseId == this.expenseId &&
+          other.amount == this.amount &&
+          other.isManual == this.isManual &&
+          other.createdAt == this.createdAt);
+}
+
+class PayLaterAllocationsCompanion extends UpdateCompanion<PayLaterAllocation> {
+  final Value<String> id;
+  final Value<String> paymentId;
+  final Value<String> expenseId;
+  final Value<double> amount;
+  final Value<bool> isManual;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const PayLaterAllocationsCompanion({
+    this.id = const Value.absent(),
+    this.paymentId = const Value.absent(),
+    this.expenseId = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.isManual = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PayLaterAllocationsCompanion.insert({
+    required String id,
+    required String paymentId,
+    required String expenseId,
+    required double amount,
+    required bool isManual,
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       paymentId = Value(paymentId),
+       expenseId = Value(expenseId),
+       amount = Value(amount),
+       isManual = Value(isManual);
+  static Insertable<PayLaterAllocation> custom({
+    Expression<String>? id,
+    Expression<String>? paymentId,
+    Expression<String>? expenseId,
+    Expression<double>? amount,
+    Expression<bool>? isManual,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (paymentId != null) 'payment_id': paymentId,
+      if (expenseId != null) 'expense_id': expenseId,
+      if (amount != null) 'amount': amount,
+      if (isManual != null) 'is_manual': isManual,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PayLaterAllocationsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? paymentId,
+    Value<String>? expenseId,
+    Value<double>? amount,
+    Value<bool>? isManual,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return PayLaterAllocationsCompanion(
+      id: id ?? this.id,
+      paymentId: paymentId ?? this.paymentId,
+      expenseId: expenseId ?? this.expenseId,
+      amount: amount ?? this.amount,
+      isManual: isManual ?? this.isManual,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (paymentId.present) {
+      map['payment_id'] = Variable<String>(paymentId.value);
+    }
+    if (expenseId.present) {
+      map['expense_id'] = Variable<String>(expenseId.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (isManual.present) {
+      map['is_manual'] = Variable<bool>(isManual.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PayLaterAllocationsCompanion(')
+          ..write('id: $id, ')
+          ..write('paymentId: $paymentId, ')
+          ..write('expenseId: $expenseId, ')
+          ..write('amount: $amount, ')
+          ..write('isManual: $isManual, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5353,6 +7492,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ExchangeRatesTable exchangeRates = $ExchangeRatesTable(this);
   late final $ConverterCurrenciesTable converterCurrencies =
       $ConverterCurrenciesTable(this);
+  late final $PayLaterAccountsTable payLaterAccounts = $PayLaterAccountsTable(
+    this,
+  );
+  late final $PayLaterEntriesTable payLaterEntries = $PayLaterEntriesTable(
+    this,
+  );
+  late final $PayLaterPaymentsTable payLaterPayments = $PayLaterPaymentsTable(
+    this,
+  );
+  late final $PayLaterAllocationsTable payLaterAllocations =
+      $PayLaterAllocationsTable(this);
   late final Index indexExpensesDate = Index(
     'index_expenses_date',
     'CREATE INDEX index_expenses_date ON expenses (date)',
@@ -5377,6 +7527,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'index_bills_budget',
     'CREATE INDEX index_bills_budget ON bills (budget_id)',
   );
+  late final Index indexPayLaterEntriesAccount = Index(
+    'index_pay_later_entries_account',
+    'CREATE INDEX index_pay_later_entries_account ON pay_later_entries (account_id)',
+  );
+  late final Index indexPayLaterPaymentsAccountDate = Index(
+    'index_pay_later_payments_account_date',
+    'CREATE INDEX index_pay_later_payments_account_date ON pay_later_payments (account_id, paid_date)',
+  );
+  late final Index indexPayLaterAllocationsPayment = Index(
+    'index_pay_later_allocations_payment',
+    'CREATE INDEX index_pay_later_allocations_payment ON pay_later_allocations (payment_id)',
+  );
+  late final Index indexPayLaterAllocationsExpense = Index(
+    'index_pay_later_allocations_expense',
+    'CREATE INDEX index_pay_later_allocations_expense ON pay_later_allocations (expense_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5392,13 +7558,45 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     billPayments,
     exchangeRates,
     converterCurrencies,
+    payLaterAccounts,
+    payLaterEntries,
+    payLaterPayments,
+    payLaterAllocations,
     indexExpensesDate,
     indexExpensesCategory,
     indexExpensesBudget,
     indexExpensesBudgetDate,
     indexBillsDueDate,
     indexBillsBudget,
+    indexPayLaterEntriesAccount,
+    indexPayLaterPaymentsAccountDate,
+    indexPayLaterAllocationsPayment,
+    indexPayLaterAllocationsExpense,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'expenses',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pay_later_entries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'pay_later_payments',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pay_later_allocations', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'pay_later_entries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pay_later_allocations', kind: UpdateKind.delete)],
+    ),
+  ]);
 }
 
 typedef $$BudgetsTableCreateCompanionBuilder =
@@ -6517,6 +8715,29 @@ final class $$ExpensesTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$PayLaterEntriesTable, List<PayLaterEntry>>
+  _payLaterEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.payLaterEntries,
+    aliasName: $_aliasNameGenerator(
+      db.expenses.id,
+      db.payLaterEntries.expenseId,
+    ),
+  );
+
+  $$PayLaterEntriesTableProcessedTableManager get payLaterEntriesRefs {
+    final manager = $$PayLaterEntriesTableTableManager(
+      $_db,
+      $_db.payLaterEntries,
+    ).filter((f) => f.expenseId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _payLaterEntriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ExpensesTableFilterComposer
@@ -6622,6 +8843,31 @@ class $$ExpensesTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> payLaterEntriesRefs(
+    Expression<bool> Function($$PayLaterEntriesTableFilterComposer f) f,
+  ) {
+    final $$PayLaterEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.payLaterEntries,
+      getReferencedColumn: (t) => t.expenseId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.payLaterEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -6817,6 +9063,31 @@ class $$ExpensesTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> payLaterEntriesRefs<T extends Object>(
+    Expression<T> Function($$PayLaterEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$PayLaterEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.payLaterEntries,
+      getReferencedColumn: (t) => t.expenseId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.payLaterEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ExpensesTableTableManager
@@ -6832,7 +9103,11 @@ class $$ExpensesTableTableManager
           $$ExpensesTableUpdateCompanionBuilder,
           (Expense, $$ExpensesTableReferences),
           Expense,
-          PrefetchHooks Function({bool budgetId, bool categoryId})
+          PrefetchHooks Function({
+            bool budgetId,
+            bool categoryId,
+            bool payLaterEntriesRefs,
+          })
         > {
   $$ExpensesTableTableManager(_$AppDatabase db, $ExpensesTable table)
     : super(
@@ -6913,60 +9188,89 @@ class $$ExpensesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({budgetId = false, categoryId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (budgetId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.budgetId,
-                                referencedTable: $$ExpensesTableReferences
-                                    ._budgetIdTable(db),
-                                referencedColumn: $$ExpensesTableReferences
-                                    ._budgetIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
-                    if (categoryId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.categoryId,
-                                referencedTable: $$ExpensesTableReferences
-                                    ._categoryIdTable(db),
-                                referencedColumn: $$ExpensesTableReferences
-                                    ._categoryIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                budgetId = false,
+                categoryId = false,
+                payLaterEntriesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (payLaterEntriesRefs) db.payLaterEntries,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (budgetId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.budgetId,
+                                    referencedTable: $$ExpensesTableReferences
+                                        ._budgetIdTable(db),
+                                    referencedColumn: $$ExpensesTableReferences
+                                        ._budgetIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (categoryId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.categoryId,
+                                    referencedTable: $$ExpensesTableReferences
+                                        ._categoryIdTable(db),
+                                    referencedColumn: $$ExpensesTableReferences
+                                        ._categoryIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (payLaterEntriesRefs)
+                        await $_getPrefetchedData<
+                          Expense,
+                          $ExpensesTable,
+                          PayLaterEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ExpensesTableReferences
+                              ._payLaterEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ExpensesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).payLaterEntriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.expenseId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -6983,7 +9287,11 @@ typedef $$ExpensesTableProcessedTableManager =
       $$ExpensesTableUpdateCompanionBuilder,
       (Expense, $$ExpensesTableReferences),
       Expense,
-      PrefetchHooks Function({bool budgetId, bool categoryId})
+      PrefetchHooks Function({
+        bool budgetId,
+        bool categoryId,
+        bool payLaterEntriesRefs,
+      })
     >;
 typedef $$SettingsTableCreateCompanionBuilder =
     SettingsCompanion Function({
@@ -9139,6 +11447,1871 @@ typedef $$ConverterCurrenciesTableProcessedTableManager =
       ConverterCurrencyRow,
       PrefetchHooks Function()
     >;
+typedef $$PayLaterAccountsTableCreateCompanionBuilder =
+    PayLaterAccountsCompanion Function({
+      required String id,
+      required String name,
+      required String category,
+      required String currency,
+      Value<String?> note,
+      Value<String?> contact,
+      Value<String?> defaultCategoryId,
+      required String rhythm,
+      Value<int?> rhythmDays,
+      Value<int?> rhythmDayOfMonth,
+      Value<DateTime?> rhythmAnchor,
+      Value<DateTime?> nextSettleDate,
+      Value<bool> reminderEnabled,
+      Value<int> reminderOffsetDays,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$PayLaterAccountsTableUpdateCompanionBuilder =
+    PayLaterAccountsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> category,
+      Value<String> currency,
+      Value<String?> note,
+      Value<String?> contact,
+      Value<String?> defaultCategoryId,
+      Value<String> rhythm,
+      Value<int?> rhythmDays,
+      Value<int?> rhythmDayOfMonth,
+      Value<DateTime?> rhythmAnchor,
+      Value<DateTime?> nextSettleDate,
+      Value<bool> reminderEnabled,
+      Value<int> reminderOffsetDays,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$PayLaterAccountsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $PayLaterAccountsTable, PayLaterAccount> {
+  $$PayLaterAccountsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$PayLaterEntriesTable, List<PayLaterEntry>>
+  _payLaterEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.payLaterEntries,
+    aliasName: $_aliasNameGenerator(
+      db.payLaterAccounts.id,
+      db.payLaterEntries.accountId,
+    ),
+  );
+
+  $$PayLaterEntriesTableProcessedTableManager get payLaterEntriesRefs {
+    final manager = $$PayLaterEntriesTableTableManager(
+      $_db,
+      $_db.payLaterEntries,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _payLaterEntriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PayLaterPaymentsTable, List<PayLaterPayment>>
+  _payLaterPaymentsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.payLaterPayments,
+    aliasName: $_aliasNameGenerator(
+      db.payLaterAccounts.id,
+      db.payLaterPayments.accountId,
+    ),
+  );
+
+  $$PayLaterPaymentsTableProcessedTableManager get payLaterPaymentsRefs {
+    final manager = $$PayLaterPaymentsTableTableManager(
+      $_db,
+      $_db.payLaterPayments,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _payLaterPaymentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$PayLaterAccountsTableFilterComposer
+    extends Composer<_$AppDatabase, $PayLaterAccountsTable> {
+  $$PayLaterAccountsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contact => $composableBuilder(
+    column: $table.contact,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get defaultCategoryId => $composableBuilder(
+    column: $table.defaultCategoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rhythm => $composableBuilder(
+    column: $table.rhythm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rhythmDays => $composableBuilder(
+    column: $table.rhythmDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rhythmDayOfMonth => $composableBuilder(
+    column: $table.rhythmDayOfMonth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get rhythmAnchor => $composableBuilder(
+    column: $table.rhythmAnchor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextSettleDate => $composableBuilder(
+    column: $table.nextSettleDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get reminderEnabled => $composableBuilder(
+    column: $table.reminderEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reminderOffsetDays => $composableBuilder(
+    column: $table.reminderOffsetDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> payLaterEntriesRefs(
+    Expression<bool> Function($$PayLaterEntriesTableFilterComposer f) f,
+  ) {
+    final $$PayLaterEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.payLaterEntries,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.payLaterEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> payLaterPaymentsRefs(
+    Expression<bool> Function($$PayLaterPaymentsTableFilterComposer f) f,
+  ) {
+    final $$PayLaterPaymentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.payLaterPayments,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterPaymentsTableFilterComposer(
+            $db: $db,
+            $table: $db.payLaterPayments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PayLaterAccountsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PayLaterAccountsTable> {
+  $$PayLaterAccountsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contact => $composableBuilder(
+    column: $table.contact,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get defaultCategoryId => $composableBuilder(
+    column: $table.defaultCategoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rhythm => $composableBuilder(
+    column: $table.rhythm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get rhythmDays => $composableBuilder(
+    column: $table.rhythmDays,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get rhythmDayOfMonth => $composableBuilder(
+    column: $table.rhythmDayOfMonth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get rhythmAnchor => $composableBuilder(
+    column: $table.rhythmAnchor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextSettleDate => $composableBuilder(
+    column: $table.nextSettleDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get reminderEnabled => $composableBuilder(
+    column: $table.reminderEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get reminderOffsetDays => $composableBuilder(
+    column: $table.reminderOffsetDays,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PayLaterAccountsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PayLaterAccountsTable> {
+  $$PayLaterAccountsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<String> get contact =>
+      $composableBuilder(column: $table.contact, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultCategoryId => $composableBuilder(
+    column: $table.defaultCategoryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rhythm =>
+      $composableBuilder(column: $table.rhythm, builder: (column) => column);
+
+  GeneratedColumn<int> get rhythmDays => $composableBuilder(
+    column: $table.rhythmDays,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get rhythmDayOfMonth => $composableBuilder(
+    column: $table.rhythmDayOfMonth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get rhythmAnchor => $composableBuilder(
+    column: $table.rhythmAnchor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get nextSettleDate => $composableBuilder(
+    column: $table.nextSettleDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get reminderEnabled => $composableBuilder(
+    column: $table.reminderEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get reminderOffsetDays => $composableBuilder(
+    column: $table.reminderOffsetDays,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> payLaterEntriesRefs<T extends Object>(
+    Expression<T> Function($$PayLaterEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$PayLaterEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.payLaterEntries,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.payLaterEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> payLaterPaymentsRefs<T extends Object>(
+    Expression<T> Function($$PayLaterPaymentsTableAnnotationComposer a) f,
+  ) {
+    final $$PayLaterPaymentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.payLaterPayments,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterPaymentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.payLaterPayments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PayLaterAccountsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PayLaterAccountsTable,
+          PayLaterAccount,
+          $$PayLaterAccountsTableFilterComposer,
+          $$PayLaterAccountsTableOrderingComposer,
+          $$PayLaterAccountsTableAnnotationComposer,
+          $$PayLaterAccountsTableCreateCompanionBuilder,
+          $$PayLaterAccountsTableUpdateCompanionBuilder,
+          (PayLaterAccount, $$PayLaterAccountsTableReferences),
+          PayLaterAccount,
+          PrefetchHooks Function({
+            bool payLaterEntriesRefs,
+            bool payLaterPaymentsRefs,
+          })
+        > {
+  $$PayLaterAccountsTableTableManager(
+    _$AppDatabase db,
+    $PayLaterAccountsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PayLaterAccountsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PayLaterAccountsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PayLaterAccountsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<String?> contact = const Value.absent(),
+                Value<String?> defaultCategoryId = const Value.absent(),
+                Value<String> rhythm = const Value.absent(),
+                Value<int?> rhythmDays = const Value.absent(),
+                Value<int?> rhythmDayOfMonth = const Value.absent(),
+                Value<DateTime?> rhythmAnchor = const Value.absent(),
+                Value<DateTime?> nextSettleDate = const Value.absent(),
+                Value<bool> reminderEnabled = const Value.absent(),
+                Value<int> reminderOffsetDays = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterAccountsCompanion(
+                id: id,
+                name: name,
+                category: category,
+                currency: currency,
+                note: note,
+                contact: contact,
+                defaultCategoryId: defaultCategoryId,
+                rhythm: rhythm,
+                rhythmDays: rhythmDays,
+                rhythmDayOfMonth: rhythmDayOfMonth,
+                rhythmAnchor: rhythmAnchor,
+                nextSettleDate: nextSettleDate,
+                reminderEnabled: reminderEnabled,
+                reminderOffsetDays: reminderOffsetDays,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String category,
+                required String currency,
+                Value<String?> note = const Value.absent(),
+                Value<String?> contact = const Value.absent(),
+                Value<String?> defaultCategoryId = const Value.absent(),
+                required String rhythm,
+                Value<int?> rhythmDays = const Value.absent(),
+                Value<int?> rhythmDayOfMonth = const Value.absent(),
+                Value<DateTime?> rhythmAnchor = const Value.absent(),
+                Value<DateTime?> nextSettleDate = const Value.absent(),
+                Value<bool> reminderEnabled = const Value.absent(),
+                Value<int> reminderOffsetDays = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterAccountsCompanion.insert(
+                id: id,
+                name: name,
+                category: category,
+                currency: currency,
+                note: note,
+                contact: contact,
+                defaultCategoryId: defaultCategoryId,
+                rhythm: rhythm,
+                rhythmDays: rhythmDays,
+                rhythmDayOfMonth: rhythmDayOfMonth,
+                rhythmAnchor: rhythmAnchor,
+                nextSettleDate: nextSettleDate,
+                reminderEnabled: reminderEnabled,
+                reminderOffsetDays: reminderOffsetDays,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$PayLaterAccountsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({payLaterEntriesRefs = false, payLaterPaymentsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (payLaterEntriesRefs) db.payLaterEntries,
+                    if (payLaterPaymentsRefs) db.payLaterPayments,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (payLaterEntriesRefs)
+                        await $_getPrefetchedData<
+                          PayLaterAccount,
+                          $PayLaterAccountsTable,
+                          PayLaterEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PayLaterAccountsTableReferences
+                              ._payLaterEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PayLaterAccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).payLaterEntriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (payLaterPaymentsRefs)
+                        await $_getPrefetchedData<
+                          PayLaterAccount,
+                          $PayLaterAccountsTable,
+                          PayLaterPayment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PayLaterAccountsTableReferences
+                              ._payLaterPaymentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PayLaterAccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).payLaterPaymentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$PayLaterAccountsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PayLaterAccountsTable,
+      PayLaterAccount,
+      $$PayLaterAccountsTableFilterComposer,
+      $$PayLaterAccountsTableOrderingComposer,
+      $$PayLaterAccountsTableAnnotationComposer,
+      $$PayLaterAccountsTableCreateCompanionBuilder,
+      $$PayLaterAccountsTableUpdateCompanionBuilder,
+      (PayLaterAccount, $$PayLaterAccountsTableReferences),
+      PayLaterAccount,
+      PrefetchHooks Function({
+        bool payLaterEntriesRefs,
+        bool payLaterPaymentsRefs,
+      })
+    >;
+typedef $$PayLaterEntriesTableCreateCompanionBuilder =
+    PayLaterEntriesCompanion Function({
+      required String expenseId,
+      required String accountId,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$PayLaterEntriesTableUpdateCompanionBuilder =
+    PayLaterEntriesCompanion Function({
+      Value<String> expenseId,
+      Value<String> accountId,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$PayLaterEntriesTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $PayLaterEntriesTable, PayLaterEntry> {
+  $$PayLaterEntriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ExpensesTable _expenseIdTable(_$AppDatabase db) =>
+      db.expenses.createAlias(
+        $_aliasNameGenerator(db.payLaterEntries.expenseId, db.expenses.id),
+      );
+
+  $$ExpensesTableProcessedTableManager get expenseId {
+    final $_column = $_itemColumn<String>('expense_id')!;
+
+    final manager = $$ExpensesTableTableManager(
+      $_db,
+      $_db.expenses,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_expenseIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PayLaterAccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.payLaterAccounts.createAlias(
+        $_aliasNameGenerator(
+          db.payLaterEntries.accountId,
+          db.payLaterAccounts.id,
+        ),
+      );
+
+  $$PayLaterAccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$PayLaterAccountsTableTableManager(
+      $_db,
+      $_db.payLaterAccounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PayLaterEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $PayLaterEntriesTable> {
+  $$PayLaterEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ExpensesTableFilterComposer get expenseId {
+    final $$ExpensesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.expenseId,
+      referencedTable: $db.expenses,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExpensesTableFilterComposer(
+            $db: $db,
+            $table: $db.expenses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PayLaterAccountsTableFilterComposer get accountId {
+    final $$PayLaterAccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.payLaterAccounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterAccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.payLaterAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PayLaterEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PayLaterEntriesTable> {
+  $$PayLaterEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ExpensesTableOrderingComposer get expenseId {
+    final $$ExpensesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.expenseId,
+      referencedTable: $db.expenses,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExpensesTableOrderingComposer(
+            $db: $db,
+            $table: $db.expenses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PayLaterAccountsTableOrderingComposer get accountId {
+    final $$PayLaterAccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.payLaterAccounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterAccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.payLaterAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PayLaterEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PayLaterEntriesTable> {
+  $$PayLaterEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$ExpensesTableAnnotationComposer get expenseId {
+    final $$ExpensesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.expenseId,
+      referencedTable: $db.expenses,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExpensesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.expenses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PayLaterAccountsTableAnnotationComposer get accountId {
+    final $$PayLaterAccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.payLaterAccounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterAccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.payLaterAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PayLaterEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PayLaterEntriesTable,
+          PayLaterEntry,
+          $$PayLaterEntriesTableFilterComposer,
+          $$PayLaterEntriesTableOrderingComposer,
+          $$PayLaterEntriesTableAnnotationComposer,
+          $$PayLaterEntriesTableCreateCompanionBuilder,
+          $$PayLaterEntriesTableUpdateCompanionBuilder,
+          (PayLaterEntry, $$PayLaterEntriesTableReferences),
+          PayLaterEntry,
+          PrefetchHooks Function({bool expenseId, bool accountId})
+        > {
+  $$PayLaterEntriesTableTableManager(
+    _$AppDatabase db,
+    $PayLaterEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PayLaterEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PayLaterEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PayLaterEntriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> expenseId = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterEntriesCompanion(
+                expenseId: expenseId,
+                accountId: accountId,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String expenseId,
+                required String accountId,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterEntriesCompanion.insert(
+                expenseId: expenseId,
+                accountId: accountId,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$PayLaterEntriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({expenseId = false, accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (expenseId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.expenseId,
+                                referencedTable:
+                                    $$PayLaterEntriesTableReferences
+                                        ._expenseIdTable(db),
+                                referencedColumn:
+                                    $$PayLaterEntriesTableReferences
+                                        ._expenseIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (accountId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.accountId,
+                                referencedTable:
+                                    $$PayLaterEntriesTableReferences
+                                        ._accountIdTable(db),
+                                referencedColumn:
+                                    $$PayLaterEntriesTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PayLaterEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PayLaterEntriesTable,
+      PayLaterEntry,
+      $$PayLaterEntriesTableFilterComposer,
+      $$PayLaterEntriesTableOrderingComposer,
+      $$PayLaterEntriesTableAnnotationComposer,
+      $$PayLaterEntriesTableCreateCompanionBuilder,
+      $$PayLaterEntriesTableUpdateCompanionBuilder,
+      (PayLaterEntry, $$PayLaterEntriesTableReferences),
+      PayLaterEntry,
+      PrefetchHooks Function({bool expenseId, bool accountId})
+    >;
+typedef $$PayLaterPaymentsTableCreateCompanionBuilder =
+    PayLaterPaymentsCompanion Function({
+      required String id,
+      required String accountId,
+      required double amount,
+      required DateTime paidDate,
+      Value<String?> note,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$PayLaterPaymentsTableUpdateCompanionBuilder =
+    PayLaterPaymentsCompanion Function({
+      Value<String> id,
+      Value<String> accountId,
+      Value<double> amount,
+      Value<DateTime> paidDate,
+      Value<String?> note,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$PayLaterPaymentsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $PayLaterPaymentsTable, PayLaterPayment> {
+  $$PayLaterPaymentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PayLaterAccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.payLaterAccounts.createAlias(
+        $_aliasNameGenerator(
+          db.payLaterPayments.accountId,
+          db.payLaterAccounts.id,
+        ),
+      );
+
+  $$PayLaterAccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$PayLaterAccountsTableTableManager(
+      $_db,
+      $_db.payLaterAccounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $PayLaterAllocationsTable,
+    List<PayLaterAllocation>
+  >
+  _payLaterAllocationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.payLaterAllocations,
+        aliasName: $_aliasNameGenerator(
+          db.payLaterPayments.id,
+          db.payLaterAllocations.paymentId,
+        ),
+      );
+
+  $$PayLaterAllocationsTableProcessedTableManager get payLaterAllocationsRefs {
+    final manager = $$PayLaterAllocationsTableTableManager(
+      $_db,
+      $_db.payLaterAllocations,
+    ).filter((f) => f.paymentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _payLaterAllocationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$PayLaterPaymentsTableFilterComposer
+    extends Composer<_$AppDatabase, $PayLaterPaymentsTable> {
+  $$PayLaterPaymentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get paidDate => $composableBuilder(
+    column: $table.paidDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PayLaterAccountsTableFilterComposer get accountId {
+    final $$PayLaterAccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.payLaterAccounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterAccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.payLaterAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> payLaterAllocationsRefs(
+    Expression<bool> Function($$PayLaterAllocationsTableFilterComposer f) f,
+  ) {
+    final $$PayLaterAllocationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.payLaterAllocations,
+      getReferencedColumn: (t) => t.paymentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterAllocationsTableFilterComposer(
+            $db: $db,
+            $table: $db.payLaterAllocations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PayLaterPaymentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PayLaterPaymentsTable> {
+  $$PayLaterPaymentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get paidDate => $composableBuilder(
+    column: $table.paidDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PayLaterAccountsTableOrderingComposer get accountId {
+    final $$PayLaterAccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.payLaterAccounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterAccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.payLaterAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PayLaterPaymentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PayLaterPaymentsTable> {
+  $$PayLaterPaymentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get paidDate =>
+      $composableBuilder(column: $table.paidDate, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$PayLaterAccountsTableAnnotationComposer get accountId {
+    final $$PayLaterAccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.payLaterAccounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterAccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.payLaterAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> payLaterAllocationsRefs<T extends Object>(
+    Expression<T> Function($$PayLaterAllocationsTableAnnotationComposer a) f,
+  ) {
+    final $$PayLaterAllocationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.payLaterAllocations,
+          getReferencedColumn: (t) => t.paymentId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$PayLaterAllocationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.payLaterAllocations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$PayLaterPaymentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PayLaterPaymentsTable,
+          PayLaterPayment,
+          $$PayLaterPaymentsTableFilterComposer,
+          $$PayLaterPaymentsTableOrderingComposer,
+          $$PayLaterPaymentsTableAnnotationComposer,
+          $$PayLaterPaymentsTableCreateCompanionBuilder,
+          $$PayLaterPaymentsTableUpdateCompanionBuilder,
+          (PayLaterPayment, $$PayLaterPaymentsTableReferences),
+          PayLaterPayment,
+          PrefetchHooks Function({bool accountId, bool payLaterAllocationsRefs})
+        > {
+  $$PayLaterPaymentsTableTableManager(
+    _$AppDatabase db,
+    $PayLaterPaymentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PayLaterPaymentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PayLaterPaymentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PayLaterPaymentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<DateTime> paidDate = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterPaymentsCompanion(
+                id: id,
+                accountId: accountId,
+                amount: amount,
+                paidDate: paidDate,
+                note: note,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String accountId,
+                required double amount,
+                required DateTime paidDate,
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterPaymentsCompanion.insert(
+                id: id,
+                accountId: accountId,
+                amount: amount,
+                paidDate: paidDate,
+                note: note,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$PayLaterPaymentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({accountId = false, payLaterAllocationsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (payLaterAllocationsRefs) db.payLaterAllocations,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable:
+                                        $$PayLaterPaymentsTableReferences
+                                            ._accountIdTable(db),
+                                    referencedColumn:
+                                        $$PayLaterPaymentsTableReferences
+                                            ._accountIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (payLaterAllocationsRefs)
+                        await $_getPrefetchedData<
+                          PayLaterPayment,
+                          $PayLaterPaymentsTable,
+                          PayLaterAllocation
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PayLaterPaymentsTableReferences
+                              ._payLaterAllocationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PayLaterPaymentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).payLaterAllocationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.paymentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$PayLaterPaymentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PayLaterPaymentsTable,
+      PayLaterPayment,
+      $$PayLaterPaymentsTableFilterComposer,
+      $$PayLaterPaymentsTableOrderingComposer,
+      $$PayLaterPaymentsTableAnnotationComposer,
+      $$PayLaterPaymentsTableCreateCompanionBuilder,
+      $$PayLaterPaymentsTableUpdateCompanionBuilder,
+      (PayLaterPayment, $$PayLaterPaymentsTableReferences),
+      PayLaterPayment,
+      PrefetchHooks Function({bool accountId, bool payLaterAllocationsRefs})
+    >;
+typedef $$PayLaterAllocationsTableCreateCompanionBuilder =
+    PayLaterAllocationsCompanion Function({
+      required String id,
+      required String paymentId,
+      required String expenseId,
+      required double amount,
+      required bool isManual,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$PayLaterAllocationsTableUpdateCompanionBuilder =
+    PayLaterAllocationsCompanion Function({
+      Value<String> id,
+      Value<String> paymentId,
+      Value<String> expenseId,
+      Value<double> amount,
+      Value<bool> isManual,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$PayLaterAllocationsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PayLaterAllocationsTable,
+          PayLaterAllocation
+        > {
+  $$PayLaterAllocationsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PayLaterPaymentsTable _paymentIdTable(_$AppDatabase db) =>
+      db.payLaterPayments.createAlias(
+        $_aliasNameGenerator(
+          db.payLaterAllocations.paymentId,
+          db.payLaterPayments.id,
+        ),
+      );
+
+  $$PayLaterPaymentsTableProcessedTableManager get paymentId {
+    final $_column = $_itemColumn<String>('payment_id')!;
+
+    final manager = $$PayLaterPaymentsTableTableManager(
+      $_db,
+      $_db.payLaterPayments,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_paymentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PayLaterAllocationsTableFilterComposer
+    extends Composer<_$AppDatabase, $PayLaterAllocationsTable> {
+  $$PayLaterAllocationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isManual => $composableBuilder(
+    column: $table.isManual,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PayLaterPaymentsTableFilterComposer get paymentId {
+    final $$PayLaterPaymentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.paymentId,
+      referencedTable: $db.payLaterPayments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterPaymentsTableFilterComposer(
+            $db: $db,
+            $table: $db.payLaterPayments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PayLaterAllocationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PayLaterAllocationsTable> {
+  $$PayLaterAllocationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isManual => $composableBuilder(
+    column: $table.isManual,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PayLaterPaymentsTableOrderingComposer get paymentId {
+    final $$PayLaterPaymentsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.paymentId,
+      referencedTable: $db.payLaterPayments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterPaymentsTableOrderingComposer(
+            $db: $db,
+            $table: $db.payLaterPayments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PayLaterAllocationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PayLaterAllocationsTable> {
+  $$PayLaterAllocationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<bool> get isManual =>
+      $composableBuilder(column: $table.isManual, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PayLaterPaymentsTableAnnotationComposer get paymentId {
+    final $$PayLaterPaymentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.paymentId,
+      referencedTable: $db.payLaterPayments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PayLaterPaymentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.payLaterPayments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PayLaterAllocationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PayLaterAllocationsTable,
+          PayLaterAllocation,
+          $$PayLaterAllocationsTableFilterComposer,
+          $$PayLaterAllocationsTableOrderingComposer,
+          $$PayLaterAllocationsTableAnnotationComposer,
+          $$PayLaterAllocationsTableCreateCompanionBuilder,
+          $$PayLaterAllocationsTableUpdateCompanionBuilder,
+          (PayLaterAllocation, $$PayLaterAllocationsTableReferences),
+          PayLaterAllocation,
+          PrefetchHooks Function({bool paymentId})
+        > {
+  $$PayLaterAllocationsTableTableManager(
+    _$AppDatabase db,
+    $PayLaterAllocationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PayLaterAllocationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PayLaterAllocationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$PayLaterAllocationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> paymentId = const Value.absent(),
+                Value<String> expenseId = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<bool> isManual = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterAllocationsCompanion(
+                id: id,
+                paymentId: paymentId,
+                expenseId: expenseId,
+                amount: amount,
+                isManual: isManual,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String paymentId,
+                required String expenseId,
+                required double amount,
+                required bool isManual,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PayLaterAllocationsCompanion.insert(
+                id: id,
+                paymentId: paymentId,
+                expenseId: expenseId,
+                amount: amount,
+                isManual: isManual,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$PayLaterAllocationsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({paymentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (paymentId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.paymentId,
+                                referencedTable:
+                                    $$PayLaterAllocationsTableReferences
+                                        ._paymentIdTable(db),
+                                referencedColumn:
+                                    $$PayLaterAllocationsTableReferences
+                                        ._paymentIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PayLaterAllocationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PayLaterAllocationsTable,
+      PayLaterAllocation,
+      $$PayLaterAllocationsTableFilterComposer,
+      $$PayLaterAllocationsTableOrderingComposer,
+      $$PayLaterAllocationsTableAnnotationComposer,
+      $$PayLaterAllocationsTableCreateCompanionBuilder,
+      $$PayLaterAllocationsTableUpdateCompanionBuilder,
+      (PayLaterAllocation, $$PayLaterAllocationsTableReferences),
+      PayLaterAllocation,
+      PrefetchHooks Function({bool paymentId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9163,4 +13336,12 @@ class $AppDatabaseManager {
       $$ExchangeRatesTableTableManager(_db, _db.exchangeRates);
   $$ConverterCurrenciesTableTableManager get converterCurrencies =>
       $$ConverterCurrenciesTableTableManager(_db, _db.converterCurrencies);
+  $$PayLaterAccountsTableTableManager get payLaterAccounts =>
+      $$PayLaterAccountsTableTableManager(_db, _db.payLaterAccounts);
+  $$PayLaterEntriesTableTableManager get payLaterEntries =>
+      $$PayLaterEntriesTableTableManager(_db, _db.payLaterEntries);
+  $$PayLaterPaymentsTableTableManager get payLaterPayments =>
+      $$PayLaterPaymentsTableTableManager(_db, _db.payLaterPayments);
+  $$PayLaterAllocationsTableTableManager get payLaterAllocations =>
+      $$PayLaterAllocationsTableTableManager(_db, _db.payLaterAllocations);
 }

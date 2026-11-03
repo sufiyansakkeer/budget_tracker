@@ -5,7 +5,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_metric.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_surface.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../bloc/onboarding_state.dart';
 import 'onboarding_step_layout.dart';
 

@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
-import 'package:drift/drift.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
+import '../../../pay_later/domain/usecases/reconcile_tab_usecase.dart';
+import 'data_codec.dart';
 
 /// Metadata captured alongside a backup.
 class BackupMetadata {
@@ -51,7 +52,13 @@ class ValidationError {
 ///
 /// The backup format is versioned and includes all application tables:
 /// budgets, categories, expenses, settings, recurring expenses,
-/// savings goals, bills, and bill payments.
+/// savings goals, bills, bill payments, and the four Pay later tables (tabs,
+/// their purchases, payments and allocations).
+///
+/// Backups from before Pay later lack its keys; they restore with no tabs.
+/// The format version stays at 2: a missing key reads as an empty list, and
+/// an older app rejects a newer backup by its schema version, so it can never
+/// restore one and silently drop the tabs.
 class BackupService {
   static const int _backupFormatVersion = 2;
 
@@ -67,11 +74,17 @@ class BackupService {
   /// which writes expenses straight to the database.
   final RecalculateRemainingAmountsUseCase? _recalculateRemaining;
 
+  /// Re-derives every tab's automatic allocations inside the restore's
+  /// transaction, so a restore never leaves a payment half-applied.
+  final ReconcileTabUseCase _reconcileTabs;
+
   BackupService({
     required AppDatabase database,
+    required ReconcileTabUseCase reconcileTabs,
     Future<String> Function()? appVersionResolver,
     RecalculateRemainingAmountsUseCase? recalculateRemaining,
   }) : _database = database,
+       _reconcileTabs = reconcileTabs,
        _appVersionResolver = appVersionResolver ?? _platformAppVersion,
        _recalculateRemaining = recalculateRemaining;
 
@@ -477,7 +490,13 @@ class BackupService {
     }
   }
 
-  Future<Map<String, Object?>> _collectData() async {
+  /// Every table, read in one transaction: a write landing mid-backup
+  /// (e.g. the start-up reconcile) is either wholly in the file or not at
+  /// all, so no row points at one the file lacks and the file restores.
+  Future<Map<String, Object?>> _collectData() =>
+      _database.transaction(_readAllTables);
+
+  Future<Map<String, Object?>> _readAllTables() async {
     final expenses = await (_database.select(_database.expenses)).get();
     final categories = await (_database.select(_database.categories)).get();
     final budgets = await (_database.select(_database.budgets)).get();
@@ -488,127 +507,56 @@ class BackupService {
     final savingsGoals = await (_database.select(_database.savingsGoals)).get();
     final bills = await (_database.select(_database.bills)).get();
     final billPayments = await (_database.select(_database.billPayments)).get();
+    final payLaterAccounts = await (_database.select(
+      _database.payLaterAccounts,
+    )).get();
+    final payLaterEntries = await (_database.select(
+      _database.payLaterEntries,
+    )).get();
+    final payLaterPayments = await (_database.select(
+      _database.payLaterPayments,
+    )).get();
+    final payLaterAllocations = await (_database.select(
+      _database.payLaterAllocations,
+    )).get();
 
     return <String, Object?>{
-      'budgets': budgets
-          .map(
-            (b) => {
-              'id': b.id,
-              'name': b.name,
-              'monthlyAmount': b.monthlyAmount,
-              'remainingAmount': b.remainingAmount,
-              'currency': b.currency,
-              'startDate': b.startDate.toIso8601String(),
-              'endDate': b.endDate.toIso8601String(),
-              'isArchived': b.isArchived,
-              'color': b.color,
-              'icon': b.icon,
-              'notes': b.notes,
-              'createdAt': b.createdAt.toIso8601String(),
-              'updatedAt': b.updatedAt.toIso8601String(),
-              'reservedAmount': b.reservedAmount,
-              'savingsTarget': b.savingsTarget,
-            },
-          )
-          .toList(),
-      'categories': categories
-          .map(
-            (c) => {
-              'id': c.id,
-              'name': c.name,
-              'icon': c.icon,
-              'colorHex': c.colorHex,
-              'isSystem': c.isSystem,
-            },
-          )
-          .toList(),
-      'expenses': expenses
-          .map(
-            (e) => {
-              'id': e.id,
-              'budgetId': e.budgetId,
-              'amount': e.amount,
-              'categoryId': e.categoryId,
-              'note': e.note,
-              'date': e.date.toIso8601String(),
-              'time': e.time.toIso8601String(),
-              'receiptImagePath': e.receiptImagePath,
-              'tags': e.tags,
-              'createdAt': e.createdAt.toIso8601String(),
-              'updatedAt': e.updatedAt.toIso8601String(),
-              'billId': e.billId,
-            },
-          )
-          .toList(),
+      'budgets': budgets.map(DataCodec.encodeBudget).toList(),
+      'categories': categories.map(DataCodec.encodeCategory).toList(),
+      'expenses': expenses.map(DataCodec.encodeExpense).toList(),
       'settings': {for (final s in settings) s.key: s.value},
       'recurringExpenses': recurringExpenses
-          .map(
-            (r) => {
-              'id': r.id,
-              'title': r.title,
-              'amount': r.amount,
-              'categoryId': r.categoryId,
-              'frequency': r.frequency,
-              'nextDueDate': r.nextDueDate.toIso8601String(),
-              'isActive': r.isActive,
-            },
-          )
+          .map(DataCodec.encodeRecurringExpense)
           .toList(),
-      'savingsGoals': savingsGoals
-          .map(
-            (g) => {
-              'id': g.id,
-              'title': g.title,
-              'targetAmount': g.targetAmount,
-              'currentAmount': g.currentAmount,
-              'targetDate': g.targetDate.toIso8601String(),
-            },
-          )
+      'savingsGoals': savingsGoals.map(DataCodec.encodeSavingsGoal).toList(),
+      'bills': bills.map(DataCodec.encodeBill).toList(),
+      'billPayments': billPayments.map(DataCodec.encodeBillPayment).toList(),
+      'payLaterAccounts': payLaterAccounts
+          .map(DataCodec.encodePayLaterAccount)
           .toList(),
-      'bills': bills
-          .map(
-            (b) => {
-              'id': b.id,
-              'title': b.title,
-              'note': b.note,
-              'amount': b.amount,
-              'currency': b.currency,
-              'category': b.category,
-              'dueDate': b.dueDate.toIso8601String(),
-              'dueTime': b.dueTime?.toIso8601String(),
-              'isRecurring': b.isRecurring,
-              'recurrenceType': b.recurrenceType,
-              'recurrenceInterval': b.recurrenceInterval,
-              'reminderEnabled': b.reminderEnabled,
-              'reminderOffsetDays': b.reminderOffsetDays,
-              'isPaid': b.isPaid,
-              'paidDate': b.paidDate?.toIso8601String(),
-              'createdAt': b.createdAt.toIso8601String(),
-              'updatedAt': b.updatedAt.toIso8601String(),
-              'budgetId': b.budgetId,
-            },
-          )
+      'payLaterEntries': payLaterEntries
+          .map(DataCodec.encodePayLaterEntry)
           .toList(),
-      'billPayments': billPayments
-          .map(
-            (p) => {
-              'id': p.id,
-              'billId': p.billId,
-              'amount': p.amount,
-              'currency': p.currency,
-              'paidDate': p.paidDate.toIso8601String(),
-              'createdAt': p.createdAt.toIso8601String(),
-            },
-          )
+      'payLaterPayments': payLaterPayments
+          .map(DataCodec.encodePayLaterPayment)
+          .toList(),
+      'payLaterAllocations': payLaterAllocations
+          .map(DataCodec.encodePayLaterAllocation)
           .toList(),
     };
   }
 
-  /// Replaces all table contents with the data from a backup payload.
-  /// The operation is atomic — either all tables are updated or none.
+  /// Replaces all table contents with the data from a backup payload, then
+  /// reconciles every tab. The operation is atomic — either all tables are
+  /// updated and reconciled, or none.
   Future<void> _replaceAll(Map<String, Object?> data) async {
     await _database.transaction(() async {
-      // Clear in dependency order (children before parents).
+      // Clear in dependency order (children before parents). Pay later rows
+      // go first: entries point at expenses, and nothing cascades to tabs.
+      await (_database.delete(_database.payLaterAllocations)).go();
+      await (_database.delete(_database.payLaterPayments)).go();
+      await (_database.delete(_database.payLaterEntries)).go();
+      await (_database.delete(_database.payLaterAccounts)).go();
       await (_database.delete(_database.billPayments)).go();
       await (_database.delete(_database.expenses)).go();
       await (_database.delete(_database.bills)).go();
@@ -618,87 +566,35 @@ class BackupService {
       await (_database.delete(_database.budgets)).go();
       await (_database.delete(_database.settings)).go();
 
-      // Restore budgets
-      final budgets = (data['budgets'] as List?) ?? [];
+      List<Map> records(String key) => [
+        for (final item in (data[key] as List?) ?? const []) item as Map,
+      ];
+
+      final budgets = records('budgets');
       // Bills may only link to a budget this backup restores: with foreign
       // keys on, one dangling link would roll back the whole restore.
-      final restoredBudgetIds = {
-        for (final item in budgets) (item as Map)['id'] as String,
-      };
-      for (final item in budgets) {
-        final map = item as Map;
+      final restoredBudgetIds = {for (final map in budgets) map['id']};
+      for (final map in budgets) {
         await _database
             .into(_database.budgets)
-            .insert(
-              BudgetsCompanion.insert(
-                id: map['id'] as String,
-                name: (map['name'] as String?) ?? 'Personal Budget',
-                monthlyAmount: (map['monthlyAmount'] as num).toDouble(),
-                remainingAmount: (map['remainingAmount'] as num).toDouble(),
-                currency: map['currency'] as String,
-                startDate: DateTime.parse(map['startDate'] as String),
-                endDate: DateTime.parse(map['endDate'] as String),
-                isArchived: Value((map['isArchived'] as bool?) ?? false),
-                color: Value(map['color'] as String?),
-                icon: Value(map['icon'] as String?),
-                notes: Value(map['notes'] as String?),
-                createdAt: Value(DateTime.parse(map['createdAt'] as String)),
-                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
-                // Older backups lack these keys: not set.
-                reservedAmount: Value(
-                  (map['reservedAmount'] as num?)?.toDouble(),
-                ),
-                savingsTarget: Value(
-                  (map['savingsTarget'] as num?)?.toDouble(),
-                ),
-              ),
-            );
+            .insert(DataCodec.decodeBudget(map));
       }
-
-      // Restore categories
-      final categories = (data['categories'] as List?) ?? [];
-      for (final item in categories) {
-        final map = item as Map;
+      for (final map in records('categories')) {
         await _database
             .into(_database.categories)
-            .insert(
-              CategoriesCompanion.insert(
-                id: map['id'] as String,
-                name: map['name'] as String,
-                icon: map['icon'] as String,
-                colorHex: map['colorHex'] as String,
-                isSystem: Value((map['isSystem'] as bool?) ?? true),
-              ),
-            );
+            .insert(DataCodec.decodeCategory(map));
       }
-
-      // Restore expenses
-      final expenses = (data['expenses'] as List?) ?? [];
-      for (final item in expenses) {
-        final map = item as Map;
-        final tags = (map['tags'] as List?) ?? const [];
+      for (final map in records('expenses')) {
         await _database
             .into(_database.expenses)
             .insert(
-              ExpensesCompanion.insert(
-                id: map['id'] as String,
+              DataCodec.decodeExpense(
+                map,
                 budgetId: (map['budgetId'] as String?) ?? '',
-                amount: (map['amount'] as num).toDouble(),
-                categoryId: map['categoryId'] as String,
-                note: Value(map['note'] as String?),
-                date: DateTime.parse(map['date'] as String),
-                time: Value(DateTime.parse(map['time'] as String)),
-                receiptImagePath: Value(map['receiptImagePath'] as String?),
-                tags: Value(jsonEncode(tags)),
-                createdAt: Value(DateTime.parse(map['createdAt'] as String)),
-                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
-                // No foreign key: restored as-is even if the bill is absent.
-                billId: Value(map['billId'] as String?),
               ),
             );
       }
 
-      // Restore settings
       final settings = (data['settings'] as Map?) ?? const {};
       for (final entry in settings.entries) {
         await _database
@@ -711,111 +607,61 @@ class BackupService {
             );
       }
 
-      // Restore recurring expenses
-      final recurringExpenses = (data['recurringExpenses'] as List?) ?? [];
-      for (final item in recurringExpenses) {
-        final map = item as Map;
+      for (final map in records('recurringExpenses')) {
         await _database
             .into(_database.recurringExpenses)
-            .insert(
-              RecurringExpensesCompanion.insert(
-                id: map['id'] as String,
-                title: map['title'] as String,
-                amount: (map['amount'] as num).toDouble(),
-                categoryId: map['categoryId'] as String,
-                frequency: map['frequency'] as String,
-                nextDueDate: DateTime.parse(map['nextDueDate'] as String),
-                isActive: Value((map['isActive'] as bool?) ?? true),
-              ),
-            );
+            .insert(DataCodec.decodeRecurringExpense(map));
       }
-
-      // Restore savings goals
-      final savingsGoals = (data['savingsGoals'] as List?) ?? [];
-      for (final item in savingsGoals) {
-        final map = item as Map;
+      for (final map in records('savingsGoals')) {
         await _database
             .into(_database.savingsGoals)
-            .insert(
-              SavingsGoalsCompanion.insert(
-                id: map['id'] as String,
-                title: map['title'] as String,
-                targetAmount: (map['targetAmount'] as num).toDouble(),
-                currentAmount: Value(
-                  (map['currentAmount'] as num?)?.toDouble() ?? 0.0,
-                ),
-                targetDate: DateTime.parse(map['targetDate'] as String),
-              ),
-            );
+            .insert(DataCodec.decodeSavingsGoal(map));
       }
-
-      // Restore bills
-      final bills = (data['bills'] as List?) ?? [];
-      for (final item in bills) {
-        final map = item as Map;
+      for (final map in records('bills')) {
         await _database
             .into(_database.bills)
             .insert(
-              BillsCompanion.insert(
-                id: map['id'] as String,
-                title: map['title'] as String,
-                note: Value(map['note'] as String?),
-                amount: (map['amount'] as num).toDouble(),
-                currency: map['currency'] as String,
-                category: map['category'] as String,
-                dueDate: DateTime.parse(map['dueDate'] as String),
-                dueTime: Value(
-                  map['dueTime'] != null
-                      ? DateTime.parse(map['dueTime'] as String)
-                      : null,
-                ),
-                isRecurring: Value((map['isRecurring'] as bool?) ?? false),
-                recurrenceType: Value(
-                  (map['recurrenceType'] as String?) ?? 'none',
-                ),
-                recurrenceInterval: Value(
-                  (map['recurrenceInterval'] as num?)?.toInt() ?? 1,
-                ),
-                reminderEnabled: Value(
-                  (map['reminderEnabled'] as bool?) ?? false,
-                ),
-                reminderOffsetDays: Value(
-                  (map['reminderOffsetDays'] as num?)?.toInt() ?? 1,
-                ),
-                isPaid: Value((map['isPaid'] as bool?) ?? false),
-                paidDate: Value(
-                  map['paidDate'] != null
-                      ? DateTime.parse(map['paidDate'] as String)
-                      : null,
-                ),
-                createdAt: Value(DateTime.parse(map['createdAt'] as String)),
-                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
-                budgetId: Value(
-                  restoredBudgetIds.contains(map['budgetId'])
-                      ? map['budgetId'] as String
-                      : null,
-                ),
+              DataCodec.decodeBill(
+                map,
+                budgetId: restoredBudgetIds.contains(map['budgetId'])
+                    ? map['budgetId'] as String
+                    : null,
               ),
             );
       }
-
-      // Restore bill payments
-      final billPayments = (data['billPayments'] as List?) ?? [];
-      for (final item in billPayments) {
-        final map = item as Map;
+      for (final map in records('billPayments')) {
         await _database
             .into(_database.billPayments)
-            .insert(
-              BillPaymentsCompanion.insert(
-                id: map['id'] as String,
-                billId: map['billId'] as String,
-                amount: (map['amount'] as num).toDouble(),
-                currency: map['currency'] as String,
-                paidDate: DateTime.parse(map['paidDate'] as String),
-                createdAt: Value(DateTime.parse(map['createdAt'] as String)),
-              ),
-            );
+            .insert(DataCodec.decodeBillPayment(map));
       }
+
+      // Pay later, parents first and after the expenses its entries point
+      // at. A backup from before Pay later has none of these keys.
+      for (final map in records('payLaterAccounts')) {
+        await _database
+            .into(_database.payLaterAccounts)
+            .insert(DataCodec.decodePayLaterAccount(map));
+      }
+      for (final map in records('payLaterEntries')) {
+        await _database
+            .into(_database.payLaterEntries)
+            .insert(DataCodec.decodePayLaterEntry(map));
+      }
+      for (final map in records('payLaterPayments')) {
+        await _database
+            .into(_database.payLaterPayments)
+            .insert(DataCodec.decodePayLaterPayment(map));
+      }
+      for (final map in records('payLaterAllocations')) {
+        await _database
+            .into(_database.payLaterAllocations)
+            .insert(DataCodec.decodePayLaterAllocation(map));
+      }
+
+      // Re-derive the automatic allocations from what was restored (a file
+      // edited by hand, or written mid-change). Its own transaction nests
+      // here as a savepoint, so a failure rolls the whole restore back.
+      await _reconcileTabs.all();
     });
   }
 }

@@ -7,8 +7,6 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../features/budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
-import '../../../../features/budget/domain/repository/budget_repository.dart';
-import '../../../../features/budget/domain/services/budget_calculation_service.dart';
 import '../entities/app_settings.dart';
 import '../../../dashboard/domain/entities/budget_daily_limit_entity.dart';
 import '../../../dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -38,8 +36,6 @@ class NotificationService {
   /// next one (0 = the next one, which keeps [morningReminderId]).
   static int morningReminderIdFor(int dayOffset) =>
       dayOffset == 0 ? morningReminderId : 1100 + dayOffset;
-  static const int overspendingAlertId = 1003;
-  static const int noExpenseReminderId = 1004;
   static const int testNotificationId = 1999;
 
   static const String channelId = 'budget_reminders';
@@ -55,9 +51,32 @@ class NotificationService {
   static const String channelDescription =
       "Daily Today's Safe Spending reminder and evening summary";
 
+  /// Payload of a Pay later reminder: this prefix, then the tab id.
+  static const String payLaterPayloadPrefix = 'pay_later:';
+
+  /// The tab a Pay later reminder [payload] is for; null for any other
+  /// notification (bill and daily notifications are not routed).
+  static String? payLaterTabIdFrom(String? payload) {
+    if (payload == null || !payload.startsWith(payLaterPayloadPrefix)) {
+      return null;
+    }
+    final tabId = payload.substring(payLaterPayloadPrefix.length);
+    return tabId.isEmpty ? null : tabId;
+  }
+
+  // Status-bar icons are alpha-masked by Android, so the launcher PNG would
+  // render as a solid square. Use the dedicated monochrome vector instead.
+  static const InitializationSettings _initializationSettings =
+      InitializationSettings(
+        android: AndroidInitializationSettings(notificationIcon),
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
+      );
+
   final FlutterLocalNotificationsPlugin _plugin;
-  final BudgetRepository budgetRepository;
-  final BudgetCalculationService calculationService;
   final GetSpendingTargetsUseCase spendingTargetsUseCase;
 
   /// Puts back the bill reminders [scheduleAll] clears. The plugin can only
@@ -67,17 +86,26 @@ class NotificationService {
   /// them.
   final Future<void> Function()? rescheduleBillReminders;
 
+  /// Puts back the Pay later reminders [scheduleAll] clears, for the same
+  /// reason as [rescheduleBillReminders].
+  final Future<void> Function() rescheduleTabReminders;
+
+  /// Opens a tab's screen when its reminder is tapped, also when the tap
+  /// launched the app.
+  final void Function(String tabId) onPayLaterTap;
+
   /// Source of "now" for scheduling. Tests inject a fixed clock.
   final DateTime Function() _clock;
   bool _initialized = false;
+  bool _launchTapChecked = false;
   bool _timeZonesConfigured = false;
 
   NotificationService({
     FlutterLocalNotificationsPlugin? plugin,
-    required this.budgetRepository,
-    required this.calculationService,
     required this.spendingTargetsUseCase,
     this.rescheduleBillReminders,
+    required this.rescheduleTabReminders,
+    required this.onPayLaterTap,
     DateTime Function()? clock,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
        _clock = clock ?? DateTime.now;
@@ -90,21 +118,17 @@ class NotificationService {
 
     await _configureLocalTimeZone();
 
-    // Status-bar icons are alpha-masked by Android, so the launcher PNG would
-    // render as a solid square. Use the dedicated monochrome vector instead.
-    const android = AndroidInitializationSettings(notificationIcon);
-    const ios = DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
-    );
-    const settings = InitializationSettings(android: android, iOS: ios);
-
     debugPrint('[Notifications] Timezone initialized');
     final ok = await _plugin.initialize(
-      settings,
-      onDidReceiveNotificationResponse: _onNotificationResponse,
+      _initializationSettings,
+      onDidReceiveNotificationResponse: handleNotificationResponse,
     );
+    // Whatever initialize answered: iOS answers false when no permission is
+    // requested (never, here), and the launch tap is there all the same.
+    if (!_launchTapChecked) {
+      _launchTapChecked = true;
+      await _routeLaunchTap();
+    }
     if (ok != true) {
       return false;
     }
@@ -113,6 +137,21 @@ class NotificationService {
     _initialized = true;
     debugPrint('[Notifications] Plugin initialized');
     return true;
+  }
+
+  /// A tap on a notification while the app was not running launches it
+  /// without calling the tap handler; the plugin keeps it as launch details.
+  /// Read once, right after the first initialize call.
+  Future<void> _routeLaunchTap() async {
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details == null || !details.didNotificationLaunchApp) return;
+      final response = details.notificationResponse;
+      if (response != null) handleNotificationResponse(response);
+    } catch (e) {
+      // The app opens on its usual screen.
+      debugPrint('[Notification] Could not read the launch notification: $e');
+    }
   }
 
   /// Requests native notification permission on Android 13+ and iOS.
@@ -149,43 +188,21 @@ class NotificationService {
     }
   }
 
-  /// Returns whether notifications are enabled at the OS level.
-  Future<bool> areNotificationsEnabled() async {
-    await initialize();
-
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (android != null) {
-      return await android.areNotificationsEnabled() ?? false;
-    }
-
-    final ios = _plugin
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >();
-    if (ios != null) {
-      final settings = await ios.checkPermissions();
-      return settings?.isEnabled ?? false;
-    }
-
-    return true;
-  }
-
   /// Schedules all daily notifications based on [settings].
   ///
   /// The morning notification is scheduled once per day for the next
   /// [morningReminderDays] mornings, each body calculated for the day it
   /// fires using [GetTodaySafeSpendingUseCase].
   ///
-  /// Clearing the pending schedule also clears bill reminders, which are
-  /// opted into per bill (not by these settings), so they are put back
-  /// through [rescheduleBillReminders] straight away.
+  /// Clearing the pending schedule also clears bill and Pay later
+  /// reminders, which are opted into per bill or tab (not by these
+  /// settings), so they are put back through [rescheduleBillReminders] and
+  /// [rescheduleTabReminders] straight away.
   Future<void> scheduleAll(AppSettings settings) async {
     await initialize();
     await cancelAllPending();
     await _restoreBillReminders();
+    await _restoreTabReminders();
 
     final notifSettings = settings.notifications;
     if (!notifSettings.notificationsEnabled) return;
@@ -194,7 +211,6 @@ class NotificationService {
       await _scheduleMorningReminders(
         hour: notifSettings.morningReminderTime.hour,
         minute: notifSettings.morningReminderTime.minute,
-        fallbackCurrency: settings.currencyCode,
       );
     }
 
@@ -208,6 +224,11 @@ class NotificationService {
       );
     }
   }
+
+  /// The morning text when the amounts could not be worked out: the same
+  /// neutral line the home-screen widget shows, not "no budget".
+  static const String morningUnavailableBody =
+      "Open Monivo to see today's safe spending.";
 
   /// The morning notification text for the budgets running today, one line
   /// per budget (never combined).
@@ -285,16 +306,14 @@ class NotificationService {
   ///
   /// Intended for development verification of permission, channel, and delivery.
   /// Uses the same per-budget calculation as the morning notification.
-  Future<void> scheduleTestNotification({AppSettings? settings}) async {
+  Future<void> scheduleTestNotification() async {
     await initialize();
 
-    final currencyCode = settings?.currencyCode ?? 'INR';
+    final perBudget = await _getPerBudgetSafeSpending();
 
-    final perBudget = await _getPerBudgetSafeSpending(
-      fallbackCurrency: currencyCode,
-    );
-
-    final body = morningBody(perBudget?.budgetLimits ?? const []);
+    final body = perBudget == null
+        ? morningUnavailableBody
+        : morningBody(perBudget.budgetLimits);
 
     debugPrint('[Notification] Test notification body: $body');
 
@@ -342,19 +361,18 @@ class NotificationService {
     }
   }
 
-  /// Cancels all scheduled notifications.
-  Future<void> cancelAll() async {
-    await _cancelWithRecovery(() => _plugin.cancelAll());
+  Future<void> _restoreTabReminders() async {
+    try {
+      await rescheduleTabReminders();
+    } catch (e) {
+      // The daily notifications still get scheduled.
+      debugPrint('[Notification] Could not restore pay later reminders: $e');
+    }
   }
 
   /// Cancels scheduled notifications without touching already displayed ones.
   Future<void> cancelAllPending() async {
     await _cancelWithRecovery(() => _plugin.cancelAllPendingNotifications());
-  }
-
-  /// Cancels a specific notification by id.
-  Future<void> cancel(int id) async {
-    await _plugin.cancel(id);
   }
 
   /// Whether the plugin is ready for scheduling.
@@ -368,17 +386,15 @@ class NotificationService {
   Future<void> _scheduleMorningReminders({
     required int hour,
     required int minute,
-    required String fallbackCurrency,
   }) async {
     final first = _nextInstanceOf(hour, minute);
     for (var i = 0; i < morningReminderDays; i++) {
       // Calendar arithmetic, so a daylight-saving change keeps the time.
       final day = DateTime(first.year, first.month, first.day + i);
-      final perBudget = await _getPerBudgetSafeSpending(
-        fallbackCurrency: fallbackCurrency,
-        referenceDate: day,
-      );
-      final body = morningBody(perBudget?.budgetLimits ?? const []);
+      final perBudget = await _getPerBudgetSafeSpending(referenceDate: day);
+      final body = perBudget == null
+          ? morningUnavailableBody
+          : morningBody(perBudget.budgetLimits);
 
       debugPrint('[Notification] Morning notification for $day: $body');
 
@@ -470,17 +486,13 @@ class NotificationService {
   /// Dashboard's "Today's Spending Limits" section, for [referenceDate]
   /// (today when omitted).
   Future<PerBudgetSafeSpendingResult?> _getPerBudgetSafeSpending({
-    String fallbackCurrency = 'INR',
     DateTime? referenceDate,
   }) async {
     try {
       final useCase = GetTodaySafeSpendingUseCase(
         spendingTargetsUseCase: spendingTargetsUseCase,
       );
-      return await useCase.callPerBudget(
-        fallbackCurrency: fallbackCurrency,
-        referenceDate: referenceDate,
-      );
+      return await useCase.callPerBudget(referenceDate: referenceDate);
     } catch (e, st) {
       debugPrint('[Notification] Error calculating safe spending: $e\n$st');
       return null;
@@ -526,9 +538,23 @@ class NotificationService {
     return error.toString().contains('Missing type parameter');
   }
 
-  void _onNotificationResponse(NotificationResponse response) {
+  /// The app's one notification tap handler. The plugin keeps only the
+  /// handler of its latest initialize call, so every initialize in the app
+  /// (this service's and the bill reminders') passes this one. A Pay later
+  /// reminder opens its tab; everything else is only logged, as before.
+  void handleNotificationResponse(NotificationResponse response) {
     final payload = response.payload;
     if (payload == null || payload.isEmpty) return;
+
+    final tabId = payLaterTabIdFrom(payload);
+    if (tabId != null) {
+      try {
+        onPayLaterTap(tabId);
+      } catch (e) {
+        debugPrint('[Notification] Could not open the tab: $e');
+      }
+      return;
+    }
 
     switch (payload) {
       case 'daily_spending_limit':

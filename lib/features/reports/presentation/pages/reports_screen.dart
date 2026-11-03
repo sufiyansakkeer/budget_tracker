@@ -203,10 +203,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
           final data = state.data;
           final Widget child;
           if (data == null && state.status == ReportsStatus.error) {
+            // The bloc's budget messages are written for people; any other
+            // failure text is not.
+            final message = state.errorMessage;
+            final isBudgetMessage =
+                message == ReportsBloc.noBudgetMessage ||
+                message == ReportsBloc.budgetUnreadableMessage;
             child = ReportsErrorWidget(
               key: const ValueKey('error'),
-              message: state.errorMessage == ReportsBloc.noBudgetMessage
-                  ? ReportsBloc.noBudgetMessage
+              message: isBudgetMessage
+                  ? message!
                   : 'Your expenses are still on this device. Try again in '
                         'a moment.',
               onRetry: _retry,

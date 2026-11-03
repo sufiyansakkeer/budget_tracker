@@ -26,8 +26,6 @@ abstract class BillRepository {
   /// Deletes one payment record by its id (used to undo a payment).
   Future<void> deleteBillPayment(String paymentId);
 
-  /// Returns the sum of upcoming (unpaid, non-overdue) bill amounts
-  /// within the given number of days from now.
   /// Unpaid bills due on or after [from] (default: today), soonest first.
   ///
   /// Used by the dashboard, which shows only the next few — loading every
@@ -40,11 +38,6 @@ abstract class BillRepository {
     required DateTime today,
     int limit = 3,
   });
-
-  Future<double> getUpcomingBillsTotal({int withinDays = 30});
-
-  /// Returns the sum of all recurring bill amounts per month.
-  Future<double> getMonthlyRecurringBillsTotal();
 
   /// Runs [action] inside a database transaction. If [action] throws, all
   /// changes within are rolled back.

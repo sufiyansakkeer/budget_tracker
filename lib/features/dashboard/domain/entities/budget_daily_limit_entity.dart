@@ -46,7 +46,7 @@ class BudgetDailyLimitEntity extends Equatable {
   /// The overall budget health status.
   final BudgetStatus budgetStatus;
 
-  /// Percentage of the overall budget used (0–100).
+  /// Share of the overall budget used, as a ratio (1.0 = all of it).
   final double budgetUtilization;
 
   /// Total budget amount for this budget.

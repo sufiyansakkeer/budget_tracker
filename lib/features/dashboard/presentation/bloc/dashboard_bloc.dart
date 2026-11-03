@@ -10,8 +10,6 @@ import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/repository/bill_repository.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
-import '../../domain/entities/spending_target_entity.dart';
-import '../../domain/entities/spending_target_status.dart';
 import '../../domain/usecases/get_recent_expenses_usecase.dart';
 import '../../domain/usecases/get_safe_to_spend_usecase.dart';
 import '../../domain/usecases/get_smart_insights_usecase.dart';
@@ -199,12 +197,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
         // Load per-budget daily spending limits (primary data source).
         List<BudgetDailyLimitEntity> budgetDailyLimits = [];
-        SpendingTargetEntity? spendingTarget;
         SafeToSpendEntity? activeSafeToSpend;
         if (perBudget != null) {
           budgetDailyLimits = perBudget.budgetLimits;
-          // Legacy target for the ACTIVE budget only (never combined).
-          spendingTarget = _deriveSpendingTarget(perBudget, activeId);
           for (final limit in budgetDailyLimits) {
             if (limit.budgetId == activeId) {
               activeSafeToSpend = limit.safeToSpend;
@@ -222,7 +217,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
         final insights = getSmartInsightsUseCase(
           data,
-          spendingTarget: spendingTarget,
           budgetDailyLimits: budgetDailyLimits,
           safeToSpend: activeSafeToSpend,
         );
@@ -235,8 +229,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             budgetSummary: data,
             recentExpenses: recentExpenses,
             insights: insights,
-            upcomingBills: upcomingBills,
-            spendingTarget: spendingTarget,
+            upcomingBills: upcomingBills ?? const [],
+            upcomingBillsUnavailable: upcomingBills == null,
             budgetDailyLimits: budgetDailyLimits,
             activeBudgetId: activeId,
             activeBudgetArchived: activeArchived,
@@ -253,7 +247,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     if (useCase == null || safeToSpend == null) return null;
     try {
       return await useCase(safeToSpend);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _logRecovered('Could not read the spending pace', error, stackTrace);
       return null;
     }
   }
@@ -262,7 +257,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   Future<bool> _isArchived(String id) async {
     try {
       return (await budgetRepository.getBudgetById(id))?.isArchived ?? false;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _logRecovered('Could not read budget $id', error, stackTrace);
       return false;
     }
   }
@@ -298,7 +294,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             activeBudgetId: activeId,
             safeToSpend: data,
             recentExpenses: recentExpenses,
-            upcomingBills: upcomingBills,
+            upcomingBills: upcomingBills ?? const [],
+            upcomingBillsUnavailable: upcomingBills == null,
             otherBudgetLimits: [
               for (final limit in perBudget?.budgetLimits ?? const [])
                 if (limit.budgetId != activeId) limit,
@@ -311,27 +308,18 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   /// Unpaid bills that are overdue (longest overdue first), then the next few
   /// due from today. Overdue ones lead because they need attention most;
   /// leaving them out let Home say "No bills due soon" while today's amount
-  /// still set one aside. Either list is empty when it cannot be read (not
-  /// critical for the dashboard).
-  Future<List<BillEntity>> _upcomingBills(DateTime today) async {
-    Future<List<BillEntity>> read(
-      Future<List<BillEntity>> Function() query,
-    ) async {
-      try {
-        return await query();
-      } catch (_) {
-        return const [];
-      }
+  /// still set one aside. Null when they cannot be read, so Home says so
+  /// rather than "No bills due soon" (not critical for the dashboard).
+  Future<List<BillEntity>?> _upcomingBills(DateTime today) async {
+    try {
+      final overdue = await billRepository.getOverdueBills(today: today);
+      // Soonest first, straight from the due-date index.
+      final upcoming = await billRepository.getUpcomingBills(from: today);
+      return [...overdue, ...upcoming];
+    } catch (error, stackTrace) {
+      _logRecovered('Could not read bills', error, stackTrace);
+      return null;
     }
-
-    final overdue = await read(
-      () => billRepository.getOverdueBills(today: today),
-    );
-    // Soonest first, straight from the due-date index.
-    final upcoming = await read(
-      () => billRepository.getUpcomingBills(from: today),
-    );
-    return [...overdue, ...upcoming];
   }
 
   /// Every running budget's daily limit (each carrying its safe-to-spend
@@ -344,9 +332,21 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         referenceDate: today,
       );
       return result is PerBudgetSpendingTargetSuccess ? result : null;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _logRecovered('Could not work out daily limits', error, stackTrace);
       return null;
     }
+  }
+
+  /// Logs a failure the dashboard carries on without, so its cause is not
+  /// lost.
+  void _logRecovered(String what, Object error, StackTrace stackTrace) {
+    developer.log(
+      '[Dashboard] $what',
+      name: 'Dashboard',
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
 
   DashboardState _resolveErrorState(BudgetFailure failure) {
@@ -354,74 +354,5 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       return const DashboardEmpty();
     }
     return DashboardError(message: failure.message);
-  }
-
-  /// Derives a legacy [SpendingTargetEntity] for the active budget from the
-  /// per-budget data. Daily and weekly amounts are never combined across
-  /// budgets; if the active budget is not running today, no target is derived.
-  SpendingTargetEntity? _deriveSpendingTarget(
-    PerBudgetSpendingTargetSuccess result,
-    String activeBudgetId,
-  ) {
-    BudgetDailyLimitEntity? active;
-    for (final bl in result.budgetLimits) {
-      if (bl.budgetId == activeBudgetId) {
-        active = bl;
-        break;
-      }
-    }
-    if (active == null) return null;
-
-    final dailySpent = active.spentToday;
-    final weeklyTarget = active.weeklyTarget;
-    final weeklySpent = active.weeklySpent;
-    final dailyTarget = active.dailyLimit;
-    final dailyRemaining = (dailyTarget - dailySpent).clamp(
-      0.0,
-      double.infinity,
-    );
-    final dailyExceeded = dailySpent > dailyTarget
-        ? dailySpent - dailyTarget
-        : 0.0;
-    final dailyProgress = dailyTarget > 0
-        ? (dailySpent / dailyTarget).clamp(0.0, 1.0)
-        : 0.0;
-    final dailyStatus = _targetStatus(dailySpent, dailyTarget);
-
-    final weeklyRemaining = (weeklyTarget - weeklySpent).clamp(
-      0.0,
-      double.infinity,
-    );
-    final weeklyExceeded = weeklySpent > weeklyTarget
-        ? weeklySpent - weeklyTarget
-        : 0.0;
-    final weeklyProgress = weeklyTarget > 0
-        ? (weeklySpent / weeklyTarget).clamp(0.0, 1.0)
-        : 0.0;
-    final weeklyStatus = _targetStatus(weeklySpent, weeklyTarget);
-
-    return SpendingTargetEntity(
-      dailyTarget: dailyTarget,
-      dailySpent: dailySpent,
-      dailyRemaining: dailyRemaining,
-      dailyExceeded: dailyExceeded,
-      dailyProgress: dailyProgress,
-      dailyStatus: dailyStatus,
-      weeklyTarget: weeklyTarget,
-      weeklySpent: weeklySpent,
-      weeklyRemaining: weeklyRemaining,
-      weeklyExceeded: weeklyExceeded,
-      weeklyProgress: weeklyProgress,
-      weeklyStatus: weeklyStatus,
-      currency: result.currency,
-    );
-  }
-
-  SpendingTargetStatus _targetStatus(double spent, double target) {
-    if (target <= 0) return SpendingTargetStatus.onTrack;
-    final ratio = spent / target;
-    if (ratio > 1.0) return SpendingTargetStatus.exceeded;
-    if (ratio >= 0.8) return SpendingTargetStatus.nearLimit;
-    return SpendingTargetStatus.onTrack;
   }
 }

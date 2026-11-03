@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
@@ -47,7 +48,7 @@ class MockBudgetRepository implements BudgetRepository {
     remainingAmount: 1000,
     currency: 'INR',
     startDate: DateTime.now(),
-    endDate: DateTime.now().add(const Duration(days: 30)),
+    endDate: DateTime.now().addDays(30),
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
@@ -65,7 +66,7 @@ class MockBudgetRepository implements BudgetRepository {
     remainingAmount: 1000,
     currency: 'INR',
     startDate: startDate ?? DateTime.now(),
-    endDate: endDate ?? DateTime.now().add(const Duration(days: 30)),
+    endDate: endDate ?? DateTime.now().addDays(30),
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
@@ -81,12 +82,6 @@ class MockBudgetRepository implements BudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => 0;
-
-  @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 30;
 
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
@@ -134,8 +129,6 @@ class FakeExpenseLocalDataSource implements ExpenseLocalDataSource {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {

@@ -19,9 +19,10 @@ import '../../../bills/presentation/pages/bill_widgets.dart';
 /// section names how many are overdue, so the most urgent bill is never
 /// missing from Home.
 ///
-/// Only a bill linked to the budget on screen reads "Set aside": a bill
-/// another budget pays names that budget, so the row never contradicts the
-/// "Free to spend" line above it.
+/// Only a bill whose occurrence the budget on screen sets aside reads "Set
+/// aside" ([setAsideBillIds]): a bill another budget pays names that budget,
+/// and one due after the budget ends (or in another currency) names its own,
+/// so the row never contradicts the "Free to spend" line above it.
 class UpcomingBillsSection extends StatelessWidget {
   final List<BillEntity> bills;
 
@@ -31,16 +32,43 @@ class UpcomingBillsSection extends StatelessWidget {
   /// Names of the budgets a bill may be linked to, by id.
   final Map<String, String> budgetNames;
 
+  /// Bills whose occurrence the budget on screen sets aside, from its
+  /// Today's Safe Spending result.
+  final Set<String> setAsideBillIds;
+
+  /// The bills could not be read: the section says so, with [onRetry],
+  /// instead of "No bills due soon".
+  final bool unavailable;
+  final VoidCallback? onRetry;
+
   const UpcomingBillsSection({
     super.key,
     required this.bills,
     this.activeBudgetId,
     this.budgetNames = const {},
+    this.setAsideBillIds = const {},
+    this.unavailable = false,
+    this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (unavailable) {
+      return AppSection(
+        title: 'Coming up',
+        action: TextButton(onPressed: onRetry, child: const Text('Try again')),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Text(
+            "Couldn't load your bills.",
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
     final overdue = bills.where((b) => b.status == BillStatus.overdue).length;
     return AppSection(
       title: 'Coming up',
@@ -71,7 +99,12 @@ class UpcomingBillsSection extends StatelessWidget {
                 for (final bill in bills)
                   _BillRow(
                     bill: bill,
-                    link: _BillLink.of(bill, activeBudgetId, budgetNames),
+                    link: _BillLink.of(
+                      bill,
+                      activeBudgetId,
+                      budgetNames,
+                      setAsideBillIds,
+                    ),
                   ),
               ],
             ),
@@ -93,12 +126,13 @@ class _BillLink {
     BillEntity bill,
     String? activeBudgetId,
     Map<String, String> budgetNames,
+    Set<String> setAsideBillIds,
   ) {
     final budgetId = bill.budgetId;
     if (budgetId == null) {
       return const _BillLink('Not linked', 'not linked to a budget');
     }
-    if (budgetId == activeBudgetId) {
+    if (budgetId == activeBudgetId && setAsideBillIds.contains(bill.id)) {
       return const _BillLink('Set aside', 'set aside', setAside: true);
     }
     final name = budgetNames[budgetId];

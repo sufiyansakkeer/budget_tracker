@@ -297,7 +297,7 @@ notifications, navigation and backup/restore.
 | Security | `local_auth` | Optional app lock (biometrics or device credential) |
 | Import / export | `csv`, `pdf`, `file_picker`, `share_plus` | CSV/JSON/PDF export, import and backups |
 | Networking | `http` | GitHub Releases update check and Frankfurter rates |
-| Other | `intl`, `image_picker`, `uuid`, `provider`, `package_info_plus`, `url_launcher` | Formatting, receipts, ids, currency notifier, app info, links |
+| Other | `intl`, `image_picker`, `uuid`, `package_info_plus`, `url_launcher` | Formatting, receipts, ids, app info, links |
 | Testing | `flutter_test`, `bloc_test`, `mockito`, `sqlite3` | Unit, BLoC, widget, integration, migration and golden tests |
 
 Code generation is limited to Drift (`app_database.g.dart`) and Mockito mocks. Entities

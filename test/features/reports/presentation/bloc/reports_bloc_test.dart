@@ -37,6 +37,26 @@ class MockGetReportDataUseCase implements GetReportDataUseCase {
   }
 }
 
+/// Answers each period after its own delay, so a slow load can finish last.
+class _SlowFirstReports implements GetReportDataUseCase {
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<ReportDataResult> call({
+    required ReportPeriod period,
+    ExpenseHistoryFilter filter = const ExpenseHistoryFilter(),
+    DateTime? referenceDate,
+    DateTime? customStart,
+    DateTime? customEnd,
+  }) async {
+    if (period == ReportPeriod.thisYear) {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+    return ReportSuccess(buildEmptyData(period));
+  }
+}
+
 ReportData buildEmptyData(ReportPeriod period) {
   return ReportData(
     range: ReportRange(
@@ -50,7 +70,6 @@ ReportData buildEmptyData(ReportPeriod period) {
     overview: ReportOverview.empty,
     dailySpending: const [],
     spendingBuckets: const [],
-    categorySlices: const [],
     categoryAnalytics: const [],
     timeAnalytics: TimeAnalytics.empty,
     trend: SpendingTrend.empty,
@@ -88,7 +107,6 @@ ReportData buildData(ReportPeriod period) {
     ),
     dailySpending: const [],
     spendingBuckets: const [],
-    categorySlices: const [],
     categoryAnalytics: const [],
     timeAnalytics: TimeAnalytics.empty,
     trend: SpendingTrend.empty,
@@ -233,5 +251,21 @@ void main() {
     expect(expectedStates.last.filter.categoryId, 'food');
     expect(expectedStates.last.status, ReportsStatus.loaded);
     bloc.close();
+  });
+
+  test('a slow period that finishes last does not replace the one chosen '
+      'after it', () async {
+    final bloc = ReportsBloc(
+      getReportDataUseCase: _SlowFirstReports(),
+      insightGenerator: const ReportInsightGenerator(),
+    );
+    addTearDown(bloc.close);
+
+    bloc.add(const ReportsPeriodChanged(ReportPeriod.thisYear));
+    bloc.add(const ReportsPeriodChanged(ReportPeriod.thisWeek));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    expect(bloc.state.period, ReportPeriod.thisWeek);
+    expect(bloc.state.data?.range.period, ReportPeriod.thisWeek);
   });
 }

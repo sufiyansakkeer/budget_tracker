@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_event.dart';
@@ -25,11 +26,7 @@ void main() {
           budgetId: budgetId,
           amount: 10.0 + i,
           note: i.isEven ? 'coffee $i' : 'lunch $i',
-          date: DateTime(
-            now.year,
-            now.month,
-            now.day,
-          ).subtract(Duration(days: i % 7)),
+          date: DateTime(now.year, now.month, now.day).addDays(-(i % 7)),
         ),
       );
     }

@@ -44,15 +44,17 @@ void main() {
     updatedAt: DateTime(2026, 8, 4),
   );
 
-  test(
-    'should create initial budget and mark first launch completed in repository',
-    () async {
-      // act
-      await useCase(tBudget);
+  test('creates the budget without finishing onboarding', () async {
+    await useCase(tBudget);
 
-      // assert
-      expect(repository.createdBudget, equals(tBudget));
-      expect(repository.isFirstLaunch, isFalse);
-    },
-  );
+    expect(repository.createdBudget, equals(tBudget));
+    // Finished only once the budget is also active.
+    expect(repository.isFirstLaunch, isTrue);
+  });
+
+  test('finishing onboarding marks the first launch completed', () async {
+    await useCase.finishOnboarding();
+
+    expect(repository.isFirstLaunch, isFalse);
+  });
 }

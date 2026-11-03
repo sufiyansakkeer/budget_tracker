@@ -6,14 +6,12 @@ import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../../expenses/domain/entities/expense_history_filter.dart';
 import 'category_analytics.dart';
 import 'category_comparison.dart';
-import 'category_slice.dart';
 import 'daily_spending_point.dart';
 import 'monthly_spending_bucket.dart';
 import 'report_overview.dart';
 import 'report_period.dart';
 import 'spending_trend.dart';
 import 'time_analytics.dart';
-import 'weekly_comparison.dart';
 
 /// Complete snapshot of computed report data for one [ReportRange].
 ///
@@ -39,9 +37,6 @@ class ReportData extends Equatable {
   /// Weekly (month view) or monthly (year view) bar chart buckets.
   final List<SpendingBucket> spendingBuckets;
 
-  /// Category distribution for the pie chart.
-  final List<CategorySlice> categorySlices;
-
   /// Ordered (highest first) category analytics.
   final List<CategoryAnalytics> categoryAnalytics;
 
@@ -50,7 +45,6 @@ class ReportData extends Equatable {
 
   final TimeAnalytics timeAnalytics;
   final SpendingTrend trend;
-  final WeeklyComparison? weeklyComparison;
 
   /// ISO code of the active budget's currency. Every amount in this report
   /// is in it, whatever the period. Null only when there is no active budget.
@@ -70,12 +64,10 @@ class ReportData extends Equatable {
     required this.overview,
     required this.dailySpending,
     required this.spendingBuckets,
-    required this.categorySlices,
     required this.categoryAnalytics,
     this.categoryComparison = const [],
     required this.timeAnalytics,
     required this.trend,
-    this.weeklyComparison,
     this.currency,
     this.currentBudget,
     this.currentMonthSpent = 0,
@@ -93,12 +85,10 @@ class ReportData extends Equatable {
     overview,
     dailySpending,
     spendingBuckets,
-    categorySlices,
     categoryAnalytics,
     categoryComparison,
     timeAnalytics,
     trend,
-    weeklyComparison,
     currency,
     currentBudget,
     currentMonthSpent,

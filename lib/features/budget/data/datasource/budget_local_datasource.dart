@@ -45,9 +45,6 @@ abstract class BudgetLocalDataSource {
   /// Returns total spending for [referenceDate]'s calendar day within the budget.
   Future<double> getTodaySpending(String budgetId, {DateTime? referenceDate});
 
-  /// Returns remaining days in the budget period including today.
-  Future<int> getRemainingDays(String budgetId, {DateTime? referenceDate});
-
   /// Returns total spending within an explicit date range for a specific budget.
   Future<double> getExpensesTotalInRange(
     String budgetId, {

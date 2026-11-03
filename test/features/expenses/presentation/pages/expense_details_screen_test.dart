@@ -14,6 +14,7 @@ import 'package:monivo/features/expenses/presentation/pages/expense_details_scre
 import 'package:monivo/features/expenses/presentation/widgets/expense_undo.dart';
 
 import '../expense_test_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 void main() {
   late MemoryExpenseRepository expenses;
@@ -45,7 +46,10 @@ void main() {
       ),
     ]);
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: budgets),
+      ManageBudgetUseCase(
+        repository: budgets,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
     ExpenseUndo.blocFactory = () => memoryExpenseBloc(expenses, budgets);
   });

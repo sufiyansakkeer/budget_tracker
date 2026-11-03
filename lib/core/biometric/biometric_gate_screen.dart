@@ -107,7 +107,9 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
               } else {
                 AppRouter.router.go(pending);
               }
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[error] Opening $pending from the widget: $e');
+            }
           });
         }
       },

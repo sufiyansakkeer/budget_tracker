@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/app_update/domain/entities/app_update_result.dart';
@@ -81,6 +82,37 @@ void main() {
     expect(find.text('Latest version: v1.1.0'), findsOneWidget);
     expect(find.text('View update'), findsOneWidget);
     bloc.close();
+  });
+
+  testWidgets('a release page that cannot be opened says so', (tester) async {
+    const result = AppUpdateResult(
+      status: UpdateStatus.updateAvailable,
+      currentVersion: '1.0.0',
+      latestVersion: '1.1.0',
+      releaseUrl: 'https://example.com/releases/v1.1.0',
+    );
+    final bloc = createBloc(initialState: const AppUpdateAvailable(result));
+    addTearDown(bloc.close);
+    await tester.pumpWidget(buildWithBloc(bloc));
+    await tester.pumpAndSettle();
+
+    // The platform says the page could not be opened.
+    const launcher = MethodChannel('plugins.flutter.io/url_launcher');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      launcher,
+      (call) async => false,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        launcher,
+        null,
+      ),
+    );
+
+    await tester.tap(find.text('View update'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unable to open the release page.'), findsOneWidget);
   });
 
   testWidgets('shows up-to-date state', (tester) async {

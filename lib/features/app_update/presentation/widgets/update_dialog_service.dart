@@ -44,19 +44,20 @@ class UpdateDialogService {
   /// Launch the GitHub release URL in an external browser.
   /// Can be used by the Settings screen or anywhere else that needs
   /// to open the latest release without showing the dialog first.
-  static Future<void> viewRelease(AppUpdateResult result) async {
-    final url = result.releaseUrl.trim();
-    if (url.isEmpty) return;
-
-    final uri = Uri.tryParse(url);
+  ///
+  /// Returns false when there is no usable link or the page could not be
+  /// opened, so the caller can say so.
+  static Future<bool> viewRelease(AppUpdateResult result) async {
+    final uri = Uri.tryParse(result.releaseUrl.trim());
     if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
-      return;
+      return false;
     }
 
     try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      // Swallow — the caller should not crash for an external URL failure.
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('[error] Opening the release page: $e');
+      return false;
     }
   }
 }

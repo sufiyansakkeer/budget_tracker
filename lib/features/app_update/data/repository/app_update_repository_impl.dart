@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import '../../domain/entities/latest_release.dart';
 import '../../domain/repository/app_update_repository.dart';
 import '../datasources/github_release_remote_datasource.dart';
@@ -19,6 +21,7 @@ class AppUpdateRepositoryImpl implements AppUpdateRepository {
     } on GithubApiException catch (e) {
       throw AppUpdateException(e.message);
     } catch (e) {
+      developer.log('[AppUpdate] Unexpected error: $e', name: 'AppUpdate');
       throw const AppUpdateException(
         'An unexpected error occurred while checking for updates.',
       );

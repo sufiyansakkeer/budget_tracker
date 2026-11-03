@@ -249,6 +249,65 @@ void main() {
         expect(budgets.single.currency, 'OMR');
       });
 
+      test('with no budget yet, a row without a currency does not pull a '
+          'later USD row into an INR budget', () async {
+        final file = File('${Directory.systemTemp.path}/no_currency_first.csv');
+        await file.writeAsString(
+          'amount,currency,categoryId,date\n'
+          '10,,food,2024-01-10\n'
+          '9,USD,food,2024-01-11\n',
+        );
+
+        final report = await importService.importCsv(file.path);
+
+        expect(report.imported, 2);
+        final budget = await database.select(database.budgets).getSingle();
+        expect(budget.currency, 'USD');
+      });
+
+      test('a budget an earlier import created and the user then deleted is '
+          'not reused', () async {
+        final first = File('${Directory.systemTemp.path}/first.csv');
+        await first.writeAsString(
+          'amount,categoryId,date\n'
+          '100,food,2024-01-10\n',
+        );
+        await importService.importCsv(first.path);
+        await database.delete(database.expenses).go();
+        await database.delete(database.budgets).go();
+
+        final second = File('${Directory.systemTemp.path}/second.csv');
+        await second.writeAsString(
+          'amount,categoryId,date\n'
+          '200,food,2024-01-11\n',
+        );
+        final report = await importService.importCsv(second.path);
+
+        expect(report.imported, 1);
+        final expense = await database.select(database.expenses).getSingle();
+        final budget = await database.select(database.budgets).getSingle();
+        expect(expense.budgetId, budget.id);
+      });
+
+      test('when writing fails, the budget made for the import is not kept '
+          'either', () async {
+        await database.customStatement(
+          'CREATE TRIGGER reject_expenses BEFORE INSERT ON expenses '
+          "BEGIN SELECT RAISE(ABORT, 'write failed'); END",
+        );
+        final file = File('${Directory.systemTemp.path}/rolled_back.csv');
+        await file.writeAsString(
+          'amount,categoryId,date\n'
+          '100,food,2024-01-10\n',
+        );
+
+        await expectLater(
+          importService.importCsv(file.path),
+          throwsA(isA<Exception>()),
+        );
+        expect(await database.select(database.budgets).get(), isEmpty);
+      });
+
       test('rejects a missing file', () async {
         expect(
           () => importService.importCsv('/nonexistent/file.csv'),
@@ -547,6 +606,85 @@ void main() {
         );
       });
 
+      test('an expense without a budget id is not put in a budget the user '
+          'deleted after an earlier import', () async {
+        Future<void> importExpense(String id) async {
+          final file = File('${Directory.systemTemp.path}/no_budget_id.json');
+          await file.writeAsString(
+            jsonEncode({
+              'expenses': [
+                {
+                  'id': id,
+                  'amount': 50,
+                  'categoryId': 'food',
+                  'date': DateTime(2024, 1, 10).toIso8601String(),
+                  'time': DateTime(2024, 1, 10, 9).toIso8601String(),
+                  'createdAt': DateTime(2024, 1, 10).toIso8601String(),
+                  'updatedAt': DateTime(2024, 1, 10).toIso8601String(),
+                },
+              ],
+            }),
+          );
+          await importService.importJson(file.path);
+        }
+
+        await importExpense('first');
+        await database.delete(database.expenses).go();
+        await database.delete(database.budgets).go();
+
+        await importExpense('second');
+
+        final expense = await database.select(database.expenses).getSingle();
+        final budget = await database.select(database.budgets).getSingle();
+        expect(expense.budgetId, budget.id);
+      });
+
+      group('archived categories', () {
+        Future<void> archive(String id) =>
+            (database.update(database.categories)
+                  ..where((c) => c.id.equals(id)))
+                .write(const CategoriesCompanion(isArchived: Value(true)));
+
+        Future<bool> isArchived(String id) async => (await (database.select(
+          database.categories,
+        )..where((c) => c.id.equals(id))).getSingle()).isArchived;
+
+        test('stay archived when an export is imported again', () async {
+          await archive('food');
+          final data = await ExportService(
+            database: database,
+          ).collectJsonData();
+          final file = File('${Directory.systemTemp.path}/archived.json');
+          await file.writeAsString(jsonEncode(data));
+
+          await importService.importJson(file.path);
+
+          expect(await isArchived('food'), isTrue);
+        });
+
+        test('are left as they are by a file without the flag', () async {
+          await archive('food');
+          final file = File('${Directory.systemTemp.path}/no_flag.json');
+          await file.writeAsString(
+            jsonEncode({
+              'categories': [
+                {
+                  'id': 'food',
+                  'name': 'Food',
+                  'icon': 'restaurant',
+                  'colorHex': '#FF6B6B',
+                  'isSystem': true,
+                },
+              ],
+            }),
+          );
+
+          await importService.importJson(file.path);
+
+          expect(await isArchived('food'), isTrue);
+        });
+      });
+
       test('rejects JSON with a newer schema version', () async {
         final payload = {
           'metadata': {'schemaVersion': 99},
@@ -562,6 +700,30 @@ void main() {
         expect(
           () => importService.importJson(file.path),
           throwsFormatException,
+        );
+      });
+
+      test('rejects a data export from a newer version of the app', () async {
+        // The export puts schemaVersion at the top, not under "metadata".
+        final payload = {
+          'type': 'monivo_export',
+          'schemaVersion': 99,
+          'budgets': <Object?>[],
+          'categories': <Object?>[],
+          'expenses': <Object?>[],
+        };
+        final file = File('${Directory.systemTemp.path}/newer_export.json');
+        await file.writeAsString(jsonEncode(payload));
+
+        expect(
+          () => importService.importJson(file.path),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('newer'),
+            ),
+          ),
         );
       });
 

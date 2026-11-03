@@ -49,8 +49,9 @@ class BillPaymentDialogs {
             return;
           }
       }
-    } catch (_) {
+    } catch (e) {
       // Fall back to the generic wording; the payment itself still checks.
+      debugPrint('[error] Finding the budget a bill is paid from: $e');
     }
     if (!context.mounted) return;
 
@@ -137,8 +138,9 @@ class BillPaymentDialogs {
         bill.id,
       );
       if (result case BillSuccess(:final data)) expenses = data;
-    } catch (_) {
+    } catch (e) {
       // Unknown: worded as such below.
+      debugPrint('[error] Finding the expense that paid a bill: $e');
     }
     if (!context.mounted) return;
 
@@ -180,8 +182,7 @@ class BillPaymentDialogs {
         '($amount) will be deleted.';
   }
 
-  static String _nextOccurrence(BillEntity bill) =>
-      bill.isRecurring && bill.recurrenceType != RecurrenceType.none
+  static String _nextOccurrence(BillEntity bill) => bill.repeats
       ? ' Its due date moves to the next '
             '${bill.recurrenceType.label.toLowerCase()} occurrence.'
       : '';

@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
@@ -20,7 +21,7 @@ BillEntity makeBill({
     amount: 1000,
     currency: 'INR',
     category: BillCategory.utilities,
-    dueDate: dueDate ?? DateTime.now().add(const Duration(days: 7)),
+    dueDate: dueDate ?? DateTime.now().addDays(7),
     dueTime: dueTime,
     isRecurring: isRecurring,
     recurrenceType: recurrenceType,
@@ -41,9 +42,7 @@ void main() {
     });
 
     test('returns overdue when dueDate is before today', () {
-      final bill = makeBill(
-        dueDate: DateTime.now().subtract(const Duration(days: 7)),
-      );
+      final bill = makeBill(dueDate: DateTime.now().addDays(-7));
       expect(bill.status, BillStatus.overdue);
     });
 
@@ -54,9 +53,7 @@ void main() {
     });
 
     test('returns upcoming when dueDate is in the future', () {
-      final bill = makeBill(
-        dueDate: DateTime.now().add(const Duration(days: 7)),
-      );
+      final bill = makeBill(dueDate: DateTime.now().addDays(7));
       expect(bill.status, BillStatus.upcoming);
     });
 
@@ -102,13 +99,13 @@ void main() {
     );
 
     test('returns overdue when dueDate is yesterday', () {
-      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final yesterday = DateTime.now().addDays(-1);
       final bill = makeBill(dueDate: yesterday);
       expect(bill.status, BillStatus.overdue);
     });
 
     test('returns upcoming when dueDate is tomorrow', () {
-      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final tomorrow = DateTime.now().addDays(1);
       final bill = makeBill(dueDate: tomorrow);
       expect(bill.status, BillStatus.upcoming);
     });

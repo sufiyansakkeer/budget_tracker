@@ -68,8 +68,6 @@ class FakeHistoryRepository implements ExpenseRepository {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async => expenses;
@@ -132,11 +130,6 @@ class FakeBudgetRepository implements BudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => 0;
-  @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 1;
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {

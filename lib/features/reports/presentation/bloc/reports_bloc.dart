@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/report_failure.dart';
@@ -30,7 +31,15 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
   static const String noBudgetMessage =
       'There is no active budget to report on.';
 
+  /// Said when "This Budget" is chosen and the active budget can't be read.
+  static const String budgetUnreadableMessage =
+      "Couldn't load your budget. Try again.";
+
   StreamSubscription<void>? _refreshSubscription;
+
+  /// Bumped by every load. Events run concurrently, so a slow load (a year)
+  /// can finish after a newer one (a week); only the newest may publish.
+  int _loadToken = 0;
   StreamSubscription<void>? _budgetSwitchSubscription;
   StreamSubscription<void>? _dayChangeSubscription;
 
@@ -131,16 +140,11 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
   /// The active budget's period as a custom range: from its start to today,
   /// or to its end once it has ended. Days after today are left out, so the
   /// daily average is over days that have happened. Null when there is no
-  /// active budget (or it cannot be read).
+  /// active budget; throws when it cannot be read.
   Future<(BudgetEntity, DateTime, DateTime)?> _budgetRange() async {
     final repository = budgetRepository;
     if (repository == null) return null;
-    final BudgetEntity? budget;
-    try {
-      budget = await repository.getActiveBudget();
-    } catch (_) {
-      return null;
-    }
+    final budget = await repository.getActiveBudget();
     if (budget == null) return null;
     final now = clock();
     final today = DateTime(now.year, now.month, now.day);
@@ -176,6 +180,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     Emitter<ReportsState> emit, {
     required bool showLoading,
   }) async {
+    final token = ++_loadToken;
     if (showLoading) {
       emit(state.copyWith(status: ReportsStatus.refreshing, clearError: true));
     }
@@ -183,7 +188,22 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     // "This budget" follows the active budget: its range is read again on
     // every load, so a budget switch or an edit to its dates moves it.
     if (state.followsBudget) {
-      final resolved = await _budgetRange();
+      final (BudgetEntity, DateTime, DateTime)? resolved;
+      try {
+        resolved = await _budgetRange();
+        if (token != _loadToken) return;
+      } catch (e) {
+        if (token != _loadToken) return;
+        debugPrint('[error] Reading the active budget for reports: $e');
+        // Still following the budget, so Retry reads it again.
+        emit(
+          state.copyWith(
+            status: ReportsStatus.error,
+            errorMessage: budgetUnreadableMessage,
+          ),
+        );
+        return;
+      }
       if (resolved == null) {
         emit(
           state.copyWith(
@@ -212,6 +232,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
       customStart: state.customStart,
       customEnd: state.customEnd,
     );
+    if (token != _loadToken) return;
 
     switch (result) {
       case ReportError(:final failure):

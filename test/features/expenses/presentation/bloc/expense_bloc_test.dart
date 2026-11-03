@@ -17,6 +17,7 @@ import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.da
 import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_event.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_state.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 class FakeBudgetRepository implements BudgetRepository {
   @override
@@ -87,14 +88,6 @@ class FakeBudgetRepository implements BudgetRepository {
   }
 
   @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async {
-    return 1;
-  }
-
-  @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
     DateTime? referenceDate,
@@ -137,8 +130,6 @@ class FakeExpenseRepository implements ExpenseRepository {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {
@@ -229,16 +220,10 @@ class FakeGetAllUseCase implements GetExpensesUseCase {
   @override
   Future<ExpenseResult<List<ExpenseEntity>>> call({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {
-    final expenses = await repository.getExpenses(
-      budgetId: budgetId,
-      month: month,
-      year: year,
-    );
+    final expenses = await repository.getExpenses(budgetId: budgetId);
     return ExpenseSuccess(expenses);
   }
 }
@@ -277,8 +262,8 @@ ExpenseBloc buildBloc(ExpenseRepository repository) {
     getExpenseByIdUseCase: FakeGetByIdUseCase(repository),
     getExpensesUseCase: FakeGetAllUseCase(repository),
     getCategoriesUseCase: FakeGetCategoriesUseCase(repository),
-    repository: repository,
     budgetRepository: FakeBudgetRepository(),
+    tabPurchases: FakeTabPurchaseUseCase(),
   );
 }
 
@@ -311,16 +296,6 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state.expense?.id, 'exp-1');
     expect(bloc.state.status, ExpenseBlocStatus.loaded);
-    await bloc.close();
-  });
-
-  test('loads all expenses', () async {
-    await repository.createExpense(expenseEntity('exp-1'));
-    await repository.createExpense(expenseEntity('exp-2'));
-    final bloc = buildBloc(repository);
-    bloc.add(const ExpenseLoadAll());
-    await Future<void>.delayed(Duration.zero);
-    expect(bloc.state.expenses.length, 2);
     await bloc.close();
   });
 
@@ -458,8 +433,8 @@ void main() {
       getExpenseByIdUseCase: FakeGetByIdUseCase(repository),
       getExpensesUseCase: FakeGetAllUseCase(repository),
       getCategoriesUseCase: FakeGetCategoriesUseCase(repository),
-      repository: repository,
       budgetRepository: budgetRepo,
+      tabPurchases: FakeTabPurchaseUseCase(),
     );
 
     bloc.add(ExpenseCreate(expenseWithoutBudget));

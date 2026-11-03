@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The GitHub release text read "Version: 1.0.1\nBuild: 2" with a literal
+  `\n`, and the app's "What's new" showed it that way. A release now publishes
+  `RELEASE_NOTES.md` when its heading names the version being released, and
+  otherwise "Version" and "Build" on two lines (the workflow part of UX-026).
+- The iOS development build failed at `pod install --deployment`:
+  `ios/Podfile.lock` still listed `rive_common`, whose package was removed
+  before 1.0.0. The lock was regenerated with Swift Package Manager off, as
+  the iOS build requires.
+
 ## [1.0.0] - 2026-10-11
 
 The first release of Monivo. On top of everything listed here it brings the

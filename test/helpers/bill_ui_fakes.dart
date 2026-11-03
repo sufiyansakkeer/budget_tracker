@@ -42,8 +42,10 @@ class ListBudgetRepository implements BudgetRepository {
   Future<T> transaction<T>(Future<T> Function() action) => action();
 
   @override
-  Future<BudgetEntity?> getActiveBudget() async =>
-      activeId == null ? null : _find(activeId!);
+  Future<BudgetEntity?> getActiveBudget() async {
+    if (throwOnRead) throw Exception('budgets unavailable');
+    return activeId == null ? null : _find(activeId!);
+  }
 
   @override
   Future<String?> getActiveBudgetId() async => activeId;
@@ -52,7 +54,10 @@ class ListBudgetRepository implements BudgetRepository {
   Future<void> setActiveBudgetId(String budgetId) async => activeId = budgetId;
 
   @override
-  Future<BudgetEntity?> getBudgetById(String id) async => _find(id);
+  Future<BudgetEntity?> getBudgetById(String id) async {
+    if (throwOnRead) throw Exception('budgets unavailable');
+    return _find(id);
+  }
 
   @override
   Future<List<BudgetEntity>> getAllBudgets({
@@ -110,12 +115,6 @@ class ListBudgetRepository implements BudgetRepository {
   }) async => 0;
 
   @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 1;
-
-  @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
     DateTime? referenceDate,
@@ -135,7 +134,7 @@ class ListBudgetRepository implements BudgetRepository {
 /// Reminders that do nothing (no notification plugin in widget tests).
 class NoopBillReminderService extends BillReminderService {
   NoopBillReminderService(BillRepository repository)
-    : super(repository: repository);
+    : super(repository: repository, onNotificationResponse: (_) {});
 
   @override
   Future<void> initialize() async {}
@@ -148,9 +147,6 @@ class NoopBillReminderService extends BillReminderService {
 
   @override
   Future<void> rescheduleAll() async {}
-
-  @override
-  Future<bool> areNotificationsEnabled() async => true;
 }
 
 /// A [BillBloc] on real bill use cases over [repository]. Payments with an

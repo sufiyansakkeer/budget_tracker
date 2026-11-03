@@ -8,6 +8,7 @@ import 'dart:async' as _i10;
 import 'package:mockito/mockito.dart' as _i1;
 import 'package:mockito/src/dummies.dart' as _i13;
 import 'package:monivo/core/biometric/lock_auth_result.dart' as _i18;
+import 'package:monivo/core/files/file_delivery_service.dart' as _i7;
 import 'package:monivo/features/settings/domain/entities/app_settings.dart'
     as _i12;
 import 'package:monivo/features/settings/domain/entities/import_report.dart'
@@ -24,8 +25,6 @@ import 'package:monivo/features/settings/domain/services/biometric_service.dart'
     as _i3;
 import 'package:monivo/features/settings/domain/services/export_service.dart'
     as _i4;
-import 'package:monivo/features/settings/domain/services/file_delivery_service.dart'
-    as _i7;
 import 'package:monivo/features/settings/domain/services/import_service.dart'
     as _i5;
 import 'package:monivo/features/settings/domain/services/notification_service.dart'
@@ -263,14 +262,6 @@ class MockBiometricService extends _i1.Mock implements _i3.BiometricService {
             ),
           )
           as _i10.Future<_i3.BiometricAvailability>);
-
-  @override
-  _i10.Future<bool> canUseBiometrics() =>
-      (super.noSuchMethod(
-            Invocation.method(#canUseBiometrics, []),
-            returnValue: _i10.Future<bool>.value(false),
-          )
-          as _i10.Future<bool>);
 
   @override
   _i10.Future<_i18.LockAuthResult> authenticateForUnlock({

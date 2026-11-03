@@ -11,6 +11,8 @@ import 'package:monivo/features/expenses/domain/usecases/get_expense_by_id_useca
 import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/update_expense_usecase.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
+import 'package:monivo/features/pay_later/domain/usecases/tab_purchase_usecase.dart';
+import '../../../helpers/pay_later_fakes.dart';
 
 /// Expenses kept in a map, with the date-range and budget filters the real
 /// datasource applies.
@@ -23,6 +25,9 @@ class MemoryExpenseRepository implements ExpenseRepository {
 
   /// Set to make reading one expense fail with this message.
   String? failReadById;
+
+  /// Makes [getCategories] throw with this message.
+  String? failCategories;
 
   @override
   Future<void> createExpense(ExpenseEntity expense) async {
@@ -51,8 +56,6 @@ class MemoryExpenseRepository implements ExpenseRepository {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {
@@ -86,13 +89,22 @@ class MemoryExpenseRepository implements ExpenseRepository {
   ];
 
   @override
-  Future<List<ExpenseCategory>> getCategories() async => categories;
+  Future<List<ExpenseCategory>> getCategories() async {
+    if (failCategories != null) throw Exception(failCategories);
+    return categories;
+  }
 }
 
 /// Budgets by id plus an active id; anything else is not needed here.
 class StubBudgetRepository implements BudgetRepository {
   final Map<String, BudgetEntity> budgets = {};
   String? activeId;
+
+  /// Makes reading the active budget throw, as when the database is locked.
+  bool failActiveReads = false;
+
+  /// Makes [getAllBudgets] throw.
+  bool failListing = false;
 
   StubBudgetRepository([List<BudgetEntity> initial = const []]) {
     for (final b in initial) {
@@ -102,19 +114,30 @@ class StubBudgetRepository implements BudgetRepository {
   }
 
   @override
-  Future<String?> getActiveBudgetId() async => activeId;
+  Future<String?> getActiveBudgetId() async {
+    if (failActiveReads) throw Exception('database is locked');
+    return activeId;
+  }
 
   @override
-  Future<BudgetEntity?> getBudgetById(String id) async => budgets[id];
+  Future<BudgetEntity?> getBudgetById(String id) async {
+    if (failActiveReads) throw Exception('database is locked');
+    return budgets[id];
+  }
 
   @override
-  Future<BudgetEntity?> getActiveBudget() async =>
-      activeId == null ? null : budgets[activeId];
+  Future<BudgetEntity?> getActiveBudget() async {
+    if (failActiveReads) throw Exception('database is locked');
+    return activeId == null ? null : budgets[activeId];
+  }
 
   @override
   Future<List<BudgetEntity>> getAllBudgets({
     BudgetQueryOptions? options,
-  }) async => budgets.values.toList();
+  }) async {
+    if (failListing) throw Exception('database is locked');
+    return budgets.values.toList();
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -141,17 +164,19 @@ BudgetEntity testBudget({
   isArchived: archived,
 );
 
-/// A real [ExpenseBloc] over the in-memory repositories.
+/// A real [ExpenseBloc] over the in-memory repositories. [tabPurchases]
+/// defaults to a fake on which no expense is on a tab.
 ExpenseBloc memoryExpenseBloc(
   MemoryExpenseRepository expenses,
-  StubBudgetRepository budgets,
-) => ExpenseBloc(
+  StubBudgetRepository budgets, {
+  TabPurchaseUseCase? tabPurchases,
+}) => ExpenseBloc(
   createExpenseUseCase: CreateExpenseUseCase(repository: expenses),
   updateExpenseUseCase: UpdateExpenseUseCase(repository: expenses),
   deleteExpenseUseCase: DeleteExpenseUseCase(repository: expenses),
   getExpenseByIdUseCase: GetExpenseByIdUseCase(repository: expenses),
   getExpensesUseCase: GetExpensesUseCase(repository: expenses),
   getCategoriesUseCase: GetCategoriesUseCase(repository: expenses),
-  repository: expenses,
   budgetRepository: budgets,
+  tabPurchases: tabPurchases ?? FakeTabPurchaseUseCase(),
 );

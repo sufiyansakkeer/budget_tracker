@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
-import '../theme/app_colors_extension.dart';
 import '../theme/app_tone.dart';
 import '../theme/contrast.dart';
 
@@ -129,33 +128,4 @@ class StatusChip extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Factory helpers for common statuses using the active palette.
-class StatusChipStyles {
-  StatusChipStyles._();
-
-  static StatusChip healthy(BuildContext context, String label) => StatusChip(
-    label: label,
-    color: context.appColors.success,
-    icon: Icons.check_circle_rounded,
-  );
-
-  static StatusChip warning(BuildContext context, String label) => StatusChip(
-    label: label,
-    color: context.appColors.warning,
-    icon: Icons.warning_amber_rounded,
-  );
-
-  static StatusChip danger(BuildContext context, String label) => StatusChip(
-    label: label,
-    color: context.appColors.error,
-    icon: Icons.error_rounded,
-  );
-
-  static StatusChip info(BuildContext context, String label) => StatusChip(
-    label: label,
-    color: context.appColors.primary,
-    icon: Icons.info_rounded,
-  );
 }

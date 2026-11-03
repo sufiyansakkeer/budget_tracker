@@ -16,7 +16,6 @@ import 'package:monivo/features/bills/domain/repository/bill_repository.dart';
 import 'package:monivo/features/dashboard/domain/entities/committed_spending.dart';
 import 'package:monivo/features/dashboard/domain/entities/recent_expense_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
-import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
 import 'package:monivo/features/dashboard/domain/repository/dashboard_repository.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
@@ -31,7 +30,6 @@ class MockGetSmartInsightsUseCase implements GetSmartInsightsUseCase {
   @override
   List<SmartInsight> call(
     BudgetSummaryEntity summary, {
-    SpendingTargetEntity? spendingTarget,
     List<dynamic>? budgetDailyLimits,
     SafeToSpendEntity? safeToSpend,
   }) => const [];
@@ -124,12 +122,6 @@ class MockBudgetRepository implements BudgetRepository {
   }) async => 0;
 
   @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 1;
-
-  @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
     DateTime? referenceDate,
@@ -156,11 +148,6 @@ class MockGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   @override
   final BudgetCalculationService calculationService =
       BudgetCalculationService();
-
-  @override
-  Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
-    return const SpendingTargetNoBudget();
-  }
 
   @override
   Future<PerBudgetSpendingTargetResult> callPerBudget({
@@ -306,12 +293,16 @@ class FakeBillRepository implements BillRepository {
   }
 
   @override
-  Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
-  @override
-  Future<double> getMonthlyRecurringBillsTotal() async => 0;
-
-  @override
   Future<T> transaction<T>(Future<T> Function() action) => action();
+}
+
+/// Bills that cannot be read, as when the database is busy.
+class FailingBillRepository extends FakeBillRepository {
+  @override
+  Future<List<BillEntity>> getUpcomingBills({
+    DateTime? from,
+    int limit = 3,
+  }) async => throw Exception('database is locked');
 }
 
 final tBudgetSummary = BudgetSummaryEntity(
@@ -415,6 +406,30 @@ void main() {
       await bloc.close();
     },
   );
+
+  test('bills that cannot be read are reported as unavailable, not as '
+      'none due', () async {
+    final bloc = DashboardBloc(
+      getBudgetSummaryUseCase: MockGetBudgetSummaryUseCase(
+        resultToReturn: BudgetSuccess(tBudgetSummary),
+      ),
+      getRecentExpensesUseCase: MockGetRecentExpensesUseCase(),
+      getSmartInsightsUseCase: MockGetSmartInsightsUseCase(),
+      getSpendingTargetsUseCase: MockGetSpendingTargetsUseCase(),
+      getSafeToSpendUseCase: MockGetSafeToSpendUseCase(),
+      budgetRepository: MockBudgetRepository(),
+      billRepository: FailingBillRepository(),
+    );
+    addTearDown(bloc.close);
+
+    bloc.add(const DashboardLoadData());
+    final loaded =
+        await bloc.stream.firstWhere((s) => s is DashboardLoaded)
+            as DashboardLoaded;
+
+    expect(loaded.upcomingBillsUnavailable, isTrue);
+    expect(loaded.upcomingBills, isEmpty);
+  });
 
   test(
     'emits [DashboardLoading, DashboardEmpty] when no budget is found',

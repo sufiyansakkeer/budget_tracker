@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:drift/drift.dart' show OrderingTerm;
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/database/app_database.dart';
-import '../../../../core/platform/system_ui_session.dart';
+import '../../../../core/files/file_delivery_service.dart';
+import 'data_codec.dart';
 
 /// Represents a generated export file.
 class ExportResult {
@@ -20,8 +20,13 @@ class ExportResult {
 /// Exports application data to CSV or JSON files for sharing.
 class ExportService {
   final AppDatabase _database;
+  final FileDeliveryService _delivery;
 
-  ExportService({required AppDatabase database}) : _database = database;
+  ExportService({
+    required AppDatabase database,
+    FileDeliveryService delivery = const FileDeliveryService(),
+  }) : _database = database,
+       _delivery = delivery;
 
   /// CSV header written by [collectCsvRows]. [ImportService.importCsv] reads
   /// the same names, so an export can always be re-imported.
@@ -86,56 +91,9 @@ class ExportService {
       'type': 'monivo_export',
       'schemaVersion': _database.schemaVersion,
       'exportedAt': DateTime.now().toIso8601String(),
-      'budgets': budgets
-          .map(
-            (b) => {
-              'id': b.id,
-              'name': b.name,
-              'monthlyAmount': b.monthlyAmount,
-              'remainingAmount': b.remainingAmount,
-              'currency': b.currency,
-              'startDate': b.startDate.toIso8601String(),
-              'endDate': b.endDate.toIso8601String(),
-              'isArchived': b.isArchived,
-              'color': b.color,
-              'icon': b.icon,
-              'notes': b.notes,
-              'createdAt': b.createdAt.toIso8601String(),
-              'updatedAt': b.updatedAt.toIso8601String(),
-              'reservedAmount': b.reservedAmount,
-              'savingsTarget': b.savingsTarget,
-            },
-          )
-          .toList(),
-      'categories': categories
-          .map(
-            (c) => {
-              'id': c.id,
-              'name': c.name,
-              'icon': c.icon,
-              'colorHex': c.colorHex,
-              'isSystem': c.isSystem,
-            },
-          )
-          .toList(),
-      'expenses': expenses
-          .map(
-            (e) => {
-              'id': e.id,
-              'budgetId': e.budgetId,
-              'amount': e.amount,
-              'categoryId': e.categoryId,
-              'note': e.note,
-              'date': e.date.toIso8601String(),
-              'time': e.time.toIso8601String(),
-              'receiptImagePath': e.receiptImagePath,
-              'tags': e.tags,
-              'createdAt': e.createdAt.toIso8601String(),
-              'updatedAt': e.updatedAt.toIso8601String(),
-              'billId': e.billId,
-            },
-          )
-          .toList(),
+      'budgets': budgets.map(DataCodec.encodeBudget).toList(),
+      'categories': categories.map(DataCodec.encodeCategory).toList(),
+      'expenses': expenses.map(DataCodec.encodeExpense).toList(),
       'settings': {for (final s in settingsRows) s.key: s.value},
     };
   }
@@ -149,16 +107,11 @@ class ExportService {
 
     final directory = await getTemporaryDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final file = File('${directory.path}/budget_export_$timestamp.csv');
+    final fileName = 'budget_export_$timestamp.csv';
+    final file = File('${directory.path}/$fileName');
     await file.writeAsString(csv);
 
-    await SystemUiSession.run(
-      () => Share.shareXFiles([
-        XFile(file.path, mimeType: 'text/csv'),
-      ], text: 'Monivo export'),
-    );
-
-    return ExportResult(filePath: file.path, message: 'CSV exported.');
+    return _share(file, fileName, 'text/csv', 'csv', done: 'CSV exported.');
   }
 
   /// Exports budgets, categories, expenses and settings as a data file and
@@ -172,17 +125,44 @@ class ExportService {
 
     final directory = await getTemporaryDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final file = File('${directory.path}/monivo_export_$timestamp.json');
+    final fileName = 'monivo_export_$timestamp.json';
+    final file = File('${directory.path}/$fileName');
 
     const encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString(encoder.convert(data));
 
-    await SystemUiSession.run(
-      () => Share.shareXFiles([
-        XFile(file.path, mimeType: 'application/json'),
-      ], text: 'Monivo export'),
+    return _share(
+      file,
+      fileName,
+      'application/json',
+      'json',
+      done: 'Data file exported.',
     );
+  }
 
-    return ExportResult(filePath: file.path, message: 'Data file exported.');
+  /// Opens the share sheet for [file]. A closed sheet is not an export.
+  Future<ExportResult> _share(
+    File file,
+    String fileName,
+    String mimeType,
+    String extension, {
+    required String done,
+  }) async {
+    final outcome = await _delivery.deliver(
+      file: file,
+      fileName: fileName,
+      mimeType: mimeType,
+      extension: extension,
+      destination: FileDestination.share,
+      shareText: 'Monivo export',
+    );
+    return ExportResult(
+      filePath: file.path,
+      message: switch (outcome) {
+        FileDeliveryOutcome.shared || FileDeliveryOutcome.saved => done,
+        FileDeliveryOutcome.handedOff => 'Export sent to the share sheet.',
+        FileDeliveryOutcome.cancelled => 'Export cancelled.',
+      },
+    );
   }
 }

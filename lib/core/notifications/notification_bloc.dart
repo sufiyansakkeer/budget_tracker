@@ -39,9 +39,6 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
        _rescheduleDebounce = rescheduleDebounce,
        super(const NotificationState()) {
     on<NotificationInitialize>(_onInitialize);
-    on<NotificationRequestPermission>(_onRequestPermission);
-    on<NotificationSchedule>(_onSchedule);
-    on<NotificationCancel>(_onCancel);
     on<NotificationRefreshSchedule>(_onRefreshSchedule);
 
     _expenseSubscription = RefreshBuses.expenses.changes.listen(
@@ -55,9 +52,15 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     );
   }
 
+  /// Whether re-scheduling makes sense: notifications are ready, or startup
+  /// has finished another way (a permission refused at startup can be
+  /// granted later in system settings, and the amounts must still update).
+  bool get _canReschedule =>
+      _startupCompleted || state.status == NotificationStatus.ready;
+
   /// Collapses bursts of changes (e.g. a restore) into one re-schedule.
   void _queueReschedule() {
-    if (isClosed || state.status != NotificationStatus.ready) return;
+    if (isClosed || !_canReschedule) return;
     _rescheduleTimer?.cancel();
     _rescheduleTimer = Timer(_rescheduleDebounce, () {
       if (!isClosed) add(const NotificationRefreshSchedule());
@@ -77,7 +80,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     NotificationRefreshSchedule event,
     Emitter<NotificationState> emit,
   ) async {
-    if (state.status != NotificationStatus.ready) return;
+    if (!_canReschedule) return;
     final result = await _loadSettingsUseCase();
     if (result case SettingsSuccess(:final data)) {
       if (!data.notifications.notificationsEnabled) return;
@@ -103,11 +106,6 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
           state.status == NotificationStatus.permissionDenied ||
           state.status == NotificationStatus.error,
     );
-
-    // Ensure permission is requested if not already granted.
-    if (state.status == NotificationStatus.initial) {
-      add(const NotificationRequestPermission());
-    }
   }
 
   Future<void> _onInitialize(
@@ -158,7 +156,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         await _notificationService.scheduleAll(data);
 
         if (kDebugMode) {
-          await _notificationService.scheduleTestNotification(settings: data);
+          await _notificationService.scheduleTestNotification();
           debugPrint(
             '[NotificationBloc] Debug test notification scheduled for +1 minute',
           );
@@ -189,67 +187,6 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
       );
     } finally {
       _startupCompleted = true;
-    }
-  }
-
-  Future<void> _onRequestPermission(
-    NotificationRequestPermission event,
-    Emitter<NotificationState> emit,
-  ) async {
-    try {
-      final granted = await _notificationService.requestPermission();
-      emit(
-        state.copyWith(
-          status: granted
-              ? NotificationStatus.permissionGranted
-              : NotificationStatus.permissionDenied,
-          clearError: true,
-        ),
-      );
-    } catch (e, st) {
-      debugPrint('[NotificationBloc] Permission request failed: $e\n$st');
-      emit(
-        state.copyWith(
-          status: NotificationStatus.error,
-          errorMessage: e.toString(),
-        ),
-      );
-    }
-  }
-
-  Future<void> _onSchedule(
-    NotificationSchedule event,
-    Emitter<NotificationState> emit,
-  ) async {
-    try {
-      await _notificationService.scheduleAll(event.settings);
-      emit(state.copyWith(status: NotificationStatus.ready, clearError: true));
-    } catch (e, st) {
-      debugPrint('[NotificationBloc] Scheduling failed: $e\n$st');
-      emit(
-        state.copyWith(
-          status: NotificationStatus.error,
-          errorMessage: e.toString(),
-        ),
-      );
-    }
-  }
-
-  Future<void> _onCancel(
-    NotificationCancel event,
-    Emitter<NotificationState> emit,
-  ) async {
-    try {
-      await _notificationService.cancelAll();
-      emit(state.copyWith(status: NotificationStatus.ready, clearError: true));
-    } catch (e, st) {
-      debugPrint('[NotificationBloc] Cancel failed: $e\n$st');
-      emit(
-        state.copyWith(
-          status: NotificationStatus.error,
-          errorMessage: e.toString(),
-        ),
-      );
     }
   }
 }

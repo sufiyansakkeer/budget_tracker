@@ -17,12 +17,9 @@ abstract class ExpenseLocalDataSource {
   /// Expenses for [budgetId], newest first.
   ///
   /// [from]/[to] bound the date inclusively and are served by the
-  /// `(budget_id, date)` index; [month]/[year] are the older month-scoped
-  /// form and are ignored when a range is given.
+  /// `(budget_id, date)` index.
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   });

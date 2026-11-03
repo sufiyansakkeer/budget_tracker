@@ -89,12 +89,6 @@ class FakeBillRepository implements BillRepository {
   }
 
   @override
-  Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
-
-  @override
-  Future<double> getMonthlyRecurringBillsTotal() async => 0;
-
-  @override
   Future<T> transaction<T>(Future<T> Function() action) => action();
 }
 
@@ -345,6 +339,39 @@ void main() {
       expect(result, isA<BillSuccess<BillEntity>>());
       final updated = (result as BillSuccess<BillEntity>).data;
       expect(updated.isPaid, isFalse);
+    });
+  });
+
+  group('editing follows the same rules as adding', () {
+    // Review: editing checked only the title and amount, so a 600-character
+    // note that adding refused was saved on edit.
+    test('a note past the limit is refused', () async {
+      final repository = FakeBillRepository();
+      final bill = validBill();
+      await repository.createBill(bill);
+
+      final result = await UpdateBillUseCase(repository: repository)(
+        bill.copyWith(note: 'x' * 600),
+      );
+
+      expect(result, isA<BillError>());
+      expect((await repository.getBillById(bill.id))!.note, bill.note);
+    });
+
+    test('a repeat interval below 1 is refused', () async {
+      final repository = FakeBillRepository();
+      final bill = validBill();
+      await repository.createBill(bill);
+
+      final result = await UpdateBillUseCase(repository: repository)(
+        bill.copyWith(
+          isRecurring: true,
+          recurrenceType: RecurrenceType.monthly,
+          recurrenceInterval: 0,
+        ),
+      );
+
+      expect(result, isA<BillError>());
     });
   });
 }

@@ -15,7 +15,6 @@ import 'package:monivo/features/budget/domain/repository/budget_repository.dart'
 import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
 import 'package:monivo/features/budget/domain/entities/budget_status.dart';
 import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_entity.dart';
-import 'package:monivo/features/dashboard/domain/entities/spending_target_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/spending_target_status.dart';
 import 'package:monivo/features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
@@ -30,7 +29,6 @@ import '../../../../integration/app_harness.dart';
 import 'notification_service_test.mocks.dart';
 
 class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
-  SpendingTargetEntity? targetsToReturn;
   PerBudgetSpendingTargetResult? perBudgetResultToReturn;
 
   /// When set, answers [callPerBudget] per reference date.
@@ -40,24 +38,13 @@ class FakeGetSpendingTargetsUseCase implements GetSpendingTargetsUseCase {
   /// Every reference date [callPerBudget] was asked for, in order.
   final List<DateTime?> perBudgetReferenceDates = [];
 
-  FakeGetSpendingTargetsUseCase({
-    this.targetsToReturn,
-    this.perBudgetResultToReturn,
-  });
+  FakeGetSpendingTargetsUseCase({this.perBudgetResultToReturn});
 
   @override
   final BudgetRepository repository = MockBudgetRepository();
   @override
   final BudgetCalculationService calculationService =
       BudgetCalculationService();
-
-  @override
-  Future<SpendingTargetResult> call({DateTime? referenceDate}) async {
-    if (targetsToReturn != null) {
-      return SpendingTargetSuccess(targetsToReturn!);
-    }
-    return const SpendingTargetNoBudget();
-  }
 
   @override
   Future<PerBudgetSpendingTargetResult> callPerBudget({
@@ -93,21 +80,6 @@ void main() {
     mockPlugin = MockFlutterLocalNotificationsPlugin();
     mockBudgetRepository = MockBudgetRepository();
     fakeSpendingTargetsUseCase = FakeGetSpendingTargetsUseCase(
-      targetsToReturn: const SpendingTargetEntity(
-        dailyTarget: 1500,
-        dailySpent: 500,
-        dailyRemaining: 1000,
-        dailyExceeded: 0,
-        dailyProgress: 0.33,
-        dailyStatus: SpendingTargetStatus.onTrack,
-        weeklyTarget: 10500,
-        weeklySpent: 3500,
-        weeklyRemaining: 7000,
-        weeklyExceeded: 0,
-        weeklyProgress: 0.33,
-        weeklyStatus: SpendingTargetStatus.onTrack,
-        currency: 'INR',
-      ),
       perBudgetResultToReturn: PerBudgetSpendingTargetSuccess(
         budgetLimits: [
           BudgetDailyLimitEntity(
@@ -137,15 +109,13 @@ void main() {
             endDate: DateTime(2026, 8, 31),
           ),
         ],
-        combinedDailyTarget: 1500,
-        currency: 'INR',
       ),
     );
     notificationService = NotificationService(
       plugin: mockPlugin,
-      budgetRepository: mockBudgetRepository,
-      calculationService: BudgetCalculationService(),
       spendingTargetsUseCase: fakeSpendingTargetsUseCase,
+      rescheduleTabReminders: () async {},
+      onPayLaterTap: (_) {},
     );
     when(
       mockPlugin
@@ -347,7 +317,6 @@ void main() {
 
       test('should use fallback text when no active budget exists', () async {
         // When no spending target is available, use fallback text
-        fakeSpendingTargetsUseCase.targetsToReturn = null;
         fakeSpendingTargetsUseCase.perBudgetResultToReturn = null;
 
         final settings = AppSettings(
@@ -366,6 +335,64 @@ void main() {
             NotificationService.morningReminderId,
             "Today's Safe Spending",
             'No budget is running today. Open the app to check your budgets.',
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).called(1);
+      });
+
+      test('a figure that could not be worked out is not reported as no '
+          'budget', () async {
+        fakeSpendingTargetsUseCase.perBudgetResultToReturn =
+            const PerBudgetSpendingTargetError(
+              BudgetFailure(
+                type: BudgetErrorType.invalidDate,
+                message: 'database is locked',
+              ),
+            );
+        final settings = AppSettings(
+          notifications: const NotificationSettings(
+            notificationsEnabled: true,
+            morningReminderEnabled: true,
+            eveningSummaryEnabled: false,
+          ),
+        );
+
+        await notificationService.scheduleAll(settings);
+
+        verify(
+          mockPlugin.zonedSchedule(
+            NotificationService.morningReminderId,
+            "Today's Safe Spending",
+            "Open Monivo to see today's safe spending.",
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).called(1);
+      });
+
+      test('a calculation that throws gets the same neutral text', () async {
+        fakeSpendingTargetsUseCase.perBudgetResultFor = (_) =>
+            throw Exception('database is locked');
+        final settings = AppSettings(
+          notifications: const NotificationSettings(
+            notificationsEnabled: true,
+            morningReminderEnabled: true,
+            eveningSummaryEnabled: false,
+          ),
+        );
+
+        await notificationService.scheduleAll(settings);
+
+        verify(
+          mockPlugin.zonedSchedule(
+            NotificationService.morningReminderId,
+            "Today's Safe Spending",
+            "Open Monivo to see today's safe spending.",
             any,
             any,
             androidScheduleMode: anyNamed('androidScheduleMode'),
@@ -516,13 +543,14 @@ void main() {
         billReminders = BillReminderService(
           plugin: mockPlugin,
           repository: bills,
+          onNotificationResponse: (_) {},
         );
         notificationService = NotificationService(
           plugin: mockPlugin,
-          budgetRepository: mockBudgetRepository,
-          calculationService: BudgetCalculationService(),
           spendingTargetsUseCase: fakeSpendingTargetsUseCase,
           rescheduleBillReminders: billReminders.rescheduleAll,
+          rescheduleTabReminders: () async {},
+          onPayLaterTap: (_) {},
         );
       });
 
@@ -637,10 +665,10 @@ void main() {
           GetSpendingTargetsUseCase? targets,
         }) => NotificationService(
           plugin: mockPlugin,
-          budgetRepository: mockBudgetRepository,
-          calculationService: BudgetCalculationService(),
           spendingTargetsUseCase: targets ?? fakeSpendingTargetsUseCase,
           clock: () => clock,
+          rescheduleTabReminders: () async {},
+          onPayLaterTap: (_) {},
         );
 
         List<
@@ -688,11 +716,7 @@ void main() {
             startDate: base.startDate,
             endDate: base.endDate,
           );
-          return PerBudgetSpendingTargetSuccess(
-            budgetLimits: [limit],
-            combinedDailyTarget: limit.dailyLimit,
-            currency: 'INR',
-          );
+          return PerBudgetSpendingTargetSuccess(budgetLimits: [limit]);
         }
 
         test('scheduled in the evening: the first reminder is tomorrow with '
@@ -845,31 +869,279 @@ void main() {
       },
     );
 
-    group('cancelAll', () {
+    group('pay later reminders: restore and tap routing', () {
+      late List<String> opened;
+      late List<String> order;
+      late NotificationService service;
+
+      /// The tap handler the platform holds: the one the latest
+      /// `initialize` call passed (a later call without one clears it).
+      DidReceiveNotificationResponseCallback? handler;
+
+      const disabled = AppSettings(
+        notifications: NotificationSettings(notificationsEnabled: false),
+      );
+
+      NotificationResponse tap(String? payload) => NotificationResponse(
+        notificationResponseType: NotificationResponseType.selectedNotification,
+        payload: payload,
+      );
+
+      NotificationService build({
+        Future<void> Function()? rescheduleTabReminders,
+        Future<void> Function()? rescheduleBillReminders,
+      }) => NotificationService(
+        plugin: mockPlugin,
+        spendingTargetsUseCase: fakeSpendingTargetsUseCase,
+        rescheduleBillReminders: rescheduleBillReminders,
+        rescheduleTabReminders:
+            rescheduleTabReminders ?? () async => order.add('tabs'),
+        onPayLaterTap: opened.add,
+      );
+
       setUp(() {
         stubPluginInitialization();
+        opened = [];
+        order = [];
+        handler = null;
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          handler =
+              invocation.namedArguments[#onDidReceiveNotificationResponse]
+                  as DidReceiveNotificationResponseCallback?;
+          return true;
+        });
+        when(
+          mockPlugin.cancelAllPendingNotifications(),
+        ).thenAnswer((_) async => order.add('cancel'));
+        when(
+          mockPlugin.getNotificationAppLaunchDetails(),
+        ).thenAnswer((_) async => null);
+        service = build();
       });
 
-      test('should cancel all notifications', () async {
-        when(mockPlugin.cancelAll()).thenAnswer((_) async => {});
+      test('tapping a pay later reminder opens its tab', () async {
+        await service.initialize();
 
-        await notificationService.cancelAll();
+        handler!(tap('pay_later:tab-1'));
 
-        verify(mockPlugin.cancelAll()).called(1);
-      });
-    });
-
-    group('cancel', () {
-      setUp(() {
-        stubPluginInitialization();
+        expect(opened, ['tab-1']);
       });
 
-      test('should cancel specific notification', () async {
-        when(mockPlugin.cancel(any)).thenAnswer((_) async => {});
+      test('other payloads open nothing', () async {
+        await service.initialize();
 
-        await notificationService.cancel(1001);
+        for (final payload in [
+          null,
+          '',
+          'daily_spending_limit',
+          'evening_summary',
+          'pay_later:',
+          'pay_later',
+          'bill:rent',
+        ]) {
+          handler!(tap(payload));
+        }
 
-        verify(mockPlugin.cancel(1001)).called(1);
+        expect(opened, isEmpty);
+      });
+
+      test('the payload parser', () {
+        expect(NotificationService.payLaterTabIdFrom('pay_later:t1'), 't1');
+        expect(NotificationService.payLaterTabIdFrom('pay_later:'), isNull);
+        expect(NotificationService.payLaterTabIdFrom('t1'), isNull);
+        expect(NotificationService.payLaterTabIdFrom(null), isNull);
+      });
+
+      test('a reminder tap that launched the app opens the tab once', () async {
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            true,
+            notificationResponse: tap('pay_later:t9'),
+          ),
+        );
+
+        await service.initialize();
+        await service.initialize();
+
+        expect(opened, ['t9']);
+      });
+
+      // iOS answers false to an initialize that requests no permission,
+      // which the app's settings never do (review, fix round 1).
+      test('a cold-start reminder tap opens the tab once even when the plugin '
+          'answers false', () async {
+        when(
+          mockPlugin.initialize(
+            any,
+            onDidReceiveNotificationResponse: anyNamed(
+              'onDidReceiveNotificationResponse',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          handler =
+              invocation.namedArguments[#onDidReceiveNotificationResponse]
+                  as DidReceiveNotificationResponseCallback?;
+          return false;
+        });
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            true,
+            notificationResponse: tap('pay_later:t9'),
+          ),
+        );
+
+        expect(await service.initialize(), isFalse);
+        expect(await service.initialize(), isFalse);
+
+        expect(opened, ['t9']);
+        // A tap while the app runs still reaches the handler it registered.
+        handler!(tap('pay_later:t2'));
+        expect(opened, ['t9', 't2']);
+      });
+
+      test('a launch that was not a notification tap opens nothing', () async {
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            false,
+            notificationResponse: tap('pay_later:t9'),
+          ),
+        );
+
+        await service.initialize();
+
+        expect(opened, isEmpty);
+      });
+
+      test('a launch from another notification opens nothing', () async {
+        when(mockPlugin.getNotificationAppLaunchDetails()).thenAnswer(
+          (_) async => NotificationAppLaunchDetails(
+            true,
+            notificationResponse: tap('daily_spending_limit'),
+          ),
+        );
+
+        await service.initialize();
+
+        expect(opened, isEmpty);
+      });
+
+      test('launch details that cannot be read do not fail start-up', () async {
+        when(
+          mockPlugin.getNotificationAppLaunchDetails(),
+        ).thenThrow(Exception('channel'));
+
+        expect(await service.initialize(), isTrue);
+        expect(opened, isEmpty);
+      });
+
+      test('scheduleAll puts the tab reminders back after clearing the '
+          'schedule, even with the daily notifications off', () async {
+        await service.scheduleAll(disabled);
+
+        expect(order, ['cancel', 'tabs']);
+      });
+
+      test('a failing tab restore still schedules the daily '
+          'notifications', () async {
+        service = build(rescheduleTabReminders: () async => throw 'boom');
+
+        await service.scheduleAll(
+          const AppSettings(
+            notifications: NotificationSettings(
+              notificationsEnabled: true,
+              morningReminderEnabled: true,
+              eveningSummaryEnabled: false,
+            ),
+          ),
+        );
+
+        verify(
+          mockPlugin.zonedSchedule(
+            NotificationService.morningReminderId,
+            any,
+            any,
+            any,
+            any,
+            androidScheduleMode: anyNamed('androidScheduleMode'),
+            matchDateTimeComponents: anyNamed('matchDateTimeComponents'),
+          ),
+        ).called(1);
+      });
+
+      // The plugin keeps only the handler of the latest initialize call
+      // (the stub above stores it the same way), so the bill reminders must
+      // pass the same one or a later bill write silently stops reminder taps.
+      group('the bill reminders initialise with the same handler', () {
+        late BillReminderService billReminders;
+
+        setUp(() {
+          billReminders = BillReminderService(
+            plugin: mockPlugin,
+            repository: SafeSpendFakeBillRepository(),
+            onNotificationResponse: (response) =>
+                service.handleNotificationResponse(response),
+          );
+          service = build(rescheduleBillReminders: billReminders.rescheduleAll);
+        });
+
+        test('a pay later tap still routes after a re-schedule '
+            'initialised the bill reminders', () async {
+          await service.scheduleAll(disabled);
+
+          handler!(tap('pay_later:t1'));
+          expect(opened, ['t1']);
+        });
+
+        test('a pay later tap still routes when a bill write initialised '
+            'the plugin last (no re-schedule since)', () async {
+          await service.initialize();
+          await billReminders.initialize();
+
+          handler!(tap('pay_later:t1'));
+          expect(opened, ['t1']);
+        });
+
+        test('no initialize call ever clears the handler', () async {
+          final passed = <Object?>[];
+          when(
+            mockPlugin.initialize(
+              any,
+              onDidReceiveNotificationResponse: anyNamed(
+                'onDidReceiveNotificationResponse',
+              ),
+            ),
+          ).thenAnswer((invocation) async {
+            passed.add(
+              invocation.namedArguments[#onDidReceiveNotificationResponse],
+            );
+            return true;
+          });
+
+          await billReminders.initialize();
+          await service.scheduleAll(disabled);
+
+          expect(passed, isNotEmpty);
+          expect(passed, everyElement(isNotNull));
+        });
+
+        test('a bill reminder tap behaves as before: nothing opens', () async {
+          await service.initialize();
+          await billReminders.initialize();
+
+          // Bill reminders carry no payload.
+          handler!(tap(null));
+          handler!(tap(''));
+          handler!(tap('daily_spending_limit'));
+
+          expect(opened, isEmpty);
+        });
       });
     });
   });

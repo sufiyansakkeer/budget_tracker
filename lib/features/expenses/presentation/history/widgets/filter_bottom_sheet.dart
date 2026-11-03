@@ -43,6 +43,11 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
   late List<String> _tags;
   late bool _receiptOnly;
 
+  /// Every decimal the filter was saved with: rounding here was saved back
+  /// on Apply (12.5 became 13).
+  static String? _amountText(double? amount) =>
+      amount == null ? null : MoneyInput.forInput(amount);
+
   @override
   void initState() {
     super.initState();
@@ -50,10 +55,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     _dateFrom = widget.current.dateFrom;
     _dateTo = widget.current.dateTo;
     _minAmount = TextEditingController(
-      text: widget.current.minAmount?.toStringAsFixed(0),
+      text: _amountText(widget.current.minAmount),
     );
     _maxAmount = TextEditingController(
-      text: widget.current.maxAmount?.toStringAsFixed(0),
+      text: _amountText(widget.current.maxAmount),
     );
     _tagController = TextEditingController();
     _tags = List.of(widget.current.tags);

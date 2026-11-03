@@ -20,7 +20,6 @@ class WidgetDataKeys {
 
   /// The whole widget state as one JSON string ([HomeWidgetPayload]).
   static const String payload = 'home_widget_payload';
-  static const String quickActionPayload = 'home_widget_quick_action';
 }
 
 /// Stores the route the user navigated to from a home-screen widget tap.
@@ -186,30 +185,13 @@ class HomeWidgetService {
   Future<ColorPalette> _safePalette() async {
     try {
       return await _palette();
-    } catch (_) {
+    } catch (e) {
+      developer.log(
+        '[HomeWidgetService] Could not read the palette: $e',
+        name: 'HomeWidgetService',
+      );
       return ColorPalette.defaultPalette;
     }
-  }
-
-  /// Saves the quick-action payload so the widget can trigger navigation.
-  Future<void> setQuickActionPayload(String route) async {
-    await HomeWidget.saveWidgetData<String>(
-      WidgetDataKeys.quickActionPayload,
-      route,
-    );
-  }
-
-  /// Clears the quick-action payload after it has been consumed.
-  Future<void> clearQuickActionPayload() async {
-    await HomeWidget.saveWidgetData<String>(
-      WidgetDataKeys.quickActionPayload,
-      null,
-    );
-  }
-
-  /// Reads the quick-action payload that was set before app launch.
-  Future<String?> getQuickActionPayload() async {
-    return HomeWidget.getWidgetData<String>(WidgetDataKeys.quickActionPayload);
   }
 
   Future<void> _updateNativeWidgets() async {

@@ -8,7 +8,11 @@ class SpendingTrend extends Equatable {
 
   /// Spending growth as a ratio relative to the previous comparable period.
   /// Positive means spending increased, negative means it decreased.
+  /// 0 when there was nothing to compare with: see [hasPreviousPeriod].
   final double growthRate;
+
+  /// Whether anything was spent in the previous comparable period.
+  final bool hasPreviousPeriod;
 
   /// How consistent spending is, 0.0 (erratic) to 1.0 (very consistent).
   final double consistencyScore;
@@ -21,6 +25,7 @@ class SpendingTrend extends Equatable {
     required this.weeklyAverage,
     required this.monthlyAverage,
     required this.growthRate,
+    this.hasPreviousPeriod = false,
     required this.consistencyScore,
     required this.isImproving,
   });
@@ -40,6 +45,7 @@ class SpendingTrend extends Equatable {
     weeklyAverage,
     monthlyAverage,
     growthRate,
+    hasPreviousPeriod,
     consistencyScore,
     isImproving,
   ];

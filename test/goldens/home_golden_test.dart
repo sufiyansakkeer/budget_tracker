@@ -17,8 +17,10 @@ import 'package:monivo/features/dashboard/presentation/bloc/dashboard_event.dart
 import 'package:monivo/features/dashboard/presentation/bloc/dashboard_state.dart';
 import 'package:monivo/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/dashboard_header.dart';
+import 'package:monivo/features/pay_later/presentation/bloc/pay_later_summary_cubit.dart';
 
 import '../features/dashboard/presentation/widgets/safe_to_spend_fixtures.dart';
+import '../features/pay_later/presentation/fake_pay_later_summary_cubit.dart';
 import 'golden_harness.dart';
 
 /// Holds one state; events are ignored.
@@ -208,11 +210,16 @@ void main() {
     addTearDown(() => DashboardHeader.clock = DateTime.now);
     final bloc = _StaticDashboardBloc(_sampleState());
     addTearDown(bloc.close);
+    final payLater = FakePayLaterSummaryCubit();
+    addTearDown(payLater.close);
     await expectGoldenMatrix(
       tester,
       'home',
-      BlocProvider<DashboardBloc>.value(
-        value: bloc,
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<DashboardBloc>.value(value: bloc),
+          BlocProvider<PayLaterSummaryCubit>.value(value: payLater),
+        ],
         child: const DashboardScreen(),
       ),
       size: const Size(360, 2000),
@@ -224,12 +231,17 @@ void main() {
     addTearDown(() => DashboardHeader.clock = DateTime.now);
     final bloc = _StaticDashboardBloc(_sampleState());
     addTearDown(bloc.close);
+    final payLater = FakePayLaterSummaryCubit();
+    addTearDown(payLater.close);
     // Two columns from 840 dp: today's figure on the left, the rest beside.
     await expectGoldenMatrix(
       tester,
       'home_tablet',
-      BlocProvider<DashboardBloc>.value(
-        value: bloc,
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<DashboardBloc>.value(value: bloc),
+          BlocProvider<PayLaterSummaryCubit>.value(value: payLater),
+        ],
         child: const DashboardScreen(),
       ),
       size: const Size(1024, 1300),
@@ -239,11 +251,16 @@ void main() {
   testWidgets('home without a budget', (tester) async {
     final bloc = _StaticDashboardBloc(const DashboardEmpty());
     addTearDown(bloc.close);
+    final payLater = FakePayLaterSummaryCubit();
+    addTearDown(payLater.close);
     await expectGoldenMatrix(
       tester,
       'home_empty',
-      BlocProvider<DashboardBloc>.value(
-        value: bloc,
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<DashboardBloc>.value(value: bloc),
+          BlocProvider<PayLaterSummaryCubit>.value(value: payLater),
+        ],
         child: const DashboardScreen(),
       ),
       size: const Size(360, 780),

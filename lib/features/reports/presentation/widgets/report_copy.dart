@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_tone.dart';
 import '../../domain/entities/report_data.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// A comparison sentence and the tone it is read in.
 typedef ReportComparison = ({String text, AppTone tone});
@@ -36,8 +37,8 @@ abstract final class ReportCopy {
     if (growth == 0 || !growth.isFinite) return null;
     final range = data.range;
     final days = range.dayCount;
-    final previousEnd = range.start.subtract(const Duration(days: 1));
-    final previousStart = range.start.subtract(Duration(days: days));
+    final previousEnd = range.start.addDays(-1);
+    final previousStart = range.start.addDays(-days);
     final before =
         'the ${days == 1 ? 'day' : '$days days'} before '
         '(${_span(previousStart, previousEnd)})';

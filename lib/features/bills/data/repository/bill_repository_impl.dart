@@ -57,16 +57,6 @@ class BillRepositoryImpl implements BillRepository {
   }) => localDataSource.getOverdueBills(today: today, limit: limit);
 
   @override
-  Future<double> getUpcomingBillsTotal({int withinDays = 30}) async {
-    return localDataSource.getUpcomingBillsTotal(withinDays: withinDays);
-  }
-
-  @override
-  Future<double> getMonthlyRecurringBillsTotal() async {
-    return localDataSource.getMonthlyRecurringBillsTotal();
-  }
-
-  @override
   Future<T> transaction<T>(Future<T> Function() action) {
     return localDataSource.transaction(action);
   }

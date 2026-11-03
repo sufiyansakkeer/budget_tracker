@@ -10,13 +10,24 @@ import '../../../../core/currency/money_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
-import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
+import '../../../pay_later/domain/entities/pay_later_failure.dart';
+import '../../../pay_later/domain/entities/pay_later_tab.dart';
+import '../../../pay_later/domain/entities/purchase_change_impact.dart';
+import '../../../pay_later/domain/usecases/get_tabs_usecase.dart';
+import '../../../pay_later/domain/usecases/tab_purchase_usecase.dart';
+import '../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
+import '../../../pay_later/presentation/widgets/tab_selector.dart';
+import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/validators/expense_validator.dart';
 import '../bloc/expense_bloc.dart';
@@ -29,6 +40,7 @@ import '../widgets/expense_date_rules.dart';
 import '../widgets/expense_form_actions.dart';
 import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
+import '../widgets/form_field_error.dart';
 import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
 import '../../../../core/navigation/push_unique.dart';
@@ -41,15 +53,20 @@ class ExpensePrefill {
   final DateTime? date;
   final String? budgetId;
 
+  /// The Pay later tab to add to ("Add to tab" on a tab's screen): Pay
+  /// later is chosen with this tab, and the tab's default category.
+  final String? tabId;
+
   const ExpensePrefill({
     this.amount,
     this.categoryId,
     this.date,
     this.budgetId,
+    this.tabId,
   });
 
-  /// From `?amount=250&category=food&date=2026-10-08&budget=…`; anything
-  /// malformed is ignored.
+  /// From `?amount=250&category=food&date=2026-10-08&budget=…&tab=…`;
+  /// anything malformed is ignored.
   factory ExpensePrefill.fromQuery(Map<String, String> query) {
     final amount = query['amount'];
     final date = DateTime.tryParse(query['date'] ?? '');
@@ -60,11 +77,16 @@ class ExpensePrefill {
       categoryId: query['category'],
       date: date == null ? null : DateTime(date.year, date.month, date.day),
       budgetId: query['budget'],
+      tabId: query['tab'],
     );
   }
 
   bool get isEmpty =>
-      amount == null && categoryId == null && date == null && budgetId == null;
+      amount == null &&
+      categoryId == null &&
+      date == null &&
+      budgetId == null &&
+      tabId == null;
 }
 
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense, or
@@ -76,11 +98,15 @@ class ExpensePrefill {
 /// with unsaved input asks first. A save closes the form at once with a
 /// short confirmation.
 ///
-/// Priority order on screen: amount → category → date & time → optional
-/// details (budget, note, tags, receipt). Date and time are pre-filled by the
+/// Priority order on screen: amount → paid (now or pay later) → category →
+/// date & time → optional details (budget, note, tags, receipt). Date and time are pre-filled by the
 /// BLoC for new expenses and stay editable. The budget picker defaults to the
 /// active budget, drives the currency symbol, and the expense date must fall
 /// inside the selected budget's period.
+///
+/// "Paid: Now" (the default) saves exactly as before Pay later existed.
+/// "Pay later" puts the purchase on a tab in the budget's currency; an edit
+/// that would take payment money off it asks first.
 class ExpenseFormScreen extends StatefulWidget {
   final String? expenseId;
   final String? copyFromId;
@@ -111,6 +137,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final _categoryKey = GlobalKey();
   final _dateKey = GlobalKey();
   final _budgetKey = GlobalKey();
+  final _paidKey = GlobalKey();
 
   List<String> _tags = [];
   String? _selectedCategoryId;
@@ -121,7 +148,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   TimeOfDay? _time;
   String? _receiptPath;
 
-  List<BudgetEntity> _budgets = [];
+  List<BudgetEntity> _allBudgets = [];
   String? _selectedBudgetId;
 
   /// The budget the expense being edited is saved in. Expenses carry no
@@ -133,6 +160,45 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   bool _budgetsFailed = false;
   bool _populated = false;
   bool _justSaved = false;
+
+  /// Purchases on tabs: the same use case the bloc saves through.
+  late final TabPurchaseUseCase _tabPurchases = context
+      .read<ExpenseBloc>()
+      .tabPurchases;
+
+  /// "Paid: Pay later" is chosen.
+  bool _payLater = false;
+  String? _tabId;
+  String? _tabError;
+
+  /// The tab the edited expense was on when the form opened; null when it
+  /// was on none (or when adding).
+  String? _originalTabId;
+
+  /// Whether [_originalTabId] has been read; false until then for an edit.
+  /// For a duplicate: false until the source's tab has been decided.
+  bool _tabLinkKnown = true;
+
+  /// An edit's tab link couldn't be read on open. The unsaved-changes
+  /// baseline is still taken (saving reads the link again).
+  bool _tabLinkReadFailed = false;
+
+  /// A duplicate's source purchase was on this tab; chosen once the tabs
+  /// and budgets show it is still usable.
+  String? _sourceTabId;
+
+  /// A bill payment can't go on a tab.
+  bool _isBillPayment = false;
+
+  /// Every tab, archived included; null until loaded.
+  List<PayLaterTab>? _tabs;
+  bool _loadingTabs = false;
+  bool _tabsFailed = false;
+
+  /// Opened from a tab ("Add to tab"): its default category is chosen once
+  /// the tabs and categories are known.
+  bool _applyTabDefaults = false;
+  String? _pendingTabCategoryId;
 
   /// What an edit or a duplicate started from, to tell whether anything
   /// changed; null for a new expense, which compares against blank fields.
@@ -155,8 +221,16 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     // Default date/time are captured once by the BLoC and kept in state.
     if (!_isEditing) bloc.add(const ExpenseInitialize());
     _loadBudgets();
-    if (_isEditing) bloc.add(ExpenseLoadById(widget.expenseId!));
-    if (_isDuplicating) bloc.add(ExpenseLoadById(widget.copyFromId!));
+    if (_isEditing) {
+      bloc.add(ExpenseLoadById(widget.expenseId!));
+      _tabLinkKnown = false;
+      _loadTabLink();
+    }
+    if (_isDuplicating) {
+      bloc.add(ExpenseLoadById(widget.copyFromId!));
+      _tabLinkKnown = false;
+      _loadSourceTab();
+    }
     // Keyboard after the page has settled, not during the transition.
     final prefill = widget.prefill;
     if (prefill != null && !_isEditing && !_isDuplicating) {
@@ -164,6 +238,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _selectedCategoryId = prefill.categoryId;
       _date = prefill.date;
       _selectedBudgetId = prefill.budgetId;
+      if (prefill.tabId != null) {
+        _payLater = true;
+        _tabId = prefill.tabId;
+        _applyTabDefaults = true;
+        _loadTabs();
+      }
     }
     if (!_isEditing) requestFocusAfterTransition(context, _amountFocus);
     _noteController.addListener(_onTextChanged);
@@ -184,6 +264,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     _tags.join(','),
     _receiptPath,
     _selectedBudgetId,
+    _payLater ? _tabId ?? '' : null,
   ].join('|');
 
   /// Whether leaving now would lose something the person entered.
@@ -224,6 +305,212 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     super.dispose();
   }
 
+  /// Reads which tab the edited expense is on; true when that is known.
+  Future<bool> _loadTabLink() async {
+    try {
+      final tabId = await _tabPurchases.tabIdFor(widget.expenseId!);
+      if (!mounted) return false;
+      setState(() {
+        _originalTabId = tabId;
+        _tabLinkKnown = true;
+        if (tabId != null) {
+          _payLater = true;
+          _tabId = tabId;
+        }
+      });
+      if (tabId != null) _loadTabs();
+      _captureBaseline();
+      return true;
+    } catch (e) {
+      debugPrint('[error] Reading the Pay later tab of an expense: $e');
+      if (mounted && !_tabLinkReadFailed) {
+        // Typed edits must still count as unsaved.
+        _tabLinkReadFailed = true;
+        _captureBaseline();
+      }
+      return false;
+    }
+  }
+
+  /// A duplicate of a tab purchase starts on that tab ("the same meal
+  /// again"); a plain expense, or a link that can't be read, copies as Now.
+  Future<void> _loadSourceTab() async {
+    String? tabId;
+    try {
+      tabId = await _tabPurchases.tabIdFor(widget.copyFromId!);
+    } catch (e) {
+      debugPrint('[error] Reading the Pay later tab of a copied expense: $e');
+    }
+    if (!mounted) return;
+    if (tabId == null) {
+      _decideSourceTab();
+      return;
+    }
+    _sourceTabId = tabId;
+    await _loadTabs();
+    if (mounted) _applySourceTab();
+  }
+
+  /// Chooses the duplicate's source tab when it still exists, isn't
+  /// archived and is in the selected budget's currency; otherwise Now.
+  /// Waits for the copy, the tabs and the budgets; runs once.
+  void _applySourceTab() {
+    final tabId = _sourceTabId;
+    if (tabId == null || _tabLinkKnown) return;
+    if (!_populated || _loadingTabs || _loadingBudgets) return;
+    PayLaterTab? tab;
+    for (final t in _tabs ?? const <PayLaterTab>[]) {
+      if (t.id == tabId) tab = t;
+    }
+    final budget = _selectedBudget;
+    final usable =
+        tab != null &&
+        !tab.isArchived &&
+        budget != null &&
+        tab.currency == budget.currency;
+    if (usable) {
+      setState(() {
+        _payLater = true;
+        _tabId = tabId;
+      });
+    }
+    _decideSourceTab();
+  }
+
+  /// The duplicate's Paid choice is settled: take the baseline.
+  void _decideSourceTab() {
+    setState(() => _tabLinkKnown = true);
+    _captureBaseline();
+  }
+
+  Future<void> _loadTabs() async {
+    setState(() {
+      _loadingTabs = true;
+      _tabsFailed = false;
+    });
+    final result = await getIt<GetTabsUseCase>()();
+    if (!mounted) return;
+    switch (result) {
+      case PayLaterSuccess(:final data):
+        setState(() {
+          _tabs = data;
+          _loadingTabs = false;
+        });
+        _applyOpenedTabDefaults();
+      case PayLaterError(:final failure):
+        debugPrint(
+          '[error] Loading tabs for the expense form: ${failure.message}',
+        );
+        setState(() {
+          _loadingTabs = false;
+          _tabsFailed = true;
+        });
+    }
+  }
+
+  PayLaterTab? get _selectedTab {
+    for (final tab in _tabs ?? const <PayLaterTab>[]) {
+      if (tab.id == _tabId) return tab;
+    }
+    return null;
+  }
+
+  /// For a form opened from a tab: a tab that is gone or archived is not
+  /// chosen; otherwise its default category is, once categories are known.
+  void _applyOpenedTabDefaults() {
+    if (!_applyTabDefaults) return;
+    _applyTabDefaults = false;
+    final tab = _selectedTab;
+    if (tab == null || tab.isArchived) {
+      setState(() => _tabId = null);
+      return;
+    }
+    _pendingTabCategoryId = tab.defaultCategoryId;
+    _applyTabCategory(context.read<ExpenseBloc>().state.categories);
+  }
+
+  /// Chooses the opened tab's default category when it exists, isn't
+  /// archived and no category is chosen yet.
+  void _applyTabCategory(List<ExpenseCategory> categories) {
+    final id = _pendingTabCategoryId;
+    if (id == null || categories.isEmpty) return;
+    _pendingTabCategoryId = null;
+    if (_selectedCategoryId != null) return;
+    for (final category in categories) {
+      if (category.id == id && !category.isArchived) {
+        setState(() => _selectedCategoryId = id);
+        return;
+      }
+    }
+  }
+
+  void _setPayLater(bool payLater) {
+    setState(() {
+      _payLater = payLater;
+      _tabError = null;
+    });
+    if (payLater && _tabs == null && !_loadingTabs) _loadTabs();
+  }
+
+  /// Opens the tab form in the selected budget's currency; the new tab
+  /// comes back chosen, and everything entered here stays as it was.
+  Future<void> _createTab() async {
+    final currency = _selectedBudget?.currency;
+    final query = currency == null ? '' : '?currency=$currency';
+    final id = await context.pushUnique<String>(
+      '${AppRouter.payLaterPath}/new$query',
+    );
+    if (id == null || !mounted) return;
+    setState(() {
+      _payLater = true;
+      _tabId = id;
+      _tabError = null;
+    });
+    await _loadTabs();
+  }
+
+  /// Why the chosen tab can't take an expense in the selected budget, or
+  /// null. A tab has one currency (spec §2, decision 10), so this blocks
+  /// the save rather than warn.
+  String? get _tabCurrencyError {
+    if (!_payLater) return null;
+    final tab = _selectedTab;
+    final budget = _selectedBudget;
+    if (tab == null || budget == null || tab.currency == budget.currency) {
+      return null;
+    }
+    return '${tab.name} is in ${tab.currency}. Pick a budget in '
+        '${tab.currency}, or another tab.';
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Before an edit of a purchase on a tab: says where payment money on it
+  /// would go, and asks. False when the user cancels or the check fails;
+  /// a failed check is never taken as "nothing paid".
+  Future<bool> _confirmPaymentImpact(double amount) async {
+    if (!_isEditing || _originalTabId == null) return true;
+    final PurchaseChangeImpact? impact;
+    try {
+      impact = await _tabPurchases.impactOf(
+        widget.expenseId!,
+        newAmount: amount,
+        newTabId: _payLater ? _tabId : null,
+      );
+    } catch (e) {
+      debugPrint('[error] Checking payments on a tab purchase: $e');
+      if (mounted) _showMessage(PurchaseImpactDialog.checkFailed);
+      return false;
+    }
+    if (!mounted) return false;
+    if (impact == null || !impact.touchesPayments) return true;
+    return PurchaseImpactDialog.show(context, impact: impact, deleting: false);
+  }
+
   Future<void> _loadBudgets() async {
     setState(() {
       _loadingBudgets = true;
@@ -234,18 +521,29 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       final activeId = await _manageBudget.activeBudgetId();
       if (!mounted) return;
       setState(() {
-        _budgets = budgets.where((b) => !b.isArchived).toList();
+        _allBudgets = budgets;
         _selectedBudgetId ??= activeId;
         _loadingBudgets = false;
       });
-    } catch (_) {
+      _applySourceTab();
+    } catch (e) {
+      debugPrint('[error] Loading budgets for the expense form: $e');
       if (!mounted) return;
       setState(() {
         _loadingBudgets = false;
         _budgetsFailed = true;
       });
+      _applySourceTab();
     }
   }
+
+  /// Budgets an expense can go to: those not archived, plus the one it is
+  /// already in even when archived, so editing it keeps that budget and its
+  /// currency's decimals.
+  List<BudgetEntity> get _budgets => [
+    for (final b in _allBudgets)
+      if (!b.isArchived || b.id == _originalBudgetId) b,
+  ];
 
   BudgetEntity? get _selectedBudget {
     for (final b in _budgets) {
@@ -268,6 +566,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _selectedBudgetId = source.budgetId;
       _populated = true;
     });
+    _applySourceTab();
   }
 
   void _populateFromExpense(ExpenseEntity expense) {
@@ -281,6 +580,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _tags = List.of(expense.tags);
       _selectedBudgetId = expense.budgetId;
       _originalBudgetId = expense.budgetId;
+      _isBillPayment = expense.billId != null;
       _populated = true;
     });
   }
@@ -352,22 +652,43 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final budgetError = _selectedBudgetId == null
         ? 'Choose the budget this expense belongs to.'
         : null;
+    final tabError = _payLater && _tabId == null
+        ? 'Choose a tab for this purchase.'
+        : null;
 
     setState(() {
       _amountError = amountError;
       _categoryError = categoryError;
       _dateError = dateError;
       _budgetError = budgetError;
+      _tabError = tabError;
     });
     _formKey.currentState?.validate();
 
     if (amountError != null) return _scrollTo(_amountKey);
+    if (tabError != null) return _scrollTo(_paidKey);
     if (categoryError != null) return _scrollTo(_categoryKey);
     if (dateError != null) return _scrollTo(_dateKey);
     if (budgetError != null) return _scrollTo(_budgetKey);
+    if (_tabCurrencyError != null) return _scrollTo(_budgetKey);
+
+    // A duplicate is still deciding whether it starts on its source's tab
+    // (a moment after opening); saving now could drop it from the tab.
+    if (_isDuplicating && !_tabLinkKnown) return;
+
+    // An edit must know whether the expense is on a tab before saving.
+    if (!_tabLinkKnown) {
+      final known = await _loadTabLink();
+      if (!mounted) return;
+      if (!known) return _showMessage(PurchaseImpactDialog.saveCheckFailed);
+      // It turned out to be on a tab: the form now shows it; save again.
+      if (_originalTabId != null) return;
+    }
 
     final amount = double.parse(_amountController.text.trim());
     if (!await _confirmCurrencyChange(amount)) return;
+    if (!mounted) return;
+    if (!await _confirmPaymentImpact(amount)) return;
     if (!mounted) return;
     final now = DateTime.now();
     final time = _time ?? TimeOfDay.now();
@@ -399,7 +720,31 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     );
 
     final bloc = context.read<ExpenseBloc>();
-    bloc.add(_isEditing ? ExpenseUpdate(expense) : ExpenseCreate(expense));
+    final tabId = _payLater ? _tabId : null;
+    final wasOnTab = _originalTabId != null;
+    if (tabId == null && !wasOnTab) {
+      // "Now": today's exact events.
+      bloc.add(_isEditing ? ExpenseUpdate(expense) : ExpenseCreate(expense));
+    } else {
+      bloc.add(
+        _isEditing
+            ? ExpenseUpdate(expense, tabId: tabId, wasOnTab: wasOnTab)
+            : ExpenseCreate(expense, tabId: tabId),
+      );
+    }
+  }
+
+  /// An edit or duplicate is "unchanged" once it is fully filled in,
+  /// including which tab an edited expense is on.
+  void _captureBaseline() {
+    if ((_isEditing || _isDuplicating) &&
+        _populated &&
+        _baseline == null &&
+        _date != null &&
+        _time != null &&
+        (_tabLinkKnown || _tabLinkReadFailed)) {
+      _baseline = _signature();
+    }
   }
 
   void _close() {
@@ -510,14 +855,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             });
           }
 
-          // An edit or duplicate is "unchanged" once it is fully filled in.
-          if ((_isEditing || _isDuplicating) &&
-              _populated &&
-              _baseline == null &&
-              _date != null &&
-              _time != null) {
-            _baseline = _signature();
-          }
+          _applyTabCategory(state.categories);
+          _captureBaseline();
         },
         builder: (context, state) {
           final isSaving = state.isBusy;
@@ -552,6 +891,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                       onChanged: (_) => setState(() => _amountError = null),
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Paid: now or pay later.
+                  KeyedSubtree(key: _paidKey, child: _buildPaidChoice()),
                   const SizedBox(height: AppSpacing.lg),
 
                   // 2. Category
@@ -640,12 +983,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       );
     }
     if (_budgets.isEmpty) {
-      return StatusCard(
-        color: theme.colorScheme.error,
+      return AppNotice(
+        tone: AppTone.caution,
         icon: Icons.account_balance_wallet_outlined,
         title: 'No budget yet',
         message: 'Create a budget before adding expenses.',
-        trailing: TextButton(
+        action: TextButton(
           onPressed: () async {
             await context.pushUnique('/app/budgets/create');
             if (mounted) _loadBudgets();
@@ -690,17 +1033,95 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         picker,
-        if (_changesCurrency && budget != null) ...[
+        if (_tabCurrencyError case final error?)
+          FormFieldError(
+            key: const ValueKey('tabCurrencyError'),
+            message: error,
+          )
+        else if (_changesCurrency && budget != null) ...[
           const SizedBox(height: AppSpacing.sm),
-          StatusCard(
+          AppNotice(
             key: const ValueKey('expenseCurrencyChangeWarning'),
-            color: context.appColors.warning,
+            tone: AppTone.caution,
             icon: Icons.currency_exchange_rounded,
+            title: 'Different currency',
             message:
                 '${budget.name} uses ${budget.currency}. The amount is not '
                 'converted, so enter it in ${budget.currency}.',
           ),
         ],
+      ],
+    );
+  }
+
+  /// "Paid": Now (default) or Pay later, which reveals the tab selector.
+  Widget _buildPaidChoice() {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text('Paid', style: theme.textTheme.titleSmall),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: SegmentedButton<bool>(
+                showSelectedIcon: false,
+                segments: [
+                  const ButtonSegment(
+                    value: false,
+                    label: Text('Now', key: Key('paidNowSegment')),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    enabled: !_isBillPayment,
+                    label: const Text(
+                      'Pay later',
+                      key: Key('paidLaterSegment'),
+                    ),
+                  ),
+                ],
+                selected: {_payLater},
+                onSelectionChanged: (choice) => _setPayLater(choice.first),
+              ),
+            ),
+          ],
+        ),
+        if (_isBillPayment)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              "Bill payments can't go on a tab.",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        AppAnimatedSize(
+          duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
+          curve: AppMotion.standardCurve,
+          alignment: Alignment.topCenter,
+          child: _payLater
+              ? Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.md),
+                  child: TabSelector(
+                    key: const Key('tabSelector'),
+                    tabs: _loadingTabs ? null : _tabs,
+                    failed: _tabsFailed,
+                    onRetry: _loadTabs,
+                    currency: _selectedBudget?.currency,
+                    selectedTabId: _tabId,
+                    keepTabId: _originalTabId,
+                    errorText: _tabError,
+                    onSelected: (id) => setState(() {
+                      _tabId = id;
+                      _tabError = null;
+                    }),
+                    onCreateTab: _createTab,
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
       ],
     );
   }

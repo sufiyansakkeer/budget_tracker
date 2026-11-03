@@ -20,6 +20,7 @@ import 'package:monivo/features/budget/presentation/pages/budget_details_screen.
 import 'package:monivo/features/budget/presentation/pages/budget_list_screen.dart';
 
 import '../helpers/bill_ui_fakes.dart';
+import '../helpers/pay_later_fakes.dart';
 import '../helpers/safe_to_spend_fakes.dart';
 import 'golden_harness.dart';
 
@@ -147,7 +148,10 @@ void main() {
     final repository = _StatsRepository(budgets, 'household');
     getIt
       ..registerSingleton<ManageBudgetUseCase>(
-        ManageBudgetUseCase(repository: repository),
+        ManageBudgetUseCase(
+          repository: repository,
+          reconcileTabs: FakeReconcileTabUseCase(),
+        ),
       )
       ..registerSingleton<BudgetRepository>(repository)
       ..registerSingleton<GetBudgetListSummaryUseCase>(
@@ -216,6 +220,20 @@ void main() {
       createdAt: day(-40),
       updatedAt: day(-40),
     );
+    // The bills' budget must still be running on the real day too, or each
+    // linked row reads "· ended" once its fixed dates have passed.
+    final running = [
+      for (final b in budgets)
+        b.id == 'household' ? b.copyWith(endDate: day(30)) : b,
+    ];
+    getIt
+      ..unregister<ManageBudgetUseCase>()
+      ..registerSingleton<ManageBudgetUseCase>(
+        ManageBudgetUseCase(
+          repository: _StatsRepository(running, 'household'),
+          reconcileTabs: FakeReconcileTabUseCase(),
+        ),
+      );
     final bills = SafeSpendFakeBillRepository([
       bill(
         'rent',

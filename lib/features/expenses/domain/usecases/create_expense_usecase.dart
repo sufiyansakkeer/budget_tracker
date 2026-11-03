@@ -10,51 +10,8 @@ class CreateExpenseUseCase {
   CreateExpenseUseCase({required this.repository});
 
   Future<ExpenseResult<ExpenseEntity>> call(ExpenseEntity expense) async {
-    final amountError = ExpenseValidator.validateAmountValue(expense.amount);
-    if (amountError != null) {
-      return ExpenseError(
-        ExpenseFailure(
-          type: ExpenseErrorType.invalidInput,
-          message: amountError,
-        ),
-      );
-    }
-
-    final categoryError = ExpenseValidator.validateCategory(expense.categoryId);
-    if (categoryError != null) {
-      return ExpenseError(
-        ExpenseFailure(
-          type: ExpenseErrorType.invalidInput,
-          message: categoryError,
-        ),
-      );
-    }
-
-    final dateError = ExpenseValidator.validateDate(expense.date);
-    if (dateError != null) {
-      return ExpenseError(
-        ExpenseFailure(type: ExpenseErrorType.invalidInput, message: dateError),
-      );
-    }
-
-    final noteError = ExpenseValidator.validateNote(expense.note);
-    if (noteError != null) {
-      return ExpenseError(
-        ExpenseFailure(type: ExpenseErrorType.invalidInput, message: noteError),
-      );
-    }
-
-    final receiptError = ExpenseValidator.validateReceiptPath(
-      expense.receiptImagePath,
-    );
-    if (receiptError != null) {
-      return ExpenseError(
-        ExpenseFailure(
-          type: ExpenseErrorType.missingReceipt,
-          message: receiptError,
-        ),
-      );
-    }
+    final invalid = ExpenseValidator.check(expense);
+    if (invalid != null) return ExpenseError(invalid);
 
     try {
       await repository.createExpense(expense);

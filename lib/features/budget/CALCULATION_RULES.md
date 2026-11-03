@@ -537,12 +537,9 @@ applies the same formula to all of today's spending, against the summary's
 
 ## Budget summary figures
 
-`BudgetCalculationService.buildSummary` / `buildAnalytics` produce the budget
-summary. Three things use it:
-
-- the dashboard's budget overview;
-- `BudgetBloc`;
-- the budget-level Smart Insights.
+`BudgetCalculationService.buildSummary` produces the budget summary. The
+dashboard loads it for the active budget: the budget-level Smart Insights
+read its figures, and the screen takes only the budget's currency from it.
 
 Reports have their own analytics service.
 

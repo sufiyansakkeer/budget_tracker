@@ -45,7 +45,8 @@ abstract final class LinkBillsSheet {
         case BudgetSuccess(:final data):
           bills = data;
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading bills to link: $e');
       if (context.mounted) _snack(context, "Couldn't load your bills.");
       return;
     }

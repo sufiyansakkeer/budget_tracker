@@ -84,7 +84,13 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       if (!mounted) return;
 
       BudgetListSummaryEntity? summary;
-      if (summaryResult case BudgetSuccess(:final data)) summary = data;
+      switch (summaryResult) {
+        case BudgetSuccess(:final data):
+          summary = data;
+        case BudgetError(:final failure):
+          // The total card is left out; the list still shows.
+          debugPrint('[error] ${failure.message}');
+      }
 
       setState(() {
         _budgets = budgets;
@@ -93,7 +99,8 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
         _loading = false;
         _error = null;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[error] Loading budgets: $e');
       if (!mounted) return;
       setState(() {
         _error = "They're still on this device. Try again in a moment.";

@@ -2,14 +2,12 @@ import 'package:equatable/equatable.dart';
 import 'package:intl/intl.dart';
 
 import 'expense_entity.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
-/// Kept for compatibility with callers that need to identify relative groups.
+/// Which day a group of expenses falls on, relative to today.
 enum ExpenseGroupType {
   today,
   yesterday,
-  thisWeek,
-  lastWeek,
-  thisMonth,
   earlier;
 
   /// Human-readable label for the group header.
@@ -19,32 +17,8 @@ enum ExpenseGroupType {
         return 'Today';
       case ExpenseGroupType.yesterday:
         return 'Yesterday';
-      case ExpenseGroupType.thisWeek:
-        return 'This Week';
-      case ExpenseGroupType.lastWeek:
-        return 'Last Week';
-      case ExpenseGroupType.thisMonth:
-        return 'This Month';
       case ExpenseGroupType.earlier:
         return 'Earlier';
-    }
-  }
-
-  /// Ordering used when rendering groups (Today first).
-  int get order {
-    switch (this) {
-      case ExpenseGroupType.today:
-        return 0;
-      case ExpenseGroupType.yesterday:
-        return 1;
-      case ExpenseGroupType.thisWeek:
-        return 2;
-      case ExpenseGroupType.lastWeek:
-        return 3;
-      case ExpenseGroupType.thisMonth:
-        return 4;
-      case ExpenseGroupType.earlier:
-        return 5;
     }
   }
 }
@@ -63,7 +37,7 @@ class ExpenseGroup extends Equatable {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     if (_sameDay(groupDate, today)) return 'Today';
-    if (_sameDay(groupDate, today.subtract(const Duration(days: 1)))) {
+    if (_sameDay(groupDate, today.addDays(-1))) {
       return 'Yesterday';
     }
     return DateFormat('d MMM yyyy').format(groupDate);

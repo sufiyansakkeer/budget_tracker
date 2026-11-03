@@ -38,8 +38,6 @@ class FakeExpenseRepository implements ExpenseRepository {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {

@@ -13,6 +13,7 @@ import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dar
 
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 
 void main() {
   final now = DateTime.now();
@@ -49,7 +50,10 @@ void main() {
   setUp(() async {
     await getIt.reset();
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: ListBudgetRepository()),
+      ManageBudgetUseCase(
+        repository: ListBudgetRepository(),
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
   });
   tearDown(() => getIt.reset());

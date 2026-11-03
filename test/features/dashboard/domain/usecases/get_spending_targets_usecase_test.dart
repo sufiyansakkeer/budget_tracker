@@ -100,12 +100,6 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async => todaySpending;
 
   @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 1;
-
-  @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {
     DateTime? referenceDate,
@@ -268,8 +262,6 @@ void main() {
         expect(bl.exceededToday, 0);
         expect(bl.status, SpendingTargetStatus.onTrack);
         expect(bl.currency, 'INR');
-        expect(result.currency, 'INR');
-        expect(result.combinedDailyTarget, closeTo(1363.64, 0.01));
       },
     );
 
@@ -519,7 +511,7 @@ void main() {
   });
 
   group('Multiple budgets', () {
-    test('combines targets from multiple active budgets', () async {
+    test('gives each active budget its own target', () async {
       repository.budgets = [
         BudgetEntity(
           id: 'food',
@@ -558,9 +550,6 @@ void main() {
       expect(result.budgetLimits, hasLength(2));
 
       // Food: 4000/22 ≈ 181.82, Travel: 3000/22 ≈ 136.36
-      // Combined dailyTarget ≈ 318.18
-      expect(result.combinedDailyTarget, closeTo(318.18, 0.01));
-
       final food = result.budgetLimits.firstWhere(
         (bl) => bl.budgetId == 'food',
       );
@@ -763,7 +752,6 @@ void main() {
           await useCase.callPerBudget(referenceDate: DateTime(2026, 8, 10))
               as PerBudgetSpendingTargetSuccess;
 
-      expect(result.currency, 'USD');
       expect(result.budgetLimits.first.currency, 'USD');
     });
   });
@@ -873,7 +861,6 @@ void main() {
         expect(bl.exceededToday, 100);
         expect(bl.isOverLimit, isTrue);
         expect(bl.remainingBudget, -1000);
-        expect(result.combinedDailyTarget, 0);
       },
     );
 

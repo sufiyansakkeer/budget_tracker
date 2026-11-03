@@ -1,12 +1,12 @@
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
-import '../../../bills/domain/entities/bill_enums.dart';
 import '../../../budget/domain/entities/safe_to_spend/commitment_occurrence.dart';
 import '../../../budget/domain/entities/safe_to_spend/currency_excluded_summary.dart';
 import '../../../budget/domain/entities/safe_to_spend/unlinked_commitment_summary.dart';
 import '../../../budget/domain/services/budget_calculation_service.dart';
 import '../entities/bill_commitments.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Turns bills into the commitments one budget sets money aside for.
 ///
@@ -42,11 +42,10 @@ class BillOccurrenceEnumerator {
   List<DateTime> dueDatesUntil(BillEntity bill, DateTime until) {
     if (bill.isPaid) return const [];
     final dates = <DateTime>[];
-    final recurring =
-        bill.isRecurring && bill.recurrenceType != RecurrenceType.none;
+    final recurring = bill.repeats;
     var current = bill.dueDate;
     while (dates.length < maxOccurrencesPerBill) {
-      final day = _dateOnly(current);
+      final day = current.dateOnly;
       if (_daysBetween(until, day) > 0) break;
       dates.add(day);
       if (!recurring) break;
@@ -69,9 +68,9 @@ class BillOccurrenceEnumerator {
     required Map<String, BudgetEntity> budgetsById,
     required DateTime today,
   }) {
-    final day = _dateOnly(today);
-    final start = _dateOnly(budget.startDate);
-    final end = _dateOnly(budget.endDate);
+    final day = today.dateOnly;
+    final start = budget.startDate.dateOnly;
+    final end = budget.endDate.dateOnly;
     final running = budget.isActiveOn(day);
     final budgetMoney = MoneyMath.forCurrency(budget.currency);
 
@@ -161,9 +160,9 @@ class BillOccurrenceEnumerator {
     required Map<String, BudgetEntity> budgetsById,
     required DateTime today,
   }) {
-    final day = _dateOnly(today);
-    final end = _dateOnly(budget.endDate);
-    final from = _disclosureFrom(_dateOnly(budget.startDate), day);
+    final day = today.dateOnly;
+    final end = budget.endDate.dateOnly;
+    final from = _disclosureFrom(budget.startDate.dateOnly, day);
     final result = [
       for (final bill in bills)
         if (!bill.isPaid &&
@@ -196,10 +195,10 @@ class BillOccurrenceEnumerator {
     if (budget.id != bill.budgetId || budget.currency != bill.currency) {
       return false;
     }
-    final day = _dateOnly(today);
+    final day = today.dateOnly;
     // An ended budget's result ignores bills.
-    if (_daysBetween(_dateOnly(budget.endDate), day) > 0) return false;
-    return _setsAside(budget, _dateOnly(bill.dueDate), day);
+    if (_daysBetween(budget.endDate.dateOnly, day) > 0) return false;
+    return _setsAside(budget, bill.dueDate.dateOnly, day);
   }
 
   /// Lower bound for disclosing bills nobody sets aside: from today, but
@@ -226,13 +225,11 @@ class BillOccurrenceEnumerator {
   /// [today], by the same window rule [forBudget] deducts with.
   static bool _setsAside(BudgetEntity? budget, DateTime due, DateTime today) {
     if (budget == null || budget.isArchived) return false;
-    final start = _dateOnly(budget.startDate);
-    final end = _dateOnly(budget.endDate);
+    final start = budget.startDate.dateOnly;
+    final end = budget.endDate.dateOnly;
     if (_daysBetween(due, end) < 0) return false;
     return budget.isActiveOn(today) || _daysBetween(start, due) >= 0;
   }
-
-  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
   static int _daysBetween(DateTime from, DateTime to) =>
       BudgetCalculationService.calendarDaysBetween(from, to);

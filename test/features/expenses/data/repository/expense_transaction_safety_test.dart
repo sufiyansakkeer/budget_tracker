@@ -38,8 +38,6 @@ class TrackingExpenseDataSource implements ExpenseLocalDataSource {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async => store.values.toList();
@@ -124,11 +122,6 @@ class TrackingBudgetRepository implements BudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => 0;
-  @override
-  Future<int> getRemainingDays(
-    String budgetId, {
-    DateTime? referenceDate,
-  }) async => 30;
   @override
   Future<BudgetResult<BudgetCalculationContext>> getCalculationContext(
     String budgetId, {

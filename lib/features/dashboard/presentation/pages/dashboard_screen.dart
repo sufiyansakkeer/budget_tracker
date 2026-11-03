@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_fab.dart';
-import '../../../../core/widgets/app_header.dart';
+import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
@@ -19,6 +19,7 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
+import '../../../pay_later/presentation/widgets/pay_later_home_row.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import '../bloc/dashboard_bloc.dart';
@@ -214,13 +215,21 @@ class _DashboardContent extends StatelessWidget {
           index: 3,
           child: UpcomingBillsSection(
             bills: state.upcomingBills,
+            unavailable: state.upcomingBillsUnavailable,
+            onRetry: () =>
+                context.read<DashboardBloc>().add(const DashboardRefresh()),
             activeBudgetId: state.activeBudgetId,
+            setAsideBillIds: {
+              for (final o in state.activeSafeToSpend?.commitments ?? const [])
+                o.billId,
+            },
             budgetNames: {
               for (final limit in state.budgetDailyLimits)
                 limit.budgetId: limit.budgetName,
             },
           ),
         ),
+        const PayLaterHomeRow(),
       ],
       secondary: [
         if (pace != null && pace.isMeaningful) ...[
@@ -323,7 +332,13 @@ class _NotRunningContent extends StatelessWidget {
           index: 3,
           child: UpcomingBillsSection(
             bills: state.upcomingBills,
+            unavailable: state.upcomingBillsUnavailable,
+            onRetry: () =>
+                context.read<DashboardBloc>().add(const DashboardRefresh()),
             activeBudgetId: state.activeBudgetId,
+            setAsideBillIds: {
+              for (final o in safeToSpend.commitments) o.billId,
+            },
             budgetNames: {
               for (final limit in state.otherBudgetLimits)
                 limit.budgetId: limit.budgetName,
@@ -331,6 +346,7 @@ class _NotRunningContent extends StatelessWidget {
             },
           ),
         ),
+        const PayLaterHomeRow(),
       ],
       secondary: [
         ..._otherBudgets(state.otherBudgetLimits),

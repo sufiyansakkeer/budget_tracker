@@ -3,9 +3,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/services/database_integrity_service.dart';
-import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/theme/app_tone.dart';
+import '../../../../core/widgets/app_notice.dart';
 
 /// Shows the outcome of a database integrity check.
 abstract final class IntegrityResultSheet {
@@ -27,7 +27,6 @@ class _IntegrityResultBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = context.appColors;
     final issues = result.issues;
     final checkedAt = DateFormat('d MMM yyyy, h:mm a').format(result.checkedAt);
 
@@ -43,18 +42,18 @@ class _IntegrityResultBody extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: result.passed
-                ? StatusCard(
+                ? AppNotice(
                     key: const Key('integrityPassed'),
-                    color: colors.success,
+                    tone: AppTone.positive,
                     icon: Icons.verified_rounded,
                     title: 'Everything looks good',
                     message:
                         'Budgets, expenses, bills and their links are all '
                         'consistent.',
                   )
-                : StatusCard(
+                : AppNotice(
                     key: const Key('integrityIssues'),
-                    color: colors.warning,
+                    tone: AppTone.caution,
                     icon: Icons.report_problem_rounded,
                     title:
                         '${issues.length} ${issues.length == 1 ? 'issue' : 'issues'} found',

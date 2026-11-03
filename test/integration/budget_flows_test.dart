@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/budget_summary_entity.dart';
@@ -109,7 +110,7 @@ void main() {
     final budget = await app.addBudget(
       amount: 10000,
       startDate: start,
-      endDate: start.add(const Duration(days: 9)),
+      endDate: start.addDays(9),
     );
 
     final expenses = app.expenseBloc();
@@ -154,16 +155,12 @@ void main() {
 
   test('yesterday’s spending lowers today’s safe amount', () async {
     final today = DateTime.now();
-    final start = DateTime(
-      today.year,
-      today.month,
-      today.day,
-    ).subtract(const Duration(days: 1));
+    final start = DateTime(today.year, today.month, today.day).addDays(-1);
     // 10-day budget that began yesterday; 9 days remain including today.
     final budget = await app.addBudget(
       amount: 10000,
       startDate: start,
-      endDate: start.add(const Duration(days: 9)),
+      endDate: start.addDays(9),
     );
 
     final expenses = app.expenseBloc();
@@ -184,11 +181,7 @@ void main() {
     'a budget whose period has not started reports no daily limit',
     () async {
       final today = DateTime.now();
-      final start = DateTime(
-        today.year,
-        today.month,
-        today.day,
-      ).add(const Duration(days: 5));
+      final start = DateTime(today.year, today.month, today.day).addDays(5);
       await app.addBudget(amount: 5000, startDate: start);
 
       final result = await app.getSpendingTargets.callPerBudget();

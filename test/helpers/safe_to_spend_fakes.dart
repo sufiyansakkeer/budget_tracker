@@ -71,12 +71,6 @@ class SafeSpendFakeBillRepository implements BillRepository {
   }) async => const [];
 
   @override
-  Future<double> getUpcomingBillsTotal({int withinDays = 30}) async => 0;
-
-  @override
-  Future<double> getMonthlyRecurringBillsTotal() async => 0;
-
-  @override
   Future<T> transaction<T>(Future<T> Function() action) => action();
 }
 

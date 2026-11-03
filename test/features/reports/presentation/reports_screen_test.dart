@@ -24,6 +24,7 @@ import 'package:monivo/features/reports/presentation/widgets/bar_chart_card.dart
 
 import '../../../helpers/bill_ui_fakes.dart';
 import '../../expenses/presentation/expense_test_fakes.dart';
+import '../../../helpers/pay_later_fakes.dart';
 
 /// Expenses whose reads can be made to fail.
 class _FlakyExpenses extends MemoryExpenseRepository {
@@ -32,19 +33,11 @@ class _FlakyExpenses extends MemoryExpenseRepository {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) {
     if (failReads) throw Exception('disk busy');
-    return super.getExpenses(
-      budgetId: budgetId,
-      month: month,
-      year: year,
-      from: from,
-      to: to,
-    );
+    return super.getExpenses(budgetId: budgetId, from: from, to: to);
   }
 }
 
@@ -92,7 +85,10 @@ void main() {
     expenses = _FlakyExpenses();
     budgets = ListBudgetRepository([_household()], 'household');
     getIt.registerSingleton<ManageBudgetUseCase>(
-      ManageBudgetUseCase(repository: budgets),
+      ManageBudgetUseCase(
+        repository: budgets,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
     );
     // This budget (1–9 Oct): 9,000 across categories; the 9 days before
     // (22–30 Sep): 6,000, so this period is 50% more.
@@ -220,6 +216,19 @@ void main() {
       );
       expect(state.errorMessage, ReportsBloc.noBudgetMessage);
       expect(state.followsBudget, isFalse);
+    });
+
+    test('a budget that cannot be read is not reported as missing', () async {
+      budgets.throwOnRead = true;
+      final reports = bloc();
+      addTearDown(reports.close);
+      reports.add(const ReportsBudgetPeriodSelected());
+      final state = await reports.stream.firstWhere(
+        (s) => s.status == ReportsStatus.error,
+      );
+      expect(state.errorMessage, ReportsBloc.budgetUnreadableMessage);
+      // Still on "This Budget", so Retry reads the budget again.
+      expect(state.followsBudget, isTrue);
     });
   });
 

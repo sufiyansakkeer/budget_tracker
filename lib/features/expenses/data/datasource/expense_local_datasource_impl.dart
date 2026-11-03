@@ -61,8 +61,6 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
   @override
   Future<List<ExpenseEntity>> getExpenses({
     String? budgetId,
-    int? month,
-    int? year,
     DateTime? from,
     DateTime? to,
   }) async {
@@ -72,23 +70,13 @@ class ExpenseLocalDataSourceImpl implements ExpenseLocalDataSource {
       query.where((e) => e.budgetId.equals(budgetId));
     }
 
-    if (from != null || to != null) {
-      if (from != null) {
-        final start = DateTime(from.year, from.month, from.day);
-        query.where((e) => e.date.isBiggerOrEqualValue(start));
-      }
-      if (to != null) {
-        final end = DateTime(to.year, to.month, to.day, 23, 59, 59, 999);
-        query.where((e) => e.date.isSmallerOrEqualValue(end));
-      }
-    } else if (month != null && year != null) {
-      final start = DateTime(year, month, 1);
-      final end = DateTime(year, month + 1, 0, 23, 59, 59, 999);
-      query.where(
-        (e) =>
-            e.date.isBiggerOrEqualValue(start) &
-            e.date.isSmallerOrEqualValue(end),
-      );
+    if (from != null) {
+      final start = DateTime(from.year, from.month, from.day);
+      query.where((e) => e.date.isBiggerOrEqualValue(start));
+    }
+    if (to != null) {
+      final end = DateTime(to.year, to.month, to.day, 23, 59, 59, 999);
+      query.where((e) => e.date.isSmallerOrEqualValue(end));
     }
 
     query.orderBy([(e) => OrderingTerm.desc(e.date)]);

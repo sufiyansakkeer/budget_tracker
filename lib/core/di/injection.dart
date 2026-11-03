@@ -24,11 +24,11 @@ import '../../features/settings/domain/usecases/update_currency_usecase.dart';
 import '../../features/settings/domain/usecases/update_notification_settings_usecase.dart';
 import '../../features/settings/domain/repository/theme_repository.dart';
 import '../../features/settings/presentation/bloc/settings_bloc.dart';
+import '../../features/settings/presentation/bloc/theme/theme_event.dart';
 import '../../features/settings/presentation/bloc/theme/theme_bloc.dart';
 import '../database/app_database.dart';
 import '../currency/currency_provider.dart';
 import '../notifications/notification_bloc.dart';
-import '../notifications/notification_initializer.dart';
 import '../biometric/biometric_initializer.dart';
 import '../biometric/app_lock_bloc.dart';
 import '../biometric/app_lock_event.dart';
@@ -38,16 +38,10 @@ import '../../features/budget/data/repository/budget_repository_impl.dart';
 import '../../features/budget/domain/repository/budget_repository.dart';
 import '../../features/budget/domain/services/budget_calculation_service.dart';
 import '../../features/budget/domain/services/safe_to_spend_calculator.dart';
-import '../../features/budget/domain/usecases/calculate_daily_allowance_usecase.dart';
-import '../../features/budget/domain/usecases/get_budget_analytics_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
 import '../../features/budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
-import '../../features/budget/domain/usecases/get_budget_status_usecase.dart';
 import '../../features/budget/domain/usecases/get_budget_summary_usecase.dart';
-import '../../features/budget/domain/usecases/get_projected_overspending_usecase.dart';
-import '../../features/budget/domain/usecases/get_projected_savings_usecase.dart';
 import '../../features/budget/domain/usecases/manage_budget_usecase.dart';
-import '../../features/budget/presentation/bloc/budget_bloc.dart';
 import '../../features/dashboard/data/datasource/dashboard_local_datasource.dart';
 import '../../features/dashboard/data/datasource/dashboard_local_datasource_impl.dart';
 import '../../features/dashboard/data/repository/dashboard_repository_impl.dart';
@@ -82,7 +76,6 @@ import '../../features/expenses/domain/usecases/get_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/update_expense_usecase.dart';
 import '../../features/expenses/domain/usecases/calculate_expense_summary_usecase.dart';
 import '../../features/expenses/domain/usecases/filter_expenses_usecase.dart';
-import '../../features/expenses/domain/usecases/group_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/page_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/search_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/sort_expenses_usecase.dart';
@@ -115,6 +108,24 @@ import '../../features/bills/domain/usecases/pay_bill_usecase.dart';
 import '../../features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../features/bills/domain/usecases/update_bill_usecase.dart';
 import '../../features/bills/presentation/bloc/bill_bloc.dart';
+import '../../features/pay_later/data/datasource/pay_later_local_datasource.dart';
+import '../../features/pay_later/data/services/tab_reminder_service.dart';
+import '../../features/pay_later/presentation/open_tab_from_notification.dart';
+import '../../features/pay_later/data/datasource/pay_later_local_datasource_impl.dart';
+import '../../features/pay_later/data/repository/pay_later_repository_impl.dart';
+import '../../features/pay_later/domain/repository/pay_later_repository.dart';
+import '../../features/pay_later/domain/usecases/get_pay_later_analytics_usecase.dart';
+import '../../features/pay_later/domain/usecases/get_pay_later_overview_usecase.dart';
+import '../../features/pay_later/domain/usecases/get_tab_ledger_usecase.dart';
+import '../../features/pay_later/domain/usecases/get_tabs_usecase.dart';
+import '../../features/pay_later/domain/usecases/manage_tab_usecase.dart';
+import '../../features/pay_later/domain/usecases/reconcile_tab_usecase.dart';
+import '../../features/pay_later/domain/usecases/tab_payment_usecase.dart';
+import '../../features/pay_later/domain/usecases/tab_purchase_usecase.dart';
+import '../../features/pay_later/presentation/bloc/pay_later_overview_bloc.dart';
+import '../../features/pay_later/presentation/bloc/pay_later_summary_cubit.dart';
+import '../../features/pay_later/presentation/bloc/tab_detail_bloc.dart';
+import '../../features/pay_later/presentation/bloc/tab_form_cubit.dart';
 import '../../features/app_update/data/datasources/github_release_remote_datasource.dart';
 import '../../features/app_update/data/datasources/github_release_remote_datasource_impl.dart';
 import '../../features/app_update/data/repository/app_update_repository_impl.dart';
@@ -139,19 +150,19 @@ final GetIt getIt = GetIt.instance;
 Future<void> initDependencyInjection({
   @visibleForTesting AppDatabase? database,
 }) async {
-  // 1. SharedPreferences
+  // SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();
   getIt.registerSingleton<SharedPreferences>(sharedPreferences);
 
-  // 2. Local Database
+  // Local Database
   getIt.registerSingleton<AppDatabase>(database ?? AppDatabase());
 
-  // 2.5 Database Integrity Service
+  // Database Integrity Service
   getIt.registerLazySingleton<DatabaseIntegrityService>(
     () => DatabaseIntegrityService(database: getIt<AppDatabase>()),
   );
 
-  // 3. Budget Engine - Core Service
+  // Budget Engine - Core Service
   getIt.registerLazySingleton<BudgetCalculationService>(
     () => BudgetCalculationService(),
   );
@@ -159,7 +170,7 @@ Future<void> initDependencyInjection({
     () => SafeToSpendCalculator(getIt<BudgetCalculationService>()),
   );
 
-  // 3.5 Theme Repository + BLoC
+  // Theme Repository + BLoC
   getIt.registerLazySingleton<ThemeRepository>(
     () => ThemeRepository(settingsRepository: getIt<SettingsRepository>()),
   );
@@ -167,20 +178,20 @@ Future<void> initDependencyInjection({
     () => ThemeBloc(themeRepository: getIt<ThemeRepository>()),
   );
 
-  // 3.6 Currency Provider
+  // Currency Provider
   getIt.registerLazySingleton<CurrencyProvider>(() => CurrencyProvider());
 
-  // 3.8 Biometric Initializer
+  // Biometric Initializer
   getIt.registerLazySingleton<BiometricInitializer>(
     () => BiometricInitializer(),
   );
 
-  // 3.9 App Lock BLoC - authoritative application lock state
+  // App Lock BLoC - authoritative application lock state
   getIt.registerLazySingleton<AppLockBloc>(
     () => AppLockBloc(biometricInitializer: getIt<BiometricInitializer>()),
   );
 
-  // 4. Onboarding Feature - Datasources
+  // Onboarding Feature - Datasources
   getIt.registerLazySingleton<OnboardingLocalDataSource>(
     () => OnboardingLocalDataSourceImpl(
       sharedPreferences: getIt<SharedPreferences>(),
@@ -188,7 +199,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 5. Budget Feature - Datasources
+  // Budget Feature - Datasources
   getIt.registerLazySingleton<BudgetLocalDataSource>(
     () => BudgetLocalDataSourceImpl(
       database: getIt<AppDatabase>(),
@@ -196,14 +207,14 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 6. Onboarding Feature - Repositories
+  // Onboarding Feature - Repositories
   getIt.registerLazySingleton<OnboardingRepository>(
     () => OnboardingRepositoryImpl(
       localDataSource: getIt<OnboardingLocalDataSource>(),
     ),
   );
 
-  // 7. Budget Feature - Repositories
+  // Budget Feature - Repositories
   getIt.registerLazySingleton<BudgetRepository>(
     () => BudgetRepositoryImpl(
       localDataSource: getIt<BudgetLocalDataSource>(),
@@ -211,7 +222,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 8. Onboarding Feature - Use Cases
+  // Onboarding Feature - Use Cases
   getIt.registerLazySingleton<CheckFirstLaunchUseCase>(
     () => CheckFirstLaunchUseCase(getIt<OnboardingRepository>()),
   );
@@ -220,7 +231,7 @@ Future<void> initDependencyInjection({
     () => CreateBudgetUseCase(getIt<OnboardingRepository>()),
   );
 
-  // 9. Budget Feature - Use Cases
+  // Budget Feature - Use Cases
   getIt.registerLazySingleton<GetBudgetSummaryUseCase>(
     () => GetBudgetSummaryUseCase(
       repository: getIt<BudgetRepository>(),
@@ -228,43 +239,11 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  getIt.registerLazySingleton<CalculateDailyAllowanceUseCase>(
-    () => CalculateDailyAllowanceUseCase(
-      repository: getIt<BudgetRepository>(),
-      calculationService: getIt<BudgetCalculationService>(),
-    ),
-  );
-
-  getIt.registerLazySingleton<GetBudgetAnalyticsUseCase>(
-    () => GetBudgetAnalyticsUseCase(
-      repository: getIt<BudgetRepository>(),
-      calculationService: getIt<BudgetCalculationService>(),
-    ),
-  );
-
-  getIt.registerLazySingleton<GetBudgetStatusUseCase>(
-    () => GetBudgetStatusUseCase(
-      repository: getIt<BudgetRepository>(),
-      calculationService: getIt<BudgetCalculationService>(),
-    ),
-  );
-
-  getIt.registerLazySingleton<GetProjectedSavingsUseCase>(
-    () => GetProjectedSavingsUseCase(
-      repository: getIt<BudgetRepository>(),
-      calculationService: getIt<BudgetCalculationService>(),
-    ),
-  );
-
-  getIt.registerLazySingleton<GetProjectedOverspendingUseCase>(
-    () => GetProjectedOverspendingUseCase(
-      repository: getIt<BudgetRepository>(),
-      calculationService: getIt<BudgetCalculationService>(),
-    ),
-  );
-
   getIt.registerLazySingleton<ManageBudgetUseCase>(
-    () => ManageBudgetUseCase(repository: getIt<BudgetRepository>()),
+    () => ManageBudgetUseCase(
+      repository: getIt<BudgetRepository>(),
+      reconcileTabs: getIt<ReconcileTabUseCase>(),
+    ),
   );
 
   getIt.registerLazySingleton<GetBudgetListSummaryUseCase>(
@@ -278,7 +257,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 10. Onboarding Feature - BLoC
+  // Onboarding Feature - BLoC
   getIt.registerFactory<OnboardingBloc>(
     () => OnboardingBloc(
       createBudgetUseCase: getIt<CreateBudgetUseCase>(),
@@ -286,29 +265,19 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 11. Budget Feature - BLoC
-  getIt.registerFactory<BudgetBloc>(
-    () => BudgetBloc(
-      getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
-      getBudgetAnalyticsUseCase: getIt<GetBudgetAnalyticsUseCase>(),
-      calculationService: getIt<BudgetCalculationService>(),
-      budgetRepository: getIt<BudgetRepository>(),
-    ),
-  );
-
-  // 12. Dashboard Feature - Datasources
+  // Dashboard Feature - Datasources
   getIt.registerLazySingleton<DashboardLocalDataSource>(
     () => DashboardLocalDataSourceImpl(database: getIt<AppDatabase>()),
   );
 
-  // 13. Dashboard Feature - Repositories
+  // Dashboard Feature - Repositories
   getIt.registerLazySingleton<DashboardRepository>(
     () => DashboardRepositoryImpl(
       localDataSource: getIt<DashboardLocalDataSource>(),
     ),
   );
 
-  // 14. Dashboard Feature - Use Cases
+  // Dashboard Feature - Use Cases
   getIt.registerLazySingleton<GetRecentExpensesUseCase>(
     () => GetRecentExpensesUseCase(repository: getIt<DashboardRepository>()),
   );
@@ -351,7 +320,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 15. Dashboard Feature - BLoC
+  // Dashboard Feature - BLoC
   getIt.registerFactory<DashboardBloc>(
     () => DashboardBloc(
       getBudgetSummaryUseCase: getIt<GetBudgetSummaryUseCase>(),
@@ -365,7 +334,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 15b. Categories Feature
+  // Categories Feature
   getIt.registerLazySingleton<CategoryLocalDataSource>(
     () => CategoryLocalDataSourceImpl(database: getIt<AppDatabase>()),
   );
@@ -395,12 +364,12 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 16. Expense Feature - Datasources
+  // Expense Feature - Datasources
   getIt.registerLazySingleton<ExpenseLocalDataSource>(
     () => ExpenseLocalDataSourceImpl(database: getIt<AppDatabase>()),
   );
 
-  // 17. Expense Feature - Repositories
+  // Expense Feature - Repositories
   getIt.registerLazySingleton<ExpenseRepository>(
     () => ExpenseRepositoryImpl(
       localDataSource: getIt<ExpenseLocalDataSource>(),
@@ -408,7 +377,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 18. Expense Feature - Use Cases
+  // Expense Feature - Use Cases
   getIt.registerLazySingleton<CreateExpenseUseCase>(
     () => CreateExpenseUseCase(repository: getIt<ExpenseRepository>()),
   );
@@ -431,7 +400,7 @@ Future<void> initDependencyInjection({
     () => GetCategoriesUseCase(repository: getIt<ExpenseRepository>()),
   );
 
-  // 19. Expense Feature - BLoC
+  // Expense Feature - BLoC
   getIt.registerFactory<ExpenseBloc>(
     () => ExpenseBloc(
       createExpenseUseCase: getIt<CreateExpenseUseCase>(),
@@ -440,12 +409,12 @@ Future<void> initDependencyInjection({
       getExpenseByIdUseCase: getIt<GetExpenseByIdUseCase>(),
       getExpensesUseCase: getIt<GetExpensesUseCase>(),
       getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
-      repository: getIt<ExpenseRepository>(),
       budgetRepository: getIt<BudgetRepository>(),
+      tabPurchases: getIt<TabPurchaseUseCase>(),
     ),
   );
 
-  // 20. Expense History - Pure use cases
+  // Expense History - Pure use cases
   getIt.registerLazySingleton<SearchExpensesUseCase>(
     () => const SearchExpensesUseCase(),
   );
@@ -458,14 +427,11 @@ Future<void> initDependencyInjection({
   getIt.registerLazySingleton<CalculateExpenseSummaryUseCase>(
     () => const CalculateExpenseSummaryUseCase(),
   );
-  getIt.registerLazySingleton<GroupExpensesUseCase>(
-    () => const GroupExpensesUseCase(),
-  );
   getIt.registerLazySingleton<PageExpensesUseCase>(
     () => const PageExpensesUseCase(),
   );
 
-  // 21. Expense History - BLoC
+  // Expense History - BLoC
   getIt.registerFactory<ExpenseHistoryBloc>(
     () => ExpenseHistoryBloc(
       getExpensesUseCase: getIt<GetExpensesUseCase>(),
@@ -480,7 +446,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 22. Reports Feature - Repository
+  // Reports Feature - Repository
   getIt.registerLazySingleton<ReportsRepository>(
     () => ReportsRepositoryImpl(
       getExpensesUseCase: getIt<GetExpensesUseCase>(),
@@ -490,13 +456,13 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 23. Reports Feature - Services
+  // Reports Feature - Services
   getIt.registerLazySingleton<AnalyticsService>(() => const AnalyticsService());
   getIt.registerLazySingleton<ReportInsightGenerator>(
     () => const ReportInsightGenerator(),
   );
 
-  // 24. Reports Feature - Use Case
+  // Reports Feature - Use Case
   getIt.registerLazySingleton<GetReportDataUseCase>(
     () => GetReportDataUseCase(
       repository: getIt<ReportsRepository>(),
@@ -504,7 +470,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 25. Reports Feature - BLoC
+  // Reports Feature - BLoC
   getIt.registerFactory<ReportsBloc>(
     () => ReportsBloc(
       getReportDataUseCase: getIt<GetReportDataUseCase>(),
@@ -517,7 +483,7 @@ Future<void> initDependencyInjection({
   //  Phase 8 – Settings, Notifications, Security & Data Management
   // ============================================================
 
-  // 26. Settings Feature – Datasources
+  // Settings Feature – Datasources
   getIt.registerLazySingleton<SettingsLocalDataSource>(
     () => SettingsLocalDataSourceImpl(
       database: getIt<AppDatabase>(),
@@ -525,23 +491,24 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 27. Settings Feature – Repositories
+  // Settings Feature – Repositories
   getIt.registerLazySingleton<SettingsRepository>(
     () => SettingsRepositoryImpl(
       localDataSource: getIt<SettingsLocalDataSource>(),
     ),
   );
 
-  // 28. Settings Feature – Services
+  // Settings Feature – Services
   getIt.registerLazySingleton<NotificationService>(
     () => NotificationService(
       plugin: FlutterLocalNotificationsPlugin(),
-      budgetRepository: getIt<BudgetRepository>(),
-      calculationService: getIt<BudgetCalculationService>(),
       spendingTargetsUseCase: getIt<GetSpendingTargetsUseCase>(),
       // Resolved on use: BillReminderService is registered further down.
       rescheduleBillReminders: () =>
           getIt<BillReminderService>().rescheduleAll(),
+      // Resolved on use: TabReminderService is registered further down.
+      rescheduleTabReminders: () => getIt<TabReminderService>().rescheduleAll(),
+      onPayLaterTap: openTabFromNotification,
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
@@ -551,6 +518,7 @@ Future<void> initDependencyInjection({
   getIt.registerLazySingleton<BackupService>(
     () => BackupService(
       database: getIt<AppDatabase>(),
+      reconcileTabs: getIt<ReconcileTabUseCase>(),
       recalculateRemaining: getIt<RecalculateRemainingAmountsUseCase>(),
     ),
   );
@@ -561,7 +529,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 29. Settings Feature – Use Cases
+  // Settings Feature – Use Cases
   getIt.registerLazySingleton<LoadSettingsUseCase>(
     () => LoadSettingsUseCase(repository: getIt<SettingsRepository>()),
   );
@@ -600,18 +568,14 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 29.5 Notification BLoC + Initializer
+  // Notification BLoC
   getIt.registerLazySingleton<NotificationBloc>(
     () => NotificationBloc(
       notificationService: getIt<NotificationService>(),
       loadSettingsUseCase: getIt<LoadSettingsUseCase>(),
     ),
   );
-  getIt.registerLazySingleton<NotificationInitializer>(
-    () => NotificationInitializer(),
-  );
-
-  // 30. Settings Feature – BLoC
+  // Settings Feature – BLoC
   getIt.registerFactory<SettingsBloc>(
     () => SettingsBloc(
       loadSettingsUseCase: getIt<LoadSettingsUseCase>(),
@@ -631,6 +595,11 @@ Future<void> initDependencyInjection({
       // the toggle take effect without a restart.
       onLockPreferenceChanged: (enabled) =>
           getIt<AppLockBloc>().add(AppLockPreferenceChanged(enabled: enabled)),
+      onSettingsRestored: () {
+        getIt<ThemeBloc>().add(const ThemeLoadRequested());
+        getIt<CurrencyProvider>().reload();
+        getIt<AppLockBloc>().add(const AppLockSyncRequested());
+      },
     ),
   );
 
@@ -638,25 +607,120 @@ Future<void> initDependencyInjection({
   //  Phase 9 – Bills & Reminders Feature
   // ============================================================
 
-  // 31. Bills Feature – Datasource
+  // Bills Feature – Datasource
   getIt.registerLazySingleton<BillLocalDataSource>(
     () => BillLocalDataSourceImpl(database: getIt<AppDatabase>()),
   );
 
-  // 32. Bills Feature – Repository
+  // Bills Feature – Repository
   getIt.registerLazySingleton<BillRepository>(
     () => BillRepositoryImpl(localDataSource: getIt<BillLocalDataSource>()),
   );
 
-  // 33. Bills Feature – Reminder Service
+  // Pay Later Feature – Datasource and Repository
+  getIt.registerLazySingleton<PayLaterLocalDataSource>(
+    () => PayLaterLocalDataSourceImpl(database: getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<PayLaterRepository>(
+    () => PayLaterRepositoryImpl(
+      localDataSource: getIt<PayLaterLocalDataSource>(),
+    ),
+  );
+
+  // Pay Later Feature – Use Cases
+  getIt.registerLazySingleton<ReconcileTabUseCase>(
+    () => ReconcileTabUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<ManageTabUseCase>(
+    () => ManageTabUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<GetTabLedgerUseCase>(
+    () => GetTabLedgerUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<GetTabsUseCase>(
+    () => GetTabsUseCase(repository: getIt<PayLaterRepository>()),
+  );
+  getIt.registerLazySingleton<GetPayLaterOverviewUseCase>(
+    () => GetPayLaterOverviewUseCase(
+      getTabs: getIt<GetTabsUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+    ),
+  );
+  getIt.registerLazySingleton<GetPayLaterAnalyticsUseCase>(
+    () => GetPayLaterAnalyticsUseCase(
+      getTabs: getIt<GetTabsUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+    ),
+  );
+  getIt.registerLazySingleton<TabPurchaseUseCase>(
+    () => TabPurchaseUseCase(
+      expenseRepository: getIt<ExpenseRepository>(),
+      budgetRepository: getIt<BudgetRepository>(),
+      payLaterRepository: getIt<PayLaterRepository>(),
+      reconcileTab: getIt<ReconcileTabUseCase>(),
+    ),
+  );
+  getIt.registerLazySingleton<TabPaymentUseCase>(
+    () => TabPaymentUseCase(
+      repository: getIt<PayLaterRepository>(),
+      reconcileTab: getIt<ReconcileTabUseCase>(),
+    ),
+  );
+
+  // Pay Later Feature – Settle-up reminders. Started once from main();
+  // after that it re-schedules on every Pay later or day change.
+  getIt.registerLazySingleton<TabReminderService>(
+    () => TabReminderService(
+      plugin: FlutterLocalNotificationsPlugin(),
+      getTabs: getIt<GetTabsUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+    ),
+    dispose: (service) => service.dispose(),
+  );
+
+  // Pay Later Feature – Blocs and Cubits
+  getIt.registerFactory<PayLaterOverviewBloc>(
+    () => PayLaterOverviewBloc(
+      getOverview: getIt<GetPayLaterOverviewUseCase>(),
+      getAnalytics: getIt<GetPayLaterAnalyticsUseCase>(),
+    ),
+  );
+  getIt.registerFactory<PayLaterSummaryCubit>(
+    () =>
+        PayLaterSummaryCubit(getOverview: getIt<GetPayLaterOverviewUseCase>()),
+  );
+  getIt.registerFactory<TabDetailBloc>(
+    () => TabDetailBloc(
+      getLedger: getIt<GetTabLedgerUseCase>(),
+      payments: getIt<TabPaymentUseCase>(),
+      manageTab: getIt<ManageTabUseCase>(),
+      getAnalytics: getIt<GetPayLaterAnalyticsUseCase>(),
+      getCategories: getIt<GetCategoriesUseCase>(),
+    ),
+  );
+  getIt.registerFactory<TabFormCubit>(
+    () => TabFormCubit(
+      manageTab: getIt<ManageTabUseCase>(),
+      getLedger: getIt<GetTabLedgerUseCase>(),
+      getCategories: getIt<GetCategoriesUseCase>(),
+      manageBudget: getIt<ManageBudgetUseCase>(),
+      appCurrency: () => getIt<CurrencyProvider>().currencyCode,
+    ),
+  );
+
+  // Bills Feature – Reminder Service
   getIt.registerLazySingleton<BillReminderService>(
     () => BillReminderService(
       plugin: FlutterLocalNotificationsPlugin(),
       repository: getIt<BillRepository>(),
+      // The plugin keeps one tap handler, so every initialize passes the
+      // same one. Resolved on use.
+      onNotificationResponse: (response) =>
+          getIt<NotificationService>().handleNotificationResponse(response),
     ),
   );
 
-  // 34. Bills Feature – Use Cases
+  // Bills Feature – Use Cases
   getIt.registerLazySingleton<CreateBillUseCase>(
     () => CreateBillUseCase(repository: getIt<BillRepository>()),
   );
@@ -695,7 +759,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 35. Bills Feature – BLoC
+  // Bills Feature – BLoC
   getIt.registerFactory<BillBloc>(
     () => BillBloc(
       createBillUseCase: getIt<CreateBillUseCase>(),
@@ -714,24 +778,24 @@ Future<void> initDependencyInjection({
   //  Phase 10 – App Update Checker
   // ============================================================
 
-  // 36. App Update – Remote Data Source
+  // App Update – Remote Data Source
   getIt.registerLazySingleton<GithubReleaseRemoteDataSource>(
     () => GithubReleaseRemoteDataSourceImpl(),
   );
 
-  // 37. App Update – Repository
+  // App Update – Repository
   getIt.registerLazySingleton<AppUpdateRepository>(
     () => AppUpdateRepositoryImpl(
       remoteDataSource: getIt<GithubReleaseRemoteDataSource>(),
     ),
   );
 
-  // 38. App Update – Use Case
+  // App Update – Use Case
   getIt.registerLazySingleton<CheckForAppUpdateUseCase>(
     () => CheckForAppUpdateUseCase(repository: getIt<AppUpdateRepository>()),
   );
 
-  // 39. App Update – BLoC
+  // App Update – BLoC
   getIt.registerLazySingleton<AppUpdateBloc>(
     () => AppUpdateBloc(
       checkForAppUpdateUseCase: getIt<CheckForAppUpdateUseCase>(),
@@ -742,7 +806,7 @@ Future<void> initDependencyInjection({
   //  Phase 11 – Currency Converter
   // ============================================================
 
-  // 40. Currency Converter – Data Sources
+  // Currency Converter – Data Sources
   getIt.registerLazySingleton<CurrencyRemoteDataSource>(
     () => FrankfurterRemoteDataSourceImpl(),
   );
@@ -753,7 +817,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 41. Currency Converter – Repository (cache-first)
+  // Currency Converter – Repository (cache-first)
   getIt.registerLazySingleton<CurrencyConverterRepository>(
     () => CurrencyConverterRepositoryImpl(
       remoteDataSource: getIt<CurrencyRemoteDataSource>(),
@@ -761,7 +825,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 42. Currency Converter – Use Cases
+  // Currency Converter – Use Cases
   getIt.registerLazySingleton<GetSupportedCurrenciesUseCase>(
     () => GetSupportedCurrenciesUseCase(
       repository: getIt<CurrencyConverterRepository>(),
@@ -783,7 +847,7 @@ Future<void> initDependencyInjection({
     ),
   );
 
-  // 43. Currency Converter – BLoC (one per visit)
+  // Currency Converter – BLoC (one per visit)
   getIt.registerFactory<CurrencyConverterBloc>(
     () => CurrencyConverterBloc(
       getSupportedCurrencies: getIt<GetSupportedCurrenciesUseCase>(),

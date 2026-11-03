@@ -1,3 +1,4 @@
+import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/constants/preference_keys.dart';
@@ -37,7 +38,7 @@ void main() {
       remainingAmount: amount,
       currency: currency,
       startDate: s,
-      endDate: s.add(const Duration(days: 29)),
+      endDate: s.addDays(29),
       color: '#123456',
       icon: 'flight',
       createdAt: s,

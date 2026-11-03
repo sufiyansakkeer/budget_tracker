@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/status_chip.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
+import '../../../../core/dates/calendar_dates.dart';
 
 /// Shared icon / status mapping for bills so the list, details and dashboard
 /// always draw a bill the same way.
@@ -128,14 +129,7 @@ class BillVisuals {
           ? 'Paid'
           : 'Paid ${DateFormat('d MMM').format(bill.paidDate!)}';
     }
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final due = DateTime(
-      bill.dueDate.year,
-      bill.dueDate.month,
-      bill.dueDate.day,
-    );
-    final diff = due.difference(today).inDays;
+    final diff = calendarDaysBetween(DateTime.now(), bill.dueDate);
     if (diff < 0) {
       final d = -diff;
       return d == 1 ? '1 day overdue' : '$d days overdue';
@@ -144,7 +138,7 @@ class BillVisuals {
     if (diff == 1) return 'Due tomorrow';
     if (diff < 14) return 'Due in $diff days';
     if (diff < 60) return 'Due in ${(diff / 7).round()} weeks';
-    return 'Due ${DateFormat('d MMM').format(due)}';
+    return 'Due ${DateFormat('d MMM').format(bill.dueDate)}';
   }
 }
 
@@ -161,7 +155,6 @@ class BillVisuals {
 /// name isn't known.
 class BillCard extends StatelessWidget {
   final BillEntity bill;
-  final String currency;
   final VoidCallback? onTap;
   final VoidCallback? onMarkPaid;
 
@@ -173,7 +166,6 @@ class BillCard extends StatelessWidget {
   const BillCard({
     super.key,
     required this.bill,
-    this.currency = '',
     this.onTap,
     this.onMarkPaid,
     this.markPaidLabel = 'Mark as paid',
@@ -193,8 +185,7 @@ class BillCard extends StatelessWidget {
     final theme = Theme.of(context);
     final status = bill.status;
     final color = BillVisuals.colorFor(context, status);
-    final code = bill.currency.isNotEmpty ? bill.currency : currency;
-    final amount = AppMoney.format(bill.amount, currency: code);
+    final amount = AppMoney.format(bill.amount, currency: bill.currency);
     final dueText = BillVisuals.dueText(bill);
     final link = linkText;
     final linkSemantics = link == null
@@ -234,7 +225,7 @@ class BillCard extends StatelessWidget {
       label:
           '${bill.title}, $amount, $dueText, '
           '${BillVisuals.statusLabel(status)}'
-          '${bill.isRecurring ? ', repeats ${bill.recurrenceType.label.toLowerCase()}' : ''}'
+          '${bill.repeats ? ', repeats ${bill.recurrenceType.label.toLowerCase()}' : ''}'
           '$linkSemantics',
       onTap: onTap,
       // The card merges into one node, so the nested "Mark as paid"
@@ -277,7 +268,7 @@ class BillCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (bill.isRecurring) ...[
+                          if (bill.repeats) ...[
                             const SizedBox(width: AppSpacing.xs),
                             Icon(
                               Icons.repeat_rounded,
@@ -347,7 +338,7 @@ class BillCard extends StatelessWidget {
                         const SizedBox(height: AppSpacing.xs),
                         AppMoney(
                           amount: bill.amount,
-                          currency: code,
+                          currency: bill.currency,
                           color: amountStyle.color,
                         ),
                       ],
@@ -364,7 +355,7 @@ class BillCard extends StatelessWidget {
                     ),
                     child: AppMoney(
                       amount: bill.amount,
-                      currency: code,
+                      currency: bill.currency,
                       textAlign: TextAlign.end,
                       color: amountStyle.color,
                     ),
