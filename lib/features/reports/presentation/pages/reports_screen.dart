@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../budget/presentation/widgets/active_budget_selector.dart';
@@ -45,6 +47,10 @@ import '../widgets/weekday_rhythm.dart';
 /// on screen with a retry.
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
+
+  /// Title of the range picker when "This Budget" is chosen: a new range
+  /// becomes Custom, and Planned vs actual goes with it (UX-085).
+  static const String leavesBudgetHelp = 'Custom period (leaves This Budget)';
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
@@ -84,6 +90,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final bloc = context.read<ReportsBloc>();
     final now = DateTime.now();
     final current = bloc.state.data?.range;
+    final followsBudget = bloc.state.followsBudget;
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2000),
@@ -94,10 +101,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
               start: current.start,
               end: current.end.isAfter(now) ? now : current.end,
             ),
-      helpText: 'Report period',
+      helpText: followsBudget
+          ? ReportsScreen.leavesBudgetHelp
+          : 'Report period',
       saveText: 'Apply',
     );
     if (picked == null || !mounted) return;
+    // The budget's own dates applied again: stay on "This Budget" rather
+    // than switch to Custom and lose Planned vs actual.
+    if (followsBudget &&
+        current != null &&
+        calendarDaysBetween(current.start, picked.start) == 0 &&
+        calendarDaysBetween(current.end, picked.end) == 0) {
+      return;
+    }
     bloc.add(
       ReportsPeriodChanged(
         ReportPeriod.custom,
@@ -116,12 +133,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<void> _export({required bool csv, Rect? shareOrigin}) async {
-    final data = context.read<ReportsBloc>().state.data;
+    final state = context.read<ReportsBloc>().state;
+    final data = state.data;
     if (data == null || _exporting) return;
     setState(() => _exporting = true);
-    await ReportExport.run(context, data, csv: csv, shareOrigin: shareOrigin);
+    await ReportExport.run(
+      context,
+      data,
+      csv: csv,
+      shareOrigin: shareOrigin,
+      budgetName: (state.budget ?? state.activeBudget)?.name,
+    );
     if (mounted) setState(() => _exporting = false);
   }
+
+  /// Why the export items are greyed out, said under each (UX-089).
+  static String? _exportBlockedReason(ReportData? data) => data == null
+      ? 'The report is still loading'
+      : data.isEmpty
+      ? 'No expenses to export in this period'
+      : null;
 
   Future<void> _refresh() async {
     final bloc = context.read<ReportsBloc>();
@@ -165,11 +196,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
           BlocBuilder<ReportsBloc, ReportsState>(
             buildWhen: (a, b) => !identical(a.data, b.data),
             builder: (context, state) {
-              final canExport =
-                  state.data != null && !state.data!.isEmpty && !_exporting;
+              final blocked = _exportBlockedReason(state.data);
+              final canExport = blocked == null && !_exporting;
+              Widget item(IconData icon, String title) => ListTile(
+                leading: Icon(icon),
+                title: Text(title),
+                subtitle: blocked == null ? null : Text(blocked),
+              );
               return PopupMenuButton<bool>(
                 key: const Key('reportsMenu'),
-                tooltip: 'More',
+                // Building a long PDF takes a moment: the button turns into
+                // a spinner until the share sheet opens (UX-089).
+                enabled: !_exporting,
+                tooltip: _exporting ? 'Preparing the report' : 'More',
+                icon: _exporting
+                    ? const SizedBox.square(
+                        key: Key('reportsExporting'),
+                        dimension: AppSizes.iconMd,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : null,
                 // The menu button's own context: on iPad the share sheet
                 // points at it.
                 onSelected: (csv) => _export(
@@ -180,18 +226,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   PopupMenuItem(
                     value: true,
                     enabled: canExport,
-                    child: const ListTile(
-                      leading: Icon(Icons.table_chart_outlined),
-                      title: Text('Export CSV'),
-                    ),
+                    child: item(Icons.table_chart_outlined, 'Export CSV'),
                   ),
                   PopupMenuItem(
                     value: false,
                     enabled: canExport,
-                    child: const ListTile(
-                      leading: Icon(Icons.picture_as_pdf_outlined),
-                      title: Text('Export PDF'),
-                    ),
+                    child: item(Icons.picture_as_pdf_outlined, 'Export PDF'),
                   ),
                 ],
               );
@@ -217,7 +257,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
         builder: (context, state) {
           final data = state.data;
           final Widget child;
-          if (data == null && state.status == ReportsStatus.error) {
+          if (data == null &&
+              state.status == ReportsStatus.error &&
+              state.errorMessage == ReportsBloc.noBudgetMessage) {
+            // Not a failure to retry: there is nothing to report on until a
+            // budget is active (UX-086).
+            child = EmptyState(
+              key: const ValueKey('noBudget'),
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'No active budget',
+              message:
+                  'Reports cover the active budget. Choose or create one to '
+                  'see where its money went.',
+              actionLabel: 'Choose a budget',
+              onAction: () => ActiveBudgetSelector.open(context),
+              secondaryActionLabel: 'Show this month',
+              onSecondaryAction: () => context.read<ReportsBloc>().add(
+                const ReportsPeriodChanged(ReportPeriod.thisMonth),
+              ),
+            );
+          } else if (data == null && state.status == ReportsStatus.error) {
             // The bloc's budget messages are written for people; any other
             // failure text is not.
             final message = state.errorMessage;
@@ -244,9 +303,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
               busy: _isBusy(state),
               failed: state.status == ReportsStatus.error,
               onPeriodSelected: _onPeriodSelected,
-              onBudget: () => context.read<ReportsBloc>().add(
-                const ReportsBudgetPeriodSelected(),
-              ),
+              // No budget, no "This Budget" (UX-086).
+              onBudget: state.followsBudget || state.activeBudget != null
+                  ? () => context.read<ReportsBloc>().add(
+                      const ReportsBudgetPeriodSelected(),
+                    )
+                  : null,
               onEditRange: _pickCustomRange,
               onRefresh: _refresh,
               onRetry: _retry,
@@ -295,7 +357,7 @@ class _ReportContent extends StatelessWidget {
   final bool busy;
   final bool failed;
   final ValueChanged<ReportPeriod> onPeriodSelected;
-  final VoidCallback onBudget;
+  final VoidCallback? onBudget;
   final VoidCallback onEditRange;
   final Future<void> Function() onRefresh;
   final VoidCallback onRetry;
@@ -410,7 +472,13 @@ class _ReportContent extends StatelessWidget {
                           key: const ValueKey('reportStale'),
                           tone: AppTone.caution,
                           icon: Icons.cloud_off_rounded,
-                          title: "Couldn't update the report",
+                          // Said for what failed: the budget, or the report
+                          // (UX-086).
+                          title:
+                              state.errorMessage ==
+                                  ReportsBloc.budgetUnreadableMessage
+                              ? "Couldn't load your budget"
+                              : "Couldn't update the report",
                           message: 'This is the last report that loaded.',
                           action: TextButton(
                             onPressed: onRetry,
@@ -521,6 +589,10 @@ class _ReportContent extends StatelessWidget {
                                           categories: data.categories,
                                           expenses: data.filteredExpenses,
                                           currency: currency,
+                                          onOpenExpense: (expense) =>
+                                              context.pushUnique(
+                                                '/app/expenses/${expense.id}',
+                                              ),
                                         ),
                                       ),
                                     ),
@@ -631,6 +703,7 @@ class _ReportsSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Shimmer(
+      semanticsLabel: 'Loading reports',
       child: ListView(
         physics: const NeverScrollableScrollPhysics(),
         padding: AppSpacing.pagePadding,

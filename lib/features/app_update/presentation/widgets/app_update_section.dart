@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../settings/presentation/widgets/settings_section.dart';
 import '../../domain/entities/app_update_result.dart';
 import '../bloc/app_update_bloc.dart';
@@ -84,18 +85,21 @@ class _VersionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final version = versionOf(state) ?? '';
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'Current version',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    // Read as one stop: "Current version, v1.0.0".
+    return MergeSemantics(
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Current version',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-        ),
-        Text(version, style: theme.textTheme.titleSmall),
-      ],
+          Text(version, style: theme.textTheme.titleSmall),
+        ],
+      ),
     );
   }
 }
@@ -168,7 +172,7 @@ class _StatusContent extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
               onPressed: () => context.read<AppUpdateBloc>().add(
                 const AppUpdateManualCheck(),
@@ -204,9 +208,11 @@ class _StatusContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
+          // The reason the check gave (offline, rate limited, server
+          // error), not always the connection.
           Text(
-            'The GitHub release check needs an internet connection. '
-            'Everything else in the app keeps working offline.',
+            '${(state as AppUpdateCheckFailed).message} Everything else in '
+            'the app works without this check.',
             style: muted,
           ),
           const SizedBox(height: AppSpacing.smd),
@@ -248,11 +254,7 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
     if (_isLaunching) return;
     final url = widget.result.releaseUrl.trim();
     if (url.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('No update page is available.')),
-        );
+      AppSnack.show(context, 'This update has no release page.');
       return;
     }
     setState(() => _isLaunching = true);
@@ -260,11 +262,7 @@ class _UpdateAvailableContentState extends State<_UpdateAvailableContent> {
     if (!mounted) return;
     setState(() => _isLaunching = false);
     if (!opened) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Unable to open the release page.')),
-        );
+      AppSnack.show(context, "Couldn't open the release page. Try again.");
     }
   }
 

@@ -3,18 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -33,7 +34,7 @@ import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_animated_size.dart';
-import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// One bill: what it is and the amount on one surface with its facts
 /// (paid from, due, repeats, reminder), then the pay actions together right
@@ -161,16 +162,24 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
           if (state.status == BillBlocStatus.success) {
             AppHaptics.confirm();
             final wasDelete = _deleting;
-            context.read<BillBloc>().add(const BillClearMessage());
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.message ?? (wasDelete ? 'Bill deleted' : 'Updated'),
-                  ),
-                ),
-              );
+            final bloc = context.read<BillBloc>();
+            final messenger = ScaffoldMessenger.of(context);
+            final message =
+                state.message ?? (wasDelete ? 'Bill deleted' : 'Updated');
+            final undo = state.undo;
+            bloc.add(const BillClearMessage());
+            // After a delete the Undo outlives this screen (it pops below).
+            AppSnack.present(
+              messenger,
+              undo == null
+                  ? AppSnack.bar(message)
+                  : BillPaymentDialogs.undoSnackBar(
+                      message: message,
+                      bloc: bloc,
+                      undo: undo,
+                      messenger: messenger,
+                    ),
+            );
             if (wasDelete) {
               if (context.canPop()) context.pop();
             } else {
@@ -187,15 +196,10 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               _openFailed = openFailed;
             });
             if (!openFailed) {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      state.message ?? "Couldn't finish that. Try again.",
-                    ),
-                  ),
-                );
+              AppSnack.show(
+                context,
+                state.message ?? "Couldn't finish that. Try again.",
+              );
             }
             context.read<BillBloc>().add(const BillClearMessage());
           }
@@ -386,13 +390,13 @@ class _Details extends StatelessWidget {
                 _FactRow(
                   icon: Icons.calendar_today_outlined,
                   label: 'Due date',
-                  value: DateFormat('EEE, d MMM yyyy').format(bill.dueDate),
+                  value: AppDates.fullDay(bill.dueDate),
                 ),
                 _FactRow(
                   icon: Icons.access_time_rounded,
                   label: 'Due time',
                   value: bill.dueTime == null
-                      ? '9:00 AM (default)'
+                      ? '${BillVisuals.defaultDueTime.format(context)} (default)'
                       : TimeOfDay(
                           hour: bill.dueTime!.hour,
                           minute: bill.dueTime!.minute,
@@ -422,7 +426,7 @@ class _Details extends StatelessWidget {
                   _FactRow(
                     icon: Icons.check_circle_outline_rounded,
                     label: 'Paid on',
-                    value: DateFormat('EEE, d MMM yyyy').format(bill.paidDate!),
+                    value: AppDates.fullDay(bill.paidDate!),
                     valueColor: context.tone(AppTone.positive).accent,
                   ),
                 if (bill.note != null && bill.note!.trim().isNotEmpty)
@@ -519,9 +523,7 @@ class _Details extends StatelessWidget {
                               size: AppSizes.iconMd,
                               color: context.tone(AppTone.positive).accent,
                             ),
-                            title: DateFormat(
-                              'd MMM yyyy',
-                            ).format(payment.paidDate),
+                            title: AppDates.dayWithYear(payment.paidDate),
                             trailing: AppMoney(
                               amount: payment.amount,
                               currency: payment.currency,
@@ -545,10 +547,7 @@ class _Details extends StatelessWidget {
               label: const Text('Delete bill'),
             ),
           ),
-          Text(
-            'Added ${DateFormat('d MMM yyyy').format(bill.createdAt)}',
-            style: muted,
-          ),
+          Text('Added ${AppDates.dayWithYear(bill.createdAt)}', style: muted),
           const SizedBox(height: AppSpacing.md),
         ],
       ),
@@ -586,22 +585,28 @@ class _FactRow extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: AppSpacing.smd),
+          // Label and value are read as one ("Due date, 4 March 2026"); a
+          // trailing button stays its own stop.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+            child: MergeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  value,
-                  style: theme.textTheme.bodyLarge?.copyWith(color: valueColor),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    value,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: valueColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (trailing != null) ...[

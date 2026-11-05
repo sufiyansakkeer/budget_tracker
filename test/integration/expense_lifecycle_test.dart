@@ -159,7 +159,7 @@ void main() {
     final result = await waitForSuccess(expenses);
 
     expect(result.status, ExpenseBlocStatus.error);
-    expect(result.message, contains('No active budget'));
+    expect(result.message, 'Choose a budget for this expense first.');
   });
 
   test('search and filters run over what was actually stored', () async {

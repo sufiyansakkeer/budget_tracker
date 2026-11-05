@@ -8,6 +8,7 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -19,6 +20,7 @@ import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -44,6 +46,7 @@ import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_animated_size.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Entry point for a selected budget: what is left on one surface (bar
 /// with a tick for today, the period, spent, spent today, expenses), then
@@ -78,6 +81,9 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   bool _isActive = false;
   bool _loading = true;
   bool _busy = false;
+
+  /// Folds the button to its icon while the details scroll down.
+  final AppFabCollapse _fabCollapse = AppFabCollapse();
   String? _error;
   StreamSubscription<void>? _expenseSubscription;
   StreamSubscription<void>? _budgetSubscription;
@@ -103,6 +109,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   void dispose() {
     _expenseSubscription?.cancel();
     _budgetSubscription?.cancel();
+    _fabCollapse.dispose();
     super.dispose();
   }
 
@@ -192,9 +199,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   }
 
   void _notify(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppSnack.show(context, message);
   }
 
   /// Runs one of the budget's actions; [failed] names what didn't happen.
@@ -216,6 +221,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   Future<void> _setActive() => _run(() async {
     await _manageBudget.setActive(widget.budgetId);
     RefreshBuses.budgets.notifyChanged();
+    AppHaptics.confirm();
     if (!mounted) return;
     setState(() => _isActive = true);
     _notify('${_budget?.name ?? 'Budget'} is now your active budget');
@@ -284,6 +290,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       await _manageBudget.archive(widget.budgetId, archived: true);
       if (next != null) await _manageBudget.setActive(next.id);
       RefreshBuses.budgets.notifyChanged();
+      AppHaptics.confirm();
       if (!mounted) return;
       setState(() {
         _budget = _budget?.copyWith(isArchived: true);
@@ -305,32 +312,24 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     final manageBudget = _manageBudget;
     final id = widget.budgetId;
     final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 6),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () async {
-              String done;
-              try {
-                await manageBudget.archive(id, archived: false);
-                if (switchedAway) await manageBudget.setActive(id);
-                RefreshBuses.budgets.notifyChanged();
-                done = 'Budget restored';
-              } catch (e) {
-                debugPrint('[error] Undoing an archive: $e');
-                done = "Couldn't restore the budget. Try again.";
-              }
-              messenger
-                ..hideCurrentSnackBar()
-                ..showSnackBar(SnackBar(content: Text(done)));
-            },
-          ),
-        ),
-      );
+    AppSnack.showOn(
+      messenger,
+      message,
+      actionLabel: 'Undo',
+      onAction: () async {
+        String done;
+        try {
+          await manageBudget.archive(id, archived: false);
+          if (switchedAway) await manageBudget.setActive(id);
+          RefreshBuses.budgets.notifyChanged();
+          done = 'Budget restored';
+        } catch (e) {
+          debugPrint('[error] Undoing an archive: $e');
+          done = "Couldn't restore the budget. Try again.";
+        }
+        AppSnack.showOn(messenger, done);
+      },
+    );
   }
 
   Future<void> _restore() => _run(() async {
@@ -347,7 +346,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       context: context,
       builder: (context) => _DuplicateBudgetDialog(
         initialName: '${budget.name} (Copy)',
-        dates: formatDateRange(budget.startDate, budget.endDate),
+        dates: AppDates.range(budget.startDate, budget.endDate),
       ),
     );
     if (name == null || name.isEmpty || !mounted) return;
@@ -489,7 +488,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
                     value: 'setActive',
                     child: ListTile(
                       leading: Icon(Icons.check_circle_outline_rounded),
-                      title: Text('Set as active'),
+                      title: Text(AppTerms.makeActive),
                     ),
                   ),
                 PopupMenuItem(
@@ -529,7 +528,10 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
           ],
         ],
       ),
-      body: SafeArea(bottom: false, child: AppStateSwitcher(child: _body())),
+      body: SafeArea(
+        bottom: false,
+        child: _fabCollapse.listen(child: AppStateSwitcher(child: _body())),
+      ),
       // Adding goes to the active budget, so only the active budget offers
       // it (review: from another budget it recorded into the active one).
       // Any other budget offers to become active instead.
@@ -542,14 +544,16 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
               onPressed: _busy ? null : () => QuickAddSheet.show(context),
               icon: Icons.add_rounded,
               label: 'Add expense',
+              collapse: _fabCollapse,
             )
           : AppFab(
               key: const Key('budgetMakeActive'),
               heroTag: 'budget_details_fab',
               onPressed: _busy ? null : _setActive,
               icon: Icons.check_circle_outline_rounded,
-              label: 'Make active',
+              label: AppTerms.makeActive,
               tooltip: 'Make this the active budget',
+              collapse: _fabCollapse,
             ),
     );
   }
@@ -662,7 +666,7 @@ class _Content extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            formatDateRange(budget.startDate, budget.endDate),
+                            AppDates.range(budget.startDate, budget.endDate),
                             style: muted,
                           ),
                           // Under the name rather than beside it, so a long
@@ -680,7 +684,7 @@ class _Content extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.mlg),
                 Text(
-                  over ? 'Over by' : 'Left',
+                  over ? 'Over by' : AppTerms.remainingBudget,
                   style: typography.eyebrow.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

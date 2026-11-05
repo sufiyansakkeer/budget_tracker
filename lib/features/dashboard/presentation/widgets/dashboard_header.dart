@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// The top of Home, without a card: a greeting with today's date, the
 /// active budget's name as the screen title (tap to switch budget) and its
@@ -55,11 +55,10 @@ class DashboardHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Semantics(
-            label:
-                '${greetingFor(now)}, ${DateFormat('EEEE d MMMM').format(now)}',
+            label: '${greetingFor(now)}, ${AppDates.longWeekday(now)}',
             excludeSemantics: true,
             child: Text(
-              '${greetingFor(now)} · ${DateFormat('EEE d MMM').format(now)}',
+              '${greetingFor(now)} · ${AppDates.weekday(now, now: now)}',
               style: context.appTypography.eyebrow.copyWith(color: muted),
             ),
           ),

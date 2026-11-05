@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../domain/entities/purchase_change_impact.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Asked before an edit or delete takes payment money off a purchase on a
 /// tab (spec §5, "Never silent"): it says where that money goes.
@@ -95,7 +95,7 @@ abstract final class PurchaseImpactDialog {
   static String _targets(List<(ExpenseEntity, double)> moves) {
     final groups = <String, List<ExpenseEntity>>{};
     for (final (purchase, _) in moves) {
-      final day = DateFormat('d MMM').format(purchase.date);
+      final day = AppDates.day(purchase.date);
       final note = purchase.note?.trim() ?? '';
       groups.putIfAbsent('$day\u0000$note', () => []).add(purchase);
     }
@@ -111,7 +111,7 @@ abstract final class PurchaseImpactDialog {
   /// One label for purchases with the same day and note.
   static String _describe(List<ExpenseEntity> same) {
     final purchase = same.first;
-    final day = DateFormat('d MMM').format(purchase.date);
+    final day = AppDates.day(purchase.date);
     final note = purchase.note?.trim();
     final several = same.length > 1;
     if (note == null || note.isEmpty) {

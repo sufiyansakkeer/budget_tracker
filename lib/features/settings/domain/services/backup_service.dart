@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
@@ -9,6 +8,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 import '../../../pay_later/domain/usecases/reconcile_tab_usecase.dart';
 import 'data_codec.dart';
+import 'json_off_main.dart';
 
 /// Metadata captured alongside a backup.
 class BackupMetadata {
@@ -149,8 +149,7 @@ class BackupService {
     final directory = await getTemporaryDirectory();
     final file = File('${directory.path}/${backupFileName(createdAt)}');
 
-    const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(encoder.convert(payload));
+    await JsonOffMain.writeIndented(file, payload);
     return file.path;
   }
 
@@ -174,36 +173,51 @@ class BackupService {
   /// Validates a backup file without applying it. Returns a list of
   /// validation errors (empty if the backup is valid).
   Future<List<ValidationError>> validateBackup(String path) async {
-    final errors = <ValidationError>[];
+    final (payload, errors) = await _read(path);
+    return payload == null ? errors : _validatePayload(payload);
+  }
 
-    final file = File(path);
-    if (!await file.exists()) {
-      errors.add(
-        const ValidationError(field: 'file', message: 'Backup file not found.'),
+  /// The file at [path] decoded once, off the UI isolate, or why it
+  /// couldn't be: missing, not JSON, or not a JSON object.
+  Future<(Map<String, Object?>?, List<ValidationError>)> _read(
+    String path,
+  ) async {
+    if (!await File(path).exists()) {
+      return (
+        null,
+        const [
+          ValidationError(field: 'file', message: 'Backup file not found.'),
+        ],
       );
-      return errors;
     }
-
-    final raw = await file.readAsString();
-    final Map<String, Object?> payload;
+    final Object? decoded;
     try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map<String, Object?>) {
-        errors.add(
-          const ValidationError(
+      decoded = await JsonOffMain.decodeFile(path);
+    } on FormatException catch (e) {
+      return (
+        null,
+        [
+          ValidationError(
             field: 'format',
-            message: 'Invalid backup format.',
+            message: 'Corrupted backup file: $e',
           ),
-        );
-        return errors;
-      }
-      payload = decoded;
-    } catch (e) {
-      errors.add(
-        ValidationError(field: 'format', message: 'Corrupted backup file: $e'),
+        ],
       );
-      return errors;
     }
+    if (decoded is! Map<String, Object?>) {
+      return (
+        null,
+        const [
+          ValidationError(field: 'format', message: 'Invalid backup format.'),
+        ],
+      );
+    }
+    return (decoded, const <ValidationError>[]);
+  }
+
+  /// What is wrong with a decoded backup; empty when it can be restored.
+  List<ValidationError> _validatePayload(Map<String, Object?> payload) {
+    final errors = <ValidationError>[];
 
     if (payload['type'] != 'monivo_backup') {
       errors.add(
@@ -317,36 +331,27 @@ class BackupService {
   }
 
   /// The decoded payload at [path] once it is known to be a valid backup.
-  Future<Map<String, Object?>> _validatedPayload(String path) async {
-    await _rejectExport(path);
-    final errors = await validateBackup(path);
-    if (errors.isNotEmpty) {
-      throw FormatException(
-        'Backup validation failed:\n${errors.map((e) => '• ${e.message}').join('\n')}',
-      );
-    }
-    return jsonDecode(await File(path).readAsString()) as Map<String, Object?>;
-  }
-
+  /// The file is read and decoded once, off the UI isolate.
+  ///
   /// Throws [WrongFileKindException] when [path] holds a Monivo export, so
-  /// Restore can say which action to use instead of calling it damaged.
-  /// Anything unreadable is left to [validateBackup].
-  Future<void> _rejectExport(String path) async {
-    final file = File(path);
-    if (!await file.exists()) return;
-    Object? decoded;
-    try {
-      decoded = jsonDecode(await file.readAsString());
-    } on FormatException {
-      return;
-    }
-    if (decoded is Map<String, Object?> && isExport(decoded)) {
+  /// Restore can say which action to use instead of calling it damaged, and
+  /// [FormatException] when it fails validation.
+  Future<Map<String, Object?>> _validatedPayload(String path) async {
+    final (payload, readErrors) = await _read(path);
+    if (payload != null && isExport(payload)) {
       throw const WrongFileKindException(
         'This is a Monivo export, not a backup, so it has no bills and '
         "can't replace your data. To add its records, use Import instead. "
         'Nothing was changed.',
       );
     }
+    final errors = payload == null ? readErrors : _validatePayload(payload);
+    if (errors.isNotEmpty) {
+      throw FormatException(
+        'Backup validation failed:\n${errors.map((e) => '• ${e.message}').join('\n')}',
+      );
+    }
+    return payload!;
   }
 
   /// Validates budget records in the backup data.

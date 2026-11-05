@@ -19,6 +19,9 @@ import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dar
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
+import 'package:monivo/core/dates/date_range_format.dart';
+import 'package:monivo/features/bills/presentation/pages/bill_widgets.dart';
+import 'package:monivo/features/settings/presentation/widgets/currency_selector.dart';
 
 // Fixed dates far from any real "today": 2020 has ended, 2099 has not.
 BudgetEntity budget(
@@ -99,6 +102,7 @@ void main() {
     WidgetTester tester, {
     List<BudgetEntity>? budgets,
     String? billId,
+    bool use24h = false,
   }) async {
     getIt.registerSingleton<ManageBudgetUseCase>(
       ManageBudgetUseCase(
@@ -126,7 +130,14 @@ void main() {
       ],
     );
     await tester.pumpWidget(
-      MaterialApp.router(theme: AppTheme.lightTheme, routerConfig: router),
+      MaterialApp.router(
+        theme: AppTheme.lightTheme,
+        routerConfig: router,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: use24h),
+          child: child!,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -171,13 +182,26 @@ void main() {
     bills.store['rent'] = linkedBill().copyWith(dueDate: DateTime(2020, 1, 6));
     await pumpForm(tester, billId: 'rent');
 
-    final due = find.text('Mon, 6 Jan 2020');
+    final due = find.text(AppDates.fullDay(DateTime(2020, 1, 6)));
     await tester.ensureVisible(due);
     await tester.tap(due);
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
     expect(find.byType(DatePickerDialog), findsOneWidget);
+  });
+
+  testWidgets('UX-093: the default due time follows the 24-hour setting', (
+    tester,
+  ) async {
+    await pumpForm(tester, use24h: true);
+
+    final context = tester.element(find.byType(BillFormScreen));
+    final shown = BillVisuals.defaultDueTime.format(context);
+    expect(shown, isNot(contains('AM')));
+    final field = find.text(shown, skipOffstage: false);
+    expect(field, findsOneWidget);
+    expect(find.text('9:00 AM', skipOffstage: false), findsNothing);
   });
 
   testWidgets('an empty repeat interval is not saved silently', (tester) async {
@@ -430,7 +454,11 @@ void main() {
       await tester.ensureVisible(currency);
       await tester.tap(currency);
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('OMR').last);
+      // The app's currency picker (UX-110), a sheet that scrolls.
+      final omr = find.widgetWithText(CurrencyListTile, 'OMR');
+      await tester.ensureVisible(omr);
+      await tester.pumpAndSettle();
+      await tester.tap(omr);
       await tester.pumpAndSettle();
 
       final amountField = tester.widget<TextField>(

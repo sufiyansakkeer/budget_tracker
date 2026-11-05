@@ -201,12 +201,20 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
         return;
       }
       if (resolved == null) {
+        // The budget the report was about is gone, so its report is
+        // dropped rather than left under a stale notice (UX-086).
         emit(
           state.copyWith(
             status: ReportsStatus.error,
             errorMessage: noBudgetMessage,
             followsBudget: false,
             clearBudget: true,
+            // Any reload (a budget chosen, a new day) starts from the
+            // calendar month, not the lost budget's dates.
+            period: ReportPeriod.thisMonth,
+            clearData: true,
+            clearActiveBudget: true,
+            isEmpty: false,
           ),
         );
         return;
@@ -239,13 +247,19 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
 
     switch (result) {
       case ReportError(:final failure):
+        // A failed refresh keeps the last report on screen, unless the
+        // active budget changed since: that report is another budget's and
+        // would read as this one's under its name (UX-086).
+        final otherBudget =
+            state.data != null && active?.id != state.activeBudget?.id;
         emit(
           state.copyWith(
             status: ReportsStatus.error,
             errorMessage: failure.message,
-            data: null,
-            insights: null,
             isEmpty: false,
+            clearData: otherBudget,
+            activeBudget: active,
+            clearActiveBudget: active == null,
           ),
         );
       case ReportSuccess(:final data):

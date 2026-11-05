@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/database/default_categories.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
@@ -29,6 +30,15 @@ ExpenseEntity expense({
 void main() {
   const service = AnalyticsService();
   final categories = defaultCategories;
+
+  test('an expense whose category is gone is drawn in the Others colour', () {
+    final others = categories.firstWhere((c) => c.id == fallbackCategoryId);
+    final result = service.calculateCategoryAnalytics(
+      expenses: [expense(id: '1', categoryId: 'deleted-category')],
+      categories: categories,
+    );
+    expect(result.single.colorHex, others.colorHex);
+  });
 
   group('calculateOverview', () {
     test('returns empty for no expenses', () {
@@ -135,6 +145,36 @@ void main() {
       expect(analytics.weekendSpending, 200);
       expect(analytics.highestSpendingWeekday, DateTime(2026, 8, 1).weekday);
     });
+  });
+
+  // UX-112: run under a time zone with daylight saving to mean anything:
+  // TZ=America/New_York flutter test (US clocks change 8 Mar and 1 Nov
+  // 2026; Europe's 29 Mar and 25 Oct fall inside the same ranges).
+  group('UX-112: day counts across a clock change', () {
+    for (final (name, start, end, days) in [
+      ('spring forward', DateTime(2026, 3, 1), DateTime(2026, 3, 31), 31),
+      ('fall back', DateTime(2026, 10, 1), DateTime(2026, 11, 30), 61),
+    ]) {
+      test('$name: every calendar day, once, at midnight', () {
+        final range = ReportRange(
+          start: start,
+          end: end,
+          period: ReportPeriod.custom,
+        );
+        expect(range.dayCount, days);
+        final points = service.calculateDailySpending(
+          expenses: const [],
+          range: range,
+        );
+        expect(points, hasLength(days));
+        for (var i = 0; i < points.length; i++) {
+          final date = points[i].date;
+          expect(date, DateTime(start.year, start.month, start.day + i));
+          expect(date.hour, 0, reason: '$date');
+        }
+        expect(points.last.date, end);
+      });
+    }
   });
 
   group('calculateTrend', () {

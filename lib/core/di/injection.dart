@@ -107,6 +107,7 @@ import '../../features/bills/domain/usecases/link_bills_to_budget_usecase.dart';
 import '../../features/bills/domain/usecases/mark_bill_paid_usecase.dart';
 import '../../features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
 import '../../features/bills/domain/usecases/pay_bill_usecase.dart';
+import '../../features/bills/domain/usecases/restore_bill_snapshot_usecase.dart';
 import '../../features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../features/bills/domain/usecases/update_bill_usecase.dart';
 import '../../features/bills/presentation/bloc/bill_bloc.dart';
@@ -771,6 +772,12 @@ Future<void> initDependencyInjection({
       expenseRepository: getIt<ExpenseRepository>(),
     ),
   );
+  getIt.registerLazySingleton<RestoreBillSnapshotUseCase>(
+    () => RestoreBillSnapshotUseCase(
+      repository: getIt<BillRepository>(),
+      deleteExpense: getIt<DeleteExpenseUseCase>(),
+    ),
+  );
   getIt.registerLazySingleton<LinkBillsToBudgetUseCase>(
     () => LinkBillsToBudgetUseCase(
       billRepository: getIt<BillRepository>(),
@@ -789,6 +796,7 @@ Future<void> initDependencyInjection({
       markBillPaidUseCase: getIt<MarkBillPaidUseCase>(),
       markBillUnpaidUseCase: getIt<MarkBillUnpaidUseCase>(),
       payBillUseCase: getIt<PayBillUseCase>(),
+      restoreBillSnapshotUseCase: getIt<RestoreBillSnapshotUseCase>(),
       reminderService: getIt<BillReminderService>(),
     ),
   );

@@ -6,6 +6,7 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../domain/entities/committed_spending.dart';
 import '../../domain/entities/recent_expense_entity.dart';
 import 'dashboard_local_datasource.dart';
+import '../../../../core/database/default_categories.dart';
 
 class DashboardLocalDataSourceImpl implements DashboardLocalDataSource {
   final AppDatabase database;
@@ -102,7 +103,7 @@ class DashboardLocalDataSourceImpl implements DashboardLocalDataSource {
         categoryId: expense.categoryId,
         categoryName: category?.name ?? 'Unknown',
         categoryIcon: category?.icon ?? 'help_outline',
-        categoryColorHex: category?.colorHex ?? '#8395A7',
+        categoryColorHex: category?.colorHex ?? fallbackCategoryColorHex,
         note: expense.note,
         date: DateTime(day.year, day.month, day.day, clock.hour, clock.minute),
         createdAt: expense.createdAt,

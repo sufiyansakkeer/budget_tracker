@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -9,11 +8,15 @@ import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/theme/app_colors_extension.dart';
+import '../../../../core/widgets/app_amount_field.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/theme/app_tone.dart';
+import '../../../../core/widgets/app_color_swatch.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -27,6 +30,7 @@ import '../../../expenses/domain/entities/expense_failure.dart';
 import '../../../expenses/domain/usecases/get_expenses_usecase.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
+import '../../../settings/presentation/widgets/currency_selector.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/events/refresh_bus.dart';
@@ -34,10 +38,9 @@ import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/widgets/app_form_action_bar.dart';
 import '../../../../core/currency/money_input.dart';
-import '../../../../core/currency/money_input_formatter.dart';
-import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../start_next_period.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Create or edit a budget.
 ///
@@ -78,6 +81,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _dateKey = GlobalKey();
 
+  /// The amount and currency row, where a currency that can't be saved
+  /// says why.
+  final _amountRowKey = GlobalKey();
+
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
@@ -97,7 +104,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// The budget couldn't be read (as opposed to no longer existing).
   bool _loadFailed = false;
   String? _dateError;
-  String? _saveError;
 
   /// Unpaid bills linked to the budget being edited, for the currency
   /// warning.
@@ -395,7 +401,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final text = value?.trim() ?? '';
     if (text.isEmpty) return null;
     final amount = double.tryParse(text);
-    if (amount == null) return 'Enter a valid number.';
+    if (amount == null) return ValidationCopy.amountInvalid;
     return ManageBudgetUseCase.validateSetAside(
           amount,
           double.tryParse(_amountController.text) ?? 0,
@@ -529,13 +535,42 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       ? _currency
       : null;
 
+  void _scrollTo(BuildContext? target) {
+    if (target == null || !target.mounted) return;
+    Scrollable.ensureVisible(
+      target,
+      duration: AppMotion.respectReducedMotion(target, AppMotion.medium),
+      curve: AppMotion.standardCurve,
+      alignment: 0.1,
+    );
+  }
+
+  /// The invalid field highest on the screen, so Save brings it into view.
+  static BuildContext? _topmost(Set<FormFieldState<Object?>> fields) {
+    BuildContext? first;
+    double? top;
+    for (final field in fields) {
+      final box = field.context.findRenderObject();
+      if (box is! RenderBox || !box.attached) continue;
+      final y = box.localToGlobal(Offset.zero).dy;
+      if (top == null || y < top) {
+        top = y;
+        first = field.context;
+      }
+    }
+    return first;
+  }
+
+  /// Why saving didn't happen, wherever the form is scrolled to.
+  void _showSaveError(String message) {
+    AppSnack.show(context, message);
+  }
+
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
-    setState(() {
-      _saveError = null;
-      _dateError = null;
-    });
-    final fieldsOk = _formKey.currentState!.validate();
+    setState(() => _dateError = null);
+    final invalid = _formKey.currentState!.validateGranularly();
+    final fieldsOk = invalid.isEmpty;
 
     final amount = double.tryParse(_amountController.text) ?? 0;
     final error = _manageBudget.validate(
@@ -546,27 +581,19 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       reservedAmount: _parseOptional(_reserveController.text),
       savingsTarget: _parseOptional(_savingsController.text),
     );
-    if (!fieldsOk) return;
+    if (!fieldsOk) return _scrollTo(_topmost(invalid));
     if (error != null) {
       // Name/amount are already handled by field validators, so a remaining
       // error concerns the dates.
       setState(() => _dateError = error);
-      final ctx = _dateKey.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(
-          ctx,
-          duration: AppMotion.respectReducedMotion(ctx, AppMotion.medium),
-          curve: AppMotion.standardCurve,
-        );
-      }
-      return;
+      return _scrollTo(_dateKey.currentContext);
     }
 
     if (_tabCurrencyBlock != null) {
-      setState(
-        () => _saveError = 'Keep this budget in ${_budget!.currency} to save.',
+      _scrollTo(_amountRowKey.currentContext);
+      return _showSaveError(
+        'Keep this budget in ${_budget!.currency} to save.',
       );
-      return;
     }
     if (_isEditing && !await _confirmCurrencyChange()) return;
     if (!mounted) return;
@@ -642,19 +669,18 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       AppHaptics.confirm();
       setState(() => _justSaved = true);
       final messenger = ScaffoldMessenger.of(context);
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          _isEditing
-              ? const SnackBar(content: Text('Budget updated'))
-              : activated
-              ? const SnackBar(content: Text('Budget created and set active'))
-              : _makeActiveSnackBar(
-                  messenger,
-                  id: result as String,
-                  name: _nameController.text.trim(),
-                ),
-        );
+      AppSnack.present(
+        messenger,
+        _isEditing
+            ? AppSnack.bar('Budget updated')
+            : activated
+            ? AppSnack.bar('Budget created and made active')
+            : _makeActiveSnackBar(
+                messenger,
+                id: result as String,
+                name: _nameController.text.trim(),
+              ),
+      );
       context.pop(result);
     } on BudgetCurrencyLockedException catch (e) {
       // The count wasn't known on screen; the use case refused.
@@ -663,17 +689,18 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       setState(() {
         _saving = false;
         _tabPurchaseCount = e.tabPurchases;
-        _saveError = 'Keep this budget in ${e.currency} to save.';
       });
+      _scrollTo(_amountRowKey.currentContext);
+      _showSaveError('Keep this budget in ${e.currency} to save.');
     } catch (e) {
       debugPrint('[error] Saving budget: $e');
       if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _saveError = _isEditing
-            ? "Couldn't save your changes. Please try again."
-            : "Couldn't create the budget. Please try again.";
-      });
+      setState(() => _saving = false);
+      _showSaveError(
+        _isEditing
+            ? "Couldn't save your changes. Try again."
+            : "Couldn't create the budget. Try again.",
+      );
     }
   }
 
@@ -685,26 +712,22 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     required String name,
   }) {
     final manageBudget = _manageBudget;
-    return SnackBar(
-      content: const Text('Budget created'),
-      duration: const Duration(seconds: 6),
-      action: SnackBarAction(
-        label: 'Make active',
-        onPressed: () async {
-          String message;
-          try {
-            await manageBudget.setActive(id);
-            RefreshBuses.budgets.notifyChanged();
-            message = '$name is now your active budget';
-          } catch (e) {
-            debugPrint('[error] Making a new budget active: $e');
-            message = "Couldn't make $name active. Try again from its details.";
-          }
-          messenger
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(message)));
-        },
-      ),
+    return AppSnack.bar(
+      'Budget created',
+      actionLabel: AppTerms.makeActive,
+      onAction: () async {
+        String message;
+        try {
+          await manageBudget.setActive(id);
+          RefreshBuses.budgets.notifyChanged();
+          AppHaptics.confirm();
+          message = '$name is now your active budget';
+        } catch (e) {
+          debugPrint('[error] Making a new budget active: $e');
+          message = "Couldn't make $name active. Try again from its details.";
+        }
+        AppSnack.showOn(messenger, message);
+      },
     );
   }
 
@@ -780,7 +803,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Give your budget a name.';
+                            return ValidationCopy.budgetNameEmpty;
                           }
                           return null;
                         },
@@ -789,47 +812,25 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
                       // Amount + currency
                       Row(
+                        key: _amountRowKey,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: TextFormField(
+                            child: AppAmountField(
                               controller: _amountController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              textInputAction: TextInputAction.done,
-                              inputFormatters: [
-                                MoneyInputFormatter(
-                                  MoneyInput.maxDecimals(_currency),
-                                ),
-                              ],
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                              decoration: InputDecoration(
-                                labelText: 'Budget amount',
-                                prefixText:
-                                    '${CurrencyFormatter.symbolFor(_currency)} ',
-                                prefixStyle: theme.textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                helperText:
-                                    'The total for the whole budget period',
-                              ),
+                              currency: _currency,
+                              label: 'Budget amount',
+                              helperText:
+                                  'The total for the whole budget period',
                               // The set-aside checks depend on the amount.
                               onChanged: (_) => setState(() {}),
                               validator: (value) {
                                 final amount = double.tryParse(value ?? '');
                                 if (amount == null || amount <= 0) {
-                                  return 'Enter an amount greater than zero.';
+                                  return ValidationCopy.amountNotPositive;
                                 }
                                 if (!MoneyMath.isWithinLimit(amount)) {
-                                  return 'Enter an amount less than '
-                                      '${MoneyMath.maxAmountLabel}.';
+                                  return ValidationCopy.amountTooLarge;
                                 }
                                 // E.g. after switching from OMR to INR.
                                 return MoneyInput.decimalsError(
@@ -840,9 +841,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                             ),
                           ),
                           const SizedBox(width: AppSpacing.sm),
-                          _CurrencyDropdown(
+                          CurrencyPickerField(
                             value: _selectedCurrencyCode,
                             currencies: _currencies,
+                            sheetSubtitle: 'The currency of this budget',
                             onChanged: (code) =>
                                 setState(() => _currency = code),
                           ),
@@ -976,14 +978,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                           ],
                         ),
                       ),
-                      if (_saveError != null) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        StatusCard(
-                          color: theme.colorScheme.error,
-                          icon: Icons.error_outline_rounded,
-                          message: _saveError!,
-                        ),
-                      ],
                       const SizedBox(height: AppSpacing.lg),
                     ],
                   ),
@@ -1000,58 +994,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 label: _isEditing ? 'Save changes' : 'Create budget',
               ),
             ),
-    );
-  }
-}
-
-/// The currency beside the amount: symbol and code in the menu, the code
-/// alone once chosen.
-class _CurrencyDropdown extends StatelessWidget {
-  final String? value;
-  final List<CurrencyEntity> currencies;
-  final ValueChanged<String> onChanged;
-
-  const _CurrencyDropdown({
-    required this.value,
-    required this.currencies,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Semantics(
-      label: 'Currency',
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.smd),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainer,
-          borderRadius: AppSpacing.borderRadiusMd,
-        ),
-        child: DropdownButton<String>(
-          value: value,
-          hint: const Text('Currency'),
-          underline: const SizedBox.shrink(),
-          borderRadius: AppSpacing.borderRadiusMd,
-          onChanged: (code) {
-            if (code != null) onChanged(code);
-          },
-          items: [
-            for (final currency in currencies)
-              DropdownMenuItem<String>(
-                value: currency.code,
-                child: Text('${currency.symbol}  ${currency.code}'),
-              ),
-          ],
-          selectedItemBuilder: (context) => [
-            for (final currency in currencies)
-              Center(
-                child: Text(currency.code, style: theme.textTheme.labelLarge),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -1082,20 +1024,15 @@ class _SetAsideSection extends StatelessWidget {
       required String label,
       required String helper,
       required IconData icon,
-    }) => TextFormField(
+    }) => AppAmountField(
       key: key,
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      currency: currency,
       textInputAction: TextInputAction.next,
-      inputFormatters: [MoneyInputFormatter(MoneyInput.maxDecimals(currency))],
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: 'Not set',
-        prefixIcon: Icon(icon),
-        prefixText: '${CurrencyFormatter.symbolFor(currency)} ',
-        helperText: helper,
-        helperMaxLines: 2,
-      ),
+      label: label,
+      hintText: 'Not set',
+      prefixIcon: icon,
+      helperText: helper,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       onChanged: (_) => onChanged(),
@@ -1216,8 +1153,8 @@ class _PeriodSection extends StatelessWidget {
                 child: Text(
                   valid
                       ? '$dayCount ${dayCount == 1 ? 'day' : 'days'} · '
-                            '${formatDateRange(startDate, endDate)}'
-                      : 'The end date must be after the start date',
+                            '${AppDates.range(startDate, endDate)}'
+                      : ValidationCopy.endBeforeStart,
                   key: const Key('budgetDaysSummary'),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -1250,7 +1187,7 @@ class _DateField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final text = DateFormat('d MMM yyyy').format(date);
+    final text = AppDates.dayWithYear(date);
     return Semantics(
       button: true,
       label: '$label $text',
@@ -1294,7 +1231,6 @@ class _IconAndColorPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1317,74 +1253,15 @@ class _IconAndColorPicker extends StatelessWidget {
           runSpacing: AppSpacing.sm,
           children: [
             for (final (hex, name) in BudgetVisuals.colorOptions)
-              _ColorSwatch(
+              AppColorSwatch(
                 color: BudgetVisuals.rawColor(hex),
                 name: name,
                 selected: selectedColor == hex,
                 onTap: () => onColorSelected(hex),
-                surface: theme.colorScheme.surface,
               ),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _ColorSwatch extends StatelessWidget {
-  final Color color;
-  final String name;
-  final bool selected;
-  final VoidCallback onTap;
-  final Color surface;
-
-  const _ColorSwatch({
-    required this.color,
-    required this.name,
-    required this.selected,
-    required this.onTap,
-    required this.surface,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final onColor =
-        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-        ? Colors.white
-        : Colors.black;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$name colour',
-      onTap: onTap,
-      excludeSemantics: true,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: AppSizes.touchTarget,
-          height: AppSizes.touchTarget,
-          child: Center(
-            child: AnimatedContainer(
-              duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
-              width: selected ? 36 : 30,
-              height: selected ? 36 : 30,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected ? theme.colorScheme.onSurface : surface,
-                  width: 2,
-                ),
-              ),
-              child: selected
-                  ? Icon(Icons.check_rounded, color: onColor, size: 18)
-                  : null,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

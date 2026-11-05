@@ -371,6 +371,22 @@ void main() {
     });
   });
 
+  // UX-111: a fact's label and value were two stops for a screen reader.
+  testWidgets('a fact reads as one stop; its button stays separate', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpDetails(tester, rent(budgetId: 'household'));
+
+    final fact = tester.getSemantics(paidFrom('Paid from'));
+    expect(fact.label, 'Paid from\nHousehold');
+    expect(tester.getSemantics(paidFrom('Household')), same(fact));
+    final change = tester.getSemantics(find.text('Change'));
+    expect(change, isNot(same(fact)));
+    expect(change.label, 'Change');
+    handle.dispose();
+  });
+
   testWidgets('the details clear the side and bottom insets (UX-063)', (
     tester,
   ) async {

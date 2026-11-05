@@ -22,7 +22,7 @@ abstract final class ExpenseDateRules {
     );
     if (day.isBefore(start) || day.isAfter(end)) {
       return 'Outside the ${budget.name} budget period '
-          '(${formatShortDateRange(budget.startDate, budget.endDate)}).';
+          '(${AppDates.span(budget.startDate, budget.endDate)}).';
     }
     return null;
   }

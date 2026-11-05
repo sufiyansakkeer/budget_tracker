@@ -10,6 +10,7 @@ import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/chart_reveal.dart';
 import '../../domain/entities/daily_spending_point.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// One column per day with a dashed line at the daily average. Tapping a
 /// column (anywhere in its full height) names the day and its total under
@@ -42,10 +43,23 @@ class _DailyColumnsChartState extends State<DailyColumnsChart> {
   @override
   void didUpdateWidget(covariant DailyColumnsChart oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_selected != null && _selected! >= widget.points.length) {
+    // A chosen day belongs to its range: another period starts with none
+    // chosen, rather than the same column of different dates (UX-091). A
+    // refresh of the same days keeps it.
+    if (_selected != null &&
+        (_selected! >= widget.points.length ||
+            !_sameDays(oldWidget.points, widget.points))) {
       _selected = null;
     }
   }
+
+  static bool _sameDays(
+    List<DailySpendingPoint> a,
+    List<DailySpendingPoint> b,
+  ) =>
+      a.length == b.length &&
+      (a.isEmpty ||
+          (a.first.date == b.first.date && a.last.date == b.last.date));
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +69,6 @@ class _DailyColumnsChartState extends State<DailyColumnsChart> {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: scheme.onSurfaceVariant,
     );
-    final day = DateFormat('EEE d MMM');
     String money(double v) => AppMoney.format(v, currency: widget.currency);
 
     DailySpendingPoint? top;
@@ -83,20 +96,20 @@ class _DailyColumnsChartState extends State<DailyColumnsChart> {
     /// A day number, with its month where the month changes ("28", "1 Oct").
     String dayLabel(int i) {
       final date = points[i].date;
-      if (n <= 7) return DateFormat('E').format(date);
+      if (n <= 7) return AppDates.weekdayShort(date);
       final newMonth = i < step || points[i - step].date.month != date.month;
-      return newMonth ? DateFormat('d MMM').format(date) : '${date.day}';
+      return newMonth ? AppDates.dayMonth(date) : '${date.day}';
     }
 
     String dayValue(int i) => CurrencyFormatter.forSpeech(
-      '${day.format(points[i].date)}, ${money(points[i].amount)}',
+      '${AppDates.weekdayMonth(points[i].date)}, ${money(points[i].amount)}',
     );
 
     final caption = selected != null
-        ? '${day.format(selected.date)} · ${money(selected.amount)}'
+        ? '${AppDates.weekdayMonth(selected.date)} · ${money(selected.amount)}'
         : top == null || top.amount <= 0
         ? 'No spending in this period yet'
-        : 'Highest ${day.format(top.date)} · ${money(top.amount)}';
+        : 'Highest ${AppDates.weekdayMonth(top.date)} · ${money(top.amount)}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,7 +118,7 @@ class _DailyColumnsChartState extends State<DailyColumnsChart> {
           label: CurrencyFormatter.forSpeech(
             'Daily spending over $n ${n == 1 ? 'day' : 'days'}, average '
             '${money(widget.average)} a day'
-            '${top != null && top.amount > 0 ? ', highest ${day.format(top.date)}, ${money(top.amount)}' : ''}',
+            '${top != null && top.amount > 0 ? ', highest ${AppDates.weekdayMonth(top.date)}, ${money(top.amount)}' : ''}',
           ),
           value: n == 0
               ? null

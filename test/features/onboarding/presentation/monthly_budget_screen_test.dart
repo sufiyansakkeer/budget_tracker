@@ -41,8 +41,11 @@ void main() {
         ),
       );
 
+      // The field takes focus once shown, and shows the symbol as the
+      // app's amount field's prefix (UX-110).
+      await tester.pump();
       expect(find.text('What is your budget amount?'), findsOneWidget);
-      expect(find.text('₹'), findsOneWidget);
+      expect(find.text('₹ '), findsOneWidget);
       expect(find.text('Monthly budget cannot be empty'), findsOneWidget);
     },
   );
@@ -70,7 +73,7 @@ void main() {
       );
       expect(continueButtonFinder, findsOneWidget);
 
-      final button = tester.widget<ElevatedButton>(continueButtonFinder);
+      final button = tester.widget<FilledButton>(continueButtonFinder);
       expect(button.enabled, isTrue);
 
       await tester.tap(continueButtonFinder);
@@ -97,7 +100,7 @@ void main() {
       final continueButtonFinder = find.byKey(
         const Key('budgetStepContinueButton'),
       );
-      final button = tester.widget<ElevatedButton>(continueButtonFinder);
+      final button = tester.widget<FilledButton>(continueButtonFinder);
       expect(button.enabled, isFalse);
     },
   );

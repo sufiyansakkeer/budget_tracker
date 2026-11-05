@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -14,6 +13,7 @@ import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -34,6 +34,7 @@ import '../widgets/move_expense_sheet.dart';
 import '../widgets/paid_bill.dart';
 import '../widgets/receipt_photo.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// One expense on one surface: what it was and the amount, then its facts
 /// (budget, date, time, category, note, tags) and the receipt. Below it,
@@ -55,6 +56,10 @@ class ExpenseDetailsScreen extends StatefulWidget {
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   late final ManageBudgetUseCase _manageBudget = getIt<ManageBudgetUseCase>();
   List<BudgetEntity> _budgets = const [];
+
+  /// The budgets have been read (or couldn't be). The expense waits for
+  /// them, so its amount never shows in a stand-in currency first.
+  bool _budgetsKnown = false;
   bool _deleting = false;
 
   /// The expense couldn't be read (as opposed to no longer existing).
@@ -102,10 +107,14 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     try {
       final budgets = await _manageBudget.getAll();
       if (!mounted) return;
-      setState(() => _budgets = budgets);
+      setState(() {
+        _budgets = budgets;
+        _budgetsKnown = true;
+      });
     } catch (e) {
       // Budgets are supplementary here; the expense still renders.
       debugPrint('[error] Loading budgets for an expense: $e');
+      if (mounted) setState(() => _budgetsKnown = true);
     }
   }
 
@@ -137,11 +146,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       debugPrint('[error] Checking payments before deleting an expense: $e');
       if (!mounted) return;
       setState(() => _deleting = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text(PurchaseImpactDialog.deleteCheckFailed)),
-        );
+      AppSnack.show(context, PurchaseImpactDialog.deleteCheckFailed);
       return;
     }
     if (!mounted) return;
@@ -211,9 +216,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         if (deleted != null) {
           ExpenseUndo.offer(messenger, deleted, link: link);
         } else {
-          messenger
-            ..hideCurrentSnackBar()
-            ..showSnackBar(const SnackBar(content: Text('Expense deleted')));
+          AppSnack.showOn(messenger, 'Expense deleted');
         }
         return;
       }
@@ -235,7 +238,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       }
     } else if (state.status == ExpenseBlocStatus.error) {
       // A failed read shows the error view with a retry, not "not found"
-      // and a toast.
+      // and a toast. A missing expense says so once, in the empty state.
       final openFailed =
           state.expense == null &&
           state.message == ExpenseBloc.openFailedMessage;
@@ -244,16 +247,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         _moving = null;
         _openFailed = openFailed;
       });
-      if (!openFailed) {
-        messenger
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                state.message ?? "Couldn't finish that. Try again.",
-              ),
-            ),
-          );
+      if (state.expense != null) {
+        AppSnack.showOn(
+          messenger,
+          state.message ?? "Couldn't finish that. Try again.",
+        );
       }
       context.read<ExpenseBloc>().add(const ExpenseClearMessage());
     }
@@ -292,7 +290,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         builder: (context, state) {
           final Widget child;
           final expense = state.expense;
-          if (state.status == ExpenseBlocStatus.loading && expense == null) {
+          if ((state.status == ExpenseBlocStatus.loading && expense == null) ||
+              (expense != null && !_budgetsKnown)) {
             child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
           } else if (expense == null && _openFailed) {
             child = ErrorState(
@@ -454,13 +453,10 @@ class _Details extends StatelessWidget {
                     amount: expense.amount,
                     onTap: () => onOpenTab(info.tab.id),
                   ),
-                _Fact(
-                  label: 'Date',
-                  value: DateFormat('EEE, d MMM yyyy').format(expense.date),
-                ),
+                _Fact(label: 'Date', value: AppDates.fullDay(expense.date)),
                 _Fact(
                   label: 'Time',
-                  value: DateFormat.jm().format(expense.time),
+                  value: AppDates.time(context, expense.time),
                 ),
                 // A short note is already the title; only a long one, which
                 // the title may cut short, is repeated here in full.
@@ -496,7 +492,10 @@ class _Details extends StatelessWidget {
                 if (receiptPath != null) ...[
                   Divider(color: theme.colorScheme.outlineVariant),
                   const SizedBox(height: AppSpacing.sm),
-                  Text('Receipt', style: theme.textTheme.titleSmall),
+                  Semantics(
+                    header: true,
+                    child: Text('Receipt', style: theme.textTheme.titleSmall),
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   _Receipt(path: receiptPath),
                   const SizedBox(height: AppSpacing.sm),
@@ -535,8 +534,8 @@ class _Details extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Added ${DateFormat('d MMM yyyy, h:mm a').format(expense.createdAt)}'
-            '${expense.updatedAt.difference(expense.createdAt).inMinutes > 0 ? ' · Edited ${DateFormat('d MMM yyyy, h:mm a').format(expense.updatedAt)}' : ''}',
+            'Added ${AppDates.dateTime(context, expense.createdAt)}'
+            '${expense.updatedAt.difference(expense.createdAt).inMinutes > 0 ? ' · Edited ${AppDates.dateTime(context, expense.updatedAt)}' : ''}',
             style: muted,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -683,7 +682,7 @@ class _Fact extends StatelessWidget {
     );
     final valueWidget =
         child ?? Text(value ?? '', style: theme.textTheme.bodyLarge);
-    final stacked = MediaQuery.textScalerOf(context).scale(14) > 20;
+    final stacked = AppSizes.isLargeText(context);
     return MergeSemantics(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),

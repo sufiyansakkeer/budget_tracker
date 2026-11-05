@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_motion.dart';
@@ -12,19 +11,19 @@ import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/app_animated_size.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_form_action_bar.dart';
 import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
-import '../../../settings/domain/entities/currency_entity.dart';
 import '../../../settings/presentation/widgets/currency_selector.dart';
 import '../../domain/entities/pay_later_tab.dart';
 import '../../domain/entities/settle_rhythm.dart';
 import '../bloc/tab_form_cubit.dart';
 import '../bloc/tab_form_state.dart';
 import '../widgets/tab_visuals.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// How the settle-up rhythm is chosen in the form.
 enum _RhythmChoice {
@@ -117,16 +116,10 @@ class _TabFormScreenState extends State<TabFormScreen> {
           final saved = state.saved;
           if (saved != null) {
             AppHaptics.confirm();
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(content: Text(_isEditing ? 'Tab saved' : 'Tab added')),
-              );
+            AppSnack.show(context, _isEditing ? 'Tab saved' : 'Tab added');
             _close(_isEditing ? null : saved.id);
           } else if (state.saveError != null) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.saveError!)));
+            AppSnack.show(context, state.saveError!);
           }
         },
         builder: (context, state) {
@@ -307,27 +300,16 @@ class _TabFormState extends State<_TabForm> {
     );
   }
 
-  void _pickCurrency() {
-    AppBottomSheet.show<void>(
-      context: context,
-      builder: (sheetContext) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const AppSheetHeader(
-            title: 'Currency',
-            subtitle: "Fixed once the tab has purchases or payments.",
-          ),
-          // The selector closes its own sheet after a pick; popping here
-          // too would close this form as well.
-          CurrencySelector(
-            selectedCode: _currency,
-            onSelected: (CurrencyEntity c) =>
-                setState(() => _currency = c.code),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-      ),
+  Future<void> _pickCurrency() async {
+    // The selector closes its own sheet after a pick; popping here too
+    // would close this form as well.
+    final picked = await CurrencySelector.show(
+      context,
+      title: 'Currency',
+      subtitle: 'Fixed once the tab has purchases or payments.',
+      selectedCode: _currency,
     );
+    if (picked != null && mounted) setState(() => _currency = picked.code);
   }
 
   Future<void> _pickDate({
@@ -348,7 +330,7 @@ class _TabFormState extends State<_TabForm> {
     if (picked != null && mounted) setState(() => onPicked(picked.dateOnly));
   }
 
-  String _date(DateTime d) => DateFormat.yMMMd().format(d);
+  String _date(DateTime d) => AppDates.fullDay(d);
 
   @override
   Widget build(BuildContext context) {

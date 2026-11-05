@@ -3,27 +3,29 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/widgets/app_amount_field.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_form_action_bar.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
+import '../../../settings/presentation/widgets/currency_selector.dart';
 import '../../../settings/domain/entities/settings_failure.dart';
 import '../../../settings/domain/usecases/load_settings_usecase.dart';
 import '../../domain/entities/bill_entity.dart';
@@ -38,10 +40,9 @@ import 'bill_widgets.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/currency/money_input.dart';
-import '../../../../core/currency/money_input_formatter.dart';
-import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/notifications/notification_permission_notice.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Add/Edit bill form screen.
 ///
@@ -325,21 +326,21 @@ class _BillFormScreenState extends State<BillFormScreen> {
 
   String? _validateTitle() {
     final title = _titleController.text.trim();
-    if (title.isEmpty) return 'Give the bill a name.';
+    if (title.isEmpty) return ValidationCopy.billNameEmpty;
     if (title.length > BillValidator.maxTitleLength) {
-      return 'Keep the name under ${BillValidator.maxTitleLength} characters.';
+      return ValidationCopy.nameTooLong(BillValidator.maxTitleLength);
     }
     return null;
   }
 
   String? _validateAmount() {
     final text = _amountController.text.trim();
-    if (text.isEmpty) return 'Enter the amount due.';
+    if (text.isEmpty) return ValidationCopy.amountEmpty;
     final value = double.tryParse(text);
-    if (value == null) return 'Enter a valid number.';
-    if (value <= 0) return 'The amount must be greater than zero.';
+    if (value == null) return ValidationCopy.amountInvalid;
+    if (value <= 0) return ValidationCopy.amountNotPositive;
     if (!MoneyMath.isWithinLimit(value)) {
-      return 'The amount must be less than ${MoneyMath.maxAmountLabel}.';
+      return ValidationCopy.amountTooLarge;
     }
     // The currency's minor units, never fewer than two (OMR three).
     return MoneyInput.decimalsError(text, _currency);
@@ -444,7 +445,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   Future<void> _pickDueTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: _dueTime ?? const TimeOfDay(hour: 9, minute: 0),
+      initialTime: _dueTime ?? BillVisuals.defaultDueTime,
       helpText: 'Due time',
     );
     if (picked != null && mounted) setState(() => _dueTime = picked);
@@ -479,21 +480,17 @@ class _BillFormScreenState extends State<BillFormScreen> {
           if (state.isBusy) return;
           if (state.status == BillBlocStatus.success) {
             AppHaptics.confirm();
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.message ?? 'Saved')));
+            AppSnack.show(context, state.message ?? 'Saved');
             context.read<BillBloc>().add(const BillClearMessage());
             _justSaved = true;
             _close();
           } else if (state.status == BillBlocStatus.error) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(state.message ?? "Couldn't save the bill"),
-                  action: SnackBarAction(label: 'Retry', onPressed: _save),
-                ),
-              );
+            AppSnack.show(
+              context,
+              state.message ?? "Couldn't save the bill. Try again.",
+              actionLabel: 'Retry',
+              onAction: _save,
+            );
             context.read<BillBloc>().add(const BillClearMessage());
           }
           if (_isEditing && !_populated && state.selectedBill != null) {
@@ -555,30 +552,10 @@ class _BillFormScreenState extends State<BillFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: TextFormField(
+                        child: AppAmountField(
                           controller: _amountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          textInputAction: TextInputAction.done,
-                          inputFormatters: [
-                            MoneyInputFormatter(
-                              MoneyInput.maxDecimals(_currency),
-                            ),
-                          ],
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                          decoration: InputDecoration(
-                            labelText: 'Amount',
-                            hintText: '0.00',
-                            prefixText:
-                                '${CurrencyFormatter.symbolFor(_currency)} ',
-                            prefixStyle: theme.textTheme.titleLarge?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                            errorText: _amountError,
-                          ),
+                          currency: _currency,
+                          errorText: _amountError,
                           onChanged: (_) {
                             if (_amountError != null) {
                               setState(() => _amountError = null);
@@ -588,17 +565,20 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       ),
                       if (_budgetId == null) ...[
                         const SizedBox(width: AppSpacing.sm),
-                        SizedBox(
-                          width: 112,
-                          child: _CurrencyPicker(
-                            key: const Key('billCurrencyPicker'),
-                            value: _currency,
-                            onChanged: (code) => setState(() {
-                              _currency = code;
-                              _currencyChosen = true;
-                              _amountError = null;
-                            }),
-                          ),
+                        CurrencyPickerField(
+                          key: const Key('billCurrencyPicker'),
+                          value:
+                              availableCurrencies.any(
+                                (c) => c.code == _currency,
+                              )
+                              ? _currency
+                              : null,
+                          sheetSubtitle: 'The currency of this bill',
+                          onChanged: (code) => setState(() {
+                            _currency = code;
+                            _currencyChosen = true;
+                            _amountError = null;
+                          }),
                         ),
                       ],
                     ],
@@ -636,7 +616,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
                             label: 'Time',
                             icon: Icons.access_time_rounded,
                             value: _dueTime == null
-                                ? '9:00 AM'
+                                ? BillVisuals.defaultDueTime.format(context)
                                 : _dueTime!.format(context),
                             hint: _dueTime == null ? 'Default' : null,
                             onTap: _pickDueTime,
@@ -807,7 +787,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
     final due = _dueDate;
     if (!_reminderEnabled || due == null) return false;
     final day = due.addDays(-_reminderOffsetDays);
-    final time = _dueTime ?? const TimeOfDay(hour: 9, minute: 0);
+    final time = _dueTime ?? BillVisuals.defaultDueTime;
     return DateTime(
       day.year,
       day.month,
@@ -820,6 +800,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   Widget _buildBudgetPicker(ThemeData theme) {
     if (_loadingBudgets) {
       return const Shimmer(
+        semanticsLabel: 'Loading budgets',
         child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
       );
     }
@@ -887,7 +868,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
             value: b.id,
             child: Text(
               '${BillBudgetLink.budgetLabel(b, today)} · '
-              '${formatShortDateRange(b.startDate, b.endDate)} · ${b.currency}',
+              '${AppDates.span(b.startDate, b.endDate)} · ${b.currency}',
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -910,7 +891,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
     final d = DateTime(date.year, date.month, date.day);
     if (d == today) return 'Today';
     if (d == today.addDays(1)) return 'Tomorrow';
-    return DateFormat('EEE, d MMM yyyy').format(date);
+    return AppDates.fullDay(date);
   }
 
   String _unitLabel() {
@@ -1183,54 +1164,6 @@ class _PickerField extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The currency of a bill not linked to a budget: the code once chosen,
-/// symbol and code in the menu.
-class _CurrencyPicker extends StatelessWidget {
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  const _CurrencyPicker({
-    super.key,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final byCode = <String, CurrencyEntity>{
-      for (final c in availableCurrencies.reversed) c.code: c,
-    };
-    final currencies = byCode.values.toList().reversed.toList();
-    // A plain dropdown in the field's frame: the form's one
-    // DropdownButtonFormField<String?> stays the budget picker.
-    return InputDecorator(
-      decoration: const InputDecoration(
-        labelText: 'Currency',
-        contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.smd),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: byCode.containsKey(value) ? value : null,
-          isExpanded: true,
-          items: [
-            for (final c in currencies)
-              DropdownMenuItem(
-                value: c.code,
-                child: Text('${c.symbol}  ${c.code}'),
-              ),
-          ],
-          selectedItemBuilder: (context) => [
-            for (final c in currencies) Text(c.code),
-          ],
-          onChanged: (code) {
-            if (code != null) onChanged(code);
-          },
         ),
       ),
     );

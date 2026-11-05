@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/services/database_integrity_service.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Shows the outcome of a database integrity check.
 abstract final class IntegrityResultSheet {
@@ -28,7 +28,7 @@ class _IntegrityResultBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final issues = result.issues;
-    final checkedAt = DateFormat('d MMM yyyy, h:mm a').format(result.checkedAt);
+    final checkedAt = AppDates.dateTime(context, result.checkedAt);
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -57,10 +57,12 @@ class _IntegrityResultBody extends StatelessWidget {
                     icon: Icons.report_problem_rounded,
                     title:
                         '${issues.length} ${issues.length == 1 ? 'issue' : 'issues'} found',
+                    // No promise the app can't keep: a restore brings back
+                    // the same records, and only some can be edited here.
                     message:
-                        'The app keeps working, but a backup is recommended '
-                        'before you tidy these up. Restoring a recent backup '
-                        'usually clears them.',
+                        'The app keeps working. Back up first, so nothing is '
+                        'lost. Each issue below says where to fix it, when '
+                        'the app can.',
                   ),
           ),
           if (!result.passed) ...[
@@ -87,7 +89,9 @@ class _IntegrityResultBody extends StatelessWidget {
                     dense: true,
                     leading: const Icon(Icons.error_outline_rounded),
                     title: Text(issue.description),
-                    subtitle: Text(_recordLabel(issue)),
+                    subtitle: Text(
+                      [_recordLabel(issue), ?_whereToFix(issue)].join('\n'),
+                    ),
                   );
                 },
               ),
@@ -99,6 +103,14 @@ class _IntegrityResultBody extends StatelessWidget {
     );
   }
 }
+
+/// Where the user can correct [issue] in the app, or null when no screen
+/// can (an expense whose budget is gone is listed nowhere).
+String? _whereToFix(IntegrityIssue issue) => switch (issue.table) {
+  'budgets' => 'Fix it from Budgets: open the budget and edit it.',
+  'bills' => 'Fix it from Bills: open the bill and edit it.',
+  _ => null,
+};
 
 /// "Expense · 3f2a9c1e": the kind of record in words and the start of its
 /// id, instead of the table name and the full id.

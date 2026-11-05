@@ -138,7 +138,9 @@ class _PaletteTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(left: AppSpacing.xxs),
+                        padding: const EdgeInsetsDirectional.only(
+                          start: AppSpacing.xxs,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

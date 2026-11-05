@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
+import 'bill_state.dart';
 
 abstract class BillEvent extends Equatable {
   const BillEvent();
@@ -84,6 +85,17 @@ class BillMarkUnpaid extends BillEvent {
 
   @override
   List<Object?> get props => [billId];
+}
+
+/// Undoes the last mark paid, pay & record or delete: puts the bill and its
+/// payment history back as they were and deletes the expense it recorded.
+class BillUndoRequested extends BillEvent {
+  final BillUndo undo;
+
+  const BillUndoRequested(this.undo);
+
+  @override
+  List<Object?> get props => [undo];
 }
 
 /// Changes the active filter.

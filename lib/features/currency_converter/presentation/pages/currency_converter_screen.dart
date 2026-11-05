@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../../settings/presentation/widgets/currency_selector.dart';
@@ -13,7 +14,6 @@ import '../widgets/converter_amount_field.dart';
 import '../widgets/converter_copy.dart';
 import '../widgets/currency_field.dart';
 import '../widgets/rate_info.dart';
-import '../../../../core/feedback/app_haptics.dart';
 
 /// Converts an amount between any two currencies the rate provider supports.
 ///
@@ -58,30 +58,22 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
         ? availableCurrencies
         : state.currencies;
     FocusScope.of(context).unfocus();
-    await AppBottomSheet.show<void>(
-      context: context,
-      builder: (sheetContext) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppSheetHeader(
-            title: source ? 'Convert from' : 'Convert to',
-            subtitle: state.currencyListIsPartial
-                ? 'Connect to the internet to see every currency.'
-                : '${currencies.length} currencies',
-          ),
-          CurrencySelector(
-            selectedCode: selected,
-            currencies: currencies,
-            onSelected: (currency) => bloc.add(
-              source
-                  ? CurrencyConverterSourceSelected(currency.code)
-                  : CurrencyConverterTargetSelected(currency.code),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-      ),
+    final currency = await CurrencySelector.show(
+      context,
+      title: source ? 'Convert from' : 'Convert to',
+      subtitle: state.currencyListIsPartial
+          ? 'Connect to the internet to see every currency.'
+          : '${currencies.length} currencies',
+      selectedCode: selected,
+      currencies: currencies,
     );
+    if (currency != null) {
+      bloc.add(
+        source
+            ? CurrencyConverterSourceSelected(currency.code)
+            : CurrencyConverterTargetSelected(currency.code),
+      );
+    }
     // Closing the sheet hands focus back to the amount field, which would
     // pop the keyboard up over the new result. Clear it once that settles.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,17 +85,12 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
     final bloc = context.read<CurrencyConverterBloc>();
     final notice = state.notice;
     if (notice == null) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            notice == ConverterNotice.rateUpdated
-                ? ConverterCopy.refreshSucceeded
-                : ConverterCopy.refreshFailed,
-          ),
-        ),
-      );
+    AppSnack.show(
+      context,
+      notice == ConverterNotice.rateUpdated
+          ? ConverterCopy.refreshSucceeded
+          : ConverterCopy.refreshFailed,
+    );
     bloc.add(const CurrencyConverterNoticeCleared());
   }
 

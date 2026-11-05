@@ -16,11 +16,11 @@ class DashboardInfo {
           'savings goal until the end date. Every budget that is running '
           'today gets its own amount; amounts are never combined.',
       howIsItCalculated:
-          'Free to spend = Remaining in budget − Bills due by the end date − '
+          'Free to spend = Remaining budget − Bills due by the end date − '
           'Kept aside − Savings goal\n\n'
           "Today's Safe Spending = Free to spend at the start of today ÷ "
           'Remaining days\n\n'
-          'Remaining in budget = Budget amount − all expenses in this '
+          'Remaining budget = Budget amount − all expenses in this '
           'budget.\n'
           'Remaining days = days from today to the end date, counting today.'
           '\n\n'
@@ -48,7 +48,11 @@ class DashboardInfo {
           "Over today's amount; At risk when your average pace would use up "
           'the free money before the end date; Overcommitted when bills and '
           "money set aside are more than what's left; Over budget when more "
-          'than the budget amount is spent',
+          'than the budget amount is spent\n'
+          "• The bar under the status shows how much of today's amount you "
+          'have used. The thin bar lower down shows how much of the whole '
+          "budget is used; its tick marks today's place in the period, so a "
+          'fill past the tick means spending is ahead of time',
       privacyNote: 'Your financial data is stored locally on your device.',
     );
   }
@@ -63,7 +67,7 @@ class DashboardInfo {
           'aside and your savings goal. Today\'s Safe Spending spreads this '
           'over the days left.',
       howIsItCalculated:
-          'Free to spend = Remaining in budget − Bills due − Kept aside − '
+          'Free to spend = Remaining budget − Bills due − Kept aside − '
           'Savings goal\n\n'
           'Bills due lists every unpaid occurrence of the linked bills up to '
           'the end date, including overdue ones still owed.\n'
@@ -71,7 +75,7 @@ class DashboardInfo {
           'days (bill payments that were set aside are left out) and '
           'projects it to the end date.',
       example:
-          'Remaining in budget: ${s}22,000\n'
+          'Remaining budget: ${s}22,000\n'
           '− Bills due: ${s}12,000\n'
           '− Kept aside: ${s}2,000\n'
           '− Savings goal: Not set\n'

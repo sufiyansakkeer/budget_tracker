@@ -18,16 +18,17 @@ class ExportCsvUseCase {
   const ExportCsvUseCase({this.delivery = const FileDeliveryService()});
 
   /// What happened to the file: a closed share sheet is not an export.
-  /// [shareOrigin] anchors the share sheet on iPad.
+  /// [shareOrigin] anchors the share sheet on iPad; [budgetName] is the
+  /// budget the report covers, named in the file.
   Future<ReportResult<FileDeliveryOutcome>> call(
     ReportData data, {
     Rect? shareOrigin,
+    String? budgetName,
   }) async {
     try {
-      final csv = _buildCsv(data);
+      final csv = _buildCsv(data, budgetName);
       final directory = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'budget_report_$timestamp.csv';
+      final fileName = ReportFileName.of(data.range, 'csv');
       final file = File('${directory.path}/$fileName');
       await file.writeAsString(csv);
 
@@ -52,10 +53,12 @@ class ExportCsvUseCase {
     }
   }
 
-  String _buildCsv(ReportData data) {
+  String _buildCsv(ReportData data, String? budgetName) {
     // At the currency's precision: sums and averages of doubles end in
-    // ...0000000004 otherwise.
-    final digits = CurrencyFormatter.decimalDigitsFor(data.currency ?? '');
+    // ...0000000004 otherwise. Plain numbers, so a spreadsheet can add them;
+    // the currency is named once, in its own row and the Amount header.
+    final code = data.currency?.toUpperCase();
+    final digits = CurrencyFormatter.decimalDigitsFor(code ?? '');
     String money(double amount) => amount.toStringAsFixed(digits);
     final rows = <List<Object?>>[
       [
@@ -63,6 +66,8 @@ class ExportCsvUseCase {
             'to ${data.range.end.toIso8601String().substring(0, 10)}',
       ],
       if (ReportFilterText.line(data, money) case final filtered?) [filtered],
+      if (budgetName != null && budgetName.isNotEmpty) ['Budget', budgetName],
+      if (code != null && code.isNotEmpty) ['Currency', code],
       [],
       ['Total Spending', money(data.overview.totalSpending)],
       ['Total Transactions', data.overview.totalTransactions],
@@ -71,7 +76,14 @@ class ExportCsvUseCase {
       ['Highest Expense', money(data.overview.highestExpense)],
       ['Lowest Expense', money(data.overview.lowestExpense)],
       [],
-      ['Date', 'Amount', 'Category', 'Note', 'Tags', 'Receipt'],
+      [
+        'Date',
+        code == null || code.isEmpty ? 'Amount' : 'Amount ($code)',
+        'Category',
+        'Note',
+        'Tags',
+        'Receipt',
+      ],
     ];
 
     final nameById = {for (final c in data.categories) c.id: c.name};

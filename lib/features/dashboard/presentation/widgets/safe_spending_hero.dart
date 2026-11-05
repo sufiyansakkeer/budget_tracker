@@ -75,10 +75,12 @@ class _SafeToSpendHero extends StatelessWidget {
     final visuals = SafeToSpendStatusVisuals.of(context, e.status);
     final tone = context.tone(visuals.tone);
     final over = e.overToday > 0;
-    // How much of today's amount is used: drawing geometry only.
+    // How much of today's amount is used: drawing geometry only. With no
+    // amount today there is nothing to use up, so no bar is drawn.
+    final todayUsedCaption = SafeToSpendCopy.todayUsedCaption(e);
     final todayUsed = e.dailySafeToSpend > 0
         ? e.todayDiscretionary / e.dailySafeToSpend
-        : (e.todayDiscretionary > 0 ? 1.0 : 0.0);
+        : 0.0;
     final elapsed = e.totalDays > 0 ? e.daysPassed / e.totalDays : 0.0;
     final explanation = SafeToSpendCopy.heroExplanation(e);
     final spread = SafeToSpendCopy.overSpread(e);
@@ -141,9 +143,16 @@ class _SafeToSpendHero extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       SafeToSpendStatusChip(status: e.status, wrapLabel: true),
-                      const SizedBox(height: AppSpacing.mlg),
-                      AppTrack(value: todayUsed, color: tone.accent),
-                      const SizedBox(height: AppSpacing.smd),
+                      if (todayUsedCaption != null) ...[
+                        const SizedBox(height: AppSpacing.mlg),
+                        AppTrack(value: todayUsed, color: tone.accent),
+                        const SizedBox(height: AppSpacing.xs),
+                        // Names what the bar measures (review: two
+                        // unlabelled bars in one card).
+                        Text(todayUsedCaption, style: muted),
+                        const SizedBox(height: AppSpacing.smd),
+                      ] else
+                        const SizedBox(height: AppSpacing.md),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -179,7 +188,10 @@ class _SafeToSpendHero extends StatelessWidget {
                                         // money already gone.
                                         Icon(
                                           Icons.error_rounded,
-                                          size: AppSizes.iconSm,
+                                          size: AppSizes.inlineIcon(
+                                            context,
+                                            AppSizes.iconSm,
+                                          ),
                                           color: context
                                               .tone(AppTone.caution)
                                               .accent,

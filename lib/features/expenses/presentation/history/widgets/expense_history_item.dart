@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../../../../core/widgets/app_money.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../widgets/category_visuals.dart';
 import '../../widgets/transaction_row.dart';
+import '../../../../../core/dates/date_range_format.dart';
 
 /// A single expense row in the history list: a [TransactionRow] showing
 /// the time (the day is in the group header above it).
@@ -52,10 +53,10 @@ class ExpenseHistoryItem extends StatelessWidget {
     final categoryName = category?.name ?? 'Uncategorised';
     final note = expense.note?.trim();
     final hasNote = note != null && note.isNotEmpty;
-    final time = DateFormat.jm().format(expense.time);
+    final time = AppDates.time(context, expense.time);
     final amount = AppMoney.format(expense.amount, currency: currency);
 
-    return TransactionRow(
+    final row = TransactionRow(
       icon: icon,
       color: color,
       title: hasNote ? note : categoryName,
@@ -69,18 +70,31 @@ class ExpenseHistoryItem extends StatelessWidget {
           ? null
           : IconButton(
               onPressed: onInfoTap,
-              tooltip: 'Expense and budget details',
+              tooltip: infoActionLabel,
               icon: Icon(
                 Icons.info_outline_rounded,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
       semanticLabel:
-          '${hasNote ? note : categoryName}, $categoryName, $amount, '
+          '${hasNote ? '$note, $categoryName' : categoryName}, $amount, '
           '$time${budgetName != null ? ', budget $budgetName' : ''}'
           '${expense.receiptImagePath != null ? ', receipt attached' : ''}',
       onTap: onTap,
       onLongPress: onLongPress,
     );
+    // The row is one node for a screen reader, which hides the info
+    // button inside it; the same action is offered on the row instead.
+    final info = onInfoTap;
+    if (info == null) return row;
+    return Semantics(
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: infoActionLabel): info,
+      },
+      child: row,
+    );
   }
+
+  /// The row's screen-reader action for [onInfoTap].
+  static const infoActionLabel = 'Expense and budget details';
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
-import '../../../../../core/currency/currency_formatter.dart';
+import '../../../../../core/widgets/app_money.dart';
 import '../../../../../core/domain/entities/budget_entity.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/dates/date_range_format.dart';
@@ -53,17 +53,9 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
     });
   }
 
-  void _apply() {
-    if (_selected.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Select at least one budget')),
-        );
-      return;
-    }
-    Navigator.of(context).pop(_selected.toList());
-  }
+  /// Only reachable with something selected: Apply is off otherwise, and
+  /// says why beside it (a SnackBar showed under the sheet).
+  void _apply() => Navigator.of(context).pop(_selected.toList());
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +69,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppSheetHeader(
-            title: 'Select Budgets',
+            title: 'Select budgets',
             subtitle:
                 '${_selected.length} of ${widget.allBudgets.length} selected · '
                 'each expense keeps its own budget',
@@ -89,7 +81,7 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
                           ? <String>{}
                           : widget.allBudgets.map((b) => b.id).toSet();
                     }),
-              child: Text(_allSelected ? 'Clear All' : 'Select All'),
+              child: Text(_allSelected ? 'Clear all' : 'Select all'),
             ),
           ),
           Flexible(
@@ -126,7 +118,31 @@ class _BudgetSelectionSheetState extends State<BudgetSelectionSheet> {
               AppSpacing.lg,
               AppSpacing.md,
             ),
-            child: FilledButton(onPressed: _apply, child: const Text('Apply')),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_selected.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        'Select at least one budget',
+                        key: const Key('budgetSelectionNeedsOne'),
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                FilledButton(
+                  onPressed: _selected.isEmpty ? null : _apply,
+                  child: const Text('Apply'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -151,15 +167,16 @@ class _BudgetTile extends StatelessWidget {
     final accent = budget.color == null || budget.color!.isEmpty
         ? theme.colorScheme.primary
         : CategoryVisuals.adaptiveColor(context, budget.color!);
-    final remaining = CurrencyFormatter.format(
+    // "Left" is spendable, so it is floored: ₹0.60 is never "₹1 left"
+    // (UX-087).
+    final remaining = AppMoney.format(
       budget.remainingAmount,
-      code: budget.currency,
-      decimalDigits: 0,
+      currency: budget.currency,
+      floored: true,
     );
-    final total = CurrencyFormatter.format(
+    final total = AppMoney.format(
       budget.monthlyAmount,
-      code: budget.currency,
-      decimalDigits: 0,
+      currency: budget.currency,
     );
 
     return CheckboxListTile(
@@ -185,7 +202,7 @@ class _BudgetTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '${formatShortDateRange(budget.startDate, budget.endDate)} · '
+        '${AppDates.span(budget.startDate, budget.endDate)} · '
         '$remaining left of $total',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,

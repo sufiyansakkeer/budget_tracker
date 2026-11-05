@@ -4,6 +4,7 @@ import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_color_swatch.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/domain/entities/expense_category.dart';
@@ -221,7 +222,7 @@ class _CategoryFormSheetState extends State<CategoryFormSheet> {
                   runSpacing: AppSpacing.sm,
                   children: [
                     for (final hex in CategoryCatalog.colorHexes)
-                      _ColorChoice(
+                      AppColorSwatch(
                         key: Key('categoryColor_$hex'),
                         color: CategoryVisuals.adaptiveColor(context, hex),
                         name: CategoryCatalog.colorName(hex),
@@ -234,7 +235,7 @@ class _CategoryFormSheetState extends State<CategoryFormSheet> {
                 PrimaryButton(
                   key: const Key('saveCategoryButton'),
                   label: _isEdit ? 'Save changes' : 'Add category',
-                  icon: Icons.check_rounded,
+                  icon: _isEdit ? Icons.check_rounded : Icons.add_rounded,
                   onPressed: _save,
                 ),
               ],
@@ -294,73 +295,6 @@ class _IconChoice extends StatelessWidget {
             child: Icon(
               icon,
               color: selected ? color : theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ColorChoice extends StatelessWidget {
-  final Color color;
-  final String name;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ColorChoice({
-    super.key,
-    required this.color,
-    required this.name,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final duration = AppMotion.respectReducedMotion(context, AppMotion.fast);
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$name colour',
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: AppSizes.touchTarget,
-          height: AppSizes.touchTarget,
-          child: Center(
-            child: AnimatedContainer(
-              duration: duration,
-              curve: AppMotion.standardCurve,
-              width: selected ? 34 : 28,
-              height: selected ? 34 : 28,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected
-                      ? theme.colorScheme.onSurface
-                      : Colors.transparent,
-                  width: 2,
-                ),
-              ),
-              child: AnimatedSwitcher(
-                duration: duration,
-                child: selected
-                    ? Icon(
-                        Icons.check_rounded,
-                        key: const ValueKey('check'),
-                        size: AppSizes.iconSm,
-                        color:
-                            ThemeData.estimateBrightnessForColor(color) ==
-                                Brightness.dark
-                            ? Colors.white
-                            : Colors.black,
-                      )
-                    : const SizedBox.shrink(),
-              ),
             ),
           ),
         ),

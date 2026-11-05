@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_metric.dart';
@@ -38,7 +37,6 @@ class ConfirmationStepWidget extends StatelessWidget {
     final today = clock().dateOnly;
     final preview = state.safeToSpendPreview(today);
     final days = preview?.totalDays;
-    final dateFmt = DateFormat('EEE, d MMM yyyy');
     final code = state.selectedCurrency.code;
     final name = state.budgetNameInput.trim();
     final amountText = AppMoney.format(amount, currency: code);
@@ -58,7 +56,7 @@ class ConfirmationStepWidget extends StatelessWidget {
       // The preview is the start day's figure when the start is to come.
       final notStarted = state.startDate.dateOnly.isAfter(today);
       final label = notStarted
-          ? "From ${DateFormat('d MMM').format(state.startDate)}, "
+          ? "From ${AppDates.day(state.startDate)}, "
                 "Today's Safe Spending starts at"
           : "Today's Safe Spending";
       final left = preview.remainingDays;
@@ -116,7 +114,7 @@ class ConfirmationStepWidget extends StatelessWidget {
       footer: OnboardingContinueButton(
         buttonKey: const Key('createBudgetButton'),
         label: 'Create budget',
-        icon: Icons.check_rounded,
+        icon: Icons.add_rounded,
         isLoading: isSubmitting,
         onPressed: onCreateBudget,
       ),
@@ -132,12 +130,12 @@ class ConfirmationStepWidget extends StatelessWidget {
             facts: [
               ('Budget', name.isEmpty ? 'Your budget' : name),
               ('Amount', '$amountText · $code'),
-              ('Starts', dateFmt.format(state.startDate)),
-              ('Ends', dateFmt.format(state.endDate)),
+              ('Starts', AppDates.fullDay(state.startDate)),
+              ('Ends', AppDates.fullDay(state.endDate)),
               (
                 'Length',
                 days == null
-                    ? formatShortDateRange(state.startDate, state.endDate)
+                    ? AppDates.span(state.startDate, state.endDate)
                     : '$days ${days == 1 ? 'day' : 'days'}',
               ),
             ],

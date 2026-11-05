@@ -169,7 +169,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     SettingsUpdateCurrencyEvent event,
     Emitter<SettingsState> emit,
   ) async {
-    emit(state.copyWith(isBusy: true));
+    // A preference save, not a data operation: [SettingsState.isBusy] is
+    // left alone so the Data group stays usable.
     final result = await updateCurrencyUseCase(event.code, event.symbol);
     switch (result) {
       case SettingsSuccess():
@@ -179,14 +180,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
               currencyCode: event.code,
               currencySymbol: event.symbol,
             ),
-            isBusy: false,
             clearError: true,
           ),
         );
       case SettingsError(:final failure):
         emit(
           state.copyWith(
-            isBusy: false,
             errorMessage: _shown(
               failure,
               "Couldn't save the currency. Try again.",
@@ -201,8 +200,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     SettingsUpdateNotificationsEvent event,
     Emitter<SettingsState> emit,
   ) async {
-    emit(state.copyWith(isBusy: true));
-
+    // A preference save: the Data group's busy state is not touched.
     // Persist notification settings.
     final persistResult = await updateNotificationSettingsUseCase(
       event.settings,
@@ -210,7 +208,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     if (persistResult case SettingsError(:final failure)) {
       emit(
         state.copyWith(
-          isBusy: false,
           errorMessage: _shown(
             failure,
             "Couldn't save your notification settings. Try again.",
@@ -231,7 +228,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       emit(
         state.copyWith(
           settings: updatedSettings,
-          isBusy: false,
           errorMessage: _shown(
             failure,
             "Settings saved, but reminders couldn't be scheduled. Check that "
@@ -245,7 +241,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(
       state.copyWith(
         settings: updatedSettings,
-        isBusy: false,
         clearError: true,
         infoMessage: 'Notifications updated.',
       ),

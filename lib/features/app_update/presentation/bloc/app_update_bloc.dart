@@ -37,11 +37,9 @@ class AppUpdateBloc extends Bloc<AppUpdateEvent, AppUpdateState> {
         emit(AppUpdateUpToDate(result));
         break;
       case UpdateStatus.checkFailed:
-        emit(
-          AppUpdateCheckFailed(
-            result.errorMessage ?? 'Unable to check for updates.',
-          ),
-        );
+        // Nobody asked for this check, so a failure isn't news: Settings
+        // offers "Check for updates" as if none had run.
+        emit(const AppUpdateInitial());
         break;
     }
   }

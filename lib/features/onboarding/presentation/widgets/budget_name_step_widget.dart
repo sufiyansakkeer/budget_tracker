@@ -10,8 +10,13 @@ class BudgetNameStepWidget extends StatefulWidget {
   final VoidCallback onContinue;
   final VoidCallback onBack;
 
+  /// This step is the page on screen and has stopped sliding in; its
+  /// field takes focus then (UX-111). True on its own, outside a pager.
+  final bool active;
+
   const BudgetNameStepWidget({
     super.key,
+    this.active = true,
     required this.initialValue,
     this.errorMessage,
     required this.onChanged,
@@ -30,8 +35,28 @@ class _BudgetNameStepWidgetState extends State<BudgetNameStepWidget> {
 
   static const _suggestions = ['Personal', 'Household', 'Vacation', 'Wedding'];
 
+  /// The field takes focus when this step becomes [BudgetNameStepWidget.active].
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _focusSoon();
+  }
+
+  @override
+  void didUpdateWidget(covariant BudgetNameStepWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _focusSoon();
+  }
+
+  void _focusSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted && widget.active) _focus.requestFocus();
+  });
+
   @override
   void dispose() {
+    _focus.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -66,7 +91,7 @@ class _BudgetNameStepWidgetState extends State<BudgetNameStepWidget> {
           TextField(
             key: const Key('budgetNameTextField'),
             controller: _controller,
-            autofocus: true,
+            focusNode: _focus,
             textCapitalization: TextCapitalization.words,
             textInputAction: TextInputAction.done,
             style: theme.textTheme.titleLarge,

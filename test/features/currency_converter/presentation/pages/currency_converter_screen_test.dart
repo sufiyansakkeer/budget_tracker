@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/widgets/app_amount_field.dart';
 import 'package:monivo/features/currency_converter/data/repository/currency_converter_repository_impl.dart';
 import 'package:monivo/features/currency_converter/domain/entities/exchange_rate_failure.dart';
 import 'package:monivo/features/currency_converter/domain/usecases/converter_preferences_usecases.dart';
@@ -74,10 +75,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('converterRefreshButton')), findsOneWidget);
-    final field = tester.widget<TextField>(
+    final field = tester.widget<AppAmountField>(
       find.byKey(const Key('converterAmountField')),
     );
-    expect(field.controller!.text, '1');
+    expect(field.controller.text, '1');
   });
 
   testWidgets('typing converts locally without another request', (
@@ -116,8 +117,8 @@ void main() {
 
     await tester.enterText(field, '12abc');
     await tester.pump();
-    // The formatter rejects the edit; the previous text stays.
-    expect(tester.widget<TextField>(field).controller!.text, '0');
+    // The app's money formatter keeps only the amount (UX-110).
+    expect(tester.widget<AppAmountField>(field).controller.text, '12');
   });
 
   testWidgets('swap flips the pair and keeps the amount', (tester) async {

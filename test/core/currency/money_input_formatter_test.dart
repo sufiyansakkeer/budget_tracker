@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/widgets/app_amount_field.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
 import 'package:monivo/features/expenses/presentation/history/widgets/filter_bottom_sheet.dart';
-import 'package:monivo/features/expenses/presentation/widgets/expense_amount_field.dart';
 
 /// Money fields accept grouping, and a comma decimal where the phone's
 /// region uses one: a pasted "1,250.00" used to become "1".
@@ -21,10 +21,10 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       host(
-        ExpenseAmountField(
+        AppAmountField(
           controller: controller,
-          currencySymbol: r'$',
-          maxDecimals: maxDecimals,
+          currency: 'USD',
+          decimals: maxDecimals,
         ),
       ),
     );

@@ -15,6 +15,7 @@ import 'package:monivo/features/budget/presentation/pages/budget_form_screen.dar
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
+import 'package:monivo/features/settings/presentation/widgets/currency_selector.dart';
 
 import '../../../../helpers/bill_payment_fakes.dart';
 import '../../../../helpers/bill_ui_fakes.dart';
@@ -54,12 +55,23 @@ BillEntity bill(
   updatedAt: DateTime(2026, 8, 1),
 );
 
+/// Refuses updates when told to, for the save-failure path.
+class _FailingBudgetRepository extends ListBudgetRepository {
+  bool failUpdates = false;
+
+  @override
+  Future<BudgetEntity> updateBudget(BudgetEntity budget) async {
+    if (failUpdates) throw Exception('disk full');
+    return super.updateBudget(budget);
+  }
+}
+
 void main() {
-  late ListBudgetRepository budgets;
+  late _FailingBudgetRepository budgets;
 
   setUp(() async {
     await getIt.reset();
-    budgets = ListBudgetRepository();
+    budgets = _FailingBudgetRepository();
     getIt
       ..registerSingleton<ManageBudgetUseCase>(
         ManageBudgetUseCase(
@@ -255,11 +267,9 @@ void main() {
 
   group('currency change with linked bills', () {
     Future<void> pickCurrency(WidgetTester tester, String code) async {
-      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.tap(find.byType(CurrencyPickerField));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.text('${CurrencyFormatter.symbolFor(code)}  $code').last,
-      );
+      await tester.tap(find.widgetWithText(CurrencyListTile, code));
       await tester.pumpAndSettle();
     }
 
@@ -313,13 +323,11 @@ void main() {
   group('UX-004: a currency change never relabels expenses silently', () {
     Future<void> pickCurrency(WidgetTester tester, String code) async {
       // Fully in view, not just its edge under the app bar.
-      await tester.ensureVisible(find.byType(DropdownButton<String>));
+      await tester.ensureVisible(find.byType(CurrencyPickerField));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.tap(find.byType(CurrencyPickerField));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.text('${CurrencyFormatter.symbolFor(code)}  $code').last,
-      );
+      await tester.tap(find.widgetWithText(CurrencyListTile, code));
       await tester.pumpAndSettle();
     }
 
@@ -394,19 +402,21 @@ void main() {
       await save(tester, 'Save changes');
       expect(find.text('Change currency to OMR?'), findsNothing);
       expect(budgets.budgets.single.currency, 'INR', reason: 'not saved');
-      // The form is a lazy list: the reason under Save is built once
-      // scrolled to.
+      // UX-097: said in a snackbar, wherever the form is scrolled to, with
+      // the reason beside the currency in view.
       const saveError = 'Keep this budget in INR to save.';
-      await tester.scrollUntilVisible(
-        find.text(saveError),
-        200,
-        scrollable: find.byType(Scrollable).first,
+      expect(
+        find.descendant(
+          of: find.byType(SnackBar),
+          matching: find.text(saveError),
+        ),
+        findsOneWidget,
       );
-      expect(find.text(saveError), findsOneWidget);
+      expect(find.text(why).hitTestable(), findsOneWidget);
 
       // Back to INR: the reason goes and other edits save.
       await tester.scrollUntilVisible(
-        find.byType(DropdownButton<String>),
+        find.byType(CurrencyPickerField),
         -200,
         scrollable: find.byType(Scrollable).first,
       );
@@ -477,5 +487,58 @@ void main() {
       await pumpForm(tester, budgetId: 'aug');
       expect(field('Notes'), findsOneWidget);
     });
+  });
+  group('UX-097: Save shows what stopped it', () {
+    testWidgets('brings the first invalid field into view', (tester) async {
+      await pumpForm(tester);
+      await enter(tester, 'Budget name', 'Trip');
+      await enter(tester, 'Budget amount', '100');
+      await enter(tester, 'Savings goal', '500');
+      // Back to the top, the savings goal out of sight.
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, 3000));
+      await tester.pumpAndSettle();
+      expect(field('Budget name').hitTestable(), findsOneWidget);
+      expect(field('Savings goal').hitTestable(), findsNothing);
+
+      await save(tester, 'Create budget');
+
+      expect(budgets.budgets, isEmpty, reason: 'not saved');
+      expect(field('Savings goal').hitTestable(), findsOneWidget);
+      expect(
+        find.text("This can't be more than the budget amount."),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a failed save is said in a snackbar', (tester) async {
+      budgets.failUpdates = true;
+      budgets.budgets.add(augustBudget());
+      await pumpForm(tester, budgetId: 'aug');
+      await enter(tester, 'Budget name', 'August trip');
+
+      await save(tester, 'Save changes');
+
+      expect(
+        find.descendant(
+          of: find.byType(SnackBar),
+          matching: find.text("Couldn't save your changes. Try again."),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Home'), findsNothing, reason: 'still editing');
+    });
+  });
+  testWidgets('UX-098: the currency box has a minimum height, not a fixed '
+      'one', (tester) async {
+    await pumpForm(tester);
+
+    // UX-110: the currency is a field like the amount beside it, sized by
+    // its content and the theme, so it grows with large text.
+    final currency = tester.getSize(find.byType(CurrencyPickerField));
+    expect(currency.height, greaterThanOrEqualTo(56));
+    final amount = tester.getSize(
+      find.widgetWithText(TextFormField, 'Budget amount'),
+    );
+    expect(currency.height, lessThanOrEqualTo(amount.height));
   });
 }

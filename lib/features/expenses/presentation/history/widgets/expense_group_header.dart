@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/widgets/app_money.dart';
 import '../../../domain/entities/expense_group.dart';
+import '../../../../../core/dates/date_range_format.dart';
 
 /// The header above one day's expenses: the day in ink, then what was spent
 /// and how many expenses, quietly, at the right. With large text the
@@ -30,7 +30,7 @@ class ExpenseGroupHeader extends StatelessWidget {
     final label = group.label;
     if (date == null || label == 'Today' || label == 'Yesterday') return label;
     final year = (now ?? DateTime.now()).year;
-    return date.year == year ? DateFormat('EEE d MMM').format(date) : label;
+    return date.year == year ? AppDates.weekday(date, now: now) : label;
   }
 
   @override
@@ -59,7 +59,7 @@ class ExpenseGroupHeader extends StatelessWidget {
         Text(items, style: muted),
       ],
     );
-    final stacked = MediaQuery.textScalerOf(context).scale(14) > 20;
+    final stacked = AppSizes.isLargeText(context);
 
     return Semantics(
       header: true,

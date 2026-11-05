@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/info_content.dart';
@@ -15,6 +14,7 @@ import '../../domain/entities/report_period.dart';
 import 'chart_card.dart';
 import 'report_copy.dart';
 import '../../../../core/widgets/chart_reveal.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Spending grouped into weeks (month views) or months (year view).
 class BarChartCard extends StatelessWidget {
@@ -39,7 +39,7 @@ class BarChartCard extends StatelessWidget {
 
   static String _unitOf(List<SpendingBucket> buckets) =>
       buckets.length > 1 &&
-          buckets[1].startDate.difference(buckets[0].startDate).inDays >= 28
+          calendarDaysBetween(buckets[0].startDate, buckets[1].startDate) >= 28
       ? (buckets.length > _maxMonths ? 'year' : 'month')
       : 'week';
 
@@ -56,8 +56,9 @@ class BarChartCard extends StatelessWidget {
     final active = bars.where((b) => b.amount > 0).toList();
     final spansYears =
         bars.isNotEmpty && bars.first.start.year != bars.last.end.year;
-    String money(double v) =>
-        CurrencyFormatter.format(v, code: currency, decimalDigits: 0);
+    // Totals at the currency's precision; only the axis is in whole units
+    // (UX-087).
+    String money(double v) => AppMoney.format(v, currency: currency);
     String name(_Bar bar) => _name(bar, unit, spansYears: spansYears);
     // Label every few bars so the axis never crowds, fewer at large text.
     final perAxis = math.max(
@@ -261,15 +262,18 @@ class BarChartCard extends StatelessWidget {
       return spansYears && unit != 'week' ? '$days ${bar.end.year}' : days;
     }
     if (unit == 'year') return '${bar.start.year}';
-    return DateFormat(spansYears ? 'MMM yyyy' : 'MMM').format(bar.start);
+    return AppDates.month(bar.start, withYear: spansYears);
   }
 
   /// Short axis labels: "1 Oct" for weeks, "Sep" (or "Sep '25" across
   /// years) for months, "2025" for years.
   static String _axisLabel(_Bar bar, String unit, {required bool spansYears}) {
     return switch (unit) {
-      'week' => DateFormat('d MMM').format(bar.start),
-      'month' => DateFormat(spansYears ? "MMM ''yy" : 'MMM').format(bar.start),
+      'week' => AppDates.dayMonth(bar.start),
+      'month' =>
+        spansYears
+            ? AppDates.monthShortYear(bar.start)
+            : AppDates.month(bar.start),
       _ => '${bar.start.year}',
     };
   }

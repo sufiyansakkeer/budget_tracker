@@ -11,6 +11,9 @@ class SettingsState extends Equatable {
   final AppSettings settings;
   final String? errorMessage;
   final String? infoMessage;
+
+  /// A data operation is running (export, import, back up, restore, a new
+  /// period, the database check). Preference saves never set it.
   final bool isBusy;
 
   /// True while a biometric authentication / availability check is running.

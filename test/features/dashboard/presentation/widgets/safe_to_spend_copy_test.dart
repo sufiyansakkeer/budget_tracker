@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/currency_excluded_summary.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_forecast.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_reason.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/unlinked_commitment_summary.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_copy.dart';
@@ -274,6 +275,73 @@ void main() {
     test('safe figures are floored', () {
       expect(SafeToSpendCopy.safeAmount(333.339, 'INR'), '₹333.33');
       expect(SafeToSpendCopy.safeAmount(999.999, 'INR'), '₹999.99');
+    });
+  });
+
+  group('forecast not ready (UX-074)', () {
+    SafeToSpendForecast f(int days, {bool spent = true}) =>
+        SafeToSpendForecast.insufficient(
+          daysNeeded: days,
+          hasAnyExpense: spent,
+          completedDays: 1,
+        );
+
+    test('counts calendar days, not "days of spending"', () {
+      expect(
+        SafeToSpendCopy.forecastInsufficient(f(2)),
+        'Ready in 2 more days.',
+      );
+      expect(SafeToSpendCopy.forecastInsufficient(f(1)), 'Ready tomorrow.');
+      for (final n in [1, 2, 3]) {
+        expect(
+          SafeToSpendCopy.forecastInsufficient(f(n)),
+          isNot(contains('of spending')),
+        );
+      }
+    });
+
+    test('with nothing spent yet it names the expense as well as the days', () {
+      expect(
+        SafeToSpendCopy.forecastInsufficient(f(2, spent: false)),
+        'Needs your first expense and 2 more days.',
+      );
+      expect(
+        SafeToSpendCopy.forecastInsufficient(f(0, spent: false)),
+        'Ready after your first expense in this budget.',
+      );
+    });
+
+    test('every variant ends with a full stop', () {
+      for (final forecast in [
+        f(0, spent: false),
+        f(1),
+        f(2),
+        f(2, spent: false),
+      ]) {
+        expect(SafeToSpendCopy.forecastInsufficient(forecast), endsWith('.'));
+      }
+    });
+  });
+
+  group("today's amount used (UX-071)", () {
+    test('captions the top bar, rounded down', () {
+      // ₹250 of ₹1,000.
+      final quarter = safeToSpend(periodSpent: 250, todaySpent: 250);
+      expect(
+        SafeToSpendCopy.todayUsedCaption(quarter),
+        "25% of today's amount used",
+      );
+      expect(
+        SafeToSpendCopy.todayUsedCaption(safeToSpend()),
+        "0% of today's amount used",
+      );
+      // ₹999.99 of ₹1,000 never reads 100% while something is left.
+      final almost = safeToSpend(periodSpent: 999.99, todaySpent: 999.99);
+      expect(almost.remainingToday, greaterThan(0));
+      expect(
+        SafeToSpendCopy.todayUsedCaption(almost),
+        "99% of today's amount used",
+      );
     });
   });
 }

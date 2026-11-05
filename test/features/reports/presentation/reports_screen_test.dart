@@ -566,4 +566,103 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('UX-085: "Change" on This Budget', () {
+    testWidgets('the picker says a new range leaves This Budget, and the '
+        "budget's own dates keep it", (tester) async {
+      final reports = await pump(tester);
+      expect(reports.state.followsBudget, isTrue);
+
+      await tester.tap(find.text('Change'));
+      await tester.pumpAndSettle();
+      expect(find.text(ReportsScreen.leavesBudgetHelp), findsOneWidget);
+
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      expect(reports.state.followsBudget, isTrue);
+      expect(find.text('Planned vs actual'), findsOneWidget);
+    });
+
+    testWidgets('a calendar period keeps the plain title', (tester) async {
+      await pump(tester, period: ReportPeriod.lastWeek);
+      await tester.tap(find.text('Change'));
+      await tester.pumpAndSettle();
+      expect(find.text('Report period'), findsOneWidget);
+      expect(find.text(ReportsScreen.leavesBudgetHelp), findsNothing);
+    });
+  });
+
+  group('UX-086: budget notices say what happened', () {
+    testWidgets('no active budget: no "This Budget" chip', (tester) async {
+      budgets.activeId = null;
+      await pump(tester, period: ReportPeriod.lastWeek);
+      expect(find.byKey(const Key('period_thisBudget')), findsNothing);
+      expect(find.byKey(const Key('period_lastWeek')), findsOneWidget);
+    });
+
+    testWidgets('the followed budget gone: its report is dropped for a '
+        '"No active budget" state', (tester) async {
+      final reports = await pump(tester);
+      expect(find.text('Planned vs actual'), findsOneWidget);
+
+      budgets.activeId = null;
+      reports.add(const ReportsRefresh());
+      await tester.pumpAndSettle();
+
+      expect(find.text('No active budget'), findsOneWidget);
+      expect(find.text('Choose a budget'), findsOneWidget);
+      expect(find.text('Planned vs actual'), findsNothing);
+      expect(find.text("Couldn't update the report"), findsNothing);
+      expect(reports.state.period, ReportPeriod.thisMonth);
+    });
+
+    testWidgets('a budget that cannot be read says so over the last report', (
+      tester,
+    ) async {
+      final reports = await pump(tester);
+      budgets.throwOnRead = true;
+      reports.add(const ReportsRefresh());
+      await tester.pumpAndSettle();
+
+      expect(find.text("Couldn't load your budget"), findsOneWidget);
+      expect(find.text("Couldn't update the report"), findsNothing);
+      expect(find.text('Spent'), findsOneWidget);
+    });
+
+    testWidgets("a failed load after a budget switch does not show the old "
+        "budget's report under the new name", (tester) async {
+      final reports = await pump(tester, period: ReportPeriod.lastWeek);
+      expect(find.text('Only expenses in Household'), findsOneWidget);
+
+      budgets.budgets.add(_household().copyWith(id: 'trip', name: 'Trip'));
+      budgets.activeId = 'trip';
+      expenses.failReads = true;
+      reports.add(const ReportsRefresh());
+      await tester.pumpAndSettle();
+
+      expect(find.text("Couldn't build this report"), findsOneWidget);
+      expect(find.text('Spent'), findsNothing);
+      expect(find.text("Couldn't update the report"), findsNothing);
+    });
+  });
+
+  group('UX-089: export', () {
+    testWidgets('greyed-out items say why', (tester) async {
+      expenses.store.clear();
+      await pump(tester, period: ReportPeriod.thisWeek);
+      await tester.tap(find.byKey(const Key('reportsMenu')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('No expenses to export in this period'),
+        findsNWidgets(2),
+      );
+    });
+
+    testWidgets('an available export carries no reason', (tester) async {
+      await pump(tester);
+      await tester.tap(find.byKey(const Key('reportsMenu')));
+      await tester.pumpAndSettle();
+      expect(find.text('No expenses to export in this period'), findsNothing);
+    });
+  });
 }

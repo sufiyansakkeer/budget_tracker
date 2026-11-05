@@ -26,7 +26,7 @@ class ExpenseNoteField extends StatelessWidget {
       textCapitalization: TextCapitalization.sentences,
       textInputAction: TextInputAction.newline,
       decoration: InputDecoration(
-        labelText: 'Note',
+        labelText: 'Note (optional)',
         hintText: 'What was this for?',
         alignLabelWithHint: true,
         prefixIcon: const Padding(

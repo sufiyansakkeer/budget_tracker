@@ -16,6 +16,7 @@ import 'package:monivo/features/settings/domain/repository/settings_repository.d
 import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
 import 'package:monivo/features/settings/domain/usecases/update_currency_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 class FakeOnboardingRepository implements OnboardingRepository {
   bool isFirstLaunch = true;
@@ -539,5 +540,46 @@ void main() {
       expect(bloc.state.parsedBudget, isNull);
       expect(bloc.state.budgetValidationError, isNotNull);
     });
+  });
+
+  group('UX-092: the same words as the other forms', () {
+    blocTest<OnboardingBloc, OnboardingState>(
+      'an empty, a zero and a too-large amount',
+      build: buildBloc,
+      act: (bloc) => bloc
+        ..add(const OnboardingBudgetInputChangedEvent(''))
+        ..add(const OnboardingBudgetInputChangedEvent('0'))
+        ..add(const OnboardingBudgetInputChangedEvent('1000000000000')),
+      expect: () => [
+        isA<OnboardingState>().having(
+          (s) => s.budgetValidationError,
+          'error',
+          ValidationCopy.amountEmpty,
+        ),
+        isA<OnboardingState>().having(
+          (s) => s.budgetValidationError,
+          'error',
+          ValidationCopy.amountNotPositive,
+        ),
+        isA<OnboardingState>().having(
+          (s) => s.budgetValidationError,
+          'error',
+          ValidationCopy.amountTooLarge,
+        ),
+      ],
+    );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'an empty name',
+      build: buildBloc,
+      act: (bloc) => bloc.add(const OnboardingBudgetNameChangedEvent(' ')),
+      expect: () => [
+        isA<OnboardingState>().having(
+          (s) => s.nameValidationError,
+          'error',
+          ValidationCopy.budgetNameEmpty,
+        ),
+      ],
+    );
   });
 }

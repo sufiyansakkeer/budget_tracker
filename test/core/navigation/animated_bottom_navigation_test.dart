@@ -130,6 +130,23 @@ void main() {
     expect(home.hasFlag(SemanticsFlag.isSelected), isFalse);
   });
 
+  // UX-111: the label and a tooltip of the same text were both in the
+  // tree ("Home, Home"), and nothing said where the tab sits.
+  testWidgets('semantics: the name once, then the tab position', (
+    tester,
+  ) async {
+    await tester.pumpWidget(harness(selectedIndex: 0, onSelected: (_) {}));
+    final count = appNavDestinations.length;
+    for (var i = 0; i < count; i++) {
+      final node = tester.getSemantics(find.byKey(appNavDestinations[i].key));
+      expect(
+        node.label,
+        '${appNavDestinations[i].label}\nTab ${i + 1} of $count',
+      );
+      expect(node.tooltip, isEmpty);
+    }
+  });
+
   testWidgets('every tap target meets the 48dp minimum', (tester) async {
     await tester.pumpWidget(harness(selectedIndex: 0, onSelected: (_) {}));
     for (final d in appNavDestinations) {

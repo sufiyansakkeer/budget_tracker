@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Friendly empty state shown when there are no expenses for the period.
 class EmptyReportsState extends StatelessWidget {
@@ -37,14 +37,13 @@ class EmptyReportsState extends StatelessWidget {
     final startsOn = budgetStartsOn;
     final endedOn = budgetEndedOn;
     if (startsOn != null || endedOn != null) {
-      final day = DateFormat('d MMM');
       return EmptyState(
         icon: Icons.event_busy_rounded,
         title: 'No expenses in this period',
         message: startsOn != null
-            ? 'Your active budget starts ${day.format(startsOn)}. Switch '
+            ? 'Your active budget starts ${AppDates.day(startsOn)}. Switch '
                   'budget to see earlier spending.'
-            : 'Your active budget ended ${day.format(endedOn!)}. Switch '
+            : 'Your active budget ended ${AppDates.day(endedOn!)}. Switch '
                   'budget to see later spending.',
         actionLabel: 'Switch budget',
         actionIcon: Icons.swap_horiz_rounded,

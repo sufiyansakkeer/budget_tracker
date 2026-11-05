@@ -13,12 +13,13 @@ import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_forecast.dar
 import 'dashboard_info.dart';
 import 'safe_to_spend_copy.dart';
 import '../../../../core/widgets/app_animated_size.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// "Free to spend": how the active budget's remaining money becomes the
 /// amount that is free to spend until its end date, followed by the
 /// forecast at the average pace so far.
 ///
-/// Remaining in budget − Bills due − Kept aside − Savings goal = Free to
+/// Remaining budget − Bills due − Kept aside − Savings goal = Free to
 /// spend. Every figure comes from the engine's [SafeToSpendEntity]; "Not
 /// set" (no amount chosen), "₹0", "Unavailable" (bills could not be read)
 /// and "No bills due this period" are kept distinct.
@@ -77,10 +78,10 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
           ],
         ),
         BreakdownRow(
-          label: 'Remaining in budget',
+          label: AppTerms.remainingBudget,
           value: SafeToSpendCopy.amount(e.availableBalance, cur),
           semanticsLabel:
-              'Remaining in budget, '
+              '${AppTerms.remainingBudget}, '
               '${SafeToSpendCopy.amount(e.availableBalance, cur)}',
         ),
         ..._billsRows(context, e),
@@ -256,6 +257,12 @@ class BreakdownRow extends StatelessWidget {
     this.trailing,
   });
 
+  /// Whether a label and its figure stack at this text size: roughly 1.5×
+  /// text, past which they no longer share a line comfortably on a phone.
+  /// [FreeToSpendSummary] stacks at the same point.
+  static bool stacksAt(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(16) > 24;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -285,9 +292,7 @@ class BreakdownRow extends StatelessWidget {
       maxLines: 1,
       textAlign: TextAlign.end,
     );
-    // Roughly 1.5× text: past it a label and a value no longer share a
-    // line comfortably on a phone.
-    final stacked = MediaQuery.textScalerOf(context).scale(16) > 24;
+    final stacked = stacksAt(context);
 
     final Widget row;
     if (stacked) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
@@ -45,6 +46,21 @@ void main() {
     await tester.pump();
     expect(find.text('To'), findsOneWidget);
     expect(find.byTooltip('Clear start date'), findsNothing);
+  });
+
+  // UX-111: the section labels weren't headers.
+  testWidgets('each section label is a header', (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(host());
+    for (final label in const ['Category', 'Date range', 'Amount range']) {
+      final node = tester.getSemantics(find.text(label));
+      expect(
+        node.hasFlag(SemanticsFlag.isHeader),
+        isTrue,
+        reason: '$label is a header',
+      );
+    }
+    handle.dispose();
   });
 
   testWidgets('both set dates fit a small phone', (tester) async {

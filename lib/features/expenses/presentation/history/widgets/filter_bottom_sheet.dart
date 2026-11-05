@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
@@ -8,7 +7,8 @@ import '../../../domain/entities/expense_history_filter.dart';
 import '../../../domain/entities/quick_date_preset.dart';
 import '../../widgets/category_visuals.dart';
 import '../../../../../core/currency/money_input.dart';
-import '../../../../../core/currency/money_input_formatter.dart';
+import '../../../../../core/widgets/app_amount_field.dart';
+import '../../../../../core/dates/date_range_format.dart';
 
 /// Bottom sheet for applying expense filters.
 ///
@@ -162,7 +162,6 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFmt = DateFormat('d MMM yyyy');
     final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
 
     return ConstrainedBox(
@@ -232,7 +231,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           child: _DateButton(
                             label: _dateFrom == null
                                 ? 'From'
-                                : dateFmt.format(_dateFrom!),
+                                : AppDates.dayWithYear(_dateFrom!),
                             isSet: _dateFrom != null,
                             onTap: () => _pickDate(isFrom: true),
                             clearTooltip: 'Clear start date',
@@ -246,7 +245,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           child: _DateButton(
                             label: _dateTo == null
                                 ? 'To'
-                                : dateFmt.format(_dateTo!),
+                                : AppDates.dayWithYear(_dateTo!),
                             isSet: _dateTo != null,
                             onTap: () => _pickDate(isFrom: false),
                             clearTooltip: 'Clear end date',
@@ -263,35 +262,29 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   Row(
                     children: [
                       Expanded(
-                        child: TextField(
+                        child: AppAmountField(
                           controller: _minAmount,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            // Any budget's currency may be in view: allow
-                            // the most decimals one takes (OMR's three).
-                            MoneyInputFormatter(MoneyInput.anyCurrencyDecimals),
-                          ],
+                          // Budgets in several currencies may be in view:
+                          // no one symbol, and the most decimals one takes
+                          // (OMR's three).
+                          currency: null,
+                          decimals: MoneyInput.anyCurrencyDecimals,
+                          label: 'Min',
                           textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(labelText: 'Min'),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
-                        child: TextField(
+                        child: AppAmountField(
                           controller: _maxAmount,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            // Any budget's currency may be in view: allow
-                            // the most decimals one takes (OMR's three).
-                            MoneyInputFormatter(MoneyInput.anyCurrencyDecimals),
-                          ],
+                          // Budgets in several currencies may be in view:
+                          // no one symbol, and the most decimals one takes
+                          // (OMR's three).
+                          currency: null,
+                          decimals: MoneyInput.anyCurrencyDecimals,
+                          label: 'Max',
                           textInputAction: TextInputAction.done,
-                          decoration: const InputDecoration(labelText: 'Max'),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
@@ -383,7 +376,11 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+      // A header, so a screen reader can jump between the sections.
+      child: Semantics(
+        header: true,
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+      ),
     );
   }
 }

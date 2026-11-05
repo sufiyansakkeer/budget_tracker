@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/currency/currency_formatter.dart';
@@ -8,6 +7,7 @@ import '../../../../../core/widgets/app_money.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
 import 'quick_filter_chips.dart';
+import '../../../../../core/dates/date_range_format.dart';
 
 /// Displays the currently active filters as removable chips.
 class ActiveFilterChips extends StatelessWidget {
@@ -34,7 +34,6 @@ class ActiveFilterChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chips = <Widget>[];
-    final dateFmt = DateFormat('d MMM');
 
     if (filter.categoryId != null) {
       final match = categories.where((c) => c.id == filter.categoryId);
@@ -57,10 +56,10 @@ class ActiveFilterChips extends StatelessWidget {
         ),
       );
     } else if (filter.dateFrom != null && filter.dateTo != null) {
-      // A custom range reads as one chip: "12 Mar – 15 Mar".
+      // A custom range reads as one chip: "12 – 15 Mar".
       chips.add(
         _chip(
-          label: formatFilterDateRange(filter.dateFrom!, filter.dateTo!),
+          label: AppDates.span(filter.dateFrom!, filter.dateTo!),
           onDeleted: () =>
               onChanged(filter.copyWithDateRange(from: null, to: null)),
         ),
@@ -69,7 +68,7 @@ class ActiveFilterChips extends StatelessWidget {
       if (filter.dateFrom != null) {
         chips.add(
           _chip(
-            label: 'From ${dateFmt.format(filter.dateFrom!)}',
+            label: 'From ${AppDates.day(filter.dateFrom!)}',
             onDeleted: () => onChanged(filter.copyWithDateFrom(null)),
           ),
         );
@@ -77,7 +76,7 @@ class ActiveFilterChips extends StatelessWidget {
       if (filter.dateTo != null) {
         chips.add(
           _chip(
-            label: 'To ${dateFmt.format(filter.dateTo!)}',
+            label: 'To ${AppDates.day(filter.dateTo!)}',
             onDeleted: () => onChanged(filter.copyWithDateTo(null)),
           ),
         );
@@ -148,17 +147,4 @@ class ActiveFilterChips extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Compact label for a date range: "12 Mar" for a single day, "12 Mar – 15
-/// Mar" within one year, and years only when the range spans two.
-String formatFilterDateRange(DateTime from, DateTime to) {
-  final sameDay =
-      from.year == to.year && from.month == to.month && from.day == to.day;
-  if (sameDay) return DateFormat('d MMM').format(from);
-  if (from.year == to.year) {
-    return '${DateFormat('d MMM').format(from)} – ${DateFormat('d MMM').format(to)}';
-  }
-  final fmt = DateFormat('d MMM yyyy');
-  return '${fmt.format(from)} – ${fmt.format(to)}';
 }

@@ -242,7 +242,7 @@ class NotificationService {
     if (notifSettings.eveningSummaryEnabled) {
       await _scheduleDailyNotification(
         id: eveningSummaryId,
-        title: 'Evening Summary 🌙',
+        title: 'Evening summary 🌙',
         body: "Review today's expenses and check how each budget is doing.",
         hour: notifSettings.eveningSummaryTime.hour,
         minute: notifSettings.eveningSummaryTime.minute,

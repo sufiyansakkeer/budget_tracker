@@ -30,6 +30,7 @@ import 'features/pay_later/presentation/pay_later_startup.dart';
 import 'features/settings/presentation/bloc/theme/theme_bloc.dart';
 import 'features/settings/presentation/bloc/theme/theme_state.dart';
 import 'features/widgets/home_widget_service.dart';
+import 'features/widgets/home_widget_startup.dart';
 import 'features/widgets/widget_refresh_listener.dart';
 
 /// Callback dispatcher for home_widget interactivity.
@@ -57,6 +58,15 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _registerFontLicense();
   await di.initDependencyInjection();
+
+  // ── Home Widget: App Group, launch check and callback ─────────────────
+  // Platform calls only, started now so they overlap the theme read below;
+  // awaited before the first frame (the launch route must be known).
+  final homeWidgetReady = prepareHomeWidget(
+    configure: _configureHomeWidget,
+    readLaunch: _handleWidgetLaunch,
+    registerCallbacks: _registerWidgetCallbacks,
+  );
 
   // The saved palette and light/dark mode are a single preferences read;
   // waiting for them here means the first frame is already themed instead of
@@ -87,20 +97,13 @@ Future<void> main() async {
   // by an older build). Idempotent, in the background, never fatal.
   unawaited(reconcilePayLaterTabsOnStartup(di.getIt<ReconcileTabUseCase>()));
 
-  // ── Home Widget: configure iOS App Group for data sharing ────────────
-  await _configureHomeWidget();
-
-  // ── Home Widget: check if app was launched from a widget tap ──────────
-  await _handleWidgetLaunch();
+  await homeWidgetReady;
 
   // ── Home Widget: update widget data on every app start ────────────────
   // One service for the app: its updates queue, so an older one can never
   // overwrite a newer one. Two instances had two queues.
   final widgetService = HomeWidgetService.fromDI();
   _updateWidgetDataOnStartup(widgetService);
-
-  // ── Home Widget: register interactivity callback ──────────────────────
-  await _registerWidgetCallbacks();
 
   // ── Home Widget: listen for data changes and refresh widget ───────────
   _widgetRefreshListener = WidgetRefreshListener(

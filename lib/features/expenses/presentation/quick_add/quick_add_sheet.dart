@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -21,6 +22,7 @@ import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/widgets/primary_button.dart';
 import '../../../budget/presentation/start_next_period.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -34,6 +36,8 @@ import '../widgets/expense_undo.dart';
 import '../widgets/form_field_error.dart';
 import 'amount_entry.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../../../../core/dates/date_range_format.dart';
+import '../../../../core/constants/app_copy.dart';
 
 enum _Day { today, yesterday, other }
 
@@ -55,6 +59,11 @@ class QuickAddSheet extends StatefulWidget {
   /// "Now" for the default day and time; replaced in tests.
   @visibleForTesting
   static DateTime Function() clock = DateTime.now;
+
+  /// How long the amount must stay unchanged before a screen reader is
+  /// told it, so typing "250" says "Amount, ₹250" once, not after each key.
+  @visibleForTesting
+  static const amountAnnounceDelay = Duration(milliseconds: 700);
 
   /// Whether a sheet is open, so a second tap (or the home-screen widget)
   /// never stacks another.
@@ -116,10 +125,20 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     _Day.other => _otherDate,
   };
 
+  /// Says the amount once typing pauses; see
+  /// [QuickAddSheet.amountAnnounceDelay].
+  Timer? _announceTimer;
+
   @override
   void initState() {
     super.initState();
     context.read<ExpenseBloc>().add(ExpenseLoadQuickAdd(now: _now));
+  }
+
+  @override
+  void dispose() {
+    _announceTimer?.cancel();
+    super.dispose();
   }
 
   void _onKey(AmountPadKey key) {
@@ -130,6 +149,27 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         BackspaceKey() => _entry.backspace(),
       };
       _amountError = null;
+    });
+    _announceAmountSoon();
+  }
+
+  /// The amount is not a live region (that spoke on every key, on top of
+  /// the key itself); with a screen reader on, it is announced once the
+  /// keys stop.
+  void _announceAmountSoon() {
+    _announceTimer?.cancel();
+    if (!MediaQuery.accessibleNavigationOf(context)) return;
+    _announceTimer = Timer(QuickAddSheet.amountAnnounceDelay, () {
+      if (!mounted) return;
+      final currency = context
+          .read<ExpenseBloc>()
+          .state
+          .quickAddBudget
+          ?.currency;
+      SemanticsService.announce(
+        _AmountDisplay.spokenFor(_entry, currency),
+        Directionality.of(context),
+      );
     });
   }
 
@@ -202,12 +242,14 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     final budget = state.quickAddBudget;
     if (budget == null) return;
     final amountError = _entry.value <= 0
-        ? 'Enter an amount.'
+        ? ValidationCopy.amountEmpty
         : ExpenseValidator.validateAmount(
             _entry.normalized,
             currency: budget.currency,
           );
-    final categoryError = _categoryId == null ? 'Choose a category.' : null;
+    final categoryError = _categoryId == null
+        ? ValidationCopy.categoryMissing
+        : null;
     final dateError = ExpenseDateRules.outsideBudget(_date, budget);
     setState(() {
       _amountError = amountError;
@@ -298,7 +340,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         icon: Icons.event_outlined,
         title:
             'Your ${budget.name} budget starts on '
-            '${DateFormat('d MMM').format(budget.startDate)}',
+            '${AppDates.day(budget.startDate)}',
         message: 'You can add expenses to it from that day.',
       );
     }
@@ -308,7 +350,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       icon: Icons.event_busy_outlined,
       title:
           'Your ${budget.name} budget ended on '
-          '${DateFormat('d MMM').format(budget.endDate)}',
+          '${AppDates.day(budget.endDate)}',
       message: 'Start the next one, or add this to a day before it ended.',
       action: Wrap(
         spacing: AppSpacing.sm,
@@ -380,7 +422,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                     : budget == null
                     ? 'No budget yet'
                     : 'To ${budget.name} · until '
-                          '${DateFormat('d MMM').format(budget.endDate)}',
+                          '${AppDates.day(budget.endDate)}',
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -452,10 +494,13 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                     AppAmountPad(
                       showDecimal: _entry.allowsDecimal,
                       onKey: _onKey,
-                      onClear: () => setState(() {
-                        _entry = _entry.clear();
-                        _amountError = null;
-                      }),
+                      onClear: () {
+                        setState(() {
+                          _entry = _entry.clear();
+                          _amountError = null;
+                        });
+                        _announceAmountSoon();
+                      },
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     if (_saveError != null)
@@ -466,9 +511,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                     _Actions(
                       busy: state.isBusy,
                       canAdd: budget != null && !notStarted,
-                      addLabel: state.isBusy
-                          ? 'Adding…'
-                          : _entry.value > 0
+                      // No amount in a stand-in currency before the
+                      // budget is known.
+                      addLabel: _entry.value > 0 && currency != null
                           ? 'Add ${AppMoney.format(_entry.value, currency: currency)}'
                           : 'Add expense',
                       onAdd: () => _save(state),
@@ -569,17 +614,19 @@ class _Actions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final add = FilledButton(
-      key: const Key('quickAddSave'),
-      onPressed: busy || !canAdd ? null : onAdd,
-      child: Text(addLabel, textAlign: TextAlign.center),
+    final add = PrimaryButton(
+      buttonKey: const Key('quickAddSave'),
+      onPressed: canAdd ? onAdd : null,
+      isLoading: busy,
+      icon: Icons.add_rounded,
+      label: addLabel,
     );
     final more = TextButton(
       key: const Key('quickAddMoreDetails'),
       onPressed: busy ? null : onMoreDetails,
       child: const Text('More details', textAlign: TextAlign.center),
     );
-    if (MediaQuery.textScalerOf(context).scale(14) > 20) {
+    if (AppSizes.isLargeText(context)) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -603,7 +650,8 @@ bool _isSameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
 /// The amount as typed, large and centred, with the currency symbol small
-/// and muted beside it. Read aloud as it changes.
+/// and muted beside it, once the budget (and so its currency) is known.
+/// Announced when typing pauses, by the sheet.
 class _AmountDisplay extends StatelessWidget {
   final AmountEntry entry;
   final String? currency;
@@ -615,6 +663,11 @@ class _AmountDisplay extends StatelessWidget {
     required this.hasError,
   });
 
+  /// "Amount, empty" or "Amount, OMR 1.500".
+  static String spokenFor(AmountEntry entry, String? currency) => entry.isEmpty
+      ? 'Amount, empty'
+      : 'Amount, ${AppMoney.spoken(entry.value, currency: currency)}';
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -625,13 +678,9 @@ class _AmountDisplay extends StatelessWidget {
         : empty
         ? theme.colorScheme.onSurfaceVariant
         : theme.colorScheme.onSurface;
-    final spoken = empty
-        ? 'Amount, empty'
-        : 'Amount, ${AppMoney.format(entry.value, currency: currency)}';
     return Semantics(
       key: const Key('quickAddAmount'),
-      liveRegion: true,
-      label: spoken,
+      label: spokenFor(entry, currency),
       excludeSemantics: true,
       child: SizedBox(
         height: 72,
@@ -643,13 +692,15 @@ class _AmountDisplay extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(
-                  CurrencyFormatter.symbolFor(currency),
-                  style: typography.moneyTitle.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                if (currency != null) ...[
+                  Text(
+                    CurrencyFormatter.symbolFor(currency),
+                    style: typography.moneyTitle.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
                 Text(
                   entry.display,
                   style: typography.moneyHero.copyWith(color: color),
@@ -707,6 +758,7 @@ class _CategoryChoice extends StatelessWidget {
     final theme = Theme.of(context);
     if (!loaded) {
       return Shimmer(
+        semanticsLabel: 'Loading categories',
         child: Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
@@ -798,9 +850,7 @@ class _DayChoice extends StatelessWidget {
             showCheckmark: false,
             avatar: const Icon(Icons.calendar_today_outlined),
             label: Text(
-              day == _Day.other
-                  ? DateFormat('EEE d MMM').format(otherDate)
-                  : 'Other day',
+              day == _Day.other ? AppDates.weekday(otherDate) : 'Other day',
             ),
             onSelected: (_) => onOther(),
           ),

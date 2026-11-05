@@ -9,6 +9,7 @@ import 'package:monivo/features/bills/domain/usecases/get_bills_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/mark_bill_paid_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/pay_bill_usecase.dart';
+import 'package:monivo/features/bills/domain/usecases/restore_bill_snapshot_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/update_bill_usecase.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_bloc.dart';
@@ -17,6 +18,7 @@ import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/expenses/domain/repository/expense_repository.dart';
+import 'package:monivo/features/expenses/domain/usecases/delete_expense_usecase.dart';
 
 import 'bill_payment_fakes.dart';
 
@@ -151,11 +153,13 @@ class NoopBillReminderService extends BillReminderService {
 
 /// A [BillBloc] on real bill use cases over [repository]. Payments with an
 /// expense go to [payBill] (by default a fake that must not be called).
+/// Un-paying and Undo delete expenses from [expenses].
 BillBloc buildTestBillBloc(
   BillRepository repository, {
   PayBillUseCase? payBill,
   ExpenseRepository? expenses,
 }) {
+  final expenseRepository = expenses ?? InMemoryExpenseRepository();
   return BillBloc(
     createBillUseCase: CreateBillUseCase(repository: repository),
     updateBillUseCase: UpdateBillUseCase(repository: repository),
@@ -165,7 +169,7 @@ BillBloc buildTestBillBloc(
     markBillPaidUseCase: MarkBillPaidUseCase(repository: repository),
     markBillUnpaidUseCase: MarkBillUnpaidUseCase(
       repository: repository,
-      expenseRepository: expenses ?? InMemoryExpenseRepository(),
+      expenseRepository: expenseRepository,
     ),
     payBillUseCase:
         payBill ??
@@ -174,6 +178,10 @@ BillBloc buildTestBillBloc(
             BillFailure(type: BillErrorType.invalidInput, message: 'unused'),
           ),
         ),
+    restoreBillSnapshotUseCase: RestoreBillSnapshotUseCase(
+      repository: repository,
+      deleteExpense: DeleteExpenseUseCase(repository: expenseRepository),
+    ),
     reminderService: NoopBillReminderService(repository),
   );
 }

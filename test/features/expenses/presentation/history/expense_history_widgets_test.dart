@@ -265,10 +265,10 @@ void main() {
         wrap(SortBottomSheet(current: ExpenseSortOption.newestFirst)),
       );
 
-      expect(find.text('Newest First'), findsOneWidget);
-      expect(find.text('Oldest First'), findsOneWidget);
-      expect(find.text('Highest Amount'), findsOneWidget);
-      expect(find.text('Lowest Amount'), findsOneWidget);
+      expect(find.text('Newest first'), findsOneWidget);
+      expect(find.text('Oldest first'), findsOneWidget);
+      expect(find.text('Highest amount'), findsOneWidget);
+      expect(find.text('Lowest amount'), findsOneWidget);
       expect(find.text('Category'), findsOneWidget);
       expect(find.text('Alphabetical'), findsOneWidget);
     });

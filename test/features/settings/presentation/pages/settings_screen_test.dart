@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:monivo/core/currency/currency_provider.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/core/files/file_delivery_service.dart';
@@ -10,6 +11,7 @@ import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
 import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
+import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
 import 'package:monivo/features/settings/presentation/bloc/settings_event.dart';
 import 'package:monivo/features/settings/presentation/bloc/settings_state.dart';
 import 'package:monivo/features/settings/presentation/bloc/theme/theme_event.dart';
@@ -18,6 +20,8 @@ import 'package:monivo/features/settings/presentation/pages/settings_screen.dart
 
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
+import '../../../budget/presentation/pages/budget_form_screen_test.dart'
+    show FakeSettingsRepository;
 import 'settings_test_harness.dart';
 
 void main() {
@@ -528,6 +532,145 @@ void main() {
 
       expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('New budget form'), findsOneWidget);
+    });
+  });
+  group('UX-099: the default currency', () {
+    testWidgets('reaches the app only once saved; row and picker agree', (
+      tester,
+    ) async {
+      final provider = CurrencyProvider(
+        loadSettingsUseCase: LoadSettingsUseCase(
+          repository: FakeSettingsRepository(),
+        ),
+      );
+      getIt.registerSingleton<CurrencyProvider>(provider);
+      final (settings, _) = await pump(tester);
+      // After its own first read, the app's currency matches Settings.
+      provider.updateCurrency('USD', r'$');
+
+      const scope = 'Default for new budgets and Pay later tabs';
+      expect(find.text(scope), findsOneWidget, reason: 'the row');
+      // The summary strip says "Currency" too: tap the row.
+      await tester.tap(find.text(scope));
+      await tester.pumpAndSettle();
+      expect(find.text(scope), findsNWidgets(2), reason: 'and the picker');
+
+      await tester.tap(find.text('OMR').last);
+      await tester.pumpAndSettle();
+      expect(
+        settings.received.whereType<SettingsUpdateCurrencyEvent>().single.code,
+        'OMR',
+      );
+      expect(provider.currencyCode, 'USD', reason: 'not saved yet');
+
+      // The save succeeded.
+      settings.emit(
+        loadedSettings.copyWith(
+          settings: loadedSettings.settings.copyWith(
+            currencyCode: 'OMR',
+            currencySymbol: 'ر.ع.',
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(provider.currencyCode, 'OMR');
+    });
+
+    testWidgets('a currency save leaves the Data rows usable', (tester) async {
+      await pump(tester);
+      for (final title in ['Export', 'Import', 'Back up']) {
+        final tile = tester.widget<ListTile>(
+          find.ancestor(of: find.text(title), matching: find.byType(ListTile)),
+        );
+        expect(tile.enabled, isTrue, reason: title);
+      }
+    });
+  });
+
+  group('UX-095: start a new period', () {
+    Future<(GoRouter, StaticSettingsBloc)> pumpRouted(
+      WidgetTester tester, {
+      required String? activeId,
+    }) async {
+      getIt.registerSingleton<ManageBudgetUseCase>(
+        ManageBudgetUseCase(
+          repository: ListBudgetRepository([
+            if (activeId != null)
+              BudgetEntity(
+                id: activeId,
+                name: 'October',
+                monthlyAmount: 30000,
+                remainingAmount: 30000,
+                currency: 'INR',
+                startDate: DateTime(2026, 10, 1),
+                endDate: DateTime(2026, 10, 31),
+                createdAt: DateTime(2026, 10, 1),
+                updatedAt: DateTime(2026, 10, 1),
+              ),
+          ], activeId),
+          reconcileTabs: FakeReconcileTabUseCase(),
+        ),
+      );
+      final settings = StaticSettingsBloc(loadedSettings);
+      final themeBloc = StaticThemeBloc(const ThemeState());
+      addTearDown(settings.close);
+      addTearDown(themeBloc.close);
+      tester.view.devicePixelRatio = 2;
+      tester.view.physicalSize = const Size(720, 18000);
+      addTearDown(tester.view.reset);
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                settingsScreen(settings: settings, theme: themeBloc),
+          ),
+          GoRoute(
+            path: '/app/budgets',
+            builder: (context, state) => const Text('Budget list'),
+            routes: [
+              GoRoute(
+                path: 'create',
+                builder: (context, state) => const Text('New budget form'),
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        MaterialApp.router(theme: AppTheme.lightTheme, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+      return (router, settings);
+    }
+
+    testWidgets('with no budget, opens Create budget instead of a 0 budget', (
+      tester,
+    ) async {
+      final (_, settings) = await pumpRouted(tester, activeId: null);
+
+      await tester.tap(find.text('Start new budget period'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start a new budget period?'), findsNothing);
+      expect(find.text('New budget form'), findsOneWidget);
+      expect(
+        settings.received,
+        isNot(contains(const SettingsResetMonthEvent())),
+      );
+    });
+
+    testWidgets('with a budget, still asks first', (tester) async {
+      final (_, settings) = await pumpRouted(tester, activeId: 'oct');
+
+      await tester.tap(find.text('Start new budget period'));
+      await tester.pumpAndSettle();
+      expect(find.text('Start a new budget period?'), findsOneWidget);
+
+      await tester.tap(find.text('Start'));
+      await tester.pumpAndSettle();
+      expect(settings.received, contains(const SettingsResetMonthEvent()));
     });
   });
 }

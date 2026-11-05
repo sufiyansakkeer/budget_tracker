@@ -1,6 +1,7 @@
 import 'currency_formatter.dart';
 import 'exact_decimal.dart';
 import 'money_math.dart';
+import '../constants/app_copy.dart';
 
 /// How precisely an amount may be typed, shared by every money field and
 /// the validators behind them, so a form never rejects what its field let
@@ -25,18 +26,14 @@ abstract final class MoneyInput {
   static RegExp pattern(int decimals) =>
       decimals <= 0 ? RegExp(r'^\d*') : RegExp('^\\d*\\.?\\d{0,$decimals}');
 
-  /// The decimals in [input] beyond what [currency] allows, worded for
-  /// [subject] ("Amount cannot have more than 3 decimal places"); null when
-  /// the input is within it or is not a decimal number.
-  static String? decimalsError(
-    String input,
-    String? currency, {
-    String subject = 'Amount',
-  }) {
+  /// The decimals in [input] beyond what [currency] allows ("Use up to 3
+  /// decimal places."); null when the input is within it or is not a
+  /// decimal number.
+  static String? decimalsError(String input, String? currency) {
     final parts = input.trim().split('.');
     final allowed = maxDecimals(currency);
     if (parts.length > 1 && parts[1].length > allowed) {
-      return '$subject cannot have more than $allowed decimal places';
+      return ValidationCopy.tooManyDecimals(allowed);
     }
     return null;
   }

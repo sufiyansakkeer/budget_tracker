@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Rect;
 
@@ -9,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/files/file_delivery_service.dart';
 import 'data_codec.dart';
+import 'json_off_main.dart';
 
 /// Represents a generated export file.
 class ExportResult {
@@ -136,8 +136,7 @@ class ExportService {
     final fileName = 'monivo_export_$timestamp.json';
     final file = File('${directory.path}/$fileName');
 
-    const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(encoder.convert(data));
+    await JsonOffMain.writeIndented(file, data);
 
     return _share(
       file,

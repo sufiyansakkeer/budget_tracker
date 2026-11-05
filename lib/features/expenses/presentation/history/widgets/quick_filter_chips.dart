@@ -51,13 +51,13 @@ class QuickFilterChips extends StatelessWidget {
             onTap: () => onSelected(_toggleDate(QuickDatePreset.today)),
           ),
           _chip(
-            label: 'This Week',
+            label: 'This week',
             icon: Icons.date_range_rounded,
             selected: QuickDatePreset.thisWeek.matches(current),
             onTap: () => onSelected(_toggleDate(QuickDatePreset.thisWeek)),
           ),
           _chip(
-            label: 'This Month',
+            label: 'This month',
             icon: Icons.calendar_month_rounded,
             selected: QuickDatePreset.thisMonth.matches(current),
             onTap: () => onSelected(_toggleDate(QuickDatePreset.thisMonth)),
@@ -87,7 +87,7 @@ class QuickFilterChips extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.sm),
+      padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
       child: FilterChip(
         key: Key('quickFilter_$label'),
         label: Text(label),

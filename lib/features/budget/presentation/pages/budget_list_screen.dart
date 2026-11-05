@@ -23,10 +23,11 @@ import '../widgets/budget_visuals.dart';
 import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Lists all budgets. The active budget leads as the one raised card (the
 /// budget Home, Expenses and Reports follow); the others are compact rows
-/// grouped by where they are in their period. "Total remaining" is a quiet
+/// grouped by where they are in their period. "Total remaining budget" is a quiet
 /// per-currency footer, so nothing looks pooled.
 class BudgetListScreen extends StatefulWidget {
   const BudgetListScreen({super.key});
@@ -51,6 +52,9 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
   StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _budgetSwitchSubscription;
 
+  /// Folds the add button to its icon while the list scrolls down.
+  final AppFabCollapse _fabCollapse = AppFabCollapse();
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +71,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
   void dispose() {
     _refreshSubscription?.cancel();
     _budgetSwitchSubscription?.cancel();
+    _fabCollapse.dispose();
     super.dispose();
   }
 
@@ -117,7 +122,9 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       appBar: AppBar(title: const Text('Budgets')),
       body: SafeArea(
         bottom: false,
-        child: AppStateSwitcher(child: _buildBody()),
+        child: _fabCollapse.listen(
+          child: AppStateSwitcher(child: _buildBody()),
+        ),
       ),
       floatingActionButton: AppFab(
         heroTag: 'budgets_fab',
@@ -125,14 +132,30 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
         icon: Icons.add_rounded,
         label: 'New budget',
         tooltip: 'Create a new budget',
+        collapse: _fabCollapse,
       ),
     );
   }
+
+  /// Ended and archived budgets show this many until "Show all".
+  static const _pastRowCap = 5;
+
+  /// Past groups the user opened in full.
+  final Set<BudgetPhase> _showAll = {};
+
+  bool _capped(BudgetPhase phase, List<BudgetEntity> list) =>
+      (phase == BudgetPhase.ended || phase == BudgetPhase.archived) &&
+      !_showAll.contains(phase) &&
+      list.length > _pastRowCap;
+
+  Iterable<BudgetEntity> _visible(BudgetPhase phase, List<BudgetEntity> list) =>
+      _capped(phase, list) ? list.take(_pastRowCap) : list;
 
   Widget _buildBody() {
     if (_loading) {
       return Shimmer(
         key: const ValueKey('loading'),
+        semanticsLabel: 'Loading budgets',
         child: ListView(
           physics: const NeverScrollableScrollPhysics(),
           padding: AppSpacing.pagePadding,
@@ -180,8 +203,15 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       }
       groups.putIfAbsent(b.phaseOn(now), () => []).add(b);
     }
-    for (final list in groups.values) {
-      list.sort((a, b) => a.startDate.compareTo(b.startDate));
+    // What runs or is to come reads in date order; what is over, newest
+    // first, so last month's budget isn't under years of old ones.
+    for (final MapEntry(key: phase, value: list) in groups.entries) {
+      final past = phase == BudgetPhase.ended || phase == BudgetPhase.archived;
+      list.sort(
+        past
+            ? (a, b) => b.endDate.compareTo(a.endDate)
+            : (a, b) => a.startDate.compareTo(b.startDate),
+      );
     }
 
     final activeRunning = active?.phaseOn(now) == BudgetPhase.running;
@@ -196,7 +226,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
         activeRunning ? 'Also running today' : 'Running today',
         null,
       ),
-      (BudgetPhase.upcoming, 'Starting later', null),
+      (BudgetPhase.upcoming, AppTerms.notStarted, null),
       (
         BudgetPhase.ended,
         'Ended',
@@ -249,7 +279,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
                         AppGroupedList(
                           dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
                           children: [
-                            for (final budget in list)
+                            for (final budget in _visible(phase, list))
                               BudgetRow(
                                 budget: budget,
                                 now: now,
@@ -259,6 +289,13 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
                               ),
                           ],
                         ),
+                        if (_capped(phase, list))
+                          TextButton(
+                            key: ValueKey('budgetsShowAll_${phase.name}'),
+                            onPressed: () =>
+                                setState(() => _showAll.add(phase)),
+                            child: Text('Show all ${list.length}'),
+                          ),
                         if (phase == BudgetPhase.ended && lastEnded != null)
                           TextButton(
                             onPressed: () =>

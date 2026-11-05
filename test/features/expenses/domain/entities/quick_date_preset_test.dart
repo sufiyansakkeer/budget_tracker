@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
 import 'package:monivo/features/expenses/domain/entities/quick_date_preset.dart';
-import 'package:monivo/features/expenses/presentation/history/widgets/active_filter_chips.dart';
+import 'package:monivo/core/dates/date_range_format.dart';
 
 void main() {
   // Wednesday 16 September 2026.
@@ -67,18 +67,18 @@ void main() {
     });
   });
 
-  group('formatFilterDateRange', () {
+  group('custom range chip label (AppDates.span)', () {
     test('single day, same year, different years', () {
       expect(
-        formatFilterDateRange(DateTime(2026, 3, 12), DateTime(2026, 3, 12)),
+        AppDates.span(DateTime(2026, 3, 12), DateTime(2026, 3, 12), now: now),
         '12 Mar',
       );
       expect(
-        formatFilterDateRange(DateTime(2026, 3, 12), DateTime(2026, 3, 15)),
-        '12 Mar – 15 Mar',
+        AppDates.span(DateTime(2026, 3, 12), DateTime(2026, 3, 15), now: now),
+        '12 – 15 Mar',
       );
       expect(
-        formatFilterDateRange(DateTime(2025, 12, 30), DateTime(2026, 1, 2)),
+        AppDates.span(DateTime(2025, 12, 30), DateTime(2026, 1, 2), now: now),
         '30 Dec 2025 – 2 Jan 2026',
       );
     });

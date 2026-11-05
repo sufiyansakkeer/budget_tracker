@@ -258,12 +258,33 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Expense Information'), findsOneWidget);
+      expect(find.text('Expense information'), findsOneWidget);
       expect(find.text('Budget'), findsOneWidget);
       expect(find.text('Food'), findsWidgets);
       expect(find.text('Amount'), findsOneWidget);
       expect(find.text('Date'), findsOneWidget);
       expect(find.text('Time'), findsOneWidget);
+    });
+
+    // UX-111: each row's label and value were two stops.
+    testWidgets('each row reads as one stop', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: BudgetInfoBottomSheet(
+              expense: expense(id: '1', budgetId: 'food', amount: 500),
+              budget: budgetEntity(id: 'food', name: 'Household'),
+              categoryName: 'Food',
+            ),
+          ),
+        ),
+      );
+      final row = tester.getSemantics(find.text('Budget'));
+      expect(row.label, 'Budget\nHousehold');
+      expect(tester.getSemantics(find.text('Household')), same(row));
+      handle.dispose();
     });
   });
 
@@ -297,12 +318,16 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Select Budgets'), findsOneWidget);
+      expect(find.text('Select budgets'), findsOneWidget);
       expect(find.text('Apply'), findsOneWidget);
-      expect(find.text('Select All'), findsOneWidget);
+      expect(find.text('Select all'), findsOneWidget);
     });
 
-    testWidgets('applies with empty selection shows snackbar', (tester) async {
+    // UX-081: the SnackBar showed under the sheet; Apply is now off, with
+    // the reason beside it.
+    testWidgets('with nothing selected, Apply is off and says why', (
+      tester,
+    ) async {
       final budgets = [budgetEntity(id: 'food', name: 'Food')];
 
       await tester.pumpWidget(
@@ -333,6 +358,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Select at least one budget'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      FilledButton apply() => tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Apply'),
+      );
+      expect(apply().onPressed, isNull);
+      expect(find.text('Select budgets'), findsOneWidget, reason: 'still open');
+
+      await tester.tap(find.text('Food'));
+      await tester.pump();
+      expect(find.text('Select at least one budget'), findsNothing);
+      expect(apply().onPressed, isNotNull);
     });
   });
 

@@ -304,7 +304,7 @@ void main() {
     bloc.add(ExpenseCreate(expenseEntity('exp-1')));
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state.status, ExpenseBlocStatus.success);
-    expect(bloc.state.message, 'Expense added successfully');
+    expect(bloc.state.message, 'Expense added');
     expect(repository.store.containsKey('exp-1'), isTrue);
     await bloc.close();
   });
@@ -315,7 +315,7 @@ void main() {
     bloc.add(ExpenseUpdate(expenseEntity('exp-1')));
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state.status, ExpenseBlocStatus.success);
-    expect(bloc.state.message, 'Expense updated successfully');
+    expect(bloc.state.message, 'Expense updated');
     await bloc.close();
   });
 
@@ -400,7 +400,7 @@ void main() {
 
       // Should resolve budgetId from active budget and create successfully
       expect(bloc.state.status, ExpenseBlocStatus.success);
-      expect(bloc.state.message, 'Expense added successfully');
+      expect(bloc.state.message, 'Expense added');
       expect(repository.store.containsKey('exp-test'), isTrue);
 
       // Verify the expense now has a valid budgetId

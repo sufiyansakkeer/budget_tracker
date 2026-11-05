@@ -4,6 +4,7 @@ import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../data/services/receipt_storage_service.dart';
 import 'receipt_photo.dart';
 
@@ -60,17 +61,12 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
     } catch (e) {
       // Camera access denied, no camera, a full disk.
       debugPrint('[error] Attaching a receipt: $e');
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              option == ImageSourceOption.camera
-                  ? "Couldn't open the camera. Check Monivo can use it."
-                  : "Couldn't attach that image. Try another.",
-            ),
-          ),
-        );
+      AppSnack.showOn(
+        messenger,
+        option == ImageSourceOption.camera
+            ? "Couldn't open the camera. Check Monivo can use it."
+            : "Couldn't attach that image. Try another.",
+      );
     }
   }
 
@@ -127,7 +123,10 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Receipt', style: theme.textTheme.titleSmall),
+        Semantics(
+          header: true,
+          child: Text('Receipt (optional)', style: theme.textTheme.titleSmall),
+        ),
         const SizedBox(height: AppSpacing.sm),
         AnimatedSwitcher(
           duration: AppMotion.respectReducedMotion(context, AppMotion.standard),

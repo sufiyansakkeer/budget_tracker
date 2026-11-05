@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_colors_extension.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
+import 'package:monivo/core/widgets/app_track.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_entity.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/dashboard_info.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_spending_hero.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_copy.dart';
 
@@ -278,5 +280,47 @@ void main() {
         });
       }
     }
+  });
+
+  group('the two bars say what they measure (UX-071)', () {
+    testWidgets("the top bar is captioned with today's amount used", (
+      tester,
+    ) async {
+      final entity = safeToSpend(periodSpent: 250, todaySpent: 250);
+      await tester.pumpWidget(harness(limitFor(entity)));
+      await tester.pumpAndSettle();
+
+      final caption = find.text(SafeToSpendCopy.todayUsedCaption(entity)!);
+      expect(caption, findsOneWidget);
+      // Directly under the first bar, above "Spent today".
+      final firstBar = find.byType(AppTrack).first;
+      expect(
+        tester.getTopLeft(caption).dy,
+        greaterThan(tester.getBottomLeft(firstBar).dy),
+      );
+      expect(
+        tester.getTopLeft(caption).dy,
+        lessThan(tester.getTopLeft(find.text('Spent today')).dy),
+      );
+    });
+
+    testWidgets('with no amount today there is no bar to explain', (
+      tester,
+    ) async {
+      final entity = runningStatusFixtures['overcommitted']!();
+      expect(entity.dailySafeToSpend, 0);
+      await tester.pumpWidget(harness(limitFor(entity)));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("of today's amount used"), findsNothing);
+      // Only the budget bar is left.
+      expect(find.byType(AppTrack), findsOneWidget);
+    });
+
+    test("the info sheet explains the budget bar's tick", () {
+      final notes = DashboardInfo.safeSpending('INR').additionalNotes!;
+      expect(notes, contains("tick marks today's place in the period"));
+      expect(notes, contains("how much of today's amount you have used"));
+    });
   });
 }

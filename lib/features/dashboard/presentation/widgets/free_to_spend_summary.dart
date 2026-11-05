@@ -32,7 +32,7 @@ class FreeToSpendSummary extends StatelessWidget {
     final detail = SafeToSpendCopy.freeToSpendContext(e);
     return AppSurface(
       level: SurfaceLevel.sunken,
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.md,
         AppSpacing.smd,
         AppSpacing.sm,
@@ -44,48 +44,75 @@ class FreeToSpendSummary extends StatelessWidget {
           '$value. $detail. Shows how today\'s amount is worked out',
       // The figure hugs the chevron at the right edge and may take up to
       // 45% of the row before it scales down; the label wraps in the rest.
+      // At large text (the same point [BreakdownRow] stacks) the figure moves
+      // under the label instead of squeezing it into a narrow column.
       child: LayoutBuilder(
-        builder: (context, constraints) => Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Free to spend', style: theme.textTheme.titleSmall),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    detail,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+        builder: (context, constraints) {
+          final figure = FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerEnd,
+            child: Text(
+              value,
+              style: context.appTypography.moneyTitle.copyWith(
+                color: e.shortfall > 0
+                    ? context.tone(AppTone.critical).accent
+                    : theme.colorScheme.onSurface,
               ),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: constraints.maxWidth * 0.45,
+          );
+          final label = [
+            Text('Free to spend', style: theme.textTheme.titleSmall),
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              detail,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: AlignmentDirectional.centerEnd,
-                child: Text(
-                  value,
-                  style: context.appTypography.moneyTitle.copyWith(
-                    color: e.shortfall > 0
-                        ? context.tone(AppTone.critical).accent
-                        : theme.colorScheme.onSurface,
+            ),
+          ];
+          final chevron = Icon(
+            Icons.chevron_right_rounded,
+            color: theme.colorScheme.onSurfaceVariant,
+          );
+          if (BreakdownRow.stacksAt(context)) {
+            return Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...label,
+                      const SizedBox(height: AppSpacing.xs),
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: figure,
+                      ),
+                    ],
                   ),
                 ),
+                chevron,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: label,
+                ),
               ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
+              const SizedBox(width: AppSpacing.sm),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * 0.45,
+                ),
+                child: figure,
+              ),
+              chevron,
+            ],
+          );
+        },
       ),
     );
   }

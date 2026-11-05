@@ -177,7 +177,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(budgets.activeId, isNot('oct'));
-      expect(find.text('Budget created and set active'), findsOneWidget);
+      expect(find.text('Budget created and made active'), findsOneWidget);
     });
 
     testWidgets('with no running budget active, a budget for later still '
@@ -195,7 +195,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(budgets.activeId, isNot('sep'));
-      expect(find.text('Budget created and set active'), findsOneWidget);
+      expect(find.text('Budget created and made active'), findsOneWidget);
     });
   });
 

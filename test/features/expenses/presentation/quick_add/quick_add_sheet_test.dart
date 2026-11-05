@@ -1,7 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/widgets/app_bottom_sheet.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
@@ -55,6 +61,19 @@ class _FakeSafeToSpend implements GetSafeToSpendUseCase {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Reads the active budget only once [gate] completes.
+class _GatedBudgetRepository extends StubBudgetRepository {
+  final gate = Completer<void>();
+
+  _GatedBudgetRepository(super.initial);
+
+  @override
+  Future<String?> getActiveBudgetId() async {
+    await gate.future;
+    return super.getActiveBudgetId();
+  }
+}
+
 void main() {
   late MemoryExpenseRepository expenses;
   late StubBudgetRepository budgets;
@@ -86,6 +105,7 @@ void main() {
     Size size = const Size(400, 900),
     double textScale = 1,
     GetSafeToSpendUseCase? safeToSpend,
+    bool settle = true,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -127,7 +147,13 @@ void main() {
       ),
     );
     await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      // Placeholders shimmer until the budget arrives.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+    }
     return results;
   }
 
@@ -549,4 +575,90 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  // UX-082: ₹ showed before the budget's currency was known.
+  testWidgets('no currency symbol shows before the budget is known', (
+    tester,
+  ) async {
+    final gated = _GatedBudgetRepository([
+      testBudget(
+        currency: 'OMR',
+        start: DateTime(2026, 10, 1),
+        end: DateTime(2026, 10, 31),
+      ),
+    ]);
+    budgets = gated;
+    await open(tester, settle: false);
+    // Runs before the bloc closes, so a failed check never hangs it.
+    addTearDown(() {
+      if (!gated.gate.isCompleted) gated.gate.complete();
+    });
+    await typeAmount(tester, '5');
+
+    expect(find.text(CurrencyFormatter.symbolFor(null)), findsNothing);
+    expect(find.text(CurrencyFormatter.symbolFor('OMR')), findsNothing);
+    expect(
+      find.textContaining(AppMoney.format(5, currency: null)),
+      findsNothing,
+    );
+
+    gated.gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text(CurrencyFormatter.symbolFor('OMR')), findsOneWidget);
+  });
+
+  // UX-111: the amount was a live region, spoken again after every key.
+  group('with a screen reader on', () {
+    final announced = <String>[];
+
+    setUp(announced.clear);
+
+    Future<void> listen(WidgetTester tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(accessibleNavigation: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      tester.binding.defaultBinaryMessenger
+          .setMockDecodedMessageHandler<dynamic>(SystemChannels.accessibility, (
+            message,
+          ) async {
+            final map = message as Map;
+            if (map['type'] == 'announce') {
+              announced.add((map['data'] as Map)['message'] as String);
+            }
+            return null;
+          });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger
+            .setMockDecodedMessageHandler<dynamic>(
+              SystemChannels.accessibility,
+              null,
+            ),
+      );
+    }
+
+    testWidgets('the amount is not a live region', (tester) async {
+      final handle = tester.ensureSemantics();
+      await listen(tester);
+      await open(tester);
+
+      final data = tester
+          .getSemantics(find.byKey(const Key('quickAddAmount')))
+          .getSemanticsData();
+      expect(data.hasFlag(SemanticsFlag.isLiveRegion), isFalse);
+      handle.dispose();
+    });
+
+    testWidgets('it is said once when typing pauses', (tester) async {
+      await listen(tester);
+      await open(tester);
+
+      await typeAmount(tester, '250');
+      expect(announced, isEmpty);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(announced, ['Amount, ${AppMoney.spoken(250, currency: 'INR')}']);
+    });
+  });
 }

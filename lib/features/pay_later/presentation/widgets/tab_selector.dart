@@ -59,18 +59,15 @@ class TabSelector extends StatelessWidget {
         trailing: TextButton(onPressed: onRetry, child: const Text('Retry')),
       );
     } else if (all == null) {
-      body = Semantics(
-        label: 'Loading tabs',
-        excludeSemantics: true,
-        child: Shimmer(
-          child: Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final w in [112.0, 96.0])
-                SkeletonBox(width: w, height: 32, radius: AppSpacing.radiusSm),
-            ],
-          ),
+      body = Shimmer(
+        semanticsLabel: 'Loading tabs',
+        child: Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final w in [112.0, 96.0])
+              SkeletonBox(width: w, height: 32, radius: AppSpacing.radiusSm),
+          ],
         ),
       );
     } else {

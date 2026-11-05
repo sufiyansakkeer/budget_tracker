@@ -88,6 +88,37 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('UX-091: another period starts with no day chosen', (
+      tester,
+    ) async {
+      Widget chart(List<DailySpendingPoint> points) =>
+          DailyColumnsChart(points: points, average: 0, currency: 'USD');
+      await pump(tester, chart(week([100, 0, 1, 0, 0, 0, 0])));
+      final x = tester.getCenter(find.text('Mon')).dx;
+      final top = tester.getTopLeft(find.byType(BarChart)).dy;
+      await tester.tapAt(Offset(x, top + 12));
+      await tester.pumpAndSettle();
+      expect(find.text('Mon 5 Oct · ${usd(100)}'), findsOneWidget);
+
+      // The same days refreshed: the choice stays.
+      await pump(tester, chart(week([120, 0, 1, 0, 0, 0, 0])));
+      expect(find.text('Mon 5 Oct · ${usd(120)}'), findsOneWidget);
+
+      // The week before, same length: nothing is chosen.
+      await pump(
+        tester,
+        chart([
+          for (var i = 0; i < 7; i++)
+            DailySpendingPoint(
+              date: DateTime(2026, 9, 28 + i),
+              amount: i == 1 ? 50 : 10,
+            ),
+        ]),
+      );
+      expect(find.text('Mon 28 Sep · ${usd(10)}'), findsNothing);
+      expect(find.textContaining('Highest Tue 29 Sep'), findsOneWidget);
+    });
+
     testWidgets('day labels name the month where it changes (UX-052)', (
       tester,
     ) async {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
@@ -14,12 +13,12 @@ import '../../../../core/widgets/app_track.dart';
 import '../../../../core/widgets/status_chip.dart';
 import '../start_next_period.dart';
 import 'budget_visuals.dart';
+import '../../../../core/dates/date_range_format.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Words for where a budget is in its period, shared by the list and the
 /// details screen. Day counts are calendar days, today included.
 abstract final class BudgetPeriodCopy {
-  static final DateFormat _day = DateFormat('d MMM');
-
   /// "23 days left", "Last day", "Starts 1 Nov", "Ended 31 Oct", "Archived".
   /// [withToday] says that today is one of the days left, for beside
   /// [dayOf], which counts today too ("23 days left, incl. today", with a
@@ -35,9 +34,9 @@ abstract final class BudgetPeriodCopy {
         if (left <= 1) return 'Last day';
         return '$left days left${withToday ? ', incl.\u00A0today' : ''}';
       case BudgetPhase.upcoming:
-        return 'Starts ${_day.format(budget.startDate)}';
+        return 'Starts ${AppDates.day(budget.startDate, now: now)}';
       case BudgetPhase.ended:
-        return 'Ended ${_day.format(budget.endDate)}';
+        return 'Ended ${AppDates.day(budget.endDate, now: now)}';
       case BudgetPhase.archived:
         return 'Archived';
     }
@@ -49,15 +48,10 @@ abstract final class BudgetPeriodCopy {
     return 'Day ${budget.daysElapsed(now)} of ${budget.totalDays}';
   }
 
-  /// "1 – 31 Oct" (or across months, "15 Oct – 14 Nov").
-  static String range(BudgetEntity budget) {
-    final start = budget.startDate;
-    final end = budget.endDate;
-    if (start.year == end.year && start.month == end.month) {
-      return '${start.day} – ${_day.format(end)}';
-    }
-    return '${_day.format(start)} – ${_day.format(end)}';
-  }
+  /// "1 – 31 Oct" (or across months, "15 Oct – 14 Nov"), with the year
+  /// when the period isn't in the current year ("1 – 31 Oct 2025").
+  static String range(BudgetEntity budget, {DateTime? now}) =>
+      AppDates.span(budget.startDate, budget.endDate, now: now);
 
   /// "₹25,103 left of ₹60,000" / "₹1,200 over ₹60,000".
   static String leftLine(BudgetEntity budget) {
@@ -93,8 +87,10 @@ class BudgetUsageTrack extends StatelessWidget {
     final theme = Theme.of(context);
     final amount = budget.monthlyAmount;
     final spent = amount - budget.remainingAmount;
-    // Drawing geometry only.
-    final used = amount <= 0 ? 0.0 : (spent / amount).clamp(0.0, 1.0);
+    final share = amount <= 0 ? 0.0 : spent / amount;
+    // Drawing geometry only: the screen reader hears the real share, so
+    // an overspent budget reads "125%", not "100%".
+    final used = share.clamp(0.0, 1.0);
     final running = budget.phaseOn(now) == BudgetPhase.running;
     final elapsed = budget.totalDays <= 0
         ? 0.0
@@ -110,6 +106,7 @@ class BudgetUsageTrack extends StatelessWidget {
           TrackMarker(position: elapsed, color: theme.colorScheme.onSurface),
       ],
       semanticLabel: 'Budget used',
+      semanticValue: '${(share < 0 ? 0 : share * 100).round()}%',
     );
   }
 }
@@ -144,7 +141,7 @@ class BudgetStatusChip extends StatelessWidget {
         Icons.radio_button_off_rounded,
       ),
       BudgetPhase.upcoming => (
-        'Upcoming',
+        AppTerms.notStarted,
         AppTone.info,
         Icons.schedule_rounded,
       ),
@@ -191,8 +188,7 @@ class EndedBudgetNotice extends StatelessWidget {
     return AppNotice(
       tone: isActive ? AppTone.caution : AppTone.neutral,
       icon: Icons.event_busy_rounded,
-      title:
-          '${budget.name} ended ${BudgetPeriodCopy._day.format(budget.endDate)}',
+      title: '${budget.name} ended ${AppDates.day(budget.endDate)}',
       message: isActive
           ? "Home has no Today's Safe Spending until a budget runs today. "
                 '$carryOn'
@@ -274,7 +270,7 @@ class ActiveBudgetCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            over ? 'Over by' : 'Left',
+            over ? 'Over by' : AppTerms.remainingBudget,
             style: typography.eyebrow.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -340,45 +336,47 @@ class BudgetRow extends StatelessWidget {
     final over = budget.remainingAmount < 0;
     final when = BudgetPeriodCopy.when(budget, now);
     final detail = '${BudgetPeriodCopy.range(budget)} · $when';
+    // An archived budget steps back in the muted text colour, which keeps
+    // its contrast (a faded row did not).
+    final archived = phase == BudgetPhase.archived;
+    final quiet = archived ? theme.colorScheme.onSurfaceVariant : null;
 
-    return Opacity(
-      opacity: phase == BudgetPhase.archived ? 0.75 : 1,
-      child: AppListRow(
-        key: ValueKey('budget_${budget.id}'),
-        leading: IconTile(
-          icon: BudgetVisuals.iconFor(budget.icon),
-          color: BudgetVisuals.colorFor(context, budget),
-          size: AppSizes.avatarSm,
-        ),
-        title: budget.name,
-        subtitleWidget: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(detail, style: muted, maxLines: 2),
-            if (phase == BudgetPhase.running) ...[
-              const SizedBox(height: AppSpacing.xs),
-              BudgetUsageTrack(budget: budget, now: now, height: 3),
-            ],
-          ],
-        ),
-        trailing: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppMoney(
-              amount: budget.remainingAmount.abs(),
-              currency: budget.currency,
-              textAlign: TextAlign.end,
-              color: over ? context.tone(AppTone.critical).accent : null,
-            ),
-            Text(over ? 'over' : 'left', style: muted),
-          ],
-        ),
-        semanticLabel:
-            '${budget.name}, ${BudgetPeriodCopy.leftLine(budget)}, $detail',
-        onTap: onTap,
+    return AppListRow(
+      key: ValueKey('budget_${budget.id}'),
+      leading: IconTile(
+        icon: BudgetVisuals.iconFor(budget.icon),
+        color: BudgetVisuals.colorFor(context, budget),
+        size: AppSizes.avatarSm,
       ),
+      title: budget.name,
+      titleColor: quiet,
+      subtitleWidget: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(detail, style: muted, maxLines: 2),
+          if (phase == BudgetPhase.running) ...[
+            const SizedBox(height: AppSpacing.xs),
+            BudgetUsageTrack(budget: budget, now: now, height: 3),
+          ],
+        ],
+      ),
+      trailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppMoney(
+            amount: budget.remainingAmount.abs(),
+            currency: budget.currency,
+            textAlign: TextAlign.end,
+            color: over ? context.tone(AppTone.critical).accent : quiet,
+          ),
+          Text(over ? 'over' : 'left', style: muted),
+        ],
+      ),
+      semanticLabel:
+          '${budget.name}, ${BudgetPeriodCopy.leftLine(budget)}, $detail',
+      onTap: onTap,
     );
   }
 }

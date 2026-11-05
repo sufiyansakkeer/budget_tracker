@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import 'onboarding_step_layout.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// A single-date picker step used for both the budget start and end date
 /// during onboarding.
 class BudgetDateStepWidget extends StatelessWidget {
   final String title;
   final String subtitle;
+
+  /// Which date this is, for the screen reader: "Start date", "End date".
+  final String dateLabel;
   final DateTime date;
+
+  /// The earliest date the picker offers. The end step passes the day after
+  /// the start, since a budget ends at least a day after it starts.
+  final DateTime? firstDate;
   final String? errorMessage;
   final ValueChanged<DateTime> onDateChanged;
   final VoidCallback onContinue;
@@ -21,7 +28,9 @@ class BudgetDateStepWidget extends StatelessWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    required this.dateLabel,
     required this.date,
+    this.firstDate,
     this.errorMessage,
     required this.onDateChanged,
     required this.onContinue,
@@ -29,11 +38,15 @@ class BudgetDateStepWidget extends StatelessWidget {
   });
 
   Future<void> _pickDate(BuildContext context) async {
+    final earliest = firstDate ?? DateTime(2000);
     final picked = await showDatePicker(
       context: context,
       initialDate: date,
-      firstDate: DateTime(2000),
+      // A date already before the bound (an invalid end) stays pickable,
+      // so the picker can open on it.
+      firstDate: date.isBefore(earliest) ? date : earliest,
       lastDate: DateTime(2100),
+      helpText: dateLabel,
     );
     if (picked != null) onDateChanged(picked);
   }
@@ -60,7 +73,7 @@ class BudgetDateStepWidget extends StatelessWidget {
           Semantics(
             button: true,
             label:
-                'Selected date ${DateFormat('d MMMM yyyy').format(date)}. '
+                '$dateLabel ${AppDates.longDay(date)}. '
                 'Tap to change',
             onTap: () => _pickDate(context),
             excludeSemantics: true,
@@ -80,13 +93,13 @@ class BudgetDateStepWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          DateFormat('EEEE').format(date),
+                          AppDates.weekdayName(date),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                         Text(
-                          DateFormat('d MMMM yyyy').format(date),
+                          AppDates.longDay(date),
                           style: theme.textTheme.titleMedium,
                         ),
                       ],
@@ -94,7 +107,9 @@ class BudgetDateStepWidget extends StatelessWidget {
                   ),
                   if (isToday)
                     Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      padding: const EdgeInsetsDirectional.only(
+                        end: AppSpacing.sm,
+                      ),
                       child: Text(
                         'Today',
                         style: theme.textTheme.labelMedium?.copyWith(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -23,31 +24,32 @@ abstract final class ExpenseUndo {
   static ExpenseBloc Function() blocFactory = () => getIt<ExpenseBloc>();
 
   /// [link]: the Pay later tab link the delete removed, so Undo puts the
-  /// purchase back on its tab.
+  /// purchase back on its tab. Once Undo has run, [messenger] says
+  /// "Expense restored" or why it couldn't be, as the list does.
   static void offer(
     ScaffoldMessengerState messenger,
     ExpenseEntity deleted, {
     TabLinkSnapshot? link,
   }) {
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(snackBar(onUndo: () => restore(deleted, link: link)));
+    AppSnack.present(
+      messenger,
+      snackBar(
+        onUndo: () => restore(deleted, link: link, messenger: messenger),
+      ),
+    );
   }
 
-  /// The "deleted · Undo" SnackBar every delete shows, held longer than a
-  /// plain message so there is time to tap Undo.
+  /// The "deleted · Undo" SnackBar every delete shows; [AppSnack] holds
+  /// it longer than a plain message so there is time to tap Undo.
   static SnackBar snackBar({
     String message = 'Expense deleted',
     required VoidCallback onUndo,
-  }) => SnackBar(
+  }) => AppSnack.bar(
+    message,
     key: const Key('undoDeleteSnackBar'),
-    content: Text(message),
-    duration: const Duration(seconds: 6),
-    action: SnackBarAction(
-      key: const Key('undoDeleteAction'),
-      label: 'Undo',
-      onPressed: onUndo,
-    ),
+    actionKey: const Key('undoDeleteAction'),
+    actionLabel: 'Undo',
+    onAction: onUndo,
   );
 
   /// "₹250 added · ₹627 left today" after [added] was saved, with Undo.
@@ -59,14 +61,13 @@ abstract final class ExpenseUndo {
     required String? currency,
     SafeToSpendEntity? after,
   }) {
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        snackBar(
-          message: _addedMessage(added, currency: currency, after: after),
-          onUndo: () => remove(added.id),
-        ),
-      );
+    AppSnack.present(
+      messenger,
+      snackBar(
+        message: _addedMessage(added, currency: currency, after: after),
+        onUndo: () => remove(added.id),
+      ),
+    );
   }
 
   static String _addedMessage(
@@ -96,32 +97,53 @@ abstract final class ExpenseUndo {
     VoidCallback? onUndone,
   }) {
     final message = 'Moved to $to';
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        original.billId != null
-            ? SnackBar(content: Text(message))
-            : snackBar(
-                message: message,
-                onUndo: () => _run(
-                  ExpenseUpdate(original.copyWith(updatedAt: DateTime.now())),
-                  onDone: onUndone,
-                ),
+    AppSnack.present(
+      messenger,
+      original.billId != null
+          ? AppSnack.bar(message)
+          : snackBar(
+              message: message,
+              onUndo: () => _run(
+                ExpenseUpdate(original.copyWith(updatedAt: DateTime.now())),
+                onDone: onUndone,
               ),
-      );
+            ),
+    );
   }
 
-  /// Puts [expense] back and reports when that has finished.
-  static Future<void> restore(ExpenseEntity expense, {TabLinkSnapshot? link}) =>
-      _run(ExpenseRestore(expense, link: link));
+  /// Puts [expense] back and reports when that has finished; with
+  /// [messenger], also on screen: "Expense restored", or the failure.
+  static Future<void> restore(
+    ExpenseEntity expense, {
+    TabLinkSnapshot? link,
+    ScaffoldMessengerState? messenger,
+  }) => _run(
+    ExpenseRestore(expense, link: link),
+    onOutcome: (outcome) {
+      if (messenger == null || outcome == null || !messenger.mounted) return;
+      final restored = outcome.status == ExpenseBlocStatus.success;
+      AppSnack.showOn(
+        messenger,
+        restored
+            ? 'Expense restored'
+            : outcome.message ?? "Couldn't restore the expense. Try again.",
+      );
+    },
+  );
 
   /// Deletes the expense an add created (a purchase on a tab comes off it
   /// too), and reports when that has finished.
   static Future<void> remove(String id) =>
       _run(ExpenseDelete(id, undoable: false));
 
-  /// [onDone] runs once the bloc has finished, before it closes.
-  static Future<void> _run(ExpenseEvent event, {VoidCallback? onDone}) async {
+  /// [onDone] runs once the bloc has finished, before it closes;
+  /// [onOutcome] too, with the state it finished in (success or error), or
+  /// null when it didn't finish in time.
+  static Future<void> _run(
+    ExpenseEvent event, {
+    VoidCallback? onDone,
+    void Function(ExpenseState? outcome)? onOutcome,
+  }) async {
     final bloc = blocFactory();
     final done = bloc.stream.firstWhere(
       (s) =>
@@ -129,13 +151,15 @@ abstract final class ExpenseUndo {
           s.status == ExpenseBlocStatus.error,
     );
     bloc.add(event);
+    ExpenseState? outcome;
     try {
-      await done.timeout(const Duration(seconds: 10));
+      outcome = await done.timeout(const Duration(seconds: 10));
     } catch (e) {
       // The bloc reports its own failure; only the bloc needs closing.
       debugPrint('[error] Waiting for an undo to finish: $e');
     }
     onDone?.call();
+    onOutcome?.call(outcome);
     await bloc.close();
   }
 }

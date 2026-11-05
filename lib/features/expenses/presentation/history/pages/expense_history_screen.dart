@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/constants/app_motion.dart';
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/feedback/app_haptics.dart';
 import '../../../../../core/theme/app_colors_extension.dart';
+import '../../../../../core/widgets/app_snack.dart';
 import '../../../../../core/widgets/app_state_switcher.dart';
 import '../../../../../core/widgets/info_content.dart';
 import '../../../../../core/widgets/info_icon.dart';
@@ -46,7 +47,6 @@ import '../../../../../core/widgets/fade_slide_in.dart';
 import '../../../../../core/navigation/push_unique.dart';
 import '../../../../../core/widgets/app_animated_size.dart';
 import '../../../../../core/widgets/app_page_body.dart';
-import '../../../../../core/feedback/app_haptics.dart';
 import '../../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
 
@@ -70,18 +70,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   final ScrollController _scrollController = ScrollController();
 
   /// The add button shrinks to an icon while scrolling down so it never
-  /// covers the amounts, and grows back when scrolling up.
-  bool _fabExtended = true;
-
-  bool _onUserScroll(UserScrollNotification notification) {
-    final extended = switch (notification.direction) {
-      ScrollDirection.reverse => false,
-      ScrollDirection.forward => true,
-      ScrollDirection.idle => _fabExtended,
-    };
-    if (extended != _fabExtended) setState(() => _fabExtended = extended);
-    return false;
-  }
+  /// covers the amounts, and grows back when scrolling up or at the top.
+  final AppFabCollapse _fabCollapse = AppFabCollapse();
 
   // Grouping cache so the list is not regrouped on every rebuild.
   List<ExpenseEntity>? _groupSource;
@@ -115,6 +105,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
+    _fabCollapse.dispose();
     super.dispose();
   }
 
@@ -291,13 +282,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     } catch (e) {
       debugPrint('[error] Checking payments before deleting an expense: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text(PurchaseImpactDialog.deleteCheckFailed),
-            ),
-          );
+        AppSnack.show(context, PurchaseImpactDialog.deleteCheckFailed);
       }
       return null;
     }
@@ -403,17 +388,12 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       if (!mounted) return;
       if (load == BudgetsLoad.failed || bloc.state.allBudgets.isEmpty) {
         bloc.add(const ExpenseHistoryExitCombinedView());
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                load == BudgetsLoad.failed
-                    ? "Couldn't load your budgets. Try again."
-                    : 'You need at least one budget to combine.',
-              ),
-            ),
-          );
+        AppSnack.show(
+          context,
+          load == BudgetsLoad.failed
+              ? "Couldn't load your budgets. Try again."
+              : 'You need at least one budget to combine.',
+        );
         return;
       }
     }
@@ -486,28 +466,19 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           // The full error view handles the empty case; otherwise surface
           // the failure without hiding the data on screen.
           if (state.allExpenses.isNotEmpty) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.errorMessage == null ||
-                            state.errorMessage ==
-                                ExpenseHistoryBloc.loadFailedMessage
-                        ? "Couldn't refresh expenses. Try again in a moment."
-                        : state.errorMessage!,
-                  ),
-                ),
-              );
+            AppSnack.show(
+              context,
+              state.errorMessage == null ||
+                      state.errorMessage == ExpenseHistoryBloc.loadFailedMessage
+                  ? "Couldn't refresh expenses. Try again in a moment."
+                  : state.errorMessage!,
+            );
           }
         },
         builder: (context, state) => _buildScroll(context, state),
       ),
     );
-    body = NotificationListener<UserScrollNotification>(
-      onNotification: _onUserScroll,
-      child: body,
-    );
+    body = _fabCollapse.listen(child: body);
 
     if (expenseBloc != null) {
       body = BlocListener<ExpenseBloc, ExpenseState>(
@@ -542,17 +513,16 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               ? state.lastDeleted
               : null;
           final link = state.lastDeletedLink;
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              deleted != null
-                  ? ExpenseUndo.snackBar(
-                      message: _quietMessage(state),
-                      onUndo: () =>
-                          expenseBloc.add(ExpenseRestore(deleted, link: link)),
-                    )
-                  : SnackBar(content: Text(_quietMessage(state))),
-            );
+          AppSnack.present(
+            ScaffoldMessenger.of(context),
+            deleted != null
+                ? ExpenseUndo.snackBar(
+                    message: _quietMessage(state),
+                    onUndo: () =>
+                        expenseBloc.add(ExpenseRestore(deleted, link: link)),
+                  )
+                : AppSnack.bar(_quietMessage(state)),
+          );
           expenseBloc.add(const ExpenseClearMessage());
         },
         child: body,
@@ -567,7 +537,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         icon: Icons.add_rounded,
         label: 'Add expense',
         tooltip: 'Add expense',
-        extended: _fabExtended,
+        collapse: _fabCollapse,
       ),
     );
   }
@@ -581,7 +551,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         ? 'Each expense keeps its own budget'
         : null;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.md,
         AppSpacing.md,
         AppSpacing.xs,
@@ -918,8 +888,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         undoable: !_confirmedDeletes.remove(expense.id),
       ),
       background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: AppSpacing.lg),
+        alignment: AlignmentDirectional.centerEnd,
+        padding: const EdgeInsetsDirectional.only(end: AppSpacing.lg),
         decoration: BoxDecoration(
           color: context.appColors.error,
           borderRadius: AppSpacing.borderRadiusSm,
@@ -977,7 +947,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   InfoContent _expenseListInfo(ExpenseHistoryState state) {
     if (state.isCombinedMode) {
       return const InfoContent(
-        title: 'Combined Expenses',
+        title: 'Combined expenses',
         whatIsThis:
             'One list showing the expenses of every budget you selected, '
             'so you can compare or review them together. Your budgets '

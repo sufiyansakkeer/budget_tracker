@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/primary_button.dart';
 
 /// Shared scaffold for every onboarding step.
 ///
@@ -56,7 +57,7 @@ class OnboardingStepLayout extends StatelessWidget {
       children: [
         if (onBack != null)
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
               child: IconButton(
@@ -114,8 +115,8 @@ class OnboardingStepLayout extends StatelessWidget {
   }
 }
 
-/// Primary onboarding action. Uses [ElevatedButton], which the theme styles
-/// identically to a filled button.
+/// Primary onboarding action: the app's [PrimaryButton], so it looks and
+/// behaves like every other Save (primary while busy, with a spinner).
 class OnboardingContinueButton extends StatelessWidget {
   final Key? buttonKey;
   final String label;
@@ -133,34 +134,11 @@ class OnboardingContinueButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minWidth: double.infinity,
-        minHeight: AppSizes.touchTarget + AppSpacing.xs,
-      ),
-      child: ElevatedButton(
-        key: buttonKey,
-        onPressed: isLoading ? null : onPressed,
-        child: isLoading
-            ? SizedBox(
-                width: AppSizes.iconMd,
-                height: AppSizes.iconMd,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(label),
-                  const SizedBox(width: AppSpacing.sm),
-                  Icon(icon, size: AppSizes.iconMd),
-                ],
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => PrimaryButton(
+    buttonKey: buttonKey,
+    label: label,
+    icon: icon,
+    onPressed: onPressed,
+    isLoading: isLoading,
+  );
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/currency/currency_formatter.dart';
@@ -7,6 +6,7 @@ import '../../../../../core/domain/entities/budget_entity.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/app_card.dart';
 import '../../../domain/entities/expense_entity.dart';
+import '../../../../../core/dates/date_range_format.dart';
 
 /// Lightweight bottom sheet that shows budget & expense details when the user
 /// taps the info icon on an expense tile in combined mode.
@@ -42,15 +42,12 @@ class BudgetInfoBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dateFmt = DateFormat('EEE, d MMM yyyy');
-    final timeFmt = DateFormat('h:mm a');
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const AppSheetHeader(
-          title: 'Expense Information',
+          title: 'Expense information',
           subtitle: 'This expense belongs to one budget only.',
         ),
         Padding(
@@ -80,12 +77,12 @@ class BudgetInfoBottomSheet extends StatelessWidget {
               _InfoRow(
                 icon: Icons.calendar_today_rounded,
                 label: 'Date',
-                value: dateFmt.format(expense.date),
+                value: AppDates.fullDay(expense.date),
               ),
               _InfoRow(
                 icon: Icons.access_time_rounded,
                 label: 'Time',
-                value: timeFmt.format(expense.time),
+                value: AppDates.time(context, expense.time),
               ),
             ],
           ),
@@ -123,37 +120,40 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        children: [
-          IconTile(
-            icon: icon,
-            color: color ?? theme.colorScheme.onSurfaceVariant,
-            size: AppSizes.avatarSm,
-          ),
-          const SizedBox(width: AppSpacing.smd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  value,
-                  style: theme.textTheme.titleSmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+    // Label and value are read as one stop ("Spent, ₹4,200").
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          children: [
+            IconTile(
+              icon: icon,
+              color: color ?? theme.colorScheme.onSurfaceVariant,
+              size: AppSizes.avatarSm,
             ),
-          ),
-        ],
+            const SizedBox(width: AppSpacing.smd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    value,
+                    style: theme.textTheme.titleSmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

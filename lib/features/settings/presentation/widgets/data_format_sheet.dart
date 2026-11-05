@@ -94,7 +94,7 @@ class DataFormatSheet extends StatelessWidget {
           AppSheetHeader(title: title, subtitle: subtitle),
           Padding(
             // Lined up with the sheet's title; the sheet is the surface.
-            padding: const EdgeInsets.fromLTRB(
+            padding: const EdgeInsetsDirectional.fromSTEB(
               AppSpacing.lg,
               0,
               AppSpacing.md,

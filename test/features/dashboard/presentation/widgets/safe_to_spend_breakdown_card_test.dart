@@ -7,6 +7,7 @@ import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spe
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_breakdown_card.dart';
 
 import 'safe_to_spend_fixtures.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 void main() {
   Widget harness(SafeToSpendEntity value) => MaterialApp(
@@ -40,7 +41,7 @@ void main() {
       );
       await tester.pumpWidget(harness(entity));
 
-      expect(find.text('Remaining in budget'), findsOneWidget);
+      expect(find.text(AppTerms.remainingBudget), findsOneWidget);
       expect(find.text('₹22,000'), findsOneWidget);
       expect(find.text('Bills due by 31 Aug (2)'), findsOneWidget);
       expect(find.text('₹12,500'), findsOneWidget);
@@ -152,8 +153,21 @@ void main() {
       );
 
       expect(find.text('Forecast'), findsOneWidget);
-      expect(find.text('Ready after 2 more days of spending'), findsOneWidget);
+      // Calendar days still to pass, not days with spending (UX-074).
+      expect(find.text('Ready in 2 more days.'), findsOneWidget);
       expect(find.textContaining('Average a day'), findsNothing);
+    });
+
+    testWidgets('names the first expense too while history is short and '
+        'nothing is spent', (tester) async {
+      await tester.pumpWidget(
+        harness(safeToSpend(today: DateTime(2026, 8, 2))),
+      );
+
+      expect(
+        find.text('Needs your first expense and 2 more days.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('waits for a first expense when nothing is spent', (

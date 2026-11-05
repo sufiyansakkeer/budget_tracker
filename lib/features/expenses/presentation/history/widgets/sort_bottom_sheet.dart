@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../domain/entities/expense_history_sort.dart';
+import '../../../../../core/constants/app_copy.dart';
 
 /// Bottom sheet for selecting a sort option.
 class SortBottomSheet extends StatelessWidget {
@@ -36,7 +37,7 @@ class SortBottomSheet extends StatelessWidget {
                   ? theme.colorScheme.primary
                   : theme.colorScheme.onSurfaceVariant,
             ),
-            title: Text(option.label),
+            title: Text(AppTerms.sentenceCase(option.label)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
             ),

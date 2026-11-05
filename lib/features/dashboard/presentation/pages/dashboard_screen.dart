@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -61,7 +60,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   /// The button keeps its label at rest and folds to its icon while the
   /// user scrolls down, so it covers less of the amounts on the right.
-  bool _fabExtended = true;
+  final AppFabCollapse _fabCollapse = AppFabCollapse();
 
   /// Whether [state] shows a dashboard the FAB belongs on.
   static bool _hasContent(DashboardState state) =>
@@ -77,14 +76,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  bool _onScroll(UserScrollNotification notification) {
-    final extended = switch (notification.direction) {
-      ScrollDirection.reverse => false,
-      ScrollDirection.forward => true,
-      ScrollDirection.idle => _fabExtended,
-    };
-    if (extended != _fabExtended) setState(() => _fabExtended = extended);
-    return false;
+  @override
+  void dispose() {
+    _fabCollapse.dispose();
+    super.dispose();
   }
 
   @override
@@ -92,8 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: NotificationListener<UserScrollNotification>(
-          onNotification: _onScroll,
+        child: _fabCollapse.listen(
           child: BlocBuilder<DashboardBloc, DashboardState>(
             // DashboardBloc re-emits on every expense, budget and bill change
             // from any tab. Equatable states mean an unchanged refresh is a
@@ -135,7 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icons.add_rounded,
             label: 'Add expense',
             tooltip: 'Add expense',
-            extended: _fabExtended,
+            collapse: _fabCollapse,
             // Appears once the dashboard has loaded; the Scaffold animates
             // it in.
             animateEntrance: false,
@@ -148,6 +142,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 void _refresh(BuildContext context) =>
     context.read<DashboardBloc>().add(const DashboardRefresh());
+
+/// Home's entrance stagger: a short cascade, so the figures settle soon
+/// after the skeleton fades (review: 7 steps settled at about 590 ms). The
+/// header and Today's Safe Spending arrive together; everything below the
+/// bills shares the last step.
+abstract final class _Stagger {
+  static const int top = 0;
+  static const int summary = 1;
+  static const int bills = 2;
+  static const int rest = 3;
+}
 
 /// Space between top-level sections. Sections are told apart by this and
 /// by their titles, not by borders.
@@ -169,12 +174,12 @@ class _DashboardContent extends StatelessWidget {
 
     return _DashboardScroll(
       primary: [
-        FadeSlideIn(index: 0, child: _header(context, safeToSpend)),
+        FadeSlideIn(index: _Stagger.top, child: _header(context, safeToSpend)),
         const SizedBox(height: AppSpacing.md),
 
         // Today's Safe Spending: the one raised surface.
         FadeSlideIn(
-          index: 1,
+          index: _Stagger.top,
           child: SafeSpendingHeroSwitcher(
             // Keyed by budget: switching budgets cross-fades, refreshing the
             // same budget animates values in place.
@@ -215,20 +220,20 @@ class _DashboardContent extends StatelessWidget {
         if (safeToSpend != null) ...[
           const SizedBox(height: AppSpacing.sm),
           FadeSlideIn(
-            index: 2,
+            index: _Stagger.summary,
             child: FreeToSpendSummary(
               key: ValueKey('free_to_spend_${safeToSpend.budgetId}'),
               safeToSpend: safeToSpend,
               onTap: () => SafeToSpendWorkingSheet.show(context, safeToSpend),
             ),
           ),
-          ..._notices(context, safeToSpend, index: 2),
+          ..._notices(context, safeToSpend, index: _Stagger.summary),
         ],
         const NotificationPrimingCard(),
 
         const SizedBox(height: _sectionGap),
         FadeSlideIn(
-          index: 3,
+          index: _Stagger.bills,
           child: UpcomingBillsSection(
             bills: state.upcomingBills,
             unavailable: state.upcomingBillsUnavailable,
@@ -251,12 +256,18 @@ class _DashboardContent extends StatelessWidget {
       secondary: [
         if (pace != null && pace.isMeaningful) ...[
           const SizedBox(height: _sectionGap),
-          FadeSlideIn(index: 4, child: SpendingPaceSection(pace: pace)),
+          FadeSlideIn(
+            index: _Stagger.rest,
+            child: SpendingPaceSection(pace: pace),
+          ),
         ],
 
         if (insights.isNotEmpty) ...[
           const SizedBox(height: _sectionGap),
-          FadeSlideIn(index: 4, child: HomeInsightsSection(insights: insights)),
+          FadeSlideIn(
+            index: _Stagger.rest,
+            child: HomeInsightsSection(insights: insights),
+          ),
         ],
 
         ..._otherBudgets(state.otherBudgetLimits),
@@ -286,7 +297,7 @@ class _DashboardContent extends StatelessWidget {
     }
     return DashboardHeader(
       budgetName: safeToSpend.budgetName,
-      caption: formatDateRange(safeToSpend.startDate, safeToSpend.endDate),
+      caption: AppDates.range(safeToSpend.startDate, safeToSpend.endDate),
       onSwitchBudget: () => ActiveBudgetSelector.open(context),
     );
   }
@@ -308,19 +319,16 @@ class _NotRunningContent extends StatelessWidget {
     return _DashboardScroll(
       primary: [
         FadeSlideIn(
-          index: 0,
+          index: _Stagger.top,
           child: DashboardHeader(
             budgetName: safeToSpend.budgetName,
-            caption: formatDateRange(
-              safeToSpend.startDate,
-              safeToSpend.endDate,
-            ),
+            caption: AppDates.range(safeToSpend.startDate, safeToSpend.endDate),
             onSwitchBudget: () => ActiveBudgetSelector.open(context),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
         FadeSlideIn(
-          index: 1,
+          index: _Stagger.top,
           child: SafeSpendingHeroSwitcher(
             child: SafeSpendingNotRunningCard(
               key: ValueKey('paused_${state.activeBudgetId}'),
@@ -333,7 +341,7 @@ class _NotRunningContent extends StatelessWidget {
         if (safeToSpend.status == SafeToSpendStatus.notStarted) ...[
           const SizedBox(height: AppSpacing.sm),
           FadeSlideIn(
-            index: 2,
+            index: _Stagger.summary,
             child: AppSurface(
               level: SurfaceLevel.sunken,
               child: SafeToSpendBreakdownCard(
@@ -342,11 +350,11 @@ class _NotRunningContent extends StatelessWidget {
               ),
             ),
           ),
-          ..._notices(context, safeToSpend, index: 2),
+          ..._notices(context, safeToSpend, index: _Stagger.summary),
         ],
         const SizedBox(height: _sectionGap),
         FadeSlideIn(
-          index: 3,
+          index: _Stagger.bills,
           child: UpcomingBillsSection(
             bills: state.upcomingBills,
             unavailable: state.upcomingBillsUnavailable,
@@ -477,7 +485,7 @@ List<Widget> _otherBudgets(List<BudgetDailyLimitEntity> others) => [
   if (others.isNotEmpty) ...[
     const SizedBox(height: _sectionGap),
     FadeSlideIn(
-      index: 5,
+      index: _Stagger.rest,
       child: AppSection(
         title: 'Other budgets today',
         subtitle: 'Each budget has its own safe amount',
@@ -506,7 +514,7 @@ List<Widget> _recentExpenses(
   return [
     const SizedBox(height: _sectionGap),
     FadeSlideIn(
-      index: 6,
+      index: _Stagger.rest,
       child: AppSection(
         title: 'Recent',
         action: expenses.isEmpty

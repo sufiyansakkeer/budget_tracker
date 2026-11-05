@@ -14,6 +14,7 @@ import '../entities/report_period.dart';
 import '../entities/spending_trend.dart';
 import '../entities/time_analytics.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../../../../core/database/default_categories.dart';
 
 /// Pure calculation engine for all report analytics.
 ///
@@ -229,7 +230,7 @@ class AnalyticsService {
       return CategoryAnalytics(
         categoryId: entry.key,
         categoryName: nameById[entry.key] ?? 'Unknown',
-        colorHex: colorById[entry.key] ?? '#8395A7',
+        colorHex: colorById[entry.key] ?? fallbackCategoryColorHex,
         totalAmount: sum,
         transactionCount: list.length,
         percentageOfTotal: total <= 0 ? 0 : (sum / total) * 100,
@@ -281,7 +282,7 @@ class AnalyticsService {
             CategoryComparison(
               categoryId: id,
               categoryName: nameById[id] ?? 'Unknown',
-              colorHex: colorById[id] ?? '#8395A7',
+              colorHex: colorById[id] ?? fallbackCategoryColorHex,
               currentAmount: current[id] ?? 0,
               previousAmount: previous[id] ?? 0,
             ),

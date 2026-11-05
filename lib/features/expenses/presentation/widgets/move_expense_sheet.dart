@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/dates/date_range_format.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
+import '../../../budget/presentation/widgets/budget_picker_sheet.dart';
 import '../../domain/entities/expense_entity.dart';
 import 'paid_bill.dart';
 
@@ -47,60 +46,32 @@ abstract final class MoveExpenseSheet {
     }
 
     final currency = _currencyOf(all, expense.budgetId);
-    final dated = DateFormat('d MMM yyyy').format(expense.date);
+    final dated = AppDates.dayWithYear(expense.date);
     String? whyNot(BudgetEntity b) {
       if (currency != null && b.currency != currency) {
         return "Uses ${b.currency}. Amounts aren't converted, so this "
             "expense can't move here.";
       }
       if (!b.isActiveOn(expense.date)) {
-        return '${formatDateRange(b.startDate, b.endDate)} · ${b.currency}\n'
+        return '${BudgetPickerSheet.describe(b, showCurrency: true)}\n'
             'This expense is dated $dated, outside this period.';
       }
       return null;
     }
 
-    return AppBottomSheet.show<BudgetEntity>(
-      context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppSheetHeader(
-            title: 'Move to budget',
-            subtitle: [
-              'The expense date must fall inside the budget period, and '
-                  'the budget must use the same currency.',
-              if (billTitle != null) PaidBill.moveHint(billTitle),
-            ].join('\n\n'),
-          ),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final budget in candidates)
-                  if (whyNot(budget) case final reason)
-                    ListTile(
-                      key: Key('moveTarget_${budget.id}'),
-                      enabled: reason == null,
-                      leading: const Icon(
-                        Icons.account_balance_wallet_outlined,
-                      ),
-                      title: Text(budget.name),
-                      subtitle: Text(
-                        reason ??
-                            '${formatDateRange(budget.startDate, budget.endDate)}'
-                                ' · ${budget.currency}',
-                      ),
-                      onTap: reason == null
-                          ? () => Navigator.of(context).pop(budget)
-                          : null,
-                    ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-      ),
+    return BudgetPickerSheet.show<BudgetEntity>(
+      context,
+      title: 'Move to budget',
+      subtitle: [
+        'The expense date must fall inside the budget period, and '
+            'the budget must use the same currency.',
+        if (billTitle != null) PaidBill.moveHint(billTitle),
+      ].join('\n\n'),
+      budgets: candidates,
+      rowKey: (b) => Key('moveTarget_${b.id}'),
+      disabledReason: whyNot,
+      describe: (b) => BudgetPickerSheet.describe(b, showCurrency: true),
+      onPick: (b) => b,
     );
   }
 
@@ -134,8 +105,6 @@ abstract final class MoveExpenseSheet {
   }
 
   static void _snack(BuildContext context, String text) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(text)));
+    AppSnack.show(context, text);
   }
 }

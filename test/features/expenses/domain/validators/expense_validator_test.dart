@@ -1,57 +1,61 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/expenses/domain/validators/expense_validator.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 void main() {
   group('ExpenseValidator.validateAmount', () {
     test('rejects amounts at or above the 1e12 limit (review: overflow)', () {
       expect(
         ExpenseValidator.validateAmount('100000000000000000'),
-        'Amount must be less than 1,000,000,000,000',
+        ValidationCopy.amountTooLarge,
       );
       expect(
         ExpenseValidator.validateAmount('1000000000000'),
-        'Amount must be less than 1,000,000,000,000',
+        ValidationCopy.amountTooLarge,
       );
       expect(ExpenseValidator.validateAmount('999999999999.99'), isNull);
       expect(
         ExpenseValidator.validateAmountValue(1e17),
-        'Amount must be less than 1,000,000,000,000',
+        ValidationCopy.amountTooLarge,
       );
     });
 
     test('returns error for null input', () {
-      expect(ExpenseValidator.validateAmount(null), 'Amount cannot be empty');
+      expect(ExpenseValidator.validateAmount(null), ValidationCopy.amountEmpty);
     });
 
     test('returns error for empty input', () {
-      expect(ExpenseValidator.validateAmount('   '), 'Amount cannot be empty');
+      expect(
+        ExpenseValidator.validateAmount('   '),
+        ValidationCopy.amountEmpty,
+      );
     });
 
     test('returns error for non-numeric input', () {
       expect(
         ExpenseValidator.validateAmount('abc'),
-        'Please enter a valid number',
+        ValidationCopy.amountInvalid,
       );
     });
 
     test('returns error for zero', () {
       expect(
         ExpenseValidator.validateAmount('0'),
-        'Amount must be greater than zero',
+        ValidationCopy.amountNotPositive,
       );
     });
 
     test('returns error for negative value', () {
       expect(
         ExpenseValidator.validateAmount('-5'),
-        'Amount must be greater than zero',
+        ValidationCopy.amountNotPositive,
       );
     });
 
     test('returns error for more than 2 decimal places', () {
       expect(
         ExpenseValidator.validateAmount('12.345'),
-        'Amount cannot have more than 2 decimal places',
+        ValidationCopy.tooManyDecimals(2),
       );
     });
 
@@ -63,12 +67,12 @@ void main() {
       expect(ExpenseValidator.validateAmount('7.125', currency: 'OMR'), isNull);
       expect(
         ExpenseValidator.validateAmount('7.1255', currency: 'OMR'),
-        'Amount cannot have more than 3 decimal places',
+        ValidationCopy.tooManyDecimals(3),
       );
       // Rupees still stop at paise; yen keep the two places they had.
       expect(
         ExpenseValidator.validateAmount('7.125', currency: 'INR'),
-        'Amount cannot have more than 2 decimal places',
+        ValidationCopy.tooManyDecimals(2),
       );
       expect(ExpenseValidator.validateAmount('120.5', currency: 'JPY'), isNull);
     });
@@ -82,14 +86,14 @@ void main() {
     test('returns error for null', () {
       expect(
         ExpenseValidator.validateAmountValue(null),
-        'Amount cannot be empty',
+        ValidationCopy.amountEmpty,
       );
     });
 
     test('returns error for zero', () {
       expect(
         ExpenseValidator.validateAmountValue(0),
-        'Amount must be greater than zero',
+        ValidationCopy.amountNotPositive,
       );
     });
 
@@ -102,12 +106,15 @@ void main() {
     test('returns error for null category', () {
       expect(
         ExpenseValidator.validateCategory(null),
-        'Please select a category',
+        ValidationCopy.categoryMissing,
       );
     });
 
     test('returns error for empty category', () {
-      expect(ExpenseValidator.validateCategory(''), 'Please select a category');
+      expect(
+        ExpenseValidator.validateCategory(''),
+        ValidationCopy.categoryMissing,
+      );
     });
 
     test('returns null for valid category', () {
@@ -121,14 +128,14 @@ void main() {
     test('returns error for null date', () {
       expect(
         ExpenseValidator.validateDate(null, now: now),
-        'Please select a date',
+        ValidationCopy.dateMissing,
       );
     });
 
     test('returns error for future date', () {
       expect(
         ExpenseValidator.validateDate(DateTime(2026, 8, 11), now: now),
-        'Date cannot be in the future',
+        ValidationCopy.dateInFuture,
       );
     });
 
@@ -160,7 +167,7 @@ void main() {
       final longNote = 'a' * 501;
       expect(
         ExpenseValidator.validateNote(longNote),
-        'Note cannot exceed 500 characters',
+        ValidationCopy.noteTooLong(500),
       );
     });
 

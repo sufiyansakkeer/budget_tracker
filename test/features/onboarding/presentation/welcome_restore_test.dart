@@ -36,7 +36,7 @@ void main() {
       ),
     );
     expect(restore.onPressed, isNull);
-    final start = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    final start = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(start.onPressed, isNull);
   });
 }

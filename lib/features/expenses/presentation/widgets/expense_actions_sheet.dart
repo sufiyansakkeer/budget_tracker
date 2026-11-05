@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -9,6 +8,7 @@ import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import 'category_visuals.dart';
 import 'paid_bill.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Contextual actions for one expense (opened by press-and-hold on a row).
 enum ExpenseRowAction { edit, duplicate, move, delete }
@@ -67,7 +67,7 @@ class _ExpenseActionsBody extends StatelessWidget {
     final subtitle =
         '${CurrencyFormatter.format(expense.amount, code: currency)} · '
         '${category?.name ?? 'Uncategorised'} · '
-        '${DateFormat('d MMM').format(expense.date)}';
+        '${AppDates.day(expense.date)}';
 
     return Column(
       mainAxisSize: MainAxisSize.min,

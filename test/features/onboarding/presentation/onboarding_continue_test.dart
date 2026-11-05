@@ -18,6 +18,7 @@ import 'package:monivo/features/settings/domain/usecases/update_currency_usecase
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 class FakeOnboardingRepository implements OnboardingRepository {
   bool isFirstLaunch = true;
@@ -177,10 +178,8 @@ void main() {
     );
   }
 
-  ElevatedButton continueButton(WidgetTester tester) =>
-      tester.widget<ElevatedButton>(
-        find.byKey(const Key('budgetStepContinueButton')),
-      );
+  FilledButton continueButton(WidgetTester tester) => tester
+      .widget<FilledButton>(find.byKey(const Key('budgetStepContinueButton')));
 
   testWidgets(
     'Continue button re-enables after clear -> error -> re-enter valid value',
@@ -211,7 +210,7 @@ void main() {
       );
       expect(
         bloc.state.budgetValidationError,
-        'Budget amount cannot be empty',
+        ValidationCopy.amountEmpty,
         reason: 'Validation error should appear in state after clearing',
       );
 

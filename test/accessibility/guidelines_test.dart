@@ -31,6 +31,7 @@ import 'package:monivo/features/expenses/presentation/history/widgets/expense_hi
 import '../features/categories/domain/usecases/category_usecases_test.dart'
     show FakeCategoryRepository, cat;
 import '../features/dashboard/presentation/widgets/safe_to_spend_fixtures.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 /// Runs Flutter's built-in accessibility guidelines over representative
 /// screens and rows. These catch the whole class of regressions the audit
@@ -362,7 +363,10 @@ void main() {
         wrap(SafeToSpendBreakdownCard(safeToSpend: safeToSpend(reserved: 500))),
       );
 
-      expect(find.bySemanticsLabel('Remaining in budget, ₹22,000'), findsOne);
+      expect(
+        find.bySemanticsLabel('${AppTerms.remainingBudget}, ₹22,000'),
+        findsOne,
+      );
       expect(find.bySemanticsLabel('Kept aside, minus ₹500'), findsOne);
       expect(find.bySemanticsLabel('Savings goal, not set'), findsOne);
       expect(

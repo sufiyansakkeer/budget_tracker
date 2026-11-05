@@ -77,22 +77,26 @@ extension RecurrenceTypeLabel on RecurrenceType {
   }
 }
 
-/// Filter options for the bills list.
+/// Filter options for the bills list, one per section of the list (in the
+/// same order and with the same names) plus two cross-cutting ones.
 ///
+/// [dueSoon]: unpaid, not overdue and due today or within the next six days;
+/// [later]: unpaid and due after that.
 /// [notLinked]: bills without a budget, so nothing is set aside for them.
-enum BillFilter { all, upcoming, dueToday, overdue, paid, recurring, notLinked }
+enum BillFilter { all, overdue, dueSoon, later, paid, recurring, notLinked }
 
 extension BillFilterLabel on BillFilter {
+  /// Sentence case, and the same words as the list's section titles.
   String get label {
     switch (this) {
       case BillFilter.all:
         return 'All';
-      case BillFilter.upcoming:
-        return 'Upcoming';
-      case BillFilter.dueToday:
-        return 'Due Today';
       case BillFilter.overdue:
         return 'Overdue';
+      case BillFilter.dueSoon:
+        return 'Due soon';
+      case BillFilter.later:
+        return 'Later';
       case BillFilter.paid:
         return 'Paid';
       case BillFilter.recurring:

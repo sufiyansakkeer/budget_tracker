@@ -110,6 +110,12 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
   static const double _tintAlphaLight = 0.14;
   static const double _tintAlphaDark = 0.22;
 
+  /// Alpha of an accent's tint over the surface in a theme of [brightness]:
+  /// the status containers, icon tiles and the date-range selection all use
+  /// it, so a tint looks the same weight wherever it is drawn.
+  static double tintAlpha(Brightness brightness) =>
+      brightness == Brightness.dark ? _tintAlphaDark : _tintAlphaLight;
+
   /// Builds tokens from a [ColorPalette] and [Brightness].
   factory AppColorTokens.fromPalette(
     ColorPalette palette,
@@ -221,9 +227,9 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
       minRatio: 1.6,
     );
 
-    final tintAlpha = isDark ? _tintAlphaDark : _tintAlphaLight;
+    final alpha = tintAlpha(brightness);
     Color tint(Color c) =>
-        Color.alphaBlend(c.withValues(alpha: tintAlpha), surface);
+        Color.alphaBlend(c.withValues(alpha: alpha), surface);
     final successFill = tint(success);
     final warningFill = tint(warning);
     final errorFill = tint(error);

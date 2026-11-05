@@ -72,17 +72,18 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     Emitter<ExpenseState> emit,
   ) async {
     if (state.categories.isNotEmpty) return;
+    // A retry shows the placeholders again while it reads.
+    if (state.categoriesFailed) emit(state.copyWith(categoriesFailed: false));
 
     final result = await getCategoriesUseCase();
     switch (result) {
       case ExpenseSuccess(:final data):
-        emit(state.copyWith(categories: data));
+        emit(state.copyWith(categories: data, categoriesFailed: false));
       case ExpenseError(:final failure):
-        emit(
-          state.copyWith(
-            message: failure.shown("Couldn't load your categories. Try again."),
-          ),
-        );
+        // Said where the categories go (with Retry), not as a message no
+        // screen shows.
+        debugPrint('[error] Loading categories: ${failure.message}');
+        emit(state.copyWith(categoriesFailed: true));
     }
   }
 
@@ -238,7 +239,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
       emit(
         state.copyWith(
           status: ExpenseBlocStatus.error,
-          message: 'No active budget selected. Please select a budget first.',
+          message: 'Choose a budget for this expense first.',
         ),
       );
       return;
@@ -257,7 +258,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
           state.copyWith(
             status: ExpenseBlocStatus.success,
             expense: event.expense,
-            message: 'Expense added successfully',
+            message: 'Expense added',
             lastAction: ExpenseAction.created,
             clearLastDeleted: true,
             afterAdd: after,
@@ -292,7 +293,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
           state.copyWith(
             status: ExpenseBlocStatus.success,
             expense: event.expense,
-            message: 'Expense updated successfully',
+            message: 'Expense updated',
             lastAction: ExpenseAction.updated,
             clearLastDeleted: true,
           ),

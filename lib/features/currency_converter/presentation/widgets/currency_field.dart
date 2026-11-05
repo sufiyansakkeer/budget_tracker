@@ -117,7 +117,7 @@ class CurrencyField extends StatelessWidget {
                     ),
                   ),
                   layoutBuilder: (current, previous) => Stack(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     children: [...previous, if (current != null) current],
                   ),
                   child: Row(

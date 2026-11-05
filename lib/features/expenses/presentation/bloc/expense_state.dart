@@ -27,6 +27,9 @@ enum QuickAddLoad { idle, loading, loaded, failed }
 class ExpenseState extends Equatable {
   final ExpenseBlocStatus status;
   final List<ExpenseCategory> categories;
+
+  /// The latest [ExpenseLoadCategories] couldn't read the categories.
+  final bool categoriesFailed;
   final ExpenseEntity? expense;
   final String? message;
 
@@ -66,6 +69,7 @@ class ExpenseState extends Equatable {
   const ExpenseState({
     this.status = ExpenseBlocStatus.initial,
     this.categories = const [],
+    this.categoriesFailed = false,
     this.expense,
     this.message,
     this.lastAction = ExpenseAction.none,
@@ -87,6 +91,7 @@ class ExpenseState extends Equatable {
   ExpenseState copyWith({
     ExpenseBlocStatus? status,
     List<ExpenseCategory>? categories,
+    bool? categoriesFailed,
     ExpenseEntity? expense,
     bool clearExpense = false,
     String? message,
@@ -110,6 +115,7 @@ class ExpenseState extends Equatable {
     return ExpenseState(
       status: status ?? this.status,
       categories: categories ?? this.categories,
+      categoriesFailed: categoriesFailed ?? this.categoriesFailed,
       expense: clearExpense ? null : (expense ?? this.expense),
       message: clearMessage ? null : (message ?? this.message),
       lastAction: lastAction ?? this.lastAction,
@@ -132,6 +138,7 @@ class ExpenseState extends Equatable {
   List<Object?> get props => [
     status,
     categories,
+    categoriesFailed,
     expense,
     message,
     lastAction,

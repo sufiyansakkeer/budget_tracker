@@ -1,6 +1,7 @@
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/currency/money_math.dart';
 import '../entities/bill_entity.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Reusable, pure validation logic for bill inputs.
 /// Kept outside the UI so it can be unit-tested independently.
@@ -13,10 +14,10 @@ class BillValidator {
   /// Validates a title string. Returns null if valid, otherwise an error message.
   static String? validateTitle(String? input) {
     if (input == null || input.trim().isEmpty) {
-      return 'Bill name cannot be empty';
+      return ValidationCopy.billNameEmpty;
     }
     if (input.trim().length > maxTitleLength) {
-      return 'Bill name cannot exceed $maxTitleLength characters';
+      return ValidationCopy.nameTooLong(maxTitleLength);
     }
     return null;
   }
@@ -25,20 +26,20 @@ class BillValidator {
   /// Decimals follow the currency's minor units, never fewer than two.
   static String? validateAmount(String? input, {String? currency}) {
     if (input == null || input.trim().isEmpty) {
-      return 'Amount cannot be empty';
+      return ValidationCopy.amountEmpty;
     }
     final value = double.tryParse(input.trim());
     if (value == null) {
-      return 'Please enter a valid number';
+      return ValidationCopy.amountInvalid;
     }
     if (!value.isFinite) {
-      return 'Amount must be a valid finite number';
+      return ValidationCopy.amountInvalid;
     }
     if (value <= 0) {
-      return 'Amount must be greater than zero';
+      return ValidationCopy.amountNotPositive;
     }
     if (!MoneyMath.isWithinLimit(value)) {
-      return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
+      return ValidationCopy.amountTooLarge;
     }
     return MoneyInput.decimalsError(input, currency);
   }
@@ -46,16 +47,16 @@ class BillValidator {
   /// Validates a double amount value.
   static String? validateAmountValue(double? value) {
     if (value == null) {
-      return 'Amount cannot be empty';
+      return ValidationCopy.amountEmpty;
     }
     if (!value.isFinite) {
-      return 'Amount must be a valid finite number';
+      return ValidationCopy.amountInvalid;
     }
     if (value <= 0) {
-      return 'Amount must be greater than zero';
+      return ValidationCopy.amountNotPositive;
     }
     if (!MoneyMath.isWithinLimit(value)) {
-      return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
+      return ValidationCopy.amountTooLarge;
     }
     return null;
   }
@@ -64,7 +65,7 @@ class BillValidator {
   /// then overdue.
   static String? validateDueDate(DateTime? date) {
     if (date == null) {
-      return 'Please select a due date';
+      return 'Choose a due date.';
     }
     return null;
   }
@@ -73,7 +74,7 @@ class BillValidator {
   static String? validateNote(String? note) {
     if (note == null || note.trim().isEmpty) return null;
     if (note.length > maxNoteLength) {
-      return 'Note cannot exceed $maxNoteLength characters';
+      return ValidationCopy.noteTooLong(maxNoteLength);
     }
     return null;
   }

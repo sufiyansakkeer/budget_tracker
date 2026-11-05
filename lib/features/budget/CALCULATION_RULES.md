@@ -389,9 +389,11 @@ Days Needed = minForecastDays − Completed Days     when Completed Days < minFo
 Has Any Expense = Discretionary To Date > 0
 ```
 
-Under the "Forecast" heading the dashboard shows "Ready after *n* more days
-of spending" when Days Needed > 0. Otherwise it shows "Ready after your first
-expense in this budget."
+Under the "Forecast" heading the dashboard shows "Ready in *n* more days."
+("Ready tomorrow." for 1) when Days Needed > 0; these are calendar days, not
+days with spending. With no discretionary spending yet it says "Needs your
+first expense and *n* more days." When Days Needed = 0 it shows "Ready after
+your first expense in this budget."
 
 ### Example
 
@@ -502,7 +504,7 @@ These are different states, and both the entity and the UI keep them apart:
 | No bills due | `commitments` empty, `commitmentsAvailable == true`, B = 0 | "No bills due this period" with ₹0 |
 | Kept aside / savings goal not set | `reservedAmount == null` / `savingsTarget == null` | "Not set" |
 | Kept aside / savings goal set to 0 | `0.0` | ₹0 |
-| Forecast not ready | `forecast.isReliable == false` with `daysNeeded` | "Ready after *n* more days of spending" |
+| Forecast not ready | `forecast.isReliable == false` with `daysNeeded` | "Ready in *n* more days." (calendar days) |
 | Budget not running | `forecast == null`, daily figures 0 | The not-started or ended card, not "₹0 today" |
 
 The app has no savings ledger. `savingsContributionsTracked` is always

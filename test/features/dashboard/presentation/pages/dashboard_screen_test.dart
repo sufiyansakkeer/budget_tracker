@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,7 @@ import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/notifications/notification_permission_notice.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/widgets/fade_slide_in.dart';
 import 'package:monivo/features/budget/domain/entities/budget_status.dart';
 import 'package:monivo/features/budget/domain/entities/budget_summary_entity.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/unlinked_commitment_summary.dart';
@@ -69,12 +72,13 @@ void main() {
     WidgetTester tester,
     DashboardState state, {
     double width = 540,
+    double height = 2000,
   }) async {
     final bloc = _StaticDashboardBloc(state);
     addTearDown(bloc.close);
     final payLater = FakePayLaterSummaryCubit();
     addTearDown(payLater.close);
-    tester.view.physicalSize = Size(width * 2, 4000);
+    tester.view.physicalSize = Size(width * 2, height * 2);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -316,5 +320,55 @@ void main() {
     expect(find.text('Budget details'), findsOneWidget);
     expect(find.text('Try again'), findsNothing);
     expect(find.text("Today's Safe Spending isn't available"), findsNothing);
+  });
+
+  group('first load and the add button (UX-105, UX-073)', () {
+    DashboardLoaded loaded() => DashboardLoaded(
+      budgetSummary: summaryFor('INR'),
+      recentExpenses: const [],
+      insights: const [],
+      budgetDailyLimits: [limitFor(safeToSpend())],
+      activeBudgetId: 'b1',
+    );
+
+    testWidgets('the entrance cascade is short and the figure arrives with '
+        'the header (review: seven steps delayed when figures settle)', (
+      tester,
+    ) async {
+      await pump(tester, loaded());
+      final indices = tester
+          .widgetList<FadeSlideIn>(find.byType(FadeSlideIn))
+          .map((w) => w.index)
+          .toList();
+      expect(indices, isNotEmpty);
+      expect(indices.reduce(math.max), lessThanOrEqualTo(3));
+      final heroEntrance = tester.widget<FadeSlideIn>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('hero_b1')),
+              matching: find.byType(FadeSlideIn),
+            )
+            .first,
+      );
+      expect(heroEntrance.index, 0);
+    });
+
+    testWidgets('"Add expense" folds to its icon while Home scrolls down and '
+        'comes back on the way up', (tester) async {
+      await pump(tester, loaded(), width: 360, height: 640);
+      final label = find.descendant(
+        of: find.byType(FloatingActionButton),
+        matching: find.text('Add expense'),
+      );
+      expect(label, findsOneWidget);
+
+      await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+      await tester.pumpAndSettle();
+      expect(label, findsNothing);
+
+      await tester.drag(find.byType(ListView).first, const Offset(0, 100));
+      await tester.pumpAndSettle();
+      expect(label, findsOneWidget);
+    });
   });
 }

@@ -116,9 +116,7 @@ class StatusChip extends StatelessWidget {
               key: ValueKey(icon.codePoint),
               // Grows with the label at large text sizes, up to a normal
               // icon, so a chip never pairs big text with a tiny glyph.
-              size: MediaQuery.textScalerOf(
-                context,
-              ).scale(AppSizes.iconXs).clamp(AppSizes.iconXs, AppSizes.iconLg),
+              size: AppSizes.inlineIcon(context),
               color: foreground,
             ),
           ),

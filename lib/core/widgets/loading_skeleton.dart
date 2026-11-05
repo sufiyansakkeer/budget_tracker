@@ -13,14 +13,21 @@ import 'delayed_reveal.dart';
 ///
 /// Placeholders appear only after [delay] (300 ms): Monivo reads a local
 /// database, so most loads finish sooner and a skeleton would only flash.
+///
+/// A screen reader hears the whole region once, as [semanticsLabel] ("Loading
+/// expenses"), when the placeholders appear; the bones themselves are silent.
 class Shimmer extends StatefulWidget {
   final Widget child;
   final Duration delay;
+
+  /// What a screen reader announces for this loading region.
+  final String semanticsLabel;
 
   const Shimmer({
     super.key,
     required this.child,
     this.delay = const Duration(milliseconds: 300),
+    this.semanticsLabel = 'Loading',
   });
 
   @override
@@ -56,7 +63,15 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final sweep = _sweep(context);
+    // Inside the reveal, so the region is announced when it shows (an
+    // invisible one has no semantics) and never for a load that beat it.
+    final sweep = Semantics(
+      container: true,
+      liveRegion: true,
+      label: widget.semanticsLabel,
+      excludeSemantics: true,
+      child: _sweep(context),
+    );
     if (widget.delay == Duration.zero) return sweep;
     return DelayedReveal(delay: widget.delay, child: sweep);
   }
@@ -215,6 +230,7 @@ class DashboardSkeleton extends StatelessWidget {
         AppSpacing.smd * 2;
 
     return Shimmer(
+      semanticsLabel: 'Loading Home',
       child: ListView(
         physics: const NeverScrollableScrollPhysics(),
         padding: AppSpacing.pagePaddingWithFab,
@@ -305,6 +321,7 @@ class ExpenseListSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer(
+      semanticsLabel: 'Loading expenses',
       child: ListView.builder(
         physics: const NeverScrollableScrollPhysics(),
         padding: AppSpacing.pagePadding,

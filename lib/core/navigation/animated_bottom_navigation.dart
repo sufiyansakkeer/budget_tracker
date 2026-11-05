@@ -116,6 +116,8 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
                         child: _NavItem(
                           key: widget.destinations[i].key,
                           destination: widget.destinations[i],
+                          position: i + 1,
+                          count: widget.destinations.length,
                           selected: i == widget.selectedIndex,
                           pulseToken: _pulseTokens[i],
                           duration: duration,
@@ -141,6 +143,11 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
 
 class _NavItem extends StatefulWidget {
   final AppNavDestination destination;
+
+  /// 1-based place in the bar and the number of tabs, read out as
+  /// "Tab 2 of 4".
+  final int position;
+  final int count;
   final bool selected;
   final int pulseToken;
   final Duration duration;
@@ -155,6 +162,8 @@ class _NavItem extends StatefulWidget {
   const _NavItem({
     super.key,
     required this.destination,
+    required this.position,
+    required this.count,
     required this.selected,
     required this.pulseToken,
     required this.duration,
@@ -183,12 +192,19 @@ class _NavItemState extends State<_NavItem> {
     final d = widget.destination;
     final selected = widget.selected;
 
+    // The tooltip is for long-press only: its text is the label, so in the
+    // semantics tree it would be read twice ("Home, Home"). The position
+    // comes after the name, as in Material's NavigationBar.
+    final position = MaterialLocalizations.of(
+      context,
+    ).tabLabel(tabIndex: widget.position, tabCount: widget.count);
     return Semantics(
       button: true,
       selected: selected,
-      label: d.label,
+      label: '${d.label}\n$position',
       child: Tooltip(
         message: d.label,
+        excludeFromSemantics: true,
         child: InkResponse(
           onTap: widget.onTap,
           onHighlightChanged: (value) => setState(() => _pressed = value),

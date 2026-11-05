@@ -294,6 +294,8 @@ void main() {
     await tester.pumpWidget(
       goldenFrame(child: details, brightness: Brightness.dark, textScale: 1),
     );
+    // The details wait for the budgets (UX-082), then build the receipt.
+    await tester.pump();
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
     );

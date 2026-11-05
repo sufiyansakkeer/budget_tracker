@@ -47,10 +47,19 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
   bool _allPurchases = false;
   bool _allPayments = false;
 
+  /// The overview's scrolling folds the add button (UX-073).
+  final AppFabCollapse _fabCollapse = AppFabCollapse();
+
   @override
   void initState() {
     super.initState();
     context.read<PayLaterOverviewBloc>().add(const PayLaterOverviewStarted());
+  }
+
+  @override
+  void dispose() {
+    _fabCollapse.dispose();
+    super.dispose();
   }
 
   @override
@@ -88,7 +97,7 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
         }
         return Scaffold(
           appBar: AppBar(title: const Text('Pay later')),
-          body: AppStateSwitcher(child: body),
+          body: _fabCollapse.listen(child: AppStateSwitcher(child: body)),
           floatingActionButton: overview == null || overview.isEmpty
               ? null
               : overview.activeTabCount == 0
@@ -100,6 +109,7 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
                   icon: Icons.add_rounded,
                   label: 'New tab',
                   tooltip: 'Create a tab',
+                  collapse: _fabCollapse,
                 )
               : AppFab(
                   heroTag: 'pay_later_fab',
@@ -107,6 +117,7 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
                   icon: Icons.add_rounded,
                   label: 'Add to a tab',
                   tooltip: 'Add a purchase to a tab',
+                  collapse: _fabCollapse,
                 ),
         );
       },
@@ -375,6 +386,7 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
     } else {
       charts = const Shimmer(
         key: ValueKey('chartsLoading'),
+        semanticsLabel: 'Loading charts',
         child: SkeletonBox(
           height: AppSizes.chartHeight,
           radius: AppSpacing.radiusMd,
@@ -655,22 +667,19 @@ class _OverviewSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Semantics(
-      label: 'Loading your tabs',
-      excludeSemantics: true,
-      child: Shimmer(
-        child: ListView(
-          physics: const NeverScrollableScrollPhysics(),
-          padding: AppSpacing.pagePadding,
-          children: [
-            const SkeletonBox(height: 140, radius: AppSpacing.radiusLg),
-            const SizedBox(height: AppSpacing.lg),
-            SkeletonText(style: theme.textTheme.titleMedium, width: 120),
-            const SizedBox(height: AppSpacing.sm),
-            for (var i = 0; i < 3; i++)
-              const SkeletonListTile(leadingSize: AppSizes.avatarSm),
-          ],
-        ),
+    return Shimmer(
+      semanticsLabel: 'Loading your tabs',
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: AppSpacing.pagePadding,
+        children: [
+          const SkeletonBox(height: 140, radius: AppSpacing.radiusLg),
+          const SizedBox(height: AppSpacing.lg),
+          SkeletonText(style: theme.textTheme.titleMedium, width: 120),
+          const SizedBox(height: AppSpacing.sm),
+          for (var i = 0; i < 3; i++)
+            const SkeletonListTile(leadingSize: AppSizes.avatarSm),
+        ],
       ),
     );
   }

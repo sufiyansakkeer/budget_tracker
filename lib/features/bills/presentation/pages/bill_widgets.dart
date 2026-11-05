@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -13,11 +12,18 @@ import '../../../../core/widgets/status_chip.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_enums.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../bloc/bill_state.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Shared icon / status mapping for bills so the list, details and dashboard
 /// always draw a bill the same way.
 class BillVisuals {
   BillVisuals._();
+
+  /// The time a bill without one is due (and reminded) at: the domain's
+  /// 9:00 default ([BillEntity.reminderDateTime]). Show it with
+  /// `format(context)` so it follows the 12/24-hour setting.
+  static const TimeOfDay defaultDueTime = TimeOfDay(hour: 9, minute: 0);
 
   static IconData iconFor(BillCategory category) {
     switch (category) {
@@ -88,22 +94,12 @@ class BillVisuals {
 
   /// Unpaid bills due within this many days (today included) are "Due
   /// soon" in the list; later ones are "Later".
-  static const int dueSoonDays = 7;
+  static const int dueSoonDays = BillState.dueSoonDays;
 
   /// Whether an unpaid, not-overdue [bill] is due within [dueSoonDays] of
   /// [now]'s calendar day.
-  static bool isDueSoon(BillEntity bill, DateTime now) {
-    if (bill.isPaid || bill.status == BillStatus.overdue) return false;
-    final today = DateTime(now.year, now.month, now.day);
-    final due = DateTime(
-      bill.dueDate.year,
-      bill.dueDate.month,
-      bill.dueDate.day,
-    );
-    return due.isBefore(
-      DateTime(today.year, today.month, today.day + dueSoonDays),
-    );
-  }
+  static bool isDueSoon(BillEntity bill, DateTime now) =>
+      BillState.isDueSoon(bill, now);
 
   /// The amounts of [bills] per currency, summed exactly in whole minor
   /// units and sorted by code. Different currencies are never added.
@@ -122,13 +118,38 @@ class BillVisuals {
     };
   }
 
+  /// "2 bills · ₹2,499" under a group of the list: the count, then one
+  /// total per currency, never added across currencies, and never adding
+  /// paid bills to unpaid ones.
+  ///
+  /// A group whose name already says whether it is paid ([labelled] false:
+  /// Overdue, Due soon, Later, Paid) shows its unpaid totals plainly, and a
+  /// paid-only group just its count. A mixed group ([labelled] true:
+  /// Recurring, Not linked) names each total: "₹649 unpaid · ₹300 paid".
+  static String groupSummary(List<BillEntity> bills, {bool labelled = false}) {
+    final n = bills.length;
+    final unpaid = totalsByCurrency(bills.where((b) => !b.isPaid));
+    final paid = labelled
+        ? totalsByCurrency(bills.where((b) => b.isPaid))
+        : const <String, double>{};
+    String totals(Map<String, double> byCode, String suffix) => [
+      for (final MapEntry(key: code, value: amount) in byCode.entries)
+        '${AppMoney.format(amount, currency: code)}$suffix',
+    ].join(' · ');
+    return [
+      '$n ${n == 1 ? 'bill' : 'bills'}',
+      if (unpaid.isNotEmpty) totals(unpaid, labelled ? ' unpaid' : ''),
+      if (paid.isNotEmpty) totals(paid, ' paid'),
+    ].join(' · ');
+  }
+
   /// Human-friendly due text, e.g. "Due tomorrow", "3 days overdue",
   /// "Due in 2 weeks", "Due 14 Oct".
   static String dueText(BillEntity bill) {
     if (bill.isPaid) {
       return bill.paidDate == null
           ? 'Paid'
-          : 'Paid ${DateFormat('d MMM').format(bill.paidDate!)}';
+          : 'Paid ${AppDates.day(bill.paidDate!)}';
     }
     final diff = calendarDaysBetween(DateTime.now(), bill.dueDate);
     if (diff < 0) {
@@ -139,7 +160,7 @@ class BillVisuals {
     if (diff == 1) return 'Due tomorrow';
     if (diff < 14) return 'Due in $diff days';
     if (diff < 60) return 'Due in ${(diff / 7).round()} weeks';
-    return 'Due ${DateFormat('d MMM').format(bill.dueDate)}';
+    return 'Due ${AppDates.day(bill.dueDate)}';
   }
 }
 
@@ -161,6 +182,11 @@ class BillCard extends StatelessWidget {
 
   /// Tooltip and accessibility action for [onMarkPaid].
   final String markPaidLabel;
+
+  /// Icon of the [onMarkPaid] button: a check for a plain "Mark as paid",
+  /// the receipt for "Mark paid & record expense" (as on the bill's details
+  /// and its confirmation), so the two actions never look the same.
+  final IconData markPaidIcon;
   final bool showBudgetLink;
   final String? budgetName;
 
@@ -170,6 +196,7 @@ class BillCard extends StatelessWidget {
     this.onTap,
     this.onMarkPaid,
     this.markPaidLabel = 'Mark as paid',
+    this.markPaidIcon = Icons.check_circle_outline_rounded,
     this.showBudgetLink = false,
     this.budgetName,
   });
@@ -200,7 +227,7 @@ class BillCard extends StatelessWidget {
       AppMotion.standard,
     );
     final mutedColor = theme.colorScheme.onSurfaceVariant;
-    final large = MediaQuery.textScalerOf(context).scale(14) > 20;
+    final large = AppSizes.isLargeText(context);
     final titleStyle = (theme.textTheme.titleSmall ?? const TextStyle())
         .copyWith(
           decoration: muted ? TextDecoration.lineThrough : TextDecoration.none,
@@ -274,7 +301,7 @@ class BillCard extends StatelessWidget {
                             const SizedBox(width: AppSpacing.xs),
                             Icon(
                               Icons.repeat_rounded,
-                              size: AppSizes.iconXs,
+                              size: AppSizes.inlineIcon(context),
                               color: mutedColor,
                               semanticLabel: 'Recurring',
                             ),
@@ -292,7 +319,7 @@ class BillCard extends StatelessWidget {
                             child: Icon(
                               BillVisuals.statusIcon(status),
                               key: ValueKey(status),
-                              size: AppSizes.iconXs,
+                              size: AppSizes.inlineIcon(context),
                               color: color,
                             ),
                           ),
@@ -319,7 +346,7 @@ class BillCard extends StatelessWidget {
                               bill.budgetId == null
                                   ? Icons.link_off_rounded
                                   : Icons.account_balance_wallet_outlined,
-                              size: AppSizes.iconXs,
+                              size: AppSizes.inlineIcon(context),
                               color: mutedColor,
                             ),
                             const SizedBox(width: AppSpacing.xs),
@@ -371,12 +398,14 @@ class BillCard extends StatelessWidget {
                   child: onMarkPaid != null && !bill.isPaid
                       ? Padding(
                           key: const ValueKey('markPaid'),
-                          padding: const EdgeInsets.only(left: AppSpacing.xs),
+                          padding: const EdgeInsetsDirectional.only(
+                            start: AppSpacing.xs,
+                          ),
                           child: IconButton(
                             tooltip: markPaidLabel,
                             onPressed: onMarkPaid,
                             icon: Icon(
-                              Icons.check_circle_outline_rounded,
+                              markPaidIcon,
                               color: context.appColors.success,
                             ),
                           ),

@@ -606,7 +606,9 @@ class AppTheme {
       shape: controlShape,
       iconColor: textSecondary,
       textColor: colorScheme.onSurface,
-      titleTextStyle: _textTheme.bodyLarge,
+      // The same title role as AppListRow, so a plain ListTile (settings,
+      // pickers, sheets) and an app row read as one kind of row.
+      titleTextStyle: _textTheme.titleSmall,
       subtitleTextStyle: _textTheme.bodySmall?.copyWith(color: textSecondary),
       minVerticalPadding: AppSpacing.sm,
     );
@@ -687,6 +689,22 @@ class AppTheme {
       ),
     );
 
+    // Days inside a chosen range sit on the primary tint (the same weight
+    // as the status containers), so their numbers keep the page's text
+    // contrast; M3's secondaryContainer default is not held to that.
+    final rangeSelection = Color.alphaBlend(
+      colorScheme.primary.withValues(
+        alpha: AppColorTokens.tintAlpha(brightness),
+      ),
+      raisedSurface,
+    );
+    // Today's number is primary; held to AA on the range tint, which also
+    // holds it on the plain picker surface (the tint sits between the two).
+    final todayText = Contrast.ensureContrast(
+      colorScheme.primary,
+      rangeSelection,
+    );
+
     final datePickerTheme = DatePickerThemeData(
       backgroundColor: raisedSurface,
       surfaceTintColor: Colors.transparent,
@@ -696,6 +714,31 @@ class AppTheme {
       headerForegroundColor: colorScheme.onPrimaryContainer,
       dayShape: const WidgetStatePropertyAll(CircleBorder()),
       todayBorder: BorderSide(color: colorScheme.primary),
+      todayForegroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return colorScheme.onPrimary;
+        if (states.contains(WidgetState.disabled)) {
+          return todayText.withValues(alpha: 0.38);
+        }
+        return todayText;
+      }),
+      // The full-screen range picker: the same surface and header as the
+      // single-date picker, instead of M3's primary (light) / plain
+      // surface (dark) header.
+      rangePickerBackgroundColor: raisedSurface,
+      rangePickerSurfaceTintColor: Colors.transparent,
+      rangePickerShadowColor: Colors.transparent,
+      rangePickerElevation: 0,
+      rangePickerHeaderBackgroundColor: colorScheme.primaryContainer,
+      rangePickerHeaderForegroundColor: colorScheme.onPrimaryContainer,
+      rangeSelectionBackgroundColor: rangeSelection,
+    );
+
+    // Count and dot badges in the brand colour: M3's default is the error
+    // red, which reads as a problem (a filter that is on is a choice).
+    final badgeTheme = BadgeThemeData(
+      backgroundColor: colorScheme.primary,
+      textColor: colorScheme.onPrimary,
+      textStyle: _textTheme.labelSmall,
     );
 
     final timePickerTheme = TimePickerThemeData(
@@ -760,6 +803,7 @@ class AppTheme {
       sliderTheme: sliderTheme,
       tooltipTheme: tooltipTheme,
       datePickerTheme: datePickerTheme,
+      badgeTheme: badgeTheme,
       timePickerTheme: timePickerTheme,
       dropdownMenuTheme: dropdownMenuTheme,
       pageTransitionsTheme: pageTransitionsTheme,

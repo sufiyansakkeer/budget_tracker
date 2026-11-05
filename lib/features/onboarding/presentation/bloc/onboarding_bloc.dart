@@ -14,6 +14,7 @@ import '../../../../core/currency/money_math.dart';
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/errors/user_facing_error.dart';
+import '../../../../core/constants/app_copy.dart';
 
 class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   final CreateBudgetUseCase createBudgetUseCase;
@@ -94,7 +95,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           budgetNameInput: event.name,
-          nameValidationError: 'Budget name cannot be empty',
+          nameValidationError: ValidationCopy.budgetNameEmpty,
         ),
       );
       return;
@@ -121,18 +122,14 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     final input = rawInput.trim();
     final value = double.tryParse(input);
     final error = input.isEmpty
-        ? 'Budget amount cannot be empty'
+        ? ValidationCopy.amountEmpty
         : value == null
-        ? 'Please enter a valid number'
+        ? ValidationCopy.amountInvalid
         : value <= 0
-        ? 'Budget must be greater than zero'
+        ? ValidationCopy.amountNotPositive
         : !MoneyMath.isWithinLimit(value)
-        ? 'Budget amount must be less than ${MoneyMath.maxAmountLabel}.'
-        : MoneyInput.decimalsError(
-            input,
-            state.selectedCurrency.code,
-            subject: 'Budget',
-          );
+        ? ValidationCopy.amountTooLarge
+        : MoneyInput.decimalsError(input, state.selectedCurrency.code);
     if (error != null) {
       emit(
         state.copyWith(
@@ -197,7 +194,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           endDate: newEnd,
-          dateValidationError: 'End date must be after start date',
+          dateValidationError: ValidationCopy.endBeforeStart,
         ),
       );
       return;

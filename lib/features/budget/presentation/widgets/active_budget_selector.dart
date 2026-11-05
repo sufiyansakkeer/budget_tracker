@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
+import 'budget_picker_sheet.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
@@ -32,10 +33,38 @@ class ActiveBudgetSelector extends StatefulWidget {
     final activeId = await manageBudget.activeBudgetId();
     if (!context.mounted) return;
 
-    final action = await AppBottomSheet.show<BudgetAction>(
-      context: context,
-      builder: (context) =>
-          _BudgetSwitcherSheet(budgets: budgets, activeId: activeId),
+    final today = DateTime.now();
+    final showCurrency = budgets.map((b) => b.currency).toSet().length > 1;
+    String describe(BudgetEntity b) =>
+        BudgetPickerSheet.describe(b, showCurrency: showCurrency, today: today);
+    final action = await BudgetPickerSheet.show<BudgetAction>(
+      context,
+      title: 'Switch budget',
+      subtitle: 'Home, Expenses and Reports follow the active budget.',
+      // Archived budgets stay hidden, except the active one.
+      budgets: [
+        for (final b in budgets)
+          if (!b.isArchived || b.id == activeId) b,
+      ],
+      selectedId: activeId,
+      disabledReason: (b) => b.isArchived ? describe(b) : null,
+      describe: describe,
+      onPick: BudgetAction.select,
+      onOpen: BudgetAction.open,
+      footer: (sheetContext) => [
+        FilledButton.tonalIcon(
+          onPressed: () =>
+              Navigator.of(sheetContext).pop(const BudgetAction.create()),
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('New budget'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () =>
+              Navigator.of(sheetContext).pop(const BudgetAction.manage()),
+          icon: const Icon(Icons.tune_rounded),
+          label: const Text('Manage'),
+        ),
+      ],
     );
     if (action == null || !context.mounted) return;
 
@@ -53,6 +82,7 @@ class ActiveBudgetSelector extends StatefulWidget {
         if (budget.isArchived || budget.id == activeId) return;
         await manageBudget.setActive(budget.id);
         RefreshBuses.budgets.notifyChanged();
+        AppHaptics.confirm();
     }
   }
 
@@ -109,6 +139,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
       child: _loading
           ? const Shimmer(
               key: ValueKey('loading'),
+              semanticsLabel: 'Loading budgets',
               child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
             )
           : KeyedSubtree(
@@ -135,7 +166,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
           : budget == null
           ? 'Choose a budget'
           : 'Active budget ${budget.name}, '
-                '${formatDateRange(budget.startDate, budget.endDate)}. '
+                '${AppDates.range(budget.startDate, budget.endDate)}. '
                 'Tap to switch budget',
       onTap: onTap,
       excludeSemantics: true,
@@ -167,7 +198,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                 switchOutCurve: AppMotion.exit,
                 layoutBuilder: (current, previous) => Stack(
                   fit: StackFit.passthrough,
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   children: [...previous, if (current != null) current],
                 ),
                 transitionBuilder: (child, animation) => FadeTransition(
@@ -197,7 +228,7 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
                           ? 'Tap to try again'
                           : budget == null
                           ? 'No active budget selected'
-                          : formatDateRange(budget.startDate, budget.endDate),
+                          : AppDates.range(budget.startDate, budget.endDate),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -216,152 +247,6 @@ class _ActiveBudgetSelectorState extends State<ActiveBudgetSelector> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Switcher sheet ─────────────────────────────────────────────────────────
-
-class _BudgetSwitcherSheet extends StatelessWidget {
-  final List<BudgetEntity> budgets;
-  final String? activeId;
-
-  const _BudgetSwitcherSheet({required this.budgets, required this.activeId});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final visible = budgets.where((b) => !b.isArchived || b.id == activeId);
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.7;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const AppSheetHeader(
-          title: 'Switch budget',
-          subtitle: 'Home, Expenses and Reports follow the active budget.',
-        ),
-        if (visible.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            child: Text(
-              'You have no budgets yet.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          )
-        else
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              children: [
-                for (final budget in visible)
-                  _BudgetRow(
-                    budget: budget,
-                    isActive: budget.id == activeId,
-                    onSelect: () =>
-                        Navigator.of(context).pop(BudgetAction.select(budget)),
-                    onOpen: () =>
-                        Navigator.of(context).pop(BudgetAction.open(budget)),
-                  ),
-              ],
-            ),
-          ),
-        const Divider(height: AppSpacing.md),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            0,
-            AppSpacing.md,
-            AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () =>
-                      Navigator.of(context).pop(const BudgetAction.create()),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('New budget'),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () =>
-                      Navigator.of(context).pop(const BudgetAction.manage()),
-                  icon: const Icon(Icons.tune_rounded),
-                  label: const Text('Manage'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BudgetRow extends StatelessWidget {
-  final BudgetEntity budget;
-  final bool isActive;
-  final VoidCallback onSelect;
-  final VoidCallback onOpen;
-
-  const _BudgetRow({
-    required this.budget,
-    required this.isActive,
-    required this.onSelect,
-    required this.onOpen,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final today = DateTime.now();
-    final runningToday = budget.isActiveOn(today);
-    final subtitleParts = <String>[
-      formatShortDateRange(budget.startDate, budget.endDate),
-      if (budget.isArchived)
-        'Archived'
-      else if (!runningToday)
-        today.isBefore(budget.startDate) ? 'Starts later' : 'Ended',
-    ];
-
-    return ListTile(
-      onTap: budget.isArchived ? null : onSelect,
-      enabled: !budget.isArchived,
-      selected: isActive,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.5,
-      ),
-      leading: Icon(
-        isActive
-            ? Icons.radio_button_checked_rounded
-            : Icons.radio_button_off_rounded,
-        color: isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant,
-      ),
-      title: Text(
-        budget.name,
-        style: theme.textTheme.titleSmall,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(subtitleParts.join(' · ')),
-      trailing: IconButton(
-        tooltip: 'Budget details',
-        icon: const Icon(Icons.chevron_right_rounded),
-        onPressed: onOpen,
       ),
     );
   }

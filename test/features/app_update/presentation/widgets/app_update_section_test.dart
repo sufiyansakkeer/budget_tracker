@@ -46,6 +46,24 @@ void main() {
     bloc.close();
   });
 
+  // UX-110/111: the version label and number were two stops.
+  testWidgets('the version row reads as one stop', (tester) async {
+    final handle = tester.ensureSemantics();
+    final result = const AppUpdateResult(
+      status: UpdateStatus.upToDate,
+      currentVersion: '1.1.0',
+      latestVersion: '1.1.0',
+    );
+    final bloc = createBloc(initialState: AppUpdateUpToDate(result));
+    await tester.pumpWidget(buildWithBloc(bloc));
+    await tester.pumpAndSettle();
+
+    final row = tester.getSemantics(find.text('Current version'));
+    expect(row.label, 'Current version\nv1.1.0');
+    handle.dispose();
+    bloc.close();
+  });
+
   testWidgets('shows check button in initial state', (tester) async {
     final bloc = createBloc();
     await tester.pumpWidget(buildWithBloc(bloc));
@@ -112,7 +130,10 @@ void main() {
     await tester.tap(find.text('View update'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Unable to open the release page.'), findsOneWidget);
+    expect(
+      find.text("Couldn't open the release page. Try again."),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows up-to-date state', (tester) async {
@@ -132,7 +153,9 @@ void main() {
 
   testWidgets('shows error state', (tester) async {
     final bloc = createBloc(
-      initialState: const AppUpdateCheckFailed("Couldn't check for updates."),
+      initialState: const AppUpdateCheckFailed(
+        'Unable to reach GitHub. Please check your connection.',
+      ),
     );
     await tester.pumpWidget(buildWithBloc(bloc));
     await tester.pumpAndSettle();
@@ -140,6 +163,17 @@ void main() {
     expect(find.text("Couldn't check for updates."), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
     bloc.close();
+  });
+
+  testWidgets('UX-101: a failed check says why it failed', (tester) async {
+    const why = 'GitHub rate limit exceeded. Please try again later.';
+    final bloc = createBloc(initialState: const AppUpdateCheckFailed(why));
+    addTearDown(bloc.close);
+    await tester.pumpWidget(buildWithBloc(bloc));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining(why), findsOneWidget);
+    expect(find.textContaining('connection'), findsNothing);
   });
 }
 

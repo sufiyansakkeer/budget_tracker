@@ -76,6 +76,9 @@ class ReportsState extends Equatable {
     bool clearBudget = false,
     BudgetEntity? activeBudget,
     bool clearActiveBudget = false,
+
+    /// Drops the report and its insights: they describe another budget.
+    bool clearData = false,
   }) {
     return ReportsState(
       status: status ?? this.status,
@@ -83,8 +86,8 @@ class ReportsState extends Equatable {
       customStart: customStart ?? this.customStart,
       customEnd: customEnd ?? this.customEnd,
       filter: filter ?? this.filter,
-      data: data ?? this.data,
-      insights: insights ?? this.insights,
+      data: clearData ? null : (data ?? this.data),
+      insights: clearData ? null : (insights ?? this.insights),
       isEmpty: isEmpty ?? this.isEmpty,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       followsBudget: followsBudget ?? this.followsBudget,

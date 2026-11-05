@@ -64,10 +64,10 @@ class TransactionRow extends StatelessWidget {
     final large = MediaQuery.textScalerOf(context).scale(12) > 18;
     final receipt = hasReceipt
         ? Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.xs),
+            padding: const EdgeInsetsDirectional.only(start: AppSpacing.xs),
             child: Icon(
               Icons.receipt_long_rounded,
-              size: AppSizes.iconXs,
+              size: AppSizes.inlineIcon(context),
               color: theme.colorScheme.onSurfaceVariant,
             ),
           )
@@ -87,7 +87,9 @@ class TransactionRow extends StatelessWidget {
                 ?receipt,
                 if (budgetName != null)
                   Padding(
-                    padding: const EdgeInsets.only(left: AppSpacing.sm),
+                    padding: const EdgeInsetsDirectional.only(
+                      start: AppSpacing.sm,
+                    ),
                     child: _BudgetTag(name: budgetName!),
                   ),
               ],

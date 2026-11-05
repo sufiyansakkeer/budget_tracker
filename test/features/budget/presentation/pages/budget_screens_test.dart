@@ -7,6 +7,7 @@ import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/core/widgets/app_surface.dart';
+import 'package:monivo/core/widgets/app_track.dart';
 import 'package:monivo/core/dates/date_range_format.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
@@ -19,9 +20,11 @@ import 'package:monivo/features/budget/presentation/pages/budget_details_screen.
 import 'package:monivo/features/budget/presentation/pages/budget_list_screen.dart';
 import 'package:monivo/features/budget/presentation/widgets/budget_list_items.dart';
 
+import '../../../../helpers/haptics_recorder.dart';
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 /// Budgets whose statistics can be set per budget.
 class _StatsBudgetRepository extends ListBudgetRepository {
@@ -274,13 +277,14 @@ void main() {
       );
       expect(find.byType(BudgetRow), findsNWidgets(4));
       expect(find.text('Also running today'), findsOneWidget);
-      expect(find.text('Starting later'), findsOneWidget);
+      expect(find.text(AppTerms.notStarted), findsWidgets);
+      expect(find.text('Starting later'), findsNothing);
       expect(find.text('Archived'), findsWidgets);
 
       // The active card comes first, the footer last.
       final card = tester.getTopLeft(find.byType(ActiveBudgetCard)).dy;
       final rows = tester.getTopLeft(find.text('Also running today')).dy;
-      final footer = tester.getTopLeft(find.text('Total remaining')).dy;
+      final footer = tester.getTopLeft(find.text('Total remaining budget')).dy;
       expect(card, lessThan(rows));
       expect(rows, lessThan(footer));
     });
@@ -351,6 +355,7 @@ void main() {
     ) async {
       await register([household, personal], 'household');
       await pump(tester, const BudgetDetailsScreen(budgetId: 'personal'));
+      final haptics = recordHaptics(tester);
 
       expect(find.byKey(const Key('budgetAddExpense')), findsNothing);
       expect(find.text('Not your active budget'), findsOneWidget);
@@ -358,6 +363,8 @@ void main() {
       await tester.tap(find.byKey(const Key('budgetMakeActive')));
       await tester.pumpAndSettle();
       expect(repository.activeId, 'personal');
+      // UX-111: making it active confirms with a haptic.
+      expect(haptics, [confirmHaptic]);
       expect(find.byKey(const Key('budgetAddExpense')), findsOneWidget);
     });
 
@@ -689,7 +696,7 @@ void main() {
         find.descendant(
           of: find.byType(AlertDialog),
           matching: find.textContaining(
-            formatDateRange(household.startDate, household.endDate),
+            AppDates.range(household.startDate, household.endDate),
           ),
         ),
         findsOneWidget,
@@ -799,12 +806,16 @@ void main() {
     testWidgets('always asks, and Undo restores it', (tester) async {
       await register([household, nextYear], 'household');
       await pump(tester, const BudgetDetailsScreen(budgetId: 'household'));
+      final haptics = recordHaptics(tester);
 
       await archive(tester);
       expect(find.text('Archive your active budget?'), findsOneWidget);
       expect(find.textContaining('Archive and switch'), findsNothing);
+      expect(haptics, isEmpty);
       await tester.tap(find.widgetWithText(FilledButton, 'Archive'));
       await tester.pumpAndSettle();
+      // UX-111: archiving confirms with a haptic.
+      expect(haptics, [confirmHaptic]);
 
       expect(
         repository.budgets.firstWhere((b) => b.id == 'household').isArchived,
@@ -870,6 +881,92 @@ void main() {
         find.text('Budget deleted. Personal is now active.'),
         findsOneWidget,
       );
+    });
+  });
+  group('UX-096 · past budgets newest first, capped', () {
+    List<BudgetEntity> pastBudgets({bool archived = false}) => [
+      for (var i = 1; i <= 7; i++)
+        _budget(
+          '${archived ? 'a' : 'e'}$i',
+          '${archived ? 'Archived' : 'Ended'} $i',
+          start: day(-30 * i - 29),
+          end: day(-30 * i),
+          archived: archived,
+        ),
+    ];
+
+    for (final archived in [false, true]) {
+      final group = archived ? 'Archived' : 'Ended';
+      testWidgets('$group: the latest first, five until "Show all"', (
+        tester,
+      ) async {
+        // Oldest first in storage, as the old screen showed them.
+        await register([
+          household,
+          ...pastBudgets(archived: archived).reversed,
+        ], 'household');
+        await pump(tester, const BudgetListScreen());
+
+        final prefix = archived ? 'a' : 'e';
+        double top(int i) =>
+            tester.getTopLeft(find.byKey(ValueKey('budget_$prefix$i'))).dy;
+        for (var i = 1; i <= 5; i++) {
+          expect(find.byKey(ValueKey('budget_$prefix$i')), findsOneWidget);
+        }
+        for (var i = 1; i < 5; i++) {
+          expect(top(i), lessThan(top(i + 1)), reason: '$group $i first');
+        }
+        expect(find.byKey(ValueKey('budget_${prefix}6')), findsNothing);
+        expect(find.byKey(ValueKey('budget_${prefix}7')), findsNothing);
+
+        final showAll = find.text('Show all 7');
+        await tester.ensureVisible(showAll);
+        await tester.pumpAndSettle();
+        await tester.tap(showAll);
+        await tester.pumpAndSettle();
+        expect(find.byKey(ValueKey('budget_${prefix}7')), findsOneWidget);
+        expect(showAll, findsNothing);
+      });
+    }
+
+    testWidgets('five or fewer show without "Show all"', (tester) async {
+      await register([household, ...pastBudgets().take(5)], 'household');
+      await pump(tester, const BudgetListScreen());
+
+      expect(find.textContaining('Show all'), findsNothing);
+      expect(find.byType(BudgetRow), findsNWidgets(5));
+    });
+  });
+
+  group('UX-098 · list accessibility', () {
+    testWidgets('an overspent track reports its real share', (tester) async {
+      await register([
+        household.copyWith(remainingAmount: -15000),
+      ], 'household');
+      await pump(tester, const BudgetListScreen());
+
+      // 75,000 spent of 60,000.
+      final track = tester.widget<AppTrack>(find.byType(AppTrack));
+      expect(track.value, 1, reason: 'drawn full');
+      expect(track.semanticValue, '125%');
+    });
+
+    testWidgets('an archived row is muted by colour, not faded', (
+      tester,
+    ) async {
+      await register([household, oldTrip], 'household');
+      await pump(tester, const BudgetListScreen());
+
+      final row = find.byKey(const ValueKey('budget_old'));
+      expect(
+        find.ancestor(of: row, matching: find.byType(Opacity)),
+        findsNothing,
+      );
+      final title = tester.widget<Text>(
+        find.descendant(of: row, matching: find.text('Old trip')),
+      );
+      final theme = AppTheme.lightTheme;
+      expect(title.style?.color, theme.colorScheme.onSurfaceVariant);
     });
   });
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/dates/calendar_dates.dart';
@@ -11,6 +10,7 @@ import '../../../../core/theme/app_tone.dart';
 import '../../domain/entities/settle_rhythm.dart';
 import '../../domain/entities/tab_ledger.dart';
 import 'tab_visuals.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// One tab in a list: name and icon, what it owes (or its credit), when
 /// it settles up and an "Overdue" badge when part of it is past due.
@@ -22,7 +22,7 @@ class TabTile extends StatelessWidget {
 
   /// "5 Nov", or "5 Nov 2027" outside [today]'s year.
   static String formatDay(DateTime day, {required DateTime today}) =>
-      DateFormat(day.year == today.year ? 'd MMM' : 'd MMM y').format(day);
+      AppDates.day(day, now: today);
 
   /// The one wording every Pay later surface uses for a settle-up day:
   /// "today", "tomorrow", else [formatDay]. [today] comes from the state

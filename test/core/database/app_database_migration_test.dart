@@ -60,6 +60,12 @@ Future<AppDatabase> openUpgradedFromV8(
   void Function(sqlite.Database raw) seed,
 ) => openUpgradedFrom('schema_v8.sql', 8, seed);
 
+/// Schema v9: the last schema before the default category recolour (v10
+/// changed data only, so it matches the current schema).
+Future<AppDatabase> openUpgradedFromV9(
+  void Function(sqlite.Database raw) seed,
+) => openUpgradedFrom('schema_v9.sql', 9, seed);
+
 /// `(table, from, to)` of every foreign key declared on [table].
 Future<Set<(String, String, String)>> foreignKeysOf(
   AppDatabase db,
@@ -430,6 +436,12 @@ void main() {
       expect(await schemaOf(db), fresh);
     });
 
+    test('upgrading from v9 yields the fresh-install schema', () async {
+      final db = await openUpgradedFromV9((_) {});
+      addTearDown(db.close);
+      expect(await schemaOf(db), fresh);
+    });
+
     test('the v4 fixture really differs from the current schema', () async {
       // If this fails the fixture was regenerated from the current schema
       // and the parity tests above no longer prove anything.
@@ -467,8 +479,8 @@ void main() {
 
     test('moves the user version to the current schema', () async {
       final row = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(row.data['user_version'], 9);
-      expect(db.schemaVersion, 9);
+      expect(row.data['user_version'], 10);
+      expect(db.schemaVersion, 10);
     });
 
     test('creates the exchange-rate and currency cache tables', () async {
@@ -568,10 +580,10 @@ void main() {
 
     tearDown(() => db.close());
 
-    test('moves the user version to the current schema (9)', () async {
+    test('moves the user version to the current schema (10)', () async {
       final row = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(row.data['user_version'], 9);
-      expect(db.schemaVersion, 9);
+      expect(row.data['user_version'], 10);
+      expect(db.schemaVersion, 10);
     });
 
     test('adds the new columns, all null on existing rows', () async {
@@ -765,7 +777,7 @@ void main() {
         );
       }
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.data['user_version'], 9);
+      expect(version.data['user_version'], 10);
       for (final t in payLaterTables) {
         final c = await db
             .customSelect('SELECT COUNT(*) AS c FROM $t')
@@ -893,6 +905,126 @@ void main() {
       );
       expect(tables, contains('expenses'));
       raw.dispose();
+    });
+  });
+
+  group('schema v9 → v10 migration (default category colours, UX-088)', () {
+    /// Every built-in category as v9 seeded it, colours included.
+    void seedV9Defaults(sqlite.Database raw) {
+      final current = {for (final c in defaultCategoryRows) c.id: c.colorHex};
+      for (final c in defaultCategoryRows) {
+        raw.execute(
+          'INSERT INTO categories (id, name, icon, color_hex, is_system, '
+          'is_archived) VALUES (?, ?, ?, ?, 1, 0)',
+          [
+            c.id,
+            c.name,
+            c.icon,
+            v9DefaultCategoryColours[c.id] ?? current[c.id],
+          ],
+        );
+      }
+    }
+
+    Future<Map<String, String>> coloursOf(AppDatabase db) async {
+      final rows = await db.select(db.categories).get();
+      return {for (final r in rows) r.id: r.colorHex};
+    }
+
+    test('the v9 fixture holds the colours v9 shipped', () {
+      // Without this the tests below would prove nothing: v9 Bills was the
+      // red that sat next to Food.
+      expect(v9DefaultCategoryColours['bills'], '#EE5253');
+      expect(v9DefaultCategoryColours['emi'], '#1DD1A1');
+      expect(
+        v9DefaultCategoryColours['salary_adjustment'],
+        v9DefaultCategoryColours[fallbackCategoryId],
+      );
+    });
+
+    test('untouched built-in categories get the new colours', () async {
+      final db = await openUpgradedFromV9((raw) {
+        seedV9Defaults(raw);
+        // Archiving does not make a colour the user's choice.
+        raw.execute("UPDATE categories SET is_archived = 1 WHERE id = 'emi'");
+      });
+      addTearDown(db.close);
+
+      final colours = await coloursOf(db);
+      for (final c in defaultCategoryRows) {
+        expect(colours[c.id], c.colorHex, reason: c.id);
+      }
+      final version = await db.customSelect('PRAGMA user_version').getSingle();
+      expect(version.data['user_version'], 10);
+    });
+
+    test('a built-in category the user recoloured keeps its colour', () async {
+      final db = await openUpgradedFromV9((raw) {
+        seedV9Defaults(raw);
+        raw.execute(
+          "UPDATE categories SET color_hex = '#54A0FF' WHERE id = 'bills'",
+        );
+        // Another catalogue colour: not the one v9 shipped for Others.
+        raw.execute(
+          "UPDATE categories SET color_hex = '#576574' WHERE id = 'others'",
+        );
+      });
+      addTearDown(db.close);
+
+      final colours = await coloursOf(db);
+      expect(colours['bills'], '#54A0FF');
+      expect(colours['others'], '#576574');
+      // The rest still move.
+      expect(
+        colours['emi'],
+        defaultCategoryRows.firstWhere((c) => c.id == 'emi').colorHex,
+      );
+    });
+
+    test('a category the user made keeps an old default colour', () async {
+      final db = await openUpgradedFromV9((raw) {
+        seedV9Defaults(raw);
+        raw.execute('''
+          INSERT INTO categories (id, name, icon, color_hex, is_system,
+            is_archived)
+          VALUES ('gym', 'Gym', 'fitness_center', '#EE5253', 0, 0),
+                 ('misc', 'Misc', 'category', '#8395A7', 0, 0);
+        ''');
+      });
+      addTearDown(db.close);
+
+      final colours = await coloursOf(db);
+      expect(colours['gym'], '#EE5253');
+      expect(colours['misc'], '#8395A7');
+      expect(colours['bills'], isNot('#EE5253'));
+    });
+
+    test('running the step again changes nothing', () async {
+      final raw = sqlite.sqlite3.openInMemory();
+      raw.execute(File('test/fixtures/schema_v9.sql').readAsStringSync());
+      raw.execute('PRAGMA user_version = 9');
+      seedV9Defaults(raw);
+
+      Future<Map<String, String>> openAndRead() async {
+        final db = AppDatabase(
+          executor: NativeDatabase.opened(raw, closeUnderlyingOnClose: false),
+        );
+        final colours = await coloursOf(db);
+        await db.close();
+        return colours;
+      }
+
+      final first = await openAndRead();
+      // A colour the user picks after the upgrade survives a rerun, and the
+      // recoloured rows no longer match the step.
+      raw.execute(
+        "UPDATE categories SET color_hex = '#FF6B6B' WHERE id = 'education'",
+      );
+      raw.execute('PRAGMA user_version = 9');
+      final second = await openAndRead();
+      raw.dispose();
+
+      expect(second, {...first, 'education': '#FF6B6B'});
     });
   });
 

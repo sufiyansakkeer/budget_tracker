@@ -13,6 +13,7 @@ import 'package:monivo/features/settings/domain/entities/notification_settings.d
 import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
 import 'package:monivo/features/settings/domain/repository/settings_repository.dart';
 import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
+import 'package:monivo/features/settings/presentation/widgets/currency_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/usecases/get_budget_list_summary_usecase_test.mocks.dart';
@@ -128,14 +129,21 @@ void main() {
 
     await pumpEditScreen(tester, budgetId: budget.id);
 
-    final dropdown = tester.widget<DropdownButton<String>>(
-      find.byType(DropdownButton<String>),
+    final picker = tester.widget<CurrencyPickerField>(
+      find.byType(CurrencyPickerField),
     );
-    final values = dropdown.items!.map((item) => item.value).toList();
+    final values = picker.currencies.map((c) => c.code).toList();
 
-    expect(dropdown.value, 'INR');
+    expect(picker.value, 'INR');
     expect(values.where((value) => value == 'INR'), hasLength(1));
     expect(values.toSet(), hasLength(values.length));
+
+    // The picker lists INR once, marked as the choice.
+    await tester.tap(find.byType(CurrencyPickerField));
+    await tester.pumpAndSettle();
+    final inr = find.widgetWithText(CurrencyListTile, 'INR');
+    expect(inr, findsOneWidget);
+    expect(tester.widget<CurrencyListTile>(inr).selected, isTrue);
   });
 
   testWidgets('unsupported budget currency does not crash the form', (
@@ -148,9 +156,9 @@ void main() {
 
     await pumpEditScreen(tester, budgetId: budget.id);
 
-    final dropdown = tester.widget<DropdownButton<String>>(
-      find.byType(DropdownButton<String>),
+    final picker = tester.widget<CurrencyPickerField>(
+      find.byType(CurrencyPickerField),
     );
-    expect(dropdown.value, isNull);
+    expect(picker.value, isNull);
   });
 }

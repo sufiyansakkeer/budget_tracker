@@ -1,12 +1,14 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/di/injection.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/core/widgets/app_surface.dart';
@@ -22,6 +24,22 @@ import 'package:monivo/features/expenses/presentation/widgets/expense_undo.dart'
 import '../expense_test_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
+import 'package:monivo/core/dates/date_range_format.dart';
+
+/// Lists budgets only once [gate] completes.
+class _GatedBudgetRepository extends StubBudgetRepository {
+  final gate = Completer<void>();
+
+  _GatedBudgetRepository(super.initial);
+
+  @override
+  Future<List<BudgetEntity>> getAllBudgets({
+    BudgetQueryOptions? options,
+  }) async {
+    await gate.future;
+    return super.getAllBudgets(options: options);
+  }
+}
 
 void main() {
   late MemoryExpenseRepository expenses;
@@ -69,6 +87,7 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(400, 900),
     double textScale = 1,
+    bool settle = true,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -111,7 +130,13 @@ void main() {
       ),
     );
     await tester.tap(find.text('List'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      // The placeholder shimmers until the budgets arrive.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+    }
   }
 
   testWidgets('shows the expense on one surface, in its budget\'s currency', (
@@ -123,8 +148,9 @@ void main() {
     expect(find.text('Dinner'), findsOneWidget);
     expect(find.text(AppMoney.format(12.75, currency: 'OMR')), findsOneWidget);
     expect(find.text('Muscat'), findsOneWidget);
-    // The locale's own time format (it puts a narrow space before PM).
-    expect(find.text(DateFormat.jm().format(dinner.time)), findsOneWidget);
+    // UX-093: the device's 12/24-hour format, through the shared helper.
+    final context = tester.element(find.text('Dinner'));
+    expect(find.text(AppDates.time(context, dinner.time)), findsOneWidget);
     expect(find.text('#friends'), findsOneWidget);
   });
 
@@ -295,5 +321,78 @@ void main() {
             as EdgeInsets;
     expect(padding.left, AppSpacing.md + 44);
     expect(padding.bottom, AppSpacing.md + 34);
+  });
+
+  // UX-083: "Expense not found" showed in the empty state and a SnackBar.
+  testWidgets('a missing expense says so once', (tester) async {
+    expenses.store.clear();
+    await pumpDetails(tester);
+
+    expect(find.text('Expense not found'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  // UX-076: Undo from details never said whether it worked.
+  testWidgets('Undo says the expense is back', (tester) async {
+    await pumpDetails(tester);
+    await tester.tap(find.byKey(const Key('deleteExpenseButton')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('undoDeleteAction')));
+    await tester.pumpAndSettle();
+    expect(find.text('Expense restored'), findsOneWidget);
+  });
+
+  testWidgets('an Undo that fails says so', (tester) async {
+    await pumpDetails(tester);
+    await tester.tap(find.byKey(const Key('deleteExpenseButton')));
+    await tester.pumpAndSettle();
+
+    expenses.failWrites = 'disk full';
+    await tester.tap(find.byKey(const Key('undoDeleteAction')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text("Couldn't restore the expense. Try again."),
+      findsOneWidget,
+    );
+    expect(expenses.store, isEmpty);
+  });
+
+  // UX-082: the amount showed in ₹ until the budgets were read.
+  testWidgets('the amount waits for its budget\'s currency', (tester) async {
+    final gated = _GatedBudgetRepository(budgets.budgets.values.toList());
+    getIt.unregister<ManageBudgetUseCase>();
+    getIt.registerSingleton<ManageBudgetUseCase>(
+      ManageBudgetUseCase(
+        repository: gated,
+        reconcileTabs: FakeReconcileTabUseCase(),
+      ),
+    );
+    await pumpDetails(tester, settle: false);
+    // Runs before the bloc closes, so a failed check never hangs it.
+    addTearDown(() {
+      if (!gated.gate.isCompleted) gated.gate.complete();
+    });
+
+    expect(find.text(AppMoney.format(12.75, currency: null)), findsNothing);
+    expect(find.text('Unknown budget'), findsNothing);
+
+    gated.gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text(AppMoney.format(12.75, currency: 'OMR')), findsOneWidget);
+  });
+
+  // UX-081: the Receipt title wasn't a heading.
+  testWidgets('the receipt title is a heading', (tester) async {
+    final handle = tester.ensureSemantics();
+    expenses.store['e1'] = dinner.copyWith(
+      receiptImagePath: '/nonexistent/receipt.jpg',
+    );
+    await pumpDetails(tester);
+    expect(
+      tester.getSemantics(find.text('Receipt')),
+      containsSemantics(isHeader: true),
+    );
+    handle.dispose();
   });
 }

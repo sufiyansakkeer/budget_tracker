@@ -1,8 +1,9 @@
-import 'package:intl/intl.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../domain/entities/exchange_rate_failure.dart';
 import '../../domain/entities/rate_lookup.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// User-facing wording for the converter, kept in one place so the screen
 /// always explains where a rate came from in the same terms.
@@ -68,20 +69,27 @@ abstract final class ConverterCopy {
     }
   }
 
-  /// "Fetched today, 10:42 AM" / "Saved 25 Sep 2026, 6:03 PM".
-  static String fetchedLabel(RateLookup lookup, DateTime now) {
+  /// "Fetched today, 10:42 AM" / "Saved 25 Sep 2025, 18:03": the time in
+  /// the device's 12/24-hour format, the year only outside this year.
+  static String fetchedLabel(
+    BuildContext context,
+    RateLookup lookup,
+    DateTime now,
+  ) {
     final local = lookup.rate.fetchedAt.toLocal();
-    final day = _relativeDay(local, now) ?? DateFormat.yMMMd().format(local);
-    final time = DateFormat.jm().format(local);
+    final day = _relativeDay(local, now) ?? AppDates.day(local, now: now);
+    final time = AppDates.time(context, local);
     final verb = lookup.origin == RateOrigin.online ? 'Fetched' : 'Saved';
     return '$verb $day, $time';
   }
 
-  /// The provider's reference day: "today", "yesterday" or "Sep 25, 2026".
+  /// The provider's reference day: "today", "yesterday", "25 Sep" or, in
+  /// another year, "25 Sep 2025".
   static String rateDateLabel(DateTime rateDate, DateTime now) =>
       _relativeDay(rateDate, now) ??
-      DateFormat.yMMMd().format(
+      AppDates.day(
         DateTime(rateDate.year, rateDate.month, rateDate.day),
+        now: now.toLocal(),
       );
 
   static String derivedNote(RateLookup lookup) =>

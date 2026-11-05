@@ -7,8 +7,8 @@ import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/di/injection.dart' as di;
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -17,7 +17,6 @@ import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../../app_update/presentation/widgets/app_update_section.dart';
 import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/color_palette_entity.dart';
-import '../../domain/entities/currency_entity.dart';
 import '../../domain/entities/theme_mode_entity.dart';
 import '../bloc/settings_bloc.dart';
 import '../bloc/settings_event.dart';
@@ -89,36 +88,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showCurrencyPicker(BuildContext context, String selectedCode) {
+  /// What the default currency applies to, said the same on the row and in
+  /// the picker.
+  static const _currencyScope = 'Default for new budgets and Pay later tabs';
+
+  /// Mirrors a saved currency into [CurrencyProvider], which new budgets
+  /// and tabs read. Only a saved choice reaches it: a failed save leaves
+  /// the old one everywhere.
+  static void _syncCurrencyProvider(SettingsState state) {
+    if (!di.getIt.isRegistered<CurrencyProvider>()) return;
+    final provider = di.getIt<CurrencyProvider>();
+    final code = state.settings.currencyCode;
+    final symbol = state.settings.currencySymbol;
+    if (provider.currencyCode == code && provider.currencySymbol == symbol) {
+      return;
+    }
+    provider.updateCurrency(code, symbol);
+  }
+
+  Future<void> _showCurrencyPicker(
+    BuildContext context,
+    String selectedCode,
+  ) async {
     final bloc = context.read<SettingsBloc>();
-    AppBottomSheet.show<void>(
-      context: context,
-      builder: (sheetContext) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const AppSheetHeader(
-            title: 'Currency',
-            subtitle: 'Default for new budgets and app-wide amounts.',
-          ),
-          CurrencySelector(
-            selectedCode: selectedCode,
-            onSelected: (CurrencyEntity currency) {
-              bloc.add(
-                SettingsUpdateCurrencyEvent(
-                  code: currency.code,
-                  symbol: currency.symbol,
-                ),
-              );
-              // Update currency provider for immediate UI change.
-              di.getIt<CurrencyProvider>().updateCurrency(
-                currency.code,
-                currency.symbol,
-              );
-            },
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-      ),
+    final currency = await CurrencySelector.show(
+      context,
+      title: 'Currency',
+      subtitle: _currencyScope,
+      selectedCode: selectedCode,
+    );
+    if (currency == null) return;
+    // The provider follows once the save succeeds (see
+    // [_syncCurrencyProvider]).
+    bloc.add(
+      SettingsUpdateCurrencyEvent(code: currency.code, symbol: currency.symbol),
     );
   }
 
@@ -127,11 +130,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final path = await RestoreBackupFlow.pickAndConfirm(
       context,
       preview: bloc.restoreDataUseCase.preview,
-      onRefused: (message) => messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message))),
+      onRefused: (message) => AppSnack.showOn(messenger, message),
     );
-    if (path != null) bloc.add(SettingsRestoreEvent(path));
+    if (path == null || !context.mounted) return;
+    // The restore's own end: its busy state, then not busy. Subscribed
+    // before the event, so a quick restore can't finish unseen.
+    final done = bloc.stream
+        .skipWhile((s) => !s.isBusy)
+        .firstWhere((s) => !s.isBusy);
+    bloc.add(SettingsRestoreEvent(path));
+    await RestoreBackupFlow.showProgressUntil(context, done);
   }
 
   Future<void> _pickAndImport(
@@ -155,6 +163,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _startNewPeriod(BuildContext context, SettingsBloc bloc) async {
+    // With no budget there is nothing to carry on: the new period would
+    // have no amount. Create the first budget instead.
+    var hasBudget = true;
+    try {
+      hasBudget = await di.getIt<ManageBudgetUseCase>().getActive() != null;
+    } catch (e) {
+      // Unknown: ask as before; starting the period reports its own error.
+      debugPrint('[error] Reading the active budget: $e');
+    }
+    if (!context.mounted) return;
+    if (!hasBudget) {
+      await context.pushUnique('${AppRouter.budgetsPath}/create');
+      return;
+    }
     final confirm = await ResetConfirmationDialog.show(
       context,
       title: 'Start a new budget period?',
@@ -193,65 +215,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final bloc = context.read<SettingsBloc>();
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: BlocConsumer<SettingsBloc, SettingsState>(
-        // Showing a snackbar immediately clears the message, so every toast
-        // emitted twice and rebuilt this ~20-tile list both times.
-        buildWhen: (prev, curr) =>
-            prev.settings != curr.settings ||
-            prev.status != curr.status ||
-            prev.isBusy != curr.isBusy ||
-            prev.isBiometricBusy != curr.isBiometricBusy ||
-            prev.biometricMessage != curr.biometricMessage,
-        listener: (context, state) {
-          final messenger = ScaffoldMessenger.of(context);
-          if (state.integrityResult != null) {
-            final result = state.integrityResult!;
-            bloc.add(const SettingsClearMessageEvent());
-            IntegrityResultSheet.show(context, result);
-            return;
-          }
-          if (state.errorMessage != null &&
-              state.status == SettingsStatus.error &&
-              !_loadedOnce) {
-            // A failed first load is the error view's to show.
-            bloc.add(const SettingsClearMessageEvent());
-          } else if (state.errorMessage != null) {
-            messenger
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.errorMessage!)));
-            bloc.add(const SettingsClearMessageEvent());
-          } else if (state.infoMessage != null) {
-            messenger
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.infoMessage!)));
-            bloc.add(const SettingsClearMessageEvent());
-          }
-        },
-        builder: (context, state) {
-          // Default settings are a valid loaded result, so "never loaded"
-          // must come from the status, not from comparing values: otherwise
-          // every reload on a fresh install swaps the list for a skeleton.
-          if (state.status == SettingsStatus.loaded) _loadedOnce = true;
-          final neverLoaded = !_loadedOnce;
-          final Widget child;
-          if ((state.status == SettingsStatus.initial ||
-                  state.status == SettingsStatus.loading) &&
-              neverLoaded) {
-            child = const FormSkeleton(key: ValueKey('loading'), rows: 6);
-          } else if (state.status == SettingsStatus.error && neverLoaded) {
-            child = ErrorState(
-              key: const ValueKey('error'),
-              title: "Couldn't load settings",
-              message:
-                  'Your settings are still on this device. Try again in a '
-                  'moment.',
-              onRetry: () => bloc.add(const SettingsLoadEvent()),
-            );
-          } else {
-            child = _buildContent(context, state, bloc);
-          }
-          return AppStateSwitcher(child: child);
-        },
+      body: BlocListener<SettingsBloc, SettingsState>(
+        listenWhen: (prev, curr) =>
+            prev.settings.currencyCode != curr.settings.currencyCode ||
+            prev.settings.currencySymbol != curr.settings.currencySymbol,
+        listener: (_, state) => _syncCurrencyProvider(state),
+        child: BlocConsumer<SettingsBloc, SettingsState>(
+          // Showing a snackbar immediately clears the message, so every toast
+          // emitted twice and rebuilt this ~20-tile list both times.
+          buildWhen: (prev, curr) =>
+              prev.settings != curr.settings ||
+              prev.status != curr.status ||
+              prev.isBusy != curr.isBusy ||
+              prev.isBiometricBusy != curr.isBiometricBusy ||
+              prev.biometricMessage != curr.biometricMessage,
+          listener: (context, state) {
+            final messenger = ScaffoldMessenger.of(context);
+            if (state.integrityResult != null) {
+              final result = state.integrityResult!;
+              bloc.add(const SettingsClearMessageEvent());
+              IntegrityResultSheet.show(context, result);
+              return;
+            }
+            if (state.errorMessage != null &&
+                state.status == SettingsStatus.error &&
+                !_loadedOnce) {
+              // A failed first load is the error view's to show.
+              bloc.add(const SettingsClearMessageEvent());
+            } else if (state.errorMessage != null) {
+              AppSnack.showOn(messenger, state.errorMessage!);
+              bloc.add(const SettingsClearMessageEvent());
+            } else if (state.infoMessage != null) {
+              AppSnack.showOn(messenger, state.infoMessage!);
+              bloc.add(const SettingsClearMessageEvent());
+            }
+          },
+          builder: (context, state) {
+            // Default settings are a valid loaded result, so "never loaded"
+            // must come from the status, not from comparing values: otherwise
+            // every reload on a fresh install swaps the list for a skeleton.
+            if (state.status == SettingsStatus.loaded) _loadedOnce = true;
+            final neverLoaded = !_loadedOnce;
+            final Widget child;
+            if ((state.status == SettingsStatus.initial ||
+                    state.status == SettingsStatus.loading) &&
+                neverLoaded) {
+              child = const FormSkeleton(key: ValueKey('loading'), rows: 6);
+            } else if (state.status == SettingsStatus.error && neverLoaded) {
+              child = ErrorState(
+                key: const ValueKey('error'),
+                title: "Couldn't load settings",
+                message:
+                    'Your settings are still on this device. Try again in a '
+                    'moment.',
+                onRetry: () => bloc.add(const SettingsLoadEvent()),
+              );
+            } else {
+              child = _buildContent(context, state, bloc);
+            }
+            return AppStateSwitcher(child: child);
+          },
+        ),
       ),
     );
   }
@@ -379,7 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SettingsTile(
                   icon: Icons.payments_outlined,
                   title: 'Currency',
-                  subtitle: 'Default for new budgets',
+                  subtitle: _currencyScope,
                   value: '${settings.currencySymbol} ${settings.currencyCode}',
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () =>

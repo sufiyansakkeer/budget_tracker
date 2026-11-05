@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import '../theme/app_colors_extension.dart';
 import '../theme/contrast.dart';
 import 'pressable.dart';
 
@@ -108,12 +109,15 @@ class IconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedIconSize = iconSize ?? size * 0.5;
+    // The same tint weight as the status containers: stronger in dark,
+    // where a light tint reads fainter.
+    final alpha = AppColorTokens.tintAlpha(Theme.of(context).brightness);
     if (!animate) {
       return Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.14),
+          color: color.withValues(alpha: alpha),
           shape: circular ? BoxShape.circle : BoxShape.rectangle,
           borderRadius: circular ? null : AppSpacing.borderRadiusSmd,
         ),
@@ -136,7 +140,7 @@ class IconTile extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: c.withValues(alpha: 0.14),
+            color: c.withValues(alpha: alpha),
             shape: circular ? BoxShape.circle : BoxShape.rectangle,
             borderRadius: circular ? null : AppSpacing.borderRadiusSmd,
           ),

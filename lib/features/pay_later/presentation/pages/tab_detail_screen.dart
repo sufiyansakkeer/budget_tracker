@@ -19,6 +19,7 @@ import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -68,9 +69,7 @@ class _TabDetailScreenState extends State<TabDetailScreen> {
   }
 
   void _show(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppSnack.show(context, message);
   }
 
   void _close() {

@@ -128,10 +128,12 @@ class AppMoney extends StatelessWidget {
       context,
       AppMotion.standard,
     );
-    final alignment = switch (textAlign) {
-      TextAlign.end || TextAlign.right => Alignment.centerRight,
+    final AlignmentGeometry alignment = switch (textAlign) {
+      TextAlign.end => AlignmentDirectional.centerEnd,
+      TextAlign.right => Alignment.centerRight,
       TextAlign.center => Alignment.center,
-      _ => Alignment.centerLeft,
+      TextAlign.left => Alignment.centerLeft,
+      _ => AlignmentDirectional.centerStart,
     };
 
     return Semantics(

@@ -158,7 +158,7 @@ class AppSheetHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.lg,
         0,
         AppSpacing.md,

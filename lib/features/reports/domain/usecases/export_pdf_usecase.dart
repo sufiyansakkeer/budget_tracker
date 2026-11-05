@@ -59,17 +59,22 @@ class ExportPdfUseCase {
   const ExportPdfUseCase({this.delivery = const FileDeliveryService()});
 
   /// What happened to the file: a closed share sheet is not an export.
-  /// [shareOrigin] anchors the share sheet on iPad.
+  /// [shareOrigin] anchors the share sheet on iPad; [budgetName] is the
+  /// budget the report covers, named under the title.
   Future<ReportResult<FileDeliveryOutcome>> call(
     ReportData data, {
     Rect? shareOrigin,
+    String? budgetName,
   }) async {
     try {
-      final document = buildDocument(data, await PdfFonts.load());
+      final document = buildDocument(
+        data,
+        await PdfFonts.load(),
+        budgetName: budgetName,
+      );
       final bytes = await document.save();
       final directory = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'budget_report_$timestamp.pdf';
+      final fileName = ReportFileName.of(data.range, 'pdf');
       final file = File('${directory.path}/$fileName');
       await file.writeAsBytes(bytes);
 
@@ -96,7 +101,11 @@ class ExportPdfUseCase {
 
   /// The report as a PDF document, drawn with [fonts].
   @visibleForTesting
-  pw.Document buildDocument(ReportData data, PdfFonts fonts) {
+  pw.Document buildDocument(
+    ReportData data,
+    PdfFonts fonts, {
+    String? budgetName,
+  }) {
     final theme = pw.ThemeData.withFont(
       base: pw.Font.ttf(fonts.regular),
       bold: pw.Font.ttf(fonts.bold),
@@ -127,7 +136,7 @@ class ExportPdfUseCase {
             ),
           ),
           pw.Text(
-            '${_fmtDate(data.range.start)} — ${_fmtDate(data.range.end)}',
+            subtitle(data, budgetName: budgetName),
             style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
           ),
           if (ReportFilterText.line(data, money) case final filtered?)
@@ -189,6 +198,16 @@ class ExportPdfUseCase {
       ),
     );
     return document;
+  }
+
+  /// The line under the title: the budget the report covers, when known,
+  /// and its dates.
+  @visibleForTesting
+  static String subtitle(ReportData data, {String? budgetName}) {
+    final dates = '${_fmtDate(data.range.start)} — ${_fmtDate(data.range.end)}';
+    return budgetName == null || budgetName.isEmpty
+        ? dates
+        : '$budgetName · $dates';
   }
 
   /// The "Spending Trends" lines. Growth is left out when nothing was spent
@@ -257,6 +276,6 @@ class ExportPdfUseCase {
     '[\u200E\u200F\u202A-\u202E\u2066-\u2069]',
   );
 
-  String _fmtDate(DateTime d) =>
+  static String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }

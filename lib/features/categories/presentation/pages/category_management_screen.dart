@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -48,10 +49,19 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
         '• At least one category always stays available',
   );
 
+  /// The list's scrolling folds the add button (UX-073).
+  final AppFabCollapse _fabCollapse = AppFabCollapse();
+
   @override
   void initState() {
     super.initState();
     context.read<CategoryBloc>().add(const CategoryLoad());
+  }
+
+  @override
+  void dispose() {
+    _fabCollapse.dispose();
+    super.dispose();
   }
 
   Future<void> _openForm(
@@ -124,6 +134,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
         onPressed: () => _openForm(context),
         icon: Icons.add_rounded,
         label: 'New category',
+        collapse: _fabCollapse,
       ),
       body: BlocConsumer<CategoryBloc, CategoryState>(
         listenWhen: (prev, curr) =>
@@ -138,14 +149,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
             return;
           }
           // The app's one snackbar style, errors included.
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(text),
-                showCloseIcon: state.message == null,
-              ),
-            );
+          AppSnack.show(context, text);
           context.read<CategoryBloc>().add(const CategoryClearMessage());
         },
         builder: (context, state) {
@@ -156,6 +160,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               key: ValueKey('loading'),
               padding: AppSpacing.pagePadding,
               child: Shimmer(
+                semanticsLabel: 'Loading categories',
                 child: Column(
                   children: [
                     SkeletonListTile(),
@@ -196,7 +201,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               onDelete: (c) => _confirmDelete(context, c),
             );
           }
-          return AppStateSwitcher(child: child);
+          return _fabCollapse.listen(child: AppStateSwitcher(child: child));
         },
       ),
     );

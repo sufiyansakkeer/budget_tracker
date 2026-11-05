@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/currency/money_input.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 void main() {
   test('allows each currency its minor units, never fewer than two', () {
@@ -19,16 +20,18 @@ void main() {
     expect(MoneyInput.decimalsError('7.125', 'OMR'), isNull);
     expect(
       MoneyInput.decimalsError('7.1255', 'OMR'),
-      'Amount cannot have more than 3 decimal places',
+      ValidationCopy.tooManyDecimals(3),
     );
     expect(
       MoneyInput.decimalsError('7.125', 'INR'),
-      'Amount cannot have more than 2 decimal places',
+      ValidationCopy.tooManyDecimals(2),
     );
     expect(
-      MoneyInput.decimalsError('7.125', null, subject: 'Budget'),
-      'Budget cannot have more than 2 decimal places',
+      MoneyInput.decimalsError('7.125', null),
+      ValidationCopy.tooManyDecimals(2),
     );
+    // UX-092: one wording on every form, read as an instruction.
+    expect(ValidationCopy.tooManyDecimals(3), 'Use up to 3 decimal places.');
     expect(MoneyInput.decimalsError('12', 'OMR'), isNull);
   });
 
