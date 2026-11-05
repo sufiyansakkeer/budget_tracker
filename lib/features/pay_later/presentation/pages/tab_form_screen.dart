@@ -13,6 +13,8 @@ import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_form_action_bar.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
@@ -365,257 +367,262 @@ class _TabFormState extends State<_TabForm> {
     return Column(
       children: [
         Expanded(
-          child: ListView(
-            padding: AppSpacing.pagePadding,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            children: [
-              TextFormField(
-                key: const Key('tabNameField'),
-                controller: _name,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Tab name',
-                  hintText: 'e.g. Cafeteria, Corner shop',
-                  prefixIcon: const Icon(Icons.storefront_outlined),
-                  errorText: _nameError,
-                ),
-                onChanged: (_) {
-                  if (_nameError != null) setState(() => _nameError = null);
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('Type', style: theme.textTheme.titleSmall),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  for (final c in PayLaterTabCategory.values)
-                    ChoiceChip(
-                      key: Key('tabCategory_${c.key}'),
-                      selected: _category == c,
-                      showCheckmark: false,
-                      avatar: Icon(
-                        tabCategoryIcon(c),
-                        size: AppSizes.iconSm + 2,
-                      ),
-                      label: Text(_categoryLabel(c)),
-                      onSelected: (_) => setState(() => _category = c),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _PickerField(
-                key: const Key('tabCurrencyField'),
-                label: 'Currency',
-                icon: Icons.payments_outlined,
-                value: '${CurrencyFormatter.symbolFor(_currency)} $_currency',
-                hint: locked
-                    ? "Locked: this tab has purchases or payments."
-                    : null,
-                onTap: locked ? null : _pickCurrency,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<_RhythmChoice>(
-                key: const Key('tabRhythmPicker'),
-                value: _rhythm,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'When you settle up',
-                  prefixIcon: Icon(Icons.event_repeat_outlined),
-                ),
-                items: [
-                  for (final r in _RhythmChoice.values)
-                    DropdownMenuItem(
-                      key: Key('tabRhythm_${r.name}'),
-                      value: r,
-                      child: Text(r.label),
-                    ),
-                ],
-                onChanged: (r) {
-                  if (r != null) {
-                    setState(() {
-                      _rhythm = r;
-                      _daysError = null;
-                      _dayError = null;
-                    });
-                  }
-                },
-              ),
-              AppAnimatedSize(
-                duration: AppMotion.respectReducedMotion(
-                  context,
-                  AppMotion.standard,
-                ),
-                curve: AppMotion.standardCurve,
-                alignment: Alignment.topCenter,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_rhythm == _RhythmChoice.customDays) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      TextFormField(
-                        key: const Key('tabCustomDaysField'),
-                        controller: _customDays,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(3),
-                        ],
-                        decoration: InputDecoration(
-                          labelText: 'Number of days',
-                          helperText: 'From 1 to 365',
-                          errorText: _daysError,
-                        ),
-                        onChanged: (_) {
-                          if (_daysError != null) {
-                            setState(() => _daysError = null);
-                          }
-                        },
-                      ),
-                    ],
-                    if (_rhythm == _RhythmChoice.monthly) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      TextFormField(
-                        key: const Key('tabMonthlyDayField'),
-                        controller: _monthlyDay,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(2),
-                        ],
-                        decoration: InputDecoration(
-                          labelText: 'Day of the month',
-                          helperText:
-                              'From 1 to 31; short months use their last day',
-                          errorText: _dayError,
-                        ),
-                        onChanged: (_) {
-                          if (_dayError != null) {
-                            setState(() => _dayError = null);
-                          }
-                        },
-                      ),
-                    ],
-                    if (_rhythm.isEveryDays) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      _PickerField(
-                        key: const Key('tabAnchorField'),
-                        label: 'First period starts',
-                        icon: Icons.flag_outlined,
-                        value: _date(_anchor),
-                        onTap: () => _pickDate(
-                          current: _anchor,
-                          first: DateTime(today.year - 5),
-                          help: 'First period starts',
-                          onPicked: (d) => _anchor = d,
-                        ),
-                      ),
-                    ],
-                    if (_rhythm == _RhythmChoice.pickDate) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      _PickerField(
-                        key: const Key('tabSettleDateField'),
-                        label: 'Settle-up date',
-                        icon: Icons.event_outlined,
-                        value: _settleDate == null
-                            ? 'Not set'
-                            : _date(_settleDate!),
-                        onTap: () => _pickDate(
-                          current: _settleDate,
-                          first: _original == null || _settleDate == null
-                              ? today
-                              : (_settleDate!.isBefore(today)
-                                    ? _settleDate!
-                                    : today),
-                          help: 'Settle-up date',
-                          onPicked: (d) => _settleDate = d,
-                        ),
-                        onClear: _settleDate == null
-                            ? null
-                            : () => setState(() => _settleDate = null),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _ToggleSection(
-                icon: Icons.notifications_outlined,
-                title: 'Remind me',
-                subtitle: _reminderUnavailable ?? 'Before the settle-up day',
-                value: _reminderOn,
-                onChanged: _reminderUnavailable != null
-                    ? null
-                    : (v) => setState(() => _reminderEnabled = v),
-                child: DropdownButtonFormField<int>(
-                  key: const Key('tabReminderOffset'),
-                  value: _reminderOffset,
-                  decoration: const InputDecoration(labelText: 'Remind me'),
-                  items: [
-                    for (var d = 0; d <= 7; d++)
-                      DropdownMenuItem(value: d, child: Text(_offsetLabel(d))),
-                  ],
-                  onChanged: (d) {
-                    if (d != null) setState(() => _reminderOffset = d);
+          child: AppPageBody(
+            builder: (context, padding) => ListView(
+              // The save bar below clears the home indicator.
+              padding: padding.copyWith(bottom: AppSpacing.md),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              children: [
+                TextFormField(
+                  key: const Key('tabNameField'),
+                  controller: _name,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: 'Tab name',
+                    hintText: 'e.g. Cafeteria, Corner shop',
+                    prefixIcon: const Icon(Icons.storefront_outlined),
+                    errorText: _nameError,
+                  ),
+                  onChanged: (_) {
+                    if (_nameError != null) setState(() => _nameError = null);
                   },
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String?>(
-                key: const Key('tabDefaultCategory'),
-                value: defaultCategoryValue,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Default expense category',
-                  prefixIcon: Icon(Icons.category_outlined),
+                const SizedBox(height: AppSpacing.md),
+                Text('Type', style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final c in PayLaterTabCategory.values)
+                      ChoiceChip(
+                        key: Key('tabCategory_${c.key}'),
+                        selected: _category == c,
+                        showCheckmark: false,
+                        avatar: Icon(
+                          tabCategoryIcon(c),
+                          size: AppSizes.iconSm + 2,
+                        ),
+                        label: Text(_categoryLabel(c)),
+                        onSelected: (_) => setState(() => _category = c),
+                      ),
+                  ],
                 ),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('None'),
+                const SizedBox(height: AppSpacing.md),
+                _PickerField(
+                  key: const Key('tabCurrencyField'),
+                  label: 'Currency',
+                  icon: Icons.payments_outlined,
+                  value: '${CurrencyFormatter.symbolFor(_currency)} $_currency',
+                  hint: locked
+                      ? "Locked: this tab has purchases or payments."
+                      : null,
+                  onTap: locked ? null : _pickCurrency,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<_RhythmChoice>(
+                  key: const Key('tabRhythmPicker'),
+                  value: _rhythm,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'When you settle up',
+                    prefixIcon: Icon(Icons.event_repeat_outlined),
                   ),
-                  for (final c in categories)
-                    DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
-                ],
-                onChanged: (id) => setState(() => _defaultCategoryId = id),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextFormField(
-                key: const Key('tabContactField'),
-                controller: _contact,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Contact',
-                  hintText: 'Phone, person or place',
-                  prefixIcon: Icon(Icons.contact_phone_outlined),
+                  items: [
+                    for (final r in _RhythmChoice.values)
+                      DropdownMenuItem(
+                        key: Key('tabRhythm_${r.name}'),
+                        value: r,
+                        child: Text(r.label),
+                      ),
+                  ],
+                  onChanged: (r) {
+                    if (r != null) {
+                      setState(() {
+                        _rhythm = r;
+                        _daysError = null;
+                        _dayError = null;
+                      });
+                    }
+                  },
                 ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextFormField(
-                key: const Key('tabNoteField'),
-                controller: _note,
-                maxLines: 3,
-                minLines: 1,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Note',
-                  prefixIcon: Icon(Icons.notes_outlined),
+                AppAnimatedSize(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.standard,
+                  ),
+                  curve: AppMotion.standardCurve,
+                  alignment: Alignment.topCenter,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_rhythm == _RhythmChoice.customDays) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        TextFormField(
+                          key: const Key('tabCustomDaysField'),
+                          controller: _customDays,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(3),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: 'Number of days',
+                            helperText: 'From 1 to 365',
+                            errorText: _daysError,
+                          ),
+                          onChanged: (_) {
+                            if (_daysError != null) {
+                              setState(() => _daysError = null);
+                            }
+                          },
+                        ),
+                      ],
+                      if (_rhythm == _RhythmChoice.monthly) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        TextFormField(
+                          key: const Key('tabMonthlyDayField'),
+                          controller: _monthlyDay,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(2),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: 'Day of the month',
+                            helperText:
+                                'From 1 to 31; short months use their last day',
+                            errorText: _dayError,
+                          ),
+                          onChanged: (_) {
+                            if (_dayError != null) {
+                              setState(() => _dayError = null);
+                            }
+                          },
+                        ),
+                      ],
+                      if (_rhythm.isEveryDays) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        _PickerField(
+                          key: const Key('tabAnchorField'),
+                          label: 'First period starts',
+                          icon: Icons.flag_outlined,
+                          value: _date(_anchor),
+                          onTap: () => _pickDate(
+                            current: _anchor,
+                            first: DateTime(today.year - 5),
+                            help: 'First period starts',
+                            onPicked: (d) => _anchor = d,
+                          ),
+                        ),
+                      ],
+                      if (_rhythm == _RhythmChoice.pickDate) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        _PickerField(
+                          key: const Key('tabSettleDateField'),
+                          label: 'Settle-up date',
+                          icon: Icons.event_outlined,
+                          value: _settleDate == null
+                              ? 'Not set'
+                              : _date(_settleDate!),
+                          onTap: () => _pickDate(
+                            current: _settleDate,
+                            first: _original == null || _settleDate == null
+                                ? today
+                                : (_settleDate!.isBefore(today)
+                                      ? _settleDate!
+                                      : today),
+                            help: 'Settle-up date',
+                            onPicked: (d) => _settleDate = d,
+                          ),
+                          onClear: _settleDate == null
+                              ? null
+                              : () => setState(() => _settleDate = null),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
-              if (_daysError != null && _rhythm != _RhythmChoice.customDays)
-                FormFieldError(message: _daysError!),
-            ],
+                const SizedBox(height: AppSpacing.sm),
+                _ToggleSection(
+                  icon: Icons.notifications_outlined,
+                  title: 'Remind me',
+                  subtitle: _reminderUnavailable ?? 'Before the settle-up day',
+                  value: _reminderOn,
+                  onChanged: _reminderUnavailable != null
+                      ? null
+                      : (v) => setState(() => _reminderEnabled = v),
+                  child: DropdownButtonFormField<int>(
+                    key: const Key('tabReminderOffset'),
+                    value: _reminderOffset,
+                    decoration: const InputDecoration(labelText: 'Remind me'),
+                    items: [
+                      for (var d = 0; d <= 7; d++)
+                        DropdownMenuItem(
+                          value: d,
+                          child: Text(_offsetLabel(d)),
+                        ),
+                    ],
+                    onChanged: (d) {
+                      if (d != null) setState(() => _reminderOffset = d);
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String?>(
+                  key: const Key('tabDefaultCategory'),
+                  value: defaultCategoryValue,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Default expense category',
+                    prefixIcon: Icon(Icons.category_outlined),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('None'),
+                    ),
+                    for (final c in categories)
+                      DropdownMenuItem<String?>(
+                        value: c.id,
+                        child: Text(c.name),
+                      ),
+                  ],
+                  onChanged: (id) => setState(() => _defaultCategoryId = id),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  key: const Key('tabContactField'),
+                  controller: _contact,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact',
+                    hintText: 'Phone, person or place',
+                    prefixIcon: Icon(Icons.contact_phone_outlined),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  key: const Key('tabNoteField'),
+                  controller: _note,
+                  maxLines: 3,
+                  minLines: 1,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Note',
+                    prefixIcon: Icon(Icons.notes_outlined),
+                  ),
+                ),
+                if (_daysError != null && _rhythm != _RhythmChoice.customDays)
+                  FormFieldError(message: _daysError!),
+              ],
+            ),
           ),
         ),
-        SafeArea(
-          minimum: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.sm,
-            AppSpacing.md,
-            AppSpacing.md,
-          ),
+        // The body already sits above the keyboard, so the bar's keyboard
+        // padding is zero here; it keeps the safe area and the tablet width.
+        AppFormActionBar(
           child: PrimaryButton(
             key: const Key('tabSaveButton'),
             onPressed: state.saving ? null : _save,

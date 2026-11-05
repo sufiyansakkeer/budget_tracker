@@ -10,6 +10,10 @@ class DeleteCategoryUseCase {
 
   const DeleteCategoryUseCase({required this.repository});
 
+  /// How many expenses use category [id]: more than none and [call]
+  /// refuses, so the screen offers to archive it instead.
+  Future<int> usage(String id) => repository.countExpenses(id);
+
   Future<CategoryResult<void>> call(String id) async {
     try {
       final current = await repository.getCategoryById(id);

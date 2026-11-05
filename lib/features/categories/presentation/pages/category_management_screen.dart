@@ -5,6 +5,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/widgets/app_list.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -78,6 +79,24 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     BuildContext context,
     ExpenseCategory category,
   ) async {
+    final bloc = context.read<CategoryBloc>();
+    final used = bloc.state.usage[category.id] ?? 0;
+    // Deleting would be refused: offer what can be done instead.
+    if (used > 0) {
+      final archive = await ConfirmationDialog.show(
+        context: context,
+        title: 'Archive "${category.name}" instead?',
+        message:
+            'It is used by ${_expenses(used)}, so it can\'t be deleted. '
+            'Archiving hides it from the expense form; those expenses keep '
+            'it.',
+        confirmLabel: 'Archive',
+        icon: Icons.archive_outlined,
+      );
+      if (archive) bloc.add(CategorySetArchived(category.id, archived: true));
+      return;
+    }
+    if (!context.mounted) return;
     final confirmed = await ConfirmationDialog.show(
       context: context,
       title: 'Delete category?',
@@ -118,24 +137,13 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               state.categories.isEmpty) {
             return;
           }
-          final isError = state.message == null;
-          final scheme = Theme.of(context).colorScheme;
+          // The app's one snackbar style, errors included.
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(
-                  text,
-                  // The snackbar theme's content colour is meant for the
-                  // default dark background; on errorContainer it is white
-                  // on pink.
-                  style: isError
-                      ? TextStyle(color: scheme.onErrorContainer)
-                      : null,
-                ),
-                backgroundColor: isError ? scheme.errorContainer : null,
-                closeIconColor: isError ? scheme.onErrorContainer : null,
-                showCloseIcon: isError,
+                content: Text(text),
+                showCloseIcon: state.message == null,
               ),
             );
           context.read<CategoryBloc>().add(const CategoryClearMessage());
@@ -214,56 +222,64 @@ class _CategoryList extends StatelessWidget {
     final active = state.active;
     final archived = state.archived;
     var index = 0;
-    return ListView(
+    return AppPageBody(
       padding: AppSpacing.pagePaddingWithFab,
-      children: [
-        AppSection(
-          title: 'Available',
-          subtitle:
-              '${active.length} ${active.length == 1 ? 'category' : 'categories'}',
-          child: AppGroupedList(
-            filled: true,
-            dividerIndent: CategoryListTile.dividerIndent,
-            children: [
-              for (final c in active)
-                FadeSlideIn(
-                  key: ValueKey('enter_${c.id}'),
-                  index: index++,
-                  child: CategoryListTile(
-                    category: c,
-                    onTap: () => onEdit(c),
-                    onArchive: () => onArchive(c, true),
-                    onDelete: c.isSystem ? null : () => onDelete(c),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        if (archived.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.lg),
+      builder: (context, padding) => ListView(
+        padding: padding,
+        children: [
           AppSection(
-            title: 'Archived',
-            subtitle: 'Hidden from the expense form; history is kept',
+            title: 'Available',
+            subtitle:
+                '${active.length} ${active.length == 1 ? 'category' : 'categories'}',
             child: AppGroupedList(
               filled: true,
               dividerIndent: CategoryListTile.dividerIndent,
               children: [
-                for (final c in archived)
+                for (final c in active)
                   FadeSlideIn(
                     key: ValueKey('enter_${c.id}'),
                     index: index++,
                     child: CategoryListTile(
                       category: c,
+                      usage: state.usage[c.id],
                       onTap: () => onEdit(c),
-                      onRestore: () => onArchive(c, false),
+                      onArchive: () => onArchive(c, true),
                       onDelete: c.isSystem ? null : () => onDelete(c),
                     ),
                   ),
               ],
             ),
           ),
+          if (archived.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            AppSection(
+              title: 'Archived',
+              subtitle: 'Hidden from the expense form; history is kept',
+              child: AppGroupedList(
+                filled: true,
+                dividerIndent: CategoryListTile.dividerIndent,
+                children: [
+                  for (final c in archived)
+                    FadeSlideIn(
+                      key: ValueKey('enter_${c.id}'),
+                      index: index++,
+                      child: CategoryListTile(
+                        category: c,
+                        usage: state.usage[c.id],
+                        onTap: () => onEdit(c),
+                        onRestore: () => onArchive(c, false),
+                        // Already archived, one in use has nothing to offer.
+                        onDelete: c.isSystem || (state.usage[c.id] ?? 0) > 0
+                            ? null
+                            : () => onDelete(c),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -277,6 +293,9 @@ class CategoryListTile extends StatelessWidget {
   final VoidCallback? onRestore;
   final VoidCallback? onDelete;
 
+  /// How many expenses use the category, when known.
+  final int? usage;
+
   /// Hairlines between rows start under the name, past the icon tile.
   static const double dividerIndent = AppSizes.avatarSm + AppSpacing.smd;
 
@@ -287,6 +306,7 @@ class CategoryListTile extends StatelessWidget {
     this.onArchive,
     this.onRestore,
     this.onDelete,
+    this.usage,
   });
 
   @override
@@ -296,6 +316,7 @@ class CategoryListTile extends StatelessWidget {
     final subtitle = [
       category.isSystem ? 'Built-in' : 'Custom',
       if (category.isArchived) 'Archived',
+      if ((usage ?? 0) > 0) 'Used by ${_expenses(usage!)}',
     ].join(' · ');
 
     return Row(
@@ -336,7 +357,7 @@ class CategoryListTile extends StatelessWidget {
                             Text(
                               category.name,
                               style: theme.textTheme.titleSmall,
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
@@ -416,3 +437,5 @@ class CategoryListTile extends StatelessWidget {
 }
 
 enum _CategoryAction { edit, archive, restore, delete }
+
+String _expenses(int count) => count == 1 ? '1 expense' : '$count expenses';

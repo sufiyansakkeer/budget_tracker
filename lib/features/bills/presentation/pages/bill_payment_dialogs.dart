@@ -24,10 +24,10 @@ import '../bloc/bill_event.dart';
 class BillPaymentDialogs {
   BillPaymentDialogs._();
 
-  /// "Mark paid & record expense": names the budget the expense will go to
-  /// and records payment, bill update and expense in one step. When no
-  /// budget can take the payment (none running in the bill's currency), it
-  /// says so instead of asking.
+  /// "Mark paid & record expense": names the budget the expense will go to,
+  /// says what that does to today's amount, and records payment, bill update
+  /// and expense in one step. When no budget can take the payment (none
+  /// running in the bill's currency), it says so instead of asking.
   static Future<void> payWithExpense(
     BuildContext context,
     BillEntity bill,
@@ -35,12 +35,12 @@ class BillPaymentDialogs {
     final bloc = context.read<BillBloc>();
     final messenger = ScaffoldMessenger.of(context);
 
-    String? budgetName;
+    BudgetEntity? budget;
     try {
       final target = await getIt<PayBillUseCase>().targetBudgetFor(bill.id);
       switch (target) {
         case BillSuccess(:final data):
-          budgetName = data.name;
+          budget = data;
         case BillError(:final failure):
           if (failure.type == BillErrorType.invalidInput) {
             messenger
@@ -57,14 +57,28 @@ class BillPaymentDialogs {
 
     final amount = CurrencyFormatter.format(bill.amount, code: bill.currency);
     final where =
-        budgetName ?? 'the budget it is paid from, or your active budget';
+        budget?.name ?? 'the budget it is paid from, or your active budget';
+    // The payment is committed spending only when the budget it goes to set
+    // this occurrence aside (PayBillUseCase's rule); otherwise it is plain
+    // spending today. Unknown budget: no claim either way.
+    final effect = budget == null
+        ? ''
+        : BillOccurrenceEnumerator.setsAsideCurrentOccurrence(
+            bill,
+            budget,
+            DateTime.now(),
+          )
+        ? " $amount was already set aside, so Today's Safe Spending "
+              "doesn't change."
+        : " ${budget.name} didn't set it aside, so it counts as today's "
+              'spending.';
     final confirmed = await ConfirmationDialog.show(
       context: context,
       title: 'Mark paid & record expense?',
       message:
           '"${bill.title}" will be marked paid and an expense of $amount '
-          'will be recorded in $where.${_nextOccurrence(bill)}',
-      confirmLabel: 'Confirm',
+          'will be recorded in $where.$effect${_nextOccurrence(bill)}',
+      confirmLabel: 'Pay & record',
       icon: Icons.receipt_long_rounded,
     );
     if (confirmed) bloc.add(BillPayWithExpense(bill.id));

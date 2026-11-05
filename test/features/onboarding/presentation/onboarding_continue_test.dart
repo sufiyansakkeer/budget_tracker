@@ -1,3 +1,4 @@
+import 'package:monivo/core/currency/currency_provider.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
@@ -11,6 +12,9 @@ import 'package:monivo/features/onboarding/presentation/bloc/onboarding_bloc.dar
 import 'package:monivo/features/onboarding/presentation/bloc/onboarding_event.dart';
 import 'package:monivo/features/onboarding/presentation/bloc/onboarding_state.dart';
 import 'package:monivo/features/onboarding/presentation/widgets/budget_step_widget.dart';
+import 'package:monivo/features/settings/domain/repository/settings_repository.dart';
+import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
+import 'package:monivo/features/settings/domain/usecases/update_currency_usecase.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -137,6 +141,9 @@ class BudgetStepHarness extends StatelessWidget {
   }
 }
 
+/// These tests never submit, so settings are never written.
+class _UnusedSettingsRepository extends Fake implements SettingsRepository {}
+
 void main() {
   late OnboardingBloc bloc;
   late FakeOnboardingRepository onboardingRepository;
@@ -145,9 +152,14 @@ void main() {
   setUp(() {
     onboardingRepository = FakeOnboardingRepository();
     budgetRepository = FakeBudgetRepository();
+    final settings = _UnusedSettingsRepository();
     bloc = OnboardingBloc(
       createBudgetUseCase: CreateBudgetUseCase(onboardingRepository),
       budgetRepository: budgetRepository,
+      updateCurrencyUseCase: UpdateCurrencyUseCase(repository: settings),
+      currencyProvider: CurrencyProvider(
+        loadSettingsUseCase: LoadSettingsUseCase(repository: settings),
+      ),
     );
   });
 

@@ -5,7 +5,9 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_metric.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/dates/date_range_format.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../bloc/onboarding_state.dart';
 import 'onboarding_step_layout.dart';
 
@@ -21,45 +23,65 @@ class ConfirmationStepWidget extends StatelessWidget {
     required this.onBack,
   });
 
+  /// "Now" for the preview's day; replaced in tests.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final isSubmitting = state.status == OnboardingStatus.loading;
     final amount = state.parsedBudget ?? 0;
-    // The dashboard's own figure for the first day; null while the dates
-    // are invalid.
-    final firstDay = state.firstDaySafeToSpend;
-    final days = firstDay?.totalDays;
+    // The dashboard's own figure for the first day it shows the budget;
+    // null while the dates are invalid.
+    final today = clock().dateOnly;
+    final preview = state.safeToSpendPreview(today);
+    final days = preview?.totalDays;
     final dateFmt = DateFormat('EEE, d MMM yyyy');
     final code = state.selectedCurrency.code;
     final name = state.budgetNameInput.trim();
     final amountText = AppMoney.format(amount, currency: code);
 
     final Widget hero;
-    if (firstDay != null && days != null) {
+    // An ended budget has no daily figure: it shows its amount instead.
+    if (preview != null &&
+        days != null &&
+        preview.status != SafeToSpendStatus.periodEnded) {
       // Floored like every "safe" amount, so the preview never promises
       // more than the dashboard will show.
       final daily = AppMoney.format(
-        firstDay.dailySafeToSpend,
+        preview.dailySafeToSpend,
         currency: code,
         floored: true,
       );
+      // The preview is the start day's figure when the start is to come.
+      final notStarted = state.startDate.dateOnly.isAfter(today);
+      final label = notStarted
+          ? "From ${DateFormat('d MMM').format(state.startDate)}, "
+                "Today's Safe Spending starts at"
+          : "Today's Safe Spending";
+      final left = preview.remainingDays;
+      final spread = notStarted || left == days
+          ? '$amountText spread evenly over $days '
+                '${days == 1 ? 'day' : 'days'}'
+          : '$amountText spread evenly over the $left '
+                '${left == 1 ? 'day' : 'days'} left';
       hero = Semantics(
         container: true,
-        label:
-            "Today's Safe Spending starts at $daily. $amountText spread "
-            'evenly over $days ${days == 1 ? 'day' : 'days'}.',
+        label: notStarted
+            ? '$label $daily. $spread.'
+            : '$label: $daily. $spread.',
         child: ExcludeSemantics(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Today's Safe Spending starts at",
+                label,
                 style: theme.textTheme.titleSmall?.copyWith(color: muted),
               ),
               AppMoney(
-                amount: firstDay.dailySafeToSpend,
+                amount: preview.dailySafeToSpend,
                 currency: code,
                 role: MoneyRole.hero,
                 floored: true,
@@ -67,9 +89,7 @@ class ConfirmationStepWidget extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                '$amountText spread evenly over $days '
-                '${days == 1 ? 'day' : 'days'}. It updates every day with '
-                'what you spend.',
+                '$spread. It updates every day with what you spend.',
                 style: theme.textTheme.bodyMedium?.copyWith(color: muted),
               ),
             ],

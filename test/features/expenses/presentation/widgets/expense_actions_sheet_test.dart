@@ -24,7 +24,11 @@ void main() {
     colorHex: '#FF6B6B',
   );
 
-  Future<ExpenseRowAction? Function()> open(WidgetTester tester) async {
+  Future<ExpenseRowAction? Function()> open(
+    WidgetTester tester, {
+    bool canMove = true,
+    String? billTitle,
+  }) async {
     ExpenseRowAction? result;
     await tester.pumpWidget(
       MaterialApp(
@@ -38,6 +42,8 @@ void main() {
                   expense: expense,
                   category: food,
                   currency: 'INR',
+                  canMove: canMove,
+                  billTitle: billTitle,
                 );
               },
               child: const Text('open'),
@@ -71,5 +77,35 @@ void main() {
     await tester.tap(find.byKey(const Key('expenseAction_duplicate')));
     await tester.pumpAndSettle();
     expect(result(), ExpenseRowAction.duplicate);
+  });
+
+  // UX-060: Move was offered with no other budget to move to.
+  testWidgets('hides Move when there is no budget to move to', (tester) async {
+    await open(tester, canMove: false);
+    expect(find.byKey(const Key('expenseAction_move')), findsNothing);
+    expect(find.byKey(const Key('expenseAction_delete')), findsOneWidget);
+  });
+
+  // UX-059: a bill payment gave no hint of its bill.
+  testWidgets('a bill payment names its bill in the move and delete hints', (
+    tester,
+  ) async {
+    await open(tester, billTitle: 'Rent');
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('expenseAction_move')),
+        matching: find.text(
+          'Paid bill: Rent. Moving it unlinks it from the bill.',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('expenseAction_delete')),
+        matching: find.text('Paid bill: Rent. The bill stays paid.'),
+      ),
+      findsOneWidget,
+    );
   });
 }

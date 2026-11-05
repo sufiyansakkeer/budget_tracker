@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
@@ -134,9 +135,10 @@ class _CategoryBar extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label:
-          '${analytics.categoryName}, $amount, $percent% of spending, '
-          '$count ${count == 1 ? 'expense' : 'expenses'}',
+      label: CurrencyFormatter.forSpeech(
+        '${analytics.categoryName}, $amount, $percent% of spending, '
+        '$count ${count == 1 ? 'expense' : 'expenses'}',
+      ),
       hint: 'Shows these expenses',
       excludeSemantics: true,
       onTap: onTap,

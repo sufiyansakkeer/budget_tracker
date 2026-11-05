@@ -8,12 +8,14 @@ import '../../../../core/files/file_delivery_service.dart';
 import '../../../../core/errors/user_facing_error.dart';
 
 /// Shares the report as CSV or PDF through the system sheet, from the
-/// Reports menu, and says how it went.
+/// Reports menu, and says how it went. [shareOrigin] is the menu button's
+/// rect, where the sheet points from on iPad.
 abstract final class ReportExport {
   static Future<void> run(
     BuildContext context,
     ReportData data, {
     required bool csv,
+    Rect? shareOrigin,
     ExportCsvUseCase exportCsv = const ExportCsvUseCase(),
     ExportPdfUseCase exportPdf = const ExportPdfUseCase(),
   }) async {
@@ -23,7 +25,9 @@ abstract final class ReportExport {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
     try {
-      final result = csv ? await exportCsv(data) : await exportPdf(data);
+      final result = csv
+          ? await exportCsv(data, shareOrigin: shareOrigin)
+          : await exportPdf(data, shareOrigin: shareOrigin);
       switch (result) {
         case ReportSuccess(:final data):
           say(switch (data) {

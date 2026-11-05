@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 import '../../../settings/presentation/widgets/currency_selector.dart';
@@ -129,58 +130,53 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
         child: GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
           behavior: HitTestBehavior.translucent,
-          child: ListView(
-            padding: AppSpacing.pagePadding,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: AppSizes.contentMaxWidth,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // One surface for the conversion itself: from, the
-                      // amount, swap, to and the answer, read top to bottom.
-                      AppSurface(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.sm,
-                          AppSpacing.sm,
-                          AppSpacing.sm,
-                          AppSpacing.md,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _currencyField(bloc, source: true),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                              ),
-                              child: _amountSection(bloc),
-                            ),
-                            _swapSection(bloc),
-                            _currencyField(bloc, source: false),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                AppSpacing.smd,
-                                AppSpacing.xs,
-                                AppSpacing.smd,
-                                0,
-                              ),
-                              child: _resultSection(bloc),
-                            ),
-                          ],
-                        ),
+          child: AppPageBody(
+            builder: (context, padding) => ListView(
+              padding: padding,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // One surface for the conversion itself: from, the
+                    // amount, swap, to and the answer, read top to bottom.
+                    AppSurface(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.sm,
+                        AppSpacing.sm,
+                        AppSpacing.sm,
+                        AppSpacing.md,
                       ),
-                      const SizedBox(height: AppSpacing.lg),
-                      _rateSection(bloc),
-                    ],
-                  ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _currencyField(bloc, source: true),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                            ),
+                            child: _amountSection(bloc),
+                          ),
+                          _swapSection(bloc),
+                          _currencyField(bloc, source: false),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.smd,
+                              AppSpacing.xs,
+                              AppSpacing.smd,
+                              0,
+                            ),
+                            child: _resultSection(bloc),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    _rateSection(bloc),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

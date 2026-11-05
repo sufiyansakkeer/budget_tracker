@@ -173,7 +173,10 @@ void main() {
       expect(entity.forecast!.isReliable, isTrue);
       await tester.pumpWidget(harness(entity));
 
-      expect(find.text('Average a day so far'), findsOneWidget);
+      expect(
+        find.text('Average a day so far, not counting bill payments or today'),
+        findsOneWidget,
+      );
       expect(find.text('₹1,000'), findsOneWidget);
       expect(find.text('Projected spending by 31 Aug'), findsOneWidget);
       expect(find.text('₹31,000'), findsOneWidget);

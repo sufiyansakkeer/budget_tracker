@@ -87,40 +87,55 @@ class ReportRangeLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final days = range.dayCount;
-    return InkWell(
-      onTap: onEdit,
-      borderRadius: AppSpacing.borderRadiusSm,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xs,
-          vertical: AppSpacing.xs,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              size: AppSizes.iconXs,
-              color: theme.colorScheme.onSurfaceVariant,
+    final dates =
+        '${formatDateRange(range.start, range.end)} · '
+        '$days ${days == 1 ? 'day' : 'days'}';
+    // One 48 dp button read as "Report period …, change" (UX-061).
+    return Semantics(
+      button: true,
+      label:
+          'Report period ${formatDateRange(range.start, range.end)}, '
+          '$days ${days == 1 ? 'day' : 'days'}. Change',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onEdit,
+        borderRadius: AppSpacing.borderRadiusSm,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: AppSpacing.xs,
             ),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: Text(
-                '${formatDateRange(range.start, range.end)} · '
-                '$days ${days == 1 ? 'day' : 'days'}',
-                style: theme.textTheme.bodySmall?.copyWith(
+            child: Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: AppSizes.iconXs,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  // Two lines at large text rather than cutting the year.
+                  child: Text(
+                    dates,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  'Change',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              'Change',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

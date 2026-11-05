@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/theme/app_tone.dart';
+import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
@@ -13,6 +14,7 @@ import '../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../../dashboard/domain/entities/smart_insight_entity.dart';
 import '../../../dashboard/presentation/widgets/home_insights.dart';
 import '../../../expenses/domain/entities/expense_history_filter.dart';
+import '../../../expenses/presentation/history/widgets/active_filter_chips.dart';
 import '../../../expenses/presentation/history/widgets/filter_bottom_sheet.dart';
 import '../../../expenses/presentation/quick_add/quick_add_sheet.dart';
 import '../../domain/entities/report_data.dart';
@@ -27,6 +29,7 @@ import '../widgets/daily_columns_chart.dart';
 import '../widgets/empty_reports_state.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/planned_vs_actual.dart';
+import '../../../../core/files/file_delivery_service.dart';
 import '../widgets/report_export.dart';
 import '../widgets/report_total.dart';
 import '../widgets/reports_error_widget.dart';
@@ -112,11 +115,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  Future<void> _export({required bool csv}) async {
+  Future<void> _export({required bool csv, Rect? shareOrigin}) async {
     final data = context.read<ReportsBloc>().state.data;
     if (data == null || _exporting) return;
     setState(() => _exporting = true);
-    await ReportExport.run(context, data, csv: csv);
+    await ReportExport.run(context, data, csv: csv, shareOrigin: shareOrigin);
     if (mounted) setState(() => _exporting = false);
   }
 
@@ -149,9 +152,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ? 'Filters on · tap to change'
                   : 'Filter report',
               onPressed: _openFilterSheet,
+              // Primary, not M3's default error red: a filter is a choice,
+              // not a problem (UX-053).
               icon: Badge(
                 isLabelVisible: state.filter.isActive,
                 smallSize: 8,
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 child: const Icon(Icons.filter_list_rounded),
               ),
             ),
@@ -164,7 +170,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
               return PopupMenuButton<bool>(
                 key: const Key('reportsMenu'),
                 tooltip: 'More',
-                onSelected: (csv) => _export(csv: csv),
+                // The menu button's own context: on iPad the share sheet
+                // points at it.
+                onSelected: (csv) => _export(
+                  csv: csv,
+                  shareOrigin: FileDeliveryService.originOf(context),
+                ),
                 itemBuilder: (context) => [
                   PopupMenuItem(
                     value: true,
@@ -190,7 +201,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
       body: BlocBuilder<ReportsBloc, ReportsState>(
         // Rebuilding on every status flip reconstructed the charts; they
-        // only depend on the report itself.
+        // only depend on the report itself, and on whether it is busy or
+        // failed. A refresh (loaded → refreshing → loaded) changes neither,
+        // so it rebuilds once, for its data (UX-065).
         buildWhen: (prev, curr) =>
             !identical(prev.data, curr.data) ||
             !identical(prev.insights, curr.insights) ||
@@ -198,7 +211,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             prev.followsBudget != curr.followsBudget ||
             prev.budget != curr.budget ||
             prev.filter != curr.filter ||
-            prev.status != curr.status,
+            _isBusy(prev) != _isBusy(curr) ||
+            (prev.status == ReportsStatus.error) !=
+                (curr.status == ReportsStatus.error),
         builder: (context, state) {
           final data = state.data;
           final Widget child;
@@ -260,13 +275,16 @@ abstract final class ReportInsightFilter {
     'budget_exceeded',
   };
 
+  /// The weekend insight needs [wholeWeeks]: otherwise some weekdays
+  /// occur more often than others and the share is skewed.
   static List<SmartInsight> visible(
     List<SmartInsight> insights, {
     required bool rhythmShown,
+    required bool wholeWeeks,
   }) => [
     for (final i in insights)
       if (!_shownElsewhere.contains(i.id) &&
-          !(rhythmShown && i.id == 'weekend_spending'))
+          !((rhythmShown || !wholeWeeks) && i.id == 'weekend_spending'))
         i,
   ];
 }
@@ -308,17 +326,32 @@ class _ReportContent extends StatelessWidget {
     final budget = state.budget;
     final showPlan =
         state.followsBudget && budget != null && !state.filter.isActive;
+    // The plan covers every expense, so a filtered total can't be set
+    // against it; say so rather than drop the section silently (UX-053).
+    final planFiltered =
+        state.followsBudget && budget != null && state.filter.isActive;
     final showDaily = range.dayCount <= 62;
     final showBuckets =
         !isWeek && range.dayCount > 14 && data.spendingBuckets.length > 1;
     final showRhythm =
         range.dayCount >= 7 && WeekdayRhythm.hasRhythm(data.timeAnalytics);
+    // Until the week can start on another day, a weekend share is only
+    // fair over whole weeks (UX-050).
+    final wholeWeeks = range.dayCount % 7 == 0;
     final insights = ReportInsightFilter.visible(
       state.insights ?? const [],
       rhythmShown: showRhythm,
+      wholeWeeks: wholeWeeks,
     );
     final count = data.categoryAnalytics.length;
     var index = 0;
+    // Every report is limited to the active budget's expenses, so a
+    // calendar period says so, and one wholly outside the budget says why
+    // it is empty.
+    final active = state.activeBudget;
+    final scoped = !state.followsBudget && active != null;
+    final startsAfter = scoped && range.end.isBefore(active.startDate.dateOnly);
+    final endedBefore = scoped && range.start.isAfter(active.endDate.dateOnly);
 
     return Stack(
       children: [
@@ -346,6 +379,31 @@ class _ReportContent extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       ReportRangeLabel(range: range, onEdit: onEditRange),
+                      // The totals below describe only what the filter
+                      // keeps, so it is shown, not just a dot (UX-053).
+                      if (state.filter.isActive)
+                        ActiveFilterChips(
+                          filter: state.filter,
+                          categories: data.categories,
+                          onChanged: (filter) => context
+                              .read<ReportsBloc>()
+                              .add(ReportsFilterChanged(filter)),
+                        ),
+                      if (scoped)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                          ),
+                          child: Text(
+                            'Only expenses in ${active.name}',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
                       if (failed) ...[
                         const SizedBox(height: AppSpacing.sm),
                         AppNotice(
@@ -386,6 +444,14 @@ class _ReportContent extends StatelessWidget {
                                   ),
                                   child: EmptyReportsState(
                                     filtered: state.filter.isActive,
+                                    budgetStartsOn: startsAfter
+                                        ? active.startDate
+                                        : null,
+                                    budgetEndedOn: endedBefore
+                                        ? active.endDate
+                                        : null,
+                                    onSwitchBudget: () =>
+                                        ActiveBudgetSelector.open(context),
                                     onAddExpense: () =>
                                         QuickAddSheet.show(context),
                                     onClearFilters: () =>
@@ -405,6 +471,10 @@ class _ReportContent extends StatelessWidget {
                                       child: ReportTotal(
                                         data: data,
                                         currency: currency,
+                                        // The same "now" the report's range was taken from.
+                                        today: context
+                                            .read<ReportsBloc>()
+                                            .clock(),
                                       ),
                                     ),
                                     if (showPlan) ...[
@@ -419,6 +489,22 @@ class _ReportContent extends StatelessWidget {
                                               .read<ReportsBloc>()
                                               .clock(),
                                         ),
+                                      ),
+                                    ],
+                                    if (planFiltered) ...[
+                                      const SizedBox(height: AppSpacing.md),
+                                      Text(
+                                        'Planned vs actual is hidden while '
+                                        'a filter is on: the plan covers '
+                                        'every expense.',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
                                       ),
                                     ],
                                     const SizedBox(height: _gap),
@@ -475,6 +561,7 @@ class _ReportContent extends StatelessWidget {
                                         child: BarChartCard(
                                           buckets: data.spendingBuckets,
                                           currency: currency,
+                                          range: range,
                                         ),
                                       ),
                                     ],
@@ -489,6 +576,7 @@ class _ReportContent extends StatelessWidget {
                                           child: WeekdayRhythm(
                                             analytics: data.timeAnalytics,
                                             currency: currency,
+                                            wholeWeeks: wholeWeeks,
                                           ),
                                         ),
                                       ),

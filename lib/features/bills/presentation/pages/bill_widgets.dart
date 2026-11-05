@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
@@ -222,11 +223,12 @@ class BillCard extends StatelessWidget {
 
     return Semantics(
       button: onTap != null,
-      label:
-          '${bill.title}, $amount, $dueText, '
-          '${BillVisuals.statusLabel(status)}'
-          '${bill.repeats ? ', repeats ${bill.recurrenceType.label.toLowerCase()}' : ''}'
-          '$linkSemantics',
+      label: CurrencyFormatter.forSpeech(
+        '${bill.title}, $amount, $dueText, '
+        '${BillVisuals.statusLabel(status)}'
+        '${bill.repeats ? ', repeats ${bill.recurrenceType.label.toLowerCase()}' : ''}'
+        '$linkSemantics',
+      ),
       onTap: onTap,
       // The card merges into one node, so the nested "Mark as paid"
       // button would be unreachable; expose it as a custom action.

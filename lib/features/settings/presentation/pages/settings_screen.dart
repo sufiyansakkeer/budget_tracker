@@ -5,12 +5,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/di/injection.dart' as di;
+import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../app_update/presentation/bloc/app_update_bloc.dart';
+import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../../app_update/presentation/widgets/app_update_section.dart';
 import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/color_palette_entity.dart';
@@ -30,14 +33,16 @@ import '../widgets/integrity_result_sheet.dart';
 import '../widgets/notification_time_tile.dart';
 import '../widgets/notification_toggle.dart';
 import '../widgets/reset_confirmation_dialog.dart';
+import '../widgets/restore_backup_flow.dart';
 import '../widgets/settings_section.dart';
 import '../widgets/settings_summary.dart';
 import '../widgets/settings_tile.dart';
 import '../widgets/theme_selector.dart';
 import '../../../../core/router/app_router.dart';
-import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/platform/system_ui_session.dart';
+import '../../../../core/files/file_delivery_service.dart';
+import '../../../../core/notifications/notification_permission_notice.dart';
 
 /// Settings, grouped by what the user is trying to change.
 class SettingsScreen extends StatefulWidget {
@@ -70,9 +75,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return result?.files.single.path;
   }
 
+  /// [context] is the Back up row's: the share sheet points at it on iPad.
   Future<void> _backUp(BuildContext context, SettingsBloc bloc) async {
     final destination = await BackupDestinationSheet.show(context);
-    if (destination != null) bloc.add(SettingsBackupEvent(destination));
+    if (destination == null) return;
+    bloc.add(
+      SettingsBackupEvent(
+        destination,
+        shareOrigin: destination == FileDestination.share && context.mounted
+            ? FileDeliveryService.originOf(context)
+            : null,
+      ),
+    );
   }
 
   void _showCurrencyPicker(BuildContext context, String selectedCode) {
@@ -109,19 +123,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _pickAndRestore(BuildContext context, SettingsBloc bloc) async {
-    final path = await _pickFile(json: true);
-    if (path == null || !context.mounted) return;
-    final confirm = await ResetConfirmationDialog.show(
+    final messenger = ScaffoldMessenger.of(context);
+    final path = await RestoreBackupFlow.pickAndConfirm(
       context,
-      title: 'Restore this backup?',
-      message:
-          'Your current budgets, expenses, bills and settings will be '
-          'replaced with the backup. This cannot be undone.',
-      confirmLabel: 'Restore',
-      icon: Icons.settings_backup_restore_rounded,
-      isDestructive: true,
+      preview: bloc.restoreDataUseCase.preview,
+      onRefused: (message) => messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message))),
     );
-    if (confirm) bloc.add(SettingsRestoreEvent(path));
+    if (path != null) bloc.add(SettingsRestoreEvent(path));
   }
 
   Future<void> _pickAndImport(
@@ -160,47 +170,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirm) bloc.add(const SettingsResetMonthEvent());
   }
 
-  Future<void> _showBudgetAmountDialog(
-    BuildContext context,
-    SettingsBloc bloc,
-  ) async {
-    final controller = TextEditingController();
+  /// Opens the active budget's own form, which already edits the amount in
+  /// the budget's currency, prefilled, with inline errors. The dialog this
+  /// replaced used the default currency and closed silently on bad input.
+  Future<void> _editActiveBudget(BuildContext context) async {
+    BudgetEntity? active;
     try {
-      final result = await AppDialog.show<double>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Change budget amount'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'New total for the active budget',
-              prefixText: '${bloc.state.settings.currencySymbol} ',
-            ),
-            onSubmitted: (v) =>
-                Navigator.of(dialogContext).pop(double.tryParse(v)),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(
-                dialogContext,
-              ).pop(double.tryParse(controller.text)),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      );
-      if (result != null && result > 0) {
-        bloc.add(SettingsResetBudgetEvent(result));
-      }
-    } finally {
-      controller.dispose();
+      active = await di.getIt<ManageBudgetUseCase>().getActive();
+    } catch (e) {
+      debugPrint('[error] Reading the active budget: $e');
     }
+    if (!context.mounted) return;
+    await context.pushUnique(
+      active == null
+          ? '${AppRouter.budgetsPath}/create'
+          : '${AppRouter.budgetsPath}/${active.id}/edit',
+    );
   }
 
   @override
@@ -275,10 +260,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return TimeOfDay(hour: time.hour, minute: time.minute).format(context);
   }
 
+  /// [context] is the Export row's: the share sheet points at it on iPad.
   Future<void> _export(BuildContext context, SettingsBloc bloc) async {
     final format = await DataFormatSheet.showExport(context);
     if (format == null) return;
-    bloc.add(SettingsExportEvent(csv: format == DataFormat.csv));
+    bloc.add(
+      SettingsExportEvent(
+        csv: format == DataFormat.csv,
+        shareOrigin: context.mounted
+            ? FileDeliveryService.originOf(context)
+            : null,
+      ),
+    );
   }
 
   Future<void> _import(BuildContext context, SettingsBloc bloc) async {
@@ -319,237 +312,253 @@ class _SettingsScreenState extends State<SettingsScreen> {
             .firstWhere((s) => s.status != SettingsStatus.loading)
             .timeout(const Duration(seconds: 8), onTimeout: () => bloc.state);
       },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppSpacing.pagePadding,
-        children: [
-          SettingsSummary(
-            key: const Key('settingsSummary'),
-            currency: settings.currencyCode,
-            theme: '$themeLabel · $paletteLabel',
-            reminders: notifications.notificationsEnabled
-                ? '$morning · $evening'
-                : 'Off',
-            lock: settings.biometricEnabled ? 'On' : 'Off',
-          ),
-          const SizedBox(height: AppSpacing.lg),
+      child: AppPageBody(
+        builder: (context, padding) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: padding,
+          children: [
+            SettingsSummary(
+              key: const Key('settingsSummary'),
+              currency: settings.currencyCode,
+              theme: '$themeLabel · $paletteLabel',
+              reminders: notifications.notificationsEnabled
+                  ? '$morning · $evening'
+                  : 'Off',
+              lock: settings.biometricEnabled ? 'On' : 'Off',
+            ),
+            const SizedBox(height: AppSpacing.lg),
 
-          SettingsSection(
-            title: 'Appearance',
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.smd),
-                child: ThemeSelector(
-                  selectedMode: themeState.mode,
-                  onChanged: (AppThemeMode mode) =>
-                      context.read<ThemeBloc>().add(ThemeChanged(mode)),
-                ),
-              ),
-              SettingsTile(
-                leading: _PaletteSwatch(palette: themeState.palette),
-                title: 'Color palette',
-                value: paletteLabel,
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.pushUnique(AppRouter.palettePath),
-              ),
-            ],
-          ),
-
-          SettingsSection(
-            title: 'Budgets & bills',
-            children: [
-              SettingsTile(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'Budgets',
-                subtitle: 'Create, switch, edit and archive budgets',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.pushUnique('/app/budgets'),
-              ),
-              SettingsTile(
-                icon: Icons.receipt_long_outlined,
-                title: 'Bills',
-                subtitle:
-                    'Due dates, recurring bills and reminders. Reminders '
-                    'are set on each bill.',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.pushUnique('/app/bills'),
-              ),
-              SettingsTile(
-                key: const Key('settingsPayLaterTile'),
-                icon: Icons.credit_card_outlined,
-                title: 'Pay later',
-                subtitle: 'Tabs for things you buy now and pay for later',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.pushUnique(AppRouter.payLaterPath),
-              ),
-              SettingsTile(
-                icon: Icons.payments_outlined,
-                title: 'Currency',
-                subtitle: 'Default for new budgets',
-                value: '${settings.currencySymbol} ${settings.currencyCode}',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    _showCurrencyPicker(context, settings.currencyCode),
-              ),
-              SettingsTile(
-                icon: Icons.replay_rounded,
-                title: 'Start new budget period',
-                subtitle:
-                    'Archive the active budget and start a fresh 31-day one '
-                    'with the same amount',
-                onTap: () => _startNewPeriod(context, bloc),
-              ),
-              SettingsTile(
-                icon: Icons.tune_rounded,
-                title: 'Change active budget amount',
-                subtitle: 'Dates and expenses stay as they are',
-                onTap: () => _showBudgetAmountDialog(context, bloc),
-              ),
-            ],
-          ),
-
-          SettingsSection(
-            title: 'Expenses & tools',
-            children: [
-              SettingsTile(
-                key: const Key('settingsCategoriesTile'),
-                icon: Icons.category_outlined,
-                title: 'Categories',
-                subtitle: 'Add your own, rename, restyle or archive',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.pushUnique('/app/categories'),
-              ),
-              SettingsTile(
-                key: const Key('settingsCurrencyConverterTile'),
-                icon: Icons.currency_exchange_rounded,
-                title: 'Currency converter',
-                subtitle:
-                    'Daily reference rates. Works offline with saved rates.',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    context.pushUnique(AppRouter.currencyConverterPath),
-              ),
-            ],
-          ),
-
-          SettingsSection(
-            title: 'Notifications',
-            description:
-                'Notification permission must be allowed in your device '
-                'settings.',
-            children: [
-              NotificationToggle(
-                title: 'Daily notifications',
-                subtitle: 'Morning safe-spending reminder and evening summary',
-                value: notifications.notificationsEnabled,
-                onChanged: (v) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    notifications.copyWith(notificationsEnabled: v),
+            SettingsSection(
+              title: 'Appearance',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.smd),
+                  child: ThemeSelector(
+                    selectedMode: themeState.mode,
+                    onChanged: (AppThemeMode mode) =>
+                        context.read<ThemeBloc>().add(ThemeChanged(mode)),
                   ),
                 ),
-              ),
-              NotificationTimeTile(
-                title: 'Morning reminder',
-                subtitle: "Today's Safe Spending for each budget running today",
-                icon: Icons.wb_sunny_outlined,
-                enabled: notifications.notificationsEnabled,
-                time: notifications.morningReminderTime,
-                onChanged: (time) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    notifications.copyWith(morningReminderTime: time),
-                  ),
-                ),
-              ),
-              NotificationTimeTile(
-                title: 'Evening summary',
-                subtitle: 'A nudge to review the day',
-                icon: Icons.nights_stay_outlined,
-                enabled: notifications.notificationsEnabled,
-                time: notifications.eveningSummaryTime,
-                onChanged: (time) => bloc.add(
-                  SettingsUpdateNotificationsEvent(
-                    notifications.copyWith(eveningSummaryTime: time),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          SettingsSection(
-            title: 'Security',
-            children: [
-              BiometricTile(
-                enabled: settings.biometricEnabled,
-                isBusy: state.isBiometricBusy,
-                message: state.biometricMessage,
-                onChanged: (v) => bloc.add(SettingsUpdateBiometricEvent(v)),
-              ),
-            ],
-          ),
-
-          SettingsSection(
-            title: 'Data',
-            busy: state.isBusy,
-            children: [
-              SettingsTile(
-                key: const Key('settingsExportTile'),
-                icon: Icons.ios_share_rounded,
-                title: 'Export',
-                subtitle: 'Your expenses as a spreadsheet or a data file',
-                trailing: const Icon(Icons.chevron_right),
-                enabled: dataEnabled,
-                onTap: () => _export(context, bloc),
-              ),
-              SettingsTile(
-                key: const Key('settingsImportTile'),
-                icon: Icons.download_rounded,
-                title: 'Import',
-                subtitle: 'Merge expenses from a spreadsheet or a data file',
-                trailing: const Icon(Icons.chevron_right),
-                enabled: dataEnabled,
-                onTap: () => _import(context, bloc),
-              ),
-              SettingsTile(
-                key: const Key('settingsBackupTile'),
-                icon: Icons.backup_outlined,
-                title: 'Back up',
-                subtitle:
-                    'One file with all your budgets, expenses, bills and '
-                    'settings',
-                enabled: dataEnabled,
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _backUp(context, bloc),
-              ),
-              SettingsTile(
-                key: const Key('settingsRestoreTile'),
-                icon: Icons.settings_backup_restore_rounded,
-                title: 'Restore from backup',
-                subtitle: 'Replaces everything on this device with a backup',
-                destructive: true,
-                enabled: dataEnabled,
-                onTap: () => _pickAndRestore(context, bloc),
-              ),
-              if (bloc.integrityService != null)
                 SettingsTile(
-                  key: const Key('checkIntegrityButton'),
-                  icon: Icons.health_and_safety_outlined,
-                  title: 'Check database health',
-                  subtitle:
-                      'Looks for expenses, bills or budgets that no longer '
-                      'link up correctly',
-                  enabled: dataEnabled,
-                  onTap: () => bloc.add(const SettingsCheckIntegrityEvent()),
+                  leading: _PaletteSwatch(palette: themeState.palette),
+                  title: 'Color palette',
+                  value: paletteLabel,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.pushUnique(AppRouter.palettePath),
                 ),
-            ],
-          ),
+              ],
+            ),
 
-          BlocProvider<AppUpdateBloc>.value(
-            value: di.getIt<AppUpdateBloc>(),
-            child: const AppUpdateSection(),
-          ),
+            SettingsSection(
+              title: 'Budgets & bills',
+              children: [
+                SettingsTile(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Budgets',
+                  subtitle: 'Create, switch, edit and archive budgets',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.pushUnique('/app/budgets'),
+                ),
+                SettingsTile(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Bills',
+                  subtitle:
+                      'Due dates, recurring bills and reminders. Reminders '
+                      'are set on each bill.',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.pushUnique('/app/bills'),
+                ),
+                SettingsTile(
+                  key: const Key('settingsPayLaterTile'),
+                  icon: Icons.credit_card_outlined,
+                  title: 'Pay later',
+                  subtitle: 'Tabs for things you buy now and pay for later',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.pushUnique(AppRouter.payLaterPath),
+                ),
+                SettingsTile(
+                  icon: Icons.payments_outlined,
+                  title: 'Currency',
+                  subtitle: 'Default for new budgets',
+                  value: '${settings.currencySymbol} ${settings.currencyCode}',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      _showCurrencyPicker(context, settings.currencyCode),
+                ),
+                SettingsTile(
+                  icon: Icons.replay_rounded,
+                  title: 'Start new budget period',
+                  subtitle:
+                      'Archive the active budget and start a fresh 31-day one '
+                      'with the same amount',
+                  onTap: () => _startNewPeriod(context, bloc),
+                ),
+                SettingsTile(
+                  icon: Icons.tune_rounded,
+                  title: 'Change active budget amount',
+                  subtitle: 'Dates and expenses stay as they are',
+                  onTap: () => _editActiveBudget(context),
+                ),
+              ],
+            ),
 
-          const AboutSection(),
-        ],
+            SettingsSection(
+              title: 'Expenses & tools',
+              children: [
+                SettingsTile(
+                  key: const Key('settingsCategoriesTile'),
+                  icon: Icons.category_outlined,
+                  title: 'Categories',
+                  subtitle: 'Add your own, rename, restyle or archive',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.pushUnique('/app/categories'),
+                ),
+                SettingsTile(
+                  key: const Key('settingsCurrencyConverterTile'),
+                  icon: Icons.currency_exchange_rounded,
+                  title: 'Currency converter',
+                  subtitle:
+                      'Daily reference rates. Works offline with saved rates.',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      context.pushUnique(AppRouter.currencyConverterPath),
+                ),
+              ],
+            ),
+
+            SettingsSection(
+              title: 'Notifications',
+              description:
+                  'Notification permission must be allowed in your device '
+                  'settings.',
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    NotificationToggle(
+                      title: 'Daily notifications',
+                      subtitle:
+                          'Morning safe-spending reminder and evening summary',
+                      value: notifications.notificationsEnabled,
+                      onChanged: (v) => bloc.add(
+                        SettingsUpdateNotificationsEvent(
+                          notifications.copyWith(notificationsEnabled: v),
+                        ),
+                      ),
+                    ),
+                    NotificationPermissionNotice(
+                      remindersOn: notifications.notificationsEnabled,
+                    ),
+                  ],
+                ),
+                NotificationTimeTile(
+                  title: 'Morning reminder',
+                  subtitle:
+                      "Today's Safe Spending for each budget running today",
+                  icon: Icons.wb_sunny_outlined,
+                  enabled: notifications.notificationsEnabled,
+                  time: notifications.morningReminderTime,
+                  onChanged: (time) => bloc.add(
+                    SettingsUpdateNotificationsEvent(
+                      notifications.copyWith(morningReminderTime: time),
+                    ),
+                  ),
+                ),
+                NotificationTimeTile(
+                  title: 'Evening summary',
+                  subtitle: 'A nudge to review the day',
+                  icon: Icons.nights_stay_outlined,
+                  enabled: notifications.notificationsEnabled,
+                  time: notifications.eveningSummaryTime,
+                  onChanged: (time) => bloc.add(
+                    SettingsUpdateNotificationsEvent(
+                      notifications.copyWith(eveningSummaryTime: time),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            SettingsSection(
+              title: 'Security',
+              children: [
+                BiometricTile(
+                  enabled: settings.biometricEnabled,
+                  isBusy: state.isBiometricBusy,
+                  message: state.biometricMessage,
+                  onChanged: (v) => bloc.add(SettingsUpdateBiometricEvent(v)),
+                ),
+              ],
+            ),
+
+            SettingsSection(
+              title: 'Data',
+              busy: state.isBusy,
+              children: [
+                Builder(
+                  builder: (rowContext) => SettingsTile(
+                    key: const Key('settingsExportTile'),
+                    icon: Icons.ios_share_rounded,
+                    title: 'Export',
+                    subtitle: 'Your expenses as a spreadsheet or a data file',
+                    trailing: const Icon(Icons.chevron_right),
+                    enabled: dataEnabled,
+                    onTap: () => _export(rowContext, bloc),
+                  ),
+                ),
+                SettingsTile(
+                  key: const Key('settingsImportTile'),
+                  icon: Icons.download_rounded,
+                  title: 'Import',
+                  subtitle: 'Merge expenses from a spreadsheet or a data file',
+                  trailing: const Icon(Icons.chevron_right),
+                  enabled: dataEnabled,
+                  onTap: () => _import(context, bloc),
+                ),
+                Builder(
+                  builder: (rowContext) => SettingsTile(
+                    key: const Key('settingsBackupTile'),
+                    icon: Icons.backup_outlined,
+                    title: 'Back up',
+                    subtitle:
+                        'One file with all your budgets, expenses, bills and '
+                        'settings',
+                    enabled: dataEnabled,
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _backUp(rowContext, bloc),
+                  ),
+                ),
+                SettingsTile(
+                  key: const Key('settingsRestoreTile'),
+                  icon: Icons.settings_backup_restore_rounded,
+                  title: 'Restore from backup',
+                  subtitle: 'Replaces everything on this device with a backup',
+                  destructive: true,
+                  enabled: dataEnabled,
+                  onTap: () => _pickAndRestore(context, bloc),
+                ),
+                if (bloc.integrityService != null)
+                  SettingsTile(
+                    key: const Key('checkIntegrityButton'),
+                    icon: Icons.health_and_safety_outlined,
+                    title: 'Check database health',
+                    subtitle:
+                        'Looks for expenses, bills or budgets that no longer '
+                        'link up correctly',
+                    enabled: dataEnabled,
+                    onTap: () => bloc.add(const SettingsCheckIntegrityEvent()),
+                  ),
+              ],
+            ),
+
+            BlocProvider<AppUpdateBloc>.value(
+              value: di.getIt<AppUpdateBloc>(),
+              child: const AppUpdateSection(),
+            ),
+
+            const AboutSection(),
+          ],
+        ),
       ),
     );
   }

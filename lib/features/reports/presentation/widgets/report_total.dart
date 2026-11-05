@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_metric.dart';
@@ -15,7 +17,15 @@ class ReportTotal extends StatelessWidget {
   final ReportData data;
   final String currency;
 
-  const ReportTotal({super.key, required this.data, required this.currency});
+  /// Today, to say whether the daily average counts it.
+  final DateTime today;
+
+  const ReportTotal({
+    super.key,
+    required this.data,
+    required this.currency,
+    required this.today,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,14 +34,18 @@ class ReportTotal extends StatelessWidget {
     final comparison = ReportCopy.comparison(data);
     final count = overview.totalTransactions;
     final total = AppMoney.format(overview.totalSpending, currency: currency);
+    // What the daily average divides by: every day of the range.
+    final days = data.range.dayCount;
+    final withToday = !data.range.end.isBefore(today.dateOnly);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Semantics(
-          label:
-              'Spent $total'
-              '${comparison == null ? '' : '. ${comparison.text}'}',
+          label: CurrencyFormatter.forSpeech(
+            'Spent $total'
+            '${comparison == null ? '' : '. ${comparison.text}'}',
+          ),
           excludeSemantics: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,33 +94,30 @@ class ReportTotal extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: AppMetric(
-                label: 'Daily average',
-                value: AppMoney(
-                  amount: overview.averageDailySpending,
-                  currency: currency,
-                ),
+        // Side by side, or stacked at large text (UX-054).
+        AppMetricRow(
+          metrics: [
+            AppMetric(
+              label: 'Daily average',
+              value: AppMoney(
+                amount: overview.averageDailySpending,
+                currency: currency,
               ),
+              help:
+                  '$days ${days == 1 ? 'day' : 'days'}'
+                  '${withToday ? ', incl. today' : ''}',
             ),
-            Expanded(
-              child: AppMetric(
-                label: count == 1 ? 'Expense' : 'Expenses',
-                value: Text('$count', style: context.appTypography.moneyBody),
-              ),
+            AppMetric(
+              label: count == 1 ? 'Expense' : 'Expenses',
+              value: Text('$count', style: context.appTypography.moneyBody),
             ),
-            Expanded(
-              child: AppMetric(
-                label: 'Biggest',
-                alignEnd: true,
-                value: AppMoney(
-                  amount: overview.highestExpense,
-                  currency: currency,
-                  textAlign: TextAlign.end,
-                ),
+            AppMetric(
+              label: 'Biggest',
+              alignEnd: true,
+              value: AppMoney(
+                amount: overview.highestExpense,
+                currency: currency,
+                textAlign: TextAlign.end,
               ),
             ),
           ],

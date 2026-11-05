@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../expenses/presentation/widgets/form_field_error.dart';
 import 'onboarding_step_layout.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../../core/currency/money_input_formatter.dart';
 
 class BudgetStepWidget extends StatefulWidget {
   final String initialValue;
@@ -105,11 +105,7 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
                       decimal: true,
                     ),
                     textInputAction: TextInputAction.done,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        MoneyInput.pattern(widget.maxDecimals),
-                      ),
-                    ],
+                    inputFormatters: [MoneyInputFormatter(widget.maxDecimals)],
                     autofocus: true,
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontFeatures: const [FontFeature.tabularFigures()],

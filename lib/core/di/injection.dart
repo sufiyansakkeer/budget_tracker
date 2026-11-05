@@ -29,6 +29,8 @@ import '../../features/settings/presentation/bloc/theme/theme_bloc.dart';
 import '../database/app_database.dart';
 import '../currency/currency_provider.dart';
 import '../notifications/notification_bloc.dart';
+import '../notifications/notification_event.dart';
+import '../notifications/notification_permission_notice.dart';
 import '../biometric/biometric_initializer.dart';
 import '../biometric/app_lock_bloc.dart';
 import '../biometric/app_lock_event.dart';
@@ -262,6 +264,8 @@ Future<void> initDependencyInjection({
     () => OnboardingBloc(
       createBudgetUseCase: getIt<CreateBudgetUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
+      updateCurrencyUseCase: getIt<UpdateCurrencyUseCase>(),
+      currencyProvider: getIt<CurrencyProvider>(),
     ),
   );
 
@@ -411,6 +415,7 @@ Future<void> initDependencyInjection({
       getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
       tabPurchases: getIt<TabPurchaseUseCase>(),
+      safeToSpend: getIt<GetSafeToSpendUseCase>(),
     ),
   );
 
@@ -573,6 +578,20 @@ Future<void> initDependencyInjection({
     () => NotificationBloc(
       notificationService: getIt<NotificationService>(),
       loadSettingsUseCase: getIt<LoadSettingsUseCase>(),
+    ),
+  );
+  // Asked for when reminders are turned on (Settings, a bill's "Remind me").
+  getIt.registerLazySingleton<NotificationPermission>(
+    () => NotificationPermission(
+      isAllowed: () => getIt<NotificationService>().areNotificationsEnabled(),
+      request: () async {
+        final allowed = await getIt<NotificationService>().requestPermission();
+        // The daily reminders skipped while blocked are scheduled now.
+        if (allowed) {
+          getIt<NotificationBloc>().add(const NotificationRefreshSchedule());
+        }
+        return allowed;
+      },
     ),
   );
   // Settings Feature – BLoC

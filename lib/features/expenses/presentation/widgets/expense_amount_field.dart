@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../../core/currency/money_input_formatter.dart';
 
 /// Large amount input with currency prefix, decimal support and inline
 /// validation. Autofocuses so adding an expense starts with the number.
@@ -102,11 +102,9 @@ class _ExpenseAmountFieldState extends State<ExpenseAmountField> {
         autofocus: widget.autofocus,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textInputAction: TextInputAction.done,
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(
-            MoneyInput.pattern(widget.maxDecimals),
-          ),
-        ],
+        // The iOS decimal pad has no Done key: a tap anywhere else closes it.
+        onTapOutside: (_) => _node.unfocus(),
+        inputFormatters: [MoneyInputFormatter(widget.maxDecimals)],
         style: amountStyle,
         decoration: InputDecoration(
           labelText: 'Amount',

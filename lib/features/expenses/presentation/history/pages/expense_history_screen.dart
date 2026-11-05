@@ -36,6 +36,7 @@ import '../widgets/sort_bottom_sheet.dart';
 import '../../widgets/expense_actions_sheet.dart';
 import '../../widgets/expense_undo.dart';
 import '../../widgets/move_expense_sheet.dart';
+import '../../widgets/paid_bill.dart';
 import '../widgets/summary_card.dart';
 import '../../quick_add/quick_add_sheet.dart';
 import '../../../../budget/presentation/widgets/active_budget_selector.dart';
@@ -44,6 +45,7 @@ import '../../../../../core/widgets/app_fab.dart';
 import '../../../../../core/widgets/fade_slide_in.dart';
 import '../../../../../core/navigation/push_unique.dart';
 import '../../../../../core/widgets/app_animated_size.dart';
+import '../../../../../core/widgets/app_page_body.dart';
 import '../../../../../core/feedback/app_haptics.dart';
 import '../../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
@@ -206,6 +208,17 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     }
   }
 
+  /// The currency the amount filter is in: the budget's, or the one every
+  /// selected budget shares. Null when the selection mixes currencies: the
+  /// bounds then apply to each amount in its own currency.
+  String? _filterCurrency(ExpenseHistoryState state) {
+    if (!state.isCombinedMode) return state.budgetCurrency;
+    final codes = {
+      for (final id in state.selectedBudgetIds) state.budgetMap[id]?.currency,
+    };
+    return codes.length == 1 ? codes.single : null;
+  }
+
   Future<void> _openSortSheet() async {
     final bloc = context.read<ExpenseHistoryBloc>();
     final result = await showSortBottomSheet(context, current: bloc.state.sort);
@@ -238,6 +251,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     );
     expenseBloc.add(ExpenseDelete(expense.id, undoable: undoable));
   }
+
+  /// The budget a move from the actions is heading to and the expense as
+  /// it was, for "Moved to … · Undo".
+  ({String name, ExpenseEntity original})? _moving;
 
   /// Expenses whose delete is being checked or confirmed right now.
   final Set<String> _deleteChecks = {};
@@ -313,6 +330,13 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     BudgetEntity? budget,
   ) async {
     AppHaptics.selection();
+    // Whether there is anywhere to move it, and the bill a payment paid.
+    // Either may be unreadable; the sheet still opens.
+    final (budgets, billTitle) = await (
+      MoveExpenseSheet.loadBudgets(),
+      PaidBill.titleOf(expense),
+    ).wait;
+    if (!mounted) return;
     final action = await ExpenseActionsSheet.show(
       context,
       expense: expense,
@@ -320,6 +344,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       currency:
           budget?.currency ??
           context.read<ExpenseHistoryBloc>().state.budgetCurrency,
+      canMove: budgets == null || MoveExpenseSheet.hasTarget(budgets, expense),
+      billTitle: billTitle,
     );
     if (action == null || !mounted) return;
     switch (action) {
@@ -329,8 +355,14 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         context.pushUnique('/app/expenses/add?copy=${expense.id}');
       case ExpenseRowAction.move:
         final expenseBloc = context.read<ExpenseBloc?>();
-        final target = await MoveExpenseSheet.show(context, expense: expense);
+        final target = await MoveExpenseSheet.show(
+          context,
+          expense: expense,
+          budgets: budgets,
+          billTitle: billTitle,
+        );
         if (target == null || !mounted || expenseBloc == null) return;
+        _moving = (name: target.name, original: expense);
         expenseBloc.add(
           ExpenseUpdate(
             expense.copyWith(budgetId: target.id, updatedAt: DateTime.now()),
@@ -486,6 +518,19 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 curr.status == ExpenseBlocStatus.error) &&
             curr.message != null,
         listener: (context, state) {
+          final moving = _moving;
+          _moving = null;
+          if (moving != null &&
+              state.status == ExpenseBlocStatus.success &&
+              state.lastAction == ExpenseAction.updated) {
+            ExpenseUndo.offerMoved(
+              ScaffoldMessenger.of(context),
+              moving.original,
+              to: moving.name,
+            );
+            expenseBloc.add(const ExpenseClearMessage());
+            return;
+          }
           // A swiped row leaves the list before its delete runs; when the
           // delete fails, read the list again so the row comes back.
           if (state.status == ExpenseBlocStatus.error) {
@@ -602,51 +647,66 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   Widget _buildScroll(BuildContext context, ExpenseHistoryState state) {
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: CustomScrollView(
-        key: const ValueKey('loaded'),
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: _buildHeader(state)),
-          SliverToBoxAdapter(
-            child: ExpenseSearchBar(
-              controller: _searchController,
-              onChanged: (query) => context.read<ExpenseHistoryBloc>().add(
-                ExpenseHistorySearchChanged(query),
-              ),
-              onClear: () => context.read<ExpenseHistoryBloc>().add(
-                const ExpenseHistorySearchChanged(''),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: QuickFilterChips(
-              current: state.filter,
-              categories: state.categories,
-              onSelected: (filter) => context.read<ExpenseHistoryBloc>().add(
-                ExpenseHistoryFilterChanged(filter),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: AppAnimatedSize(
-              duration: AppMotion.respectReducedMotion(
-                context,
-                AppMotion.standard,
-              ),
-              curve: AppMotion.standardCurve,
-              alignment: Alignment.topCenter,
-              child: ActiveFilterChips(
-                filter: state.filter,
-                categories: state.categories,
-                onChanged: (filter) => context.read<ExpenseHistoryBloc>().add(
-                  ExpenseHistoryFilterChanged(filter),
+      // Each sliver keeps its own padding; the body only adds the gutters
+      // that centre it on a tablet (the shell's bar clears the bottom).
+      child: AppPageBody(
+        padding: EdgeInsets.zero,
+        builder: (context, padding) => CustomScrollView(
+          key: const ValueKey('loaded'),
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            for (final sliver in <Widget>[
+              SliverToBoxAdapter(child: _buildHeader(state)),
+              SliverToBoxAdapter(
+                child: ExpenseSearchBar(
+                  controller: _searchController,
+                  onChanged: (query) => context.read<ExpenseHistoryBloc>().add(
+                    ExpenseHistorySearchChanged(query),
+                  ),
+                  onClear: () => context.read<ExpenseHistoryBloc>().add(
+                    const ExpenseHistorySearchChanged(''),
+                  ),
                 ),
               ),
-            ),
-          ),
-          ..._buildResults(context, state),
-        ],
+              SliverToBoxAdapter(
+                child: QuickFilterChips(
+                  current: state.filter,
+                  categories: state.categories,
+                  onSelected: (filter) => context
+                      .read<ExpenseHistoryBloc>()
+                      .add(ExpenseHistoryFilterChanged(filter)),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: AppAnimatedSize(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.standard,
+                  ),
+                  curve: AppMotion.standardCurve,
+                  alignment: Alignment.topCenter,
+                  child: ActiveFilterChips(
+                    filter: state.filter,
+                    categories: state.categories,
+                    currency: _filterCurrency(state),
+                    onChanged: (filter) => context
+                        .read<ExpenseHistoryBloc>()
+                        .add(ExpenseHistoryFilterChanged(filter)),
+                  ),
+                ),
+              ),
+              ..._buildResults(context, state),
+            ])
+              SliverPadding(
+                padding: EdgeInsets.only(
+                  left: padding.left,
+                  right: padding.right,
+                ),
+                sliver: sliver,
+              ),
+          ],
+        ),
       ),
     );
   }

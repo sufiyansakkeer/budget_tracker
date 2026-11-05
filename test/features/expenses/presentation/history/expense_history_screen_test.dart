@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
@@ -17,6 +18,8 @@ import 'package:monivo/features/expenses/presentation/history/bloc/expense_histo
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_event.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_state.dart';
 import 'package:monivo/features/expenses/presentation/history/pages/expense_history_screen.dart';
+import 'package:monivo/features/expenses/presentation/history/widgets/expense_search_bar.dart';
+import 'package:monivo/features/expenses/presentation/widgets/transaction_row.dart';
 
 import '../expense_test_fakes.dart';
 
@@ -171,7 +174,7 @@ void main() {
     expect(find.text('2 items'), findsOneWidget);
     // The summary is type, not a card: the total and the count on one line.
     expect(find.text('Summary'), findsOneWidget);
-    expect(find.text('2 expenses · avg ₹175'), findsOneWidget);
+    expect(find.text('2 expenses · ₹175 avg each'), findsOneWidget);
   });
 
   testWidgets('the budget menu replaces the mode switch', (tester) async {
@@ -407,4 +410,19 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('on a tablet the list is centred at the content width, like '
+      'Home (UX-062)', (tester) async {
+    seed([_expense('a', 120, note: 'Lunch'), _expense('b', 40, day: 4)]);
+    await pump(tester, size: const Size(1024, 800));
+
+    for (final finder in [
+      find.byType(ExpenseSearchBar),
+      find.byType(TransactionRow).first,
+    ]) {
+      final rect = tester.getRect(finder);
+      expect(rect.width, lessThanOrEqualTo(AppSizes.contentMaxWidth));
+      expect(rect.center.dx, closeTo(512, 1));
+    }
+  });
 }

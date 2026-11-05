@@ -147,14 +147,15 @@ class _ComparisonRow extends StatelessWidget {
     }
 
     return Semantics(
-      label:
-          '${item.categoryName}: ${CurrencyFormatter.format(item.currentAmount, code: currency, decimalDigits: 0)} this period, '
-          '${item.isNew
-              ? 'new'
-              : flat
-              ? 'unchanged'
-              : (diff > 0 ? 'up' : 'down')} '
-          '${flat || item.isNew ? '' : CurrencyFormatter.format(diff.abs(), code: currency, decimalDigits: 0)}',
+      label: CurrencyFormatter.forSpeech(
+        '${item.categoryName}: ${CurrencyFormatter.format(item.currentAmount, code: currency, decimalDigits: 0)} this period, '
+        '${item.isNew
+            ? 'new'
+            : flat
+            ? 'unchanged'
+            : (diff > 0 ? 'up' : 'down')} '
+        '${flat || item.isNew ? '' : CurrencyFormatter.format(diff.abs(), code: currency, decimalDigits: 0)}',
+      ),
       child: ExcludeSemantics(
         child: Row(
           children: [

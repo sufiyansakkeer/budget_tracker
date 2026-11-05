@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_motion.dart';
@@ -7,6 +5,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../data/services/receipt_storage_service.dart';
+import 'receipt_photo.dart';
 
 /// Receipt attachment widget supporting camera capture, gallery pick,
 /// preview, replace, and remove.
@@ -191,10 +190,9 @@ class _ReceiptPickerState extends State<ReceiptPicker> {
       children: [
         ClipRRect(
           borderRadius: AppSpacing.borderRadiusMd,
-          child: Image.file(
-            File(widget.receiptPath!),
+          child: ReceiptPhoto(
+            path: widget.receiptPath!,
             height: 180,
-            fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _buildMissing(theme),
           ),
         ),

@@ -18,9 +18,11 @@ import 'app_lock_state.dart';
 /// Full-screen gate shown while the application is locked.
 ///
 /// This widget is purely presentational: it does NOT own the lock state. The
-/// authoritative state lives in [AppLockBloc]. When the app is backgrounded the
-/// widget dispatches [AppLockRequested] so the BLoC can re-lock; while it is
-/// running the gate simply reflects the BLoC state.
+/// authoritative state lives in [AppLockBloc]. When the app comes back from
+/// the background after [lockGracePeriod] the widget dispatches
+/// [AppLockRequested] so the BLoC can re-lock, then [AppReturned] so a locked
+/// app prompts at once; while it is running the gate simply reflects the
+/// BLoC state.
 ///
 /// The child (the real application) is only revealed when the BLoC status is
 /// [AppLockStatus.unlocked]. The gate renders inside its own [MaterialApp]
@@ -30,6 +32,10 @@ class BiometricGateScreen extends StatefulWidget {
   final Widget child;
 
   const BiometricGateScreen({super.key, required this.child});
+
+  /// How long the app can be in the background (a quick look at a message,
+  /// copying a number from another app) before it locks.
+  static const Duration lockGracePeriod = Duration(seconds: 30);
 
   @override
   State<BiometricGateScreen> createState() => _BiometricGateScreenState();
@@ -59,16 +65,21 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
   /// itself (a file picker, the share sheet, the camera).
   DateTime? _lockSkippedAt;
 
+  /// When the user left the app (it went to the background).
+  DateTime? _leftAt;
+
+  /// Covers the app while it is away with the lock on, so the app-switcher
+  /// snapshot shows no figures even inside the grace period.
+  bool _covered = false;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final bloc = context.read<AppLockBloc>();
-    // When the app is backgrounded, request the BLoC to re-lock. The BLoC
-    // decides whether re-locking is appropriate (only when the lock is on)
-    // and guards against concurrent prompts. Simply dismissing the native
-    // biometric prompt does NOT trigger this, so the app will not
-    // immediately re-lock after a successful authentication.
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    // Only leaving the app counts. `inactive` alone is a system prompt,
+    // the notification shade or Control Center over the app; locking there
+    // put every permission dialog and export behind the gate.
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
       // A system screen the app opened itself is not leaving the app:
       // locking there hid every export, import and restore result behind
       // the gate.
@@ -76,17 +87,28 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
         _lockSkippedAt ??= SystemUiSession.now();
         return;
       }
-      bloc.add(const AppLockRequested());
+      // Nor is the unlock prompt's own screen (Android's PIN pad).
+      if (bloc.state.isAuthenticating) return;
+      _leftAt ??= SystemUiSession.now();
+      if (bloc.lockEnabled && !_covered) setState(() => _covered = true);
     } else if (state == AppLifecycleState.resumed) {
-      // A system screen left open longer than a session allows locks on
-      // return, so it is never a way around the lock.
+      final now = SystemUiSession.now();
       final skipped = _lockSkippedAt;
+      final left = _leftAt;
       _lockSkippedAt = null;
-      if (skipped != null &&
-          SystemUiSession.now().difference(skipped) >
-              SystemUiSession.maxDuration) {
+      _leftAt = null;
+      if (_covered) setState(() => _covered = false);
+      // A system screen left open longer than a session allows locks on
+      // return, so it is never a way around the lock. An ordinary trip
+      // away locks after the grace period. The bloc decides whether the
+      // lock is on at all.
+      if ((skipped != null &&
+              now.difference(skipped) > SystemUiSession.maxDuration) ||
+          (left != null &&
+              now.difference(left) >= BiometricGateScreen.lockGracePeriod)) {
         bloc.add(const AppLockRequested());
       }
+      if (skipped != null || left != null) bloc.add(const AppReturned());
       bloc.add(const AppLockSyncRequested());
     }
   }
@@ -102,11 +124,7 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
         if (pending != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             try {
-              if (pending == widgetAddExpensePath) {
-                AppRouter.router.push(widgetAddExpensePath);
-              } else {
-                AppRouter.router.go(pending);
-              }
+              AppRouter.openFromWidget(pending);
             } catch (e) {
               debugPrint('[error] Opening $pending from the widget: $e');
             }
@@ -115,6 +133,7 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
       },
       builder: (context, state) {
         final locked = state.status != AppLockStatus.unlocked;
+        final hidden = locked || _covered;
         final themeBloc = context.watch<ThemeBloc?>();
         final ThemeState? themeState = themeBloc?.state;
 
@@ -130,13 +149,14 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
             fit: StackFit.expand,
             children: [
               Visibility(
-                visible: !locked,
+                visible: !hidden,
                 maintainState: true,
                 child: widget.child,
               ),
-              // Locking is instant so the content is covered before the
-              // system takes its app-switcher snapshot; unlocking fades the
-              // gate away over the already-restored app.
+              // Covering is instant so the content is hidden before the
+              // system takes its app-switcher snapshot; unlocking (or coming
+              // back inside the grace period) fades the gate away over the
+              // already-restored app.
               AnimatedSwitcher(
                 duration: AppMotion.respectReducedMotion(
                   context,
@@ -144,7 +164,7 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
                 ),
                 switchInCurve: const Threshold(0),
                 switchOutCurve: AppMotion.exit,
-                child: locked
+                child: hidden
                     ? PopScope(
                         key: const ValueKey('lock_gate'),
                         // Intercept the system back button so the user cannot
@@ -178,14 +198,18 @@ class _BiometricGateScreenState extends State<BiometricGateScreen>
                                 ),
                                 child: child ?? const SizedBox.shrink(),
                               ),
-                          home: _LockScreenBody(
-                            state: state,
-                            onRetry: () {
-                              context.read<AppLockBloc>().add(
-                                const AppUnlockRequested(),
-                              );
-                            },
-                          ),
+                          // Away inside the grace period: a plain surface,
+                          // no lock screen to flash on a quick return.
+                          home: locked
+                              ? _LockScreenBody(
+                                  state: state,
+                                  onRetry: () {
+                                    context.read<AppLockBloc>().add(
+                                      const AppUnlockRequested(),
+                                    );
+                                  },
+                                )
+                              : const Scaffold(body: SizedBox.expand()),
                         ),
                       )
                     : const SizedBox.shrink(key: ValueKey('unlocked')),
@@ -289,26 +313,36 @@ class _LockScreenBody extends StatelessWidget {
                             padding: const EdgeInsets.only(
                               bottom: AppSpacing.md,
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.error_outline_rounded,
-                                  size: AppSizes.iconSm,
+                            // Announced when it appears. The icon sits in
+                            // the text, so it stays beside the centred
+                            // first line instead of the row's far edge.
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    WidgetSpan(
+                                      alignment: PlaceholderAlignment.middle,
+                                      child: Padding(
+                                        padding:
+                                            const EdgeInsetsDirectional.only(
+                                              end: AppSpacing.xs,
+                                            ),
+                                        child: Icon(
+                                          Icons.error_outline_rounded,
+                                          size: AppSizes.iconSm,
+                                          color: colorScheme.error,
+                                        ),
+                                      ),
+                                    ),
+                                    TextSpan(text: state.errorMessage),
+                                  ],
+                                ),
+                                style: theme.textTheme.bodyMedium?.copyWith(
                                   color: colorScheme.error,
                                 ),
-                                const SizedBox(width: AppSpacing.xs),
-                                Flexible(
-                                  child: Text(
-                                    state.errorMessage!,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colorScheme.error,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ],
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           ),
                   ),

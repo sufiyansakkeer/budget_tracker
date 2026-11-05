@@ -41,7 +41,7 @@ abstract final class ReportCopy {
     final previousStart = range.start.addDays(-days);
     final before =
         'the ${days == 1 ? 'day' : '$days days'} before '
-        '(${_span(previousStart, previousEnd)})';
+        '(${span(previousStart, previousEnd)})';
     if (growth.abs() < 0.02) {
       return (text: 'About the same as $before', tone: AppTone.neutral);
     }
@@ -52,7 +52,7 @@ abstract final class ReportCopy {
   }
 
   /// "22 – 30 Sep", "28 Sep – 4 Oct", or one day ("30 Sep").
-  static String _span(DateTime start, DateTime end) {
+  static String span(DateTime start, DateTime end) {
     if (start == end) return _day.format(start);
     if (start.year == end.year && start.month == end.month) {
       return '${start.day} – ${_day.format(end)}';

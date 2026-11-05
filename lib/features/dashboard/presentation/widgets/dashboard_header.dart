@@ -46,54 +46,71 @@ class DashboardHeader extends StatelessWidget {
     final muted = theme.colorScheme.onSurfaceVariant;
     final now = clock();
     final name = budgetName;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${greetingFor(now)} · ${DateFormat('EEE d MMM').format(now)}',
-          style: context.appTypography.eyebrow.copyWith(color: muted),
-        ),
-        const SizedBox(height: AppSpacing.xxs),
-        if (name != null)
+    // Its own node, each line one item: loose text here used to join a
+    // node spanning all of Home.
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Semantics(
-            button: onSwitchBudget != null,
-            header: true,
-            label: 'Active budget: $name. Switch budget',
-            onTap: onSwitchBudget,
+            label:
+                '${greetingFor(now)}, ${DateFormat('EEEE d MMMM').format(now)}',
             excludeSemantics: true,
-            child: InkWell(
+            child: Text(
+              '${greetingFor(now)} · ${DateFormat('EEE d MMM').format(now)}',
+              style: context.appTypography.eyebrow.copyWith(color: muted),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xxs),
+          if (name != null)
+            Semantics(
+              button: onSwitchBudget != null,
+              header: true,
+              // The period belongs to the budget it describes.
+              label:
+                  'Active budget: $name'
+                  '${caption == null ? '' : ', $caption'}. Switch budget',
               onTap: onSwitchBudget,
-              borderRadius: AppSpacing.borderRadiusSm,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: AppSizes.touchTarget,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        style: theme.textTheme.headlineSmall,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+              excludeSemantics: true,
+              child: InkWell(
+                onTap: onSwitchBudget,
+                borderRadius: AppSpacing.borderRadiusSm,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: AppSizes.touchTarget,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: theme.textTheme.headlineSmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    if (onSwitchBudget != null) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Icon(Icons.expand_more_rounded, color: muted),
+                      if (onSwitchBudget != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(Icons.expand_more_rounded, color: muted),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        if (caption != null)
-          Text(
-            caption!,
-            style: theme.textTheme.bodySmall?.copyWith(color: muted),
-          ),
-      ],
+          if (caption != null)
+            ExcludeSemantics(
+              excluding: name != null,
+              child: Text(
+                caption!,
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

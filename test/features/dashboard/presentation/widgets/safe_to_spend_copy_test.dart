@@ -36,7 +36,8 @@ void main() {
           const AtRiskReason(averageDaily: 1000, deficit: 2200),
           e,
         ),
-        'At your average so far (₹1,000 a day), this budget would end about '
+        'At your average so far (₹1,000 a day, not counting bill '
+        'payments or today), this budget would end about '
         '₹2,200 short.',
       );
       expect(
@@ -135,7 +136,8 @@ void main() {
       expect(entity.forecast!.projectedMargin, -2900);
       expect(
         SafeToSpendCopy.heroExplanation(entity),
-        "At your average so far (₹900 a day), you'd use about ₹2,900 of the "
+        "At your average so far (₹900 a day, not counting bill "
+        "payments or today), you'd use about ₹2,900 of the "
         'money kept aside.',
       );
 
@@ -148,7 +150,8 @@ void main() {
       );
       expect(
         SafeToSpendCopy.heroExplanation(withSavings),
-        "At your average so far (₹900 a day), you'd use about ₹2,900 of the "
+        "At your average so far (₹900 a day, not counting bill "
+        "payments or today), you'd use about ₹2,900 of the "
         'money kept aside and your savings goal.',
       );
 
@@ -160,7 +163,8 @@ void main() {
       );
       expect(
         SafeToSpendCopy.heroExplanation(savingsOnly),
-        "At your average so far (₹900 a day), you'd use about ₹2,900 of "
+        "At your average so far (₹900 a day, not counting bill "
+        "payments or today), you'd use about ₹2,900 of "
         'your savings goal.',
       );
     });
@@ -198,7 +202,8 @@ void main() {
       expect(entity.forecast!.projectedMargin, -30800);
       expect(
         SafeToSpendCopy.heroExplanation(entity),
-        'At your average so far (₹1,800 a day), this budget would end about '
+        'At your average so far (₹1,800 a day, not counting bill '
+        'payments or today), this budget would end about '
         '₹25,800 short.',
       );
     });

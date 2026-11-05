@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/entities/color_palette_entity.dart';
 import '../bloc/theme/theme_bloc.dart';
@@ -22,49 +23,51 @@ class PaletteSelectionScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Color palette')),
-      body: ListView(
-        padding: AppSpacing.pagePadding,
-        children: [
-          Text(
-            'Each palette in light and dark. Changes apply right away.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+      body: AppPageBody(
+        builder: (context, padding) => ListView(
+          padding: padding,
+          children: [
+            Text(
+              'Each palette in light and dark. Changes apply right away.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const gap = AppSpacing.smd;
-              final perRow = constraints.maxWidth >= 600 ? 3 : 2;
-              final width =
-                  ((constraints.maxWidth - gap * (perRow - 1)) / perRow)
-                      .floorToDouble();
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  for (final option in paletteOptions)
-                    SizedBox(
-                      width: width,
-                      child: _PaletteTile(
-                        key: Key('palette_${option.palette.name}'),
-                        option: option,
-                        isSelected: option.palette == currentPalette,
-                        onTap: () {
-                          if (option.palette != currentPalette) {
-                            AppHaptics.selection();
-                          }
-                          context.read<ThemeBloc>().add(
-                            ColorPaletteChanged(option.palette),
-                          );
-                        },
+            const SizedBox(height: AppSpacing.md),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = AppSpacing.smd;
+                final perRow = constraints.maxWidth >= 600 ? 3 : 2;
+                final width =
+                    ((constraints.maxWidth - gap * (perRow - 1)) / perRow)
+                        .floorToDouble();
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final option in paletteOptions)
+                      SizedBox(
+                        width: width,
+                        child: _PaletteTile(
+                          key: Key('palette_${option.palette.name}'),
+                          option: option,
+                          isSelected: option.palette == currentPalette,
+                          onTap: () {
+                            if (option.palette != currentPalette) {
+                              AppHaptics.selection();
+                            }
+                            context.read<ThemeBloc>().add(
+                              ColorPaletteChanged(option.palette),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

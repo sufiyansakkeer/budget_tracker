@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
@@ -131,12 +132,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Mark as paid'), findsNothing);
-      expect(find.text('Mark paid & add expense'), findsNothing);
+      expect(find.text('Mark paid & record expense'), findsOneWidget);
     });
 
-    testWidgets('record expense names the budget and pays through PayBill', (
-      tester,
-    ) async {
+    testWidgets('record expense names the budget, says today\'s amount '
+        'stays the same, and pays through PayBill', (tester) async {
       await pumpDetails(tester, rent(budgetId: 'household'));
 
       await tapButton(tester, 'Mark paid & record expense');
@@ -144,11 +144,12 @@ void main() {
       expect(
         find.text(
           '"Rent" will be marked paid and an expense of ₹100 will be '
-          'recorded in Household.',
+          'recorded in Household. ₹100 was already set aside, so '
+          "Today's Safe Spending doesn't change.",
         ),
         findsOneWidget,
       );
-      await tester.tap(find.text('Confirm'));
+      await tester.tap(find.text('Pay & record'));
       await tester.pumpAndSettle();
 
       expect(payBill.paidBillIds, ['rent']);
@@ -319,8 +320,27 @@ void main() {
 
       expect(paidFrom('Not linked'), findsOneWidget);
       expect(button<FilledButton>('Mark as paid'), findsOneWidget);
-      expect(find.text('Mark paid & add expense'), findsOneWidget);
+      expect(find.text('Mark paid & record expense'), findsOneWidget);
       expect(find.text('Paid outside this budget'), findsNothing);
+    });
+
+    testWidgets('record expense says the payment counts as today\'s '
+        'spending, as nothing was set aside for it', (tester) async {
+      await pumpDetails(tester, rent());
+
+      await tapButton(tester, 'Mark paid & record expense');
+      expect(
+        find.text(
+          '"Rent" will be marked paid and an expense of ₹100 will be '
+          "recorded in Household. Household didn't set it aside, so it "
+          "counts as today's spending.",
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Pay & record'));
+      await tester.pumpAndSettle();
+
+      expect(payBill.paidBillIds, ['rent']);
     });
 
     testWidgets('mark as paid keeps the plain confirmation', (tester) async {
@@ -349,6 +369,24 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  testWidgets('the details clear the side and bottom insets (UX-063)', (
+    tester,
+  ) async {
+    // The route covers the navigation bar, so the gesture bar and a
+    // landscape notch are this screen's to clear.
+    tester.view.physicalSize = const Size(1200, 2700);
+    tester.view.padding = const FakeViewPadding(left: 132, bottom: 102);
+    addTearDown(tester.view.reset);
+    await pumpDetails(tester, rent(budgetId: 'household'));
+
+    final padding = tester
+        .widget<ListView>(find.byType(ListView).first)
+        .padding!
+        .resolve(TextDirection.ltr);
+    expect(padding.left, AppSpacing.md + 44);
+    expect(padding.bottom, AppSpacing.md + 34);
   });
 
   for (final width in [320.0, 360.0]) {

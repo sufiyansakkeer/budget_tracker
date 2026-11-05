@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 import 'package:monivo/features/settings/presentation/bloc/theme/theme_bloc.dart';
@@ -128,5 +129,31 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text(paletteOptions.last.label), findsOneWidget);
+  });
+
+  testWidgets('on a tablet the tiles keep to the content width (UX-062)', (
+    tester,
+  ) async {
+    await pump(tester, width: 1024);
+
+    final grid = tester.getRect(find.byType(Wrap));
+    expect(grid.width, AppSizes.contentMaxWidth);
+    expect(grid.center.dx, closeTo(512, 1));
+  });
+
+  testWidgets('the list clears the side and bottom insets (UX-063)', (
+    tester,
+  ) async {
+    // Logical 44 dp on the left (a landscape notch), 34 dp at the bottom.
+    tester.view.padding = const FakeViewPadding(left: 88, bottom: 68);
+    addTearDown(tester.view.resetPadding);
+    await pump(tester);
+
+    final padding = tester
+        .widget<ListView>(find.byType(ListView))
+        .padding!
+        .resolve(TextDirection.ltr);
+    expect(padding.left, AppSpacing.md + 44);
+    expect(padding.bottom, AppSpacing.md + 34);
   });
 }

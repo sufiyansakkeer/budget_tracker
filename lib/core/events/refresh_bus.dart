@@ -34,6 +34,29 @@ class RefreshBus {
   }
 }
 
+/// Runs an action once for a burst of bus events. Paying a bill notifies
+/// the bills and expenses buses back to back, and an import or restore
+/// notifies three, but a listener only needs to re-read once.
+///
+/// The burst is everything notified in the same synchronous run: the
+/// action waits for a microtask, after the buses have delivered.
+class RefreshCoalescer {
+  final void Function() _action;
+  bool _queued = false;
+
+  RefreshCoalescer(this._action);
+
+  /// Asks for the action; calls before it runs are folded into one.
+  void call() {
+    if (_queued) return;
+    _queued = true;
+    scheduleMicrotask(() {
+      _queued = false;
+      _action();
+    });
+  }
+}
+
 /// The app-wide buses. One instance per kind of data.
 abstract final class RefreshBuses {
   /// Expense created, updated, deleted or restored.

@@ -41,6 +41,10 @@ class UpcomingBillsSection extends StatelessWidget {
   final bool unavailable;
   final VoidCallback? onRetry;
 
+  /// Some bill exists, perhaps paid or due later: "See all" rather than
+  /// "Add bill" even when [bills] is empty.
+  final bool hasBills;
+
   const UpcomingBillsSection({
     super.key,
     required this.bills,
@@ -49,6 +53,7 @@ class UpcomingBillsSection extends StatelessWidget {
     this.setAsideBillIds = const {},
     this.unavailable = false,
     this.onRetry,
+    this.hasBills = false,
   });
 
   @override
@@ -70,6 +75,7 @@ class UpcomingBillsSection extends StatelessWidget {
       );
     }
     final overdue = bills.where((b) => b.status == BillStatus.overdue).length;
+    final seeAll = bills.isNotEmpty || hasBills;
     return AppSection(
       title: 'Coming up',
       subtitle: overdue == 0
@@ -79,8 +85,8 @@ class UpcomingBillsSection extends StatelessWidget {
           : '$overdue bills are overdue',
       action: TextButton(
         onPressed: () =>
-            context.pushUnique(bills.isEmpty ? '/app/bills/add' : '/app/bills'),
-        child: Text(bills.isEmpty ? 'Add bill' : 'See all'),
+            context.pushUnique(seeAll ? '/app/bills' : '/app/bills/add'),
+        child: Text(seeAll ? 'See all' : 'Add bill'),
       ),
       child: bills.isEmpty
           ? Padding(

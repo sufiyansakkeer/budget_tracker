@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -14,6 +13,7 @@ import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -32,17 +32,23 @@ import '../widgets/budget_visuals.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
+import '../../../../core/widgets/app_form_action_bar.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../../core/currency/money_input_formatter.dart';
 import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../start_next_period.dart';
 
 /// Create or edit a budget.
 ///
 /// Order of fields follows what the user needs to decide: name → amount and
 /// currency → period → optional money set aside, which shapes Today's Safe
 /// Spending → "More options" (icon, colour, notes), folded on a new budget.
-/// The save action is pinned to the bottom so it is never hidden behind the
-/// keyboard.
+/// The save action is pinned to the bottom, above the keyboard. Leaving
+/// with unsaved input asks first.
+///
+/// A new budget becomes the active one when it runs today, or when the
+/// active budget doesn't; otherwise the confirmation offers "Make active".
 ///
 /// "Set aside (optional)" holds the budget's kept-aside amount and savings
 /// goal. Each is 0 to the budget amount; together they may reach it (a
@@ -53,7 +59,15 @@ class BudgetFormScreen extends StatefulWidget {
   /// creates a new one.
   final String? budgetId;
 
-  const BudgetFormScreen({super.key, this.budgetId});
+  /// Creates the period after this budget's ("Start next period"): its
+  /// amount, currency, set-asides and look, with the next dates.
+  final String? nextAfterId;
+
+  const BudgetFormScreen({super.key, this.budgetId, this.nextAfterId});
+
+  /// "Today", for which budget a new one makes active; replaced in tests.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
 
   @override
   State<BudgetFormScreen> createState() => _BudgetFormScreenState();
@@ -94,11 +108,24 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// of their own, so a currency change relabels every one of them.
   int? _expenseCount;
 
+  /// The dates of those expenses, to tell how many new dates leave out;
+  /// null until read.
+  List<DateTime>? _expenseDates;
+
+  /// Whether the budget being edited is the active one (Home's budget).
+  bool _isActiveBudget = false;
+
   /// How many purchases on Pay later tabs the budget being edited holds;
   /// null until read, or when it cannot be read (saving still checks).
   int? _tabPurchaseCount;
 
   final FocusNode _nameFocus = FocusNode();
+
+  /// The form as opened (or as loaded), to tell whether leaving loses
+  /// anything; null while a budget is still loading.
+  String? _baseline;
+  bool _lastDirty = false;
+  bool _justSaved = false;
 
   bool get _isEditing => _budget != null;
 
@@ -109,12 +136,106 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     _startDate = DateTime(now.year, now.month, now.day);
     _endDate = _startDate.addDays(30);
     _currency = getIt<CurrencyProvider>().currencyCode;
+    for (final controller in [
+      _nameController,
+      _amountController,
+      _notesController,
+      _reserveController,
+      _savingsController,
+    ]) {
+      controller.addListener(_onTextChanged);
+    }
     if (widget.budgetId != null) {
       _loadBudget();
+    } else if (widget.nextAfterId != null) {
+      _prefillNextPeriod(widget.nextAfterId!);
     } else {
+      _baseline = _signature();
       // Keyboard after the page has settled, not during the transition.
       requestFocusAfterTransition(context, _nameFocus);
     }
+  }
+
+  void _onTextChanged() {
+    final dirty = _isDirty;
+    if (dirty != _lastDirty && mounted) setState(() => _lastDirty = dirty);
+  }
+
+  String _signature() => [
+    _nameController.text.trim(),
+    _amountController.text.trim(),
+    _currency,
+    _startDate.toIso8601String(),
+    _endDate.toIso8601String(),
+    _color,
+    _icon,
+    _notesController.text.trim(),
+    _reserveController.text.trim(),
+    _savingsController.text.trim(),
+  ].join('|');
+
+  /// Whether leaving now would lose something the person entered.
+  bool get _isDirty {
+    if (_justSaved) return false;
+    final baseline = _baseline;
+    return baseline != null && _signature() != baseline;
+  }
+
+  Future<void> _requestClose() async {
+    if (!_isDirty) return context.pop();
+    FocusManager.instance.primaryFocus?.unfocus();
+    final discard = await ConfirmationDialog.show(
+      context: context,
+      title: _isEditing ? 'Discard changes?' : 'Discard this budget?',
+      message: _isEditing
+          ? "Your changes haven't been saved."
+          : "What you entered hasn't been saved.",
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      icon: Icons.edit_off_outlined,
+      isDestructive: true,
+    );
+    if (discard && mounted) context.pop();
+  }
+
+  /// The form's fields from [budget].
+  void _fill(BudgetEntity budget) {
+    _nameController.text = budget.name;
+    _amountController.text = _formatAmount(budget.monthlyAmount);
+    _notesController.text = budget.notes ?? '';
+    _reserveController.text = budget.reservedAmount == null
+        ? ''
+        : _formatAmount(budget.reservedAmount!);
+    _savingsController.text = budget.savingsTarget == null
+        ? ''
+        : _formatAmount(budget.savingsTarget!);
+    _startDate = budget.startDate;
+    _endDate = budget.endDate;
+    _currency = budget.currency;
+    _color = budget.color;
+    _icon = budget.icon;
+  }
+
+  /// Best effort: when the budget can't be read, the form starts blank.
+  Future<void> _prefillNextPeriod(String sourceId) async {
+    setState(() => _loading = true);
+    try {
+      final source = await _manageBudget.getById(sourceId);
+      if (!mounted) return;
+      if (source != null) {
+        final next = StartNextPeriod.datesAfter(source);
+        _fill(source);
+        _startDate = next.start;
+        _endDate = next.end;
+      }
+    } catch (e) {
+      debugPrint('[error] Loading budget $sourceId for its next period: $e');
+    }
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _baseline = _signature();
+    });
   }
 
   Future<void> _loadBudget() async {
@@ -133,26 +254,15 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         return;
       }
       setState(() {
-        _nameController.text = budget.name;
-        _amountController.text = _formatAmount(budget.monthlyAmount);
-        _notesController.text = budget.notes ?? '';
-        _reserveController.text = budget.reservedAmount == null
-            ? ''
-            : _formatAmount(budget.reservedAmount!);
-        _savingsController.text = budget.savingsTarget == null
-            ? ''
-            : _formatAmount(budget.savingsTarget!);
+        _fill(budget);
         _budget = budget;
-        _startDate = budget.startDate;
-        _endDate = budget.endDate;
-        _currency = budget.currency;
-        _color = budget.color;
-        _icon = budget.icon;
         _loading = false;
+        _baseline = _signature();
       });
       _loadLinkedBills(budget.id);
       _loadExpenseCount(budget.id);
       _loadTabPurchaseCount(budget.id);
+      _loadIsActive(budget.id);
     } catch (e) {
       debugPrint('[error] Loading budget ${widget.budgetId}: $e');
       if (!mounted) return;
@@ -188,11 +298,25 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       final result = await getIt<GetExpensesUseCase>()(budgetId: budgetId);
       if (!mounted) return;
       if (result case ExpenseSuccess(:final data)) {
-        setState(() => _expenseCount = data.length);
+        setState(() {
+          _expenseCount = data.length;
+          _expenseDates = [for (final e in data) e.date];
+        });
       }
     } catch (e) {
       // Unknown count: the warning is worded without one.
       debugPrint('[error] Counting a budget\'s expenses: $e');
+    }
+  }
+
+  /// Best effort: unknown, the "won't run today" warning is not shown.
+  Future<void> _loadIsActive(String budgetId) async {
+    try {
+      final activeId = await _manageBudget.activeBudgetId();
+      if (!mounted) return;
+      setState(() => _isActiveBudget = activeId == budgetId);
+    } catch (e) {
+      debugPrint('[error] Reading the active budget: $e');
     }
   }
 
@@ -277,6 +401,33 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           double.tryParse(_amountController.text) ?? 0,
         ) ??
         MoneyInput.decimalsError(text, _currency);
+  }
+
+  /// How many of the budget's expenses the edited dates leave out: they stay
+  /// in the budget but stop counting toward Spent, Remaining and Today's
+  /// Safe Spending. Null when none (or not known).
+  String? get _excludedWarning {
+    final dates = _expenseDates;
+    if (!_isEditing || dates == null) return null;
+    final start = _startDate.dateOnly;
+    final end = _endDate.dateOnly;
+    final count = dates.where((d) {
+      final day = d.dateOnly;
+      return day.isBefore(start) || day.isAfter(end);
+    }).length;
+    if (count == 0) return null;
+    return count == 1
+        ? '1 expense falls outside these dates'
+        : '$count expenses fall outside these dates';
+  }
+
+  /// Whether the edit stops the active budget running today.
+  bool get _stopsRunningToday {
+    final budget = _budget;
+    if (budget == null || budget.isArchived || !_isActiveBudget) return false;
+    final today = BudgetFormScreen.clock();
+    final edited = budget.copyWith(startDate: _startDate, endDate: _endDate);
+    return budget.isActiveOn(today) && !edited.isActiveOn(today);
   }
 
   /// Inline warning when the kept-aside amount and savings goal together
@@ -428,24 +579,40 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final savings = _parseOptional(_savingsController.text);
 
     try {
+      Object result = true;
+      var activated = false;
       if (_isEditing) {
-        final updated = _budget!.copyWith(
+        // Built in full rather than with copyWith, whose nulls mean
+        // "unchanged": a cleared colour, icon or note must save as cleared.
+        final stored = _budget!;
+        final updated = BudgetEntity(
+          id: stored.id,
           name: _nameController.text.trim(),
           monthlyAmount: amount,
+          remainingAmount: stored.remainingAmount,
           currency: _currency,
           startDate: _startDate,
           endDate: _endDate,
+          isArchived: stored.isArchived,
           color: _color,
           icon: _icon,
           notes: notes,
-          reservedAmount: reserve,
-          clearReservedAmount: reserve == null,
-          savingsTarget: savings,
-          clearSavingsTarget: savings == null,
+          createdAt: stored.createdAt,
           updatedAt: DateTime.now(),
+          reservedAmount: reserve,
+          savingsTarget: savings,
         );
         await _manageBudget.update(updated);
       } else {
+        // Read before creating, so the new budget can't stand in for a
+        // missing active one.
+        final today = BudgetFormScreen.clock();
+        final activeId = await _manageBudget.activeBudgetId();
+        final active = activeId == null
+            ? null
+            : await _manageBudget.getById(activeId);
+        final activeRunning =
+            active != null && !active.isArchived && active.isActiveOn(today);
         final now = DateTime.now();
         final created = await _manageBudget.create(
           BudgetEntity(
@@ -465,22 +632,30 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             updatedAt: now,
           ),
         );
-        // A newly created budget becomes the active one.
-        await _manageBudget.setActive(created.id);
+        // Planning ahead or backfilling keeps today's budget on Home.
+        activated = created.isActiveOn(today) || !activeRunning;
+        if (activated) await _manageBudget.setActive(created.id);
+        result = created.id;
       }
       RefreshBuses.budgets.notifyChanged();
       if (!mounted) return;
       AppHaptics.confirm();
-      ScaffoldMessenger.of(context)
+      setState(() => _justSaved = true);
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(
-            content: Text(
-              _isEditing ? 'Budget updated' : 'Budget created and set active',
-            ),
-          ),
+          _isEditing
+              ? const SnackBar(content: Text('Budget updated'))
+              : activated
+              ? const SnackBar(content: Text('Budget created and set active'))
+              : _makeActiveSnackBar(
+                  messenger,
+                  id: result as String,
+                  name: _nameController.text.trim(),
+                ),
         );
-      context.pop(true);
+      context.pop(result);
     } on BudgetCurrencyLockedException catch (e) {
       // The count wasn't known on screen; the use case refused.
       debugPrint('[error] Saving budget: $e');
@@ -502,10 +677,55 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     }
   }
 
+  /// "Budget created", with "Make active" for a budget that didn't become
+  /// the active one. Outlives the form, so it holds what it needs.
+  SnackBar _makeActiveSnackBar(
+    ScaffoldMessengerState messenger, {
+    required String id,
+    required String name,
+  }) {
+    final manageBudget = _manageBudget;
+    return SnackBar(
+      content: const Text('Budget created'),
+      duration: const Duration(seconds: 6),
+      action: SnackBarAction(
+        label: 'Make active',
+        onPressed: () async {
+          String message;
+          try {
+            await manageBudget.setActive(id);
+            RefreshBuses.budgets.notifyChanged();
+            message = '$name is now your active budget';
+          } catch (e) {
+            debugPrint('[error] Making a new budget active: $e');
+            message = "Couldn't make $name active. Try again from its details.";
+          }
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(message)));
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final theme = Theme.of(context);
-    final title = _isEditing ? 'Edit budget' : 'New budget';
+    final title = _isEditing
+        ? 'Edit budget'
+        : widget.nextAfterId != null
+        ? 'Next period'
+        : 'New budget';
 
     if (_loadFailed) {
       return Scaffold(
@@ -541,217 +761,238 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
               absorbing: _saving,
               child: Form(
                 key: _formKey,
-                child: ListView(
-                  padding: AppSpacing.pagePadding,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  children: [
-                    // Name
-                    TextFormField(
-                      controller: _nameController,
-                      focusNode: _nameFocus,
-                      textInputAction: TextInputAction.next,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Budget name',
-                        hintText: 'e.g. Personal, Vacation, Wedding',
-                        prefixIcon: Icon(Icons.label_outline_rounded),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Give your budget a name.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-
-                    // Amount + currency
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _amountController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            textInputAction: TextInputAction.done,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                MoneyInput.pattern(
-                                  MoneyInput.maxDecimals(_currency),
-                                ),
-                              ),
-                            ],
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
-                            decoration: InputDecoration(
-                              labelText: 'Budget amount',
-                              prefixText:
-                                  '${CurrencyFormatter.symbolFor(_currency)} ',
-                              prefixStyle: theme.textTheme.titleLarge?.copyWith(
-                                color: theme.colorScheme.primary,
-                              ),
-                              helperText:
-                                  'The total for the whole budget period',
-                            ),
-                            // The set-aside checks depend on the amount.
-                            onChanged: (_) => setState(() {}),
-                            validator: (value) {
-                              final amount = double.tryParse(value ?? '');
-                              if (amount == null || amount <= 0) {
-                                return 'Enter an amount greater than zero.';
-                              }
-                              if (!MoneyMath.isWithinLimit(amount)) {
-                                return 'Enter an amount less than '
-                                    '${MoneyMath.maxAmountLabel}.';
-                              }
-                              // E.g. after switching from OMR to INR.
-                              return MoneyInput.decimalsError(
-                                value ?? '',
-                                _currency,
-                              );
-                            },
-                          ),
+                child: AppPageBody(
+                  builder: (context, padding) => ListView(
+                    padding: padding,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    children: [
+                      // Name
+                      TextFormField(
+                        controller: _nameController,
+                        focusNode: _nameFocus,
+                        textInputAction: TextInputAction.next,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: const InputDecoration(
+                          labelText: 'Budget name',
+                          hintText: 'e.g. Personal, Vacation, Wedding',
+                          prefixIcon: Icon(Icons.label_outline_rounded),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        _CurrencyDropdown(
-                          value: _selectedCurrencyCode,
-                          currencies: _currencies,
-                          onChanged: (code) => setState(() => _currency = code),
-                        ),
-                      ],
-                    ),
-                    if (_tabCurrencyBlock != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      AppNotice(
-                        key: const ValueKey('budgetCurrencyTabsBlock'),
-                        tone: AppTone.critical,
-                        icon: Icons.credit_card_outlined,
-                        title: 'Currency can\'t change',
-                        message: _tabCurrencyBlock!,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Give your budget a name.';
+                          }
+                          return null;
+                        },
                       ),
-                    ],
-                    if (_relabelsExpenses && _tabCurrencyBlock == null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      AppNotice(
-                        key: const ValueKey('budgetCurrencyExpensesWarning'),
-                        tone: AppTone.caution,
-                        icon: Icons.currency_exchange_rounded,
-                        title: 'Expenses keep their amounts',
-                        message: _relabelSentence,
-                      ),
-                    ],
-                    if (_currencyWarning != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      AppNotice(
-                        key: const ValueKey('budgetCurrencyBillsWarning'),
-                        tone: AppTone.caution,
-                        icon: Icons.receipt_long_rounded,
-                        title: 'Some bills left out',
-                        message: _currencyWarning!,
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.lg),
+                      const SizedBox(height: AppSpacing.md),
 
-                    // Period
-                    KeyedSubtree(
-                      key: _dateKey,
-                      child: _PeriodSection(
-                        startDate: _startDate,
-                        endDate: _endDate,
-                        dayCount: _dayCount,
-                        errorText: _dateError,
-                        onPickStart: () => _pickDate(isStart: true),
-                        onPickEnd: () => _pickDate(isStart: false),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Set aside
-                    _SetAsideSection(
-                      currency: _currency,
-                      reserveController: _reserveController,
-                      savingsController: _savingsController,
-                      validator: _validateSetAside,
-                      warning: _setAsideWarning,
-                      onChanged: () => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Look and notes: optional, folded away on a new
-                    // budget and open when editing one.
-                    AppDisclosure(
-                      key: const ValueKey('budgetMoreOptions'),
-                      title: 'More options',
-                      summary: 'Icon, colour and notes',
-                      initiallyExpanded: _isEditing,
-                      child: Column(
+                      // Amount + currency
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Look', style: theme.textTheme.titleSmall),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'Optional. Helps you tell budgets apart in lists.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          Expanded(
+                            child: TextFormField(
+                              controller: _amountController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              textInputAction: TextInputAction.done,
+                              inputFormatters: [
+                                MoneyInputFormatter(
+                                  MoneyInput.maxDecimals(_currency),
+                                ),
+                              ],
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                              decoration: InputDecoration(
+                                labelText: 'Budget amount',
+                                prefixText:
+                                    '${CurrencyFormatter.symbolFor(_currency)} ',
+                                prefixStyle: theme.textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                helperText:
+                                    'The total for the whole budget period',
+                              ),
+                              // The set-aside checks depend on the amount.
+                              onChanged: (_) => setState(() {}),
+                              validator: (value) {
+                                final amount = double.tryParse(value ?? '');
+                                if (amount == null || amount <= 0) {
+                                  return 'Enter an amount greater than zero.';
+                                }
+                                if (!MoneyMath.isWithinLimit(amount)) {
+                                  return 'Enter an amount less than '
+                                      '${MoneyMath.maxAmountLabel}.';
+                                }
+                                // E.g. after switching from OMR to INR.
+                                return MoneyInput.decimalsError(
+                                  value ?? '',
+                                  _currency,
+                                );
+                              },
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.sm),
-                          _IconAndColorPicker(
-                            selectedIcon: _icon,
-                            selectedColor: _color,
-                            onIconSelected: (icon) => setState(
-                              () => _icon = _icon == icon ? null : icon,
-                            ),
-                            onColorSelected: (color) => setState(
-                              () => _color = _color == color ? null : color,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          TextFormField(
-                            controller: _notesController,
-                            maxLines: 3,
-                            minLines: 1,
-                            keyboardType: TextInputType.multiline,
-                            textCapitalization: TextCapitalization.sentences,
-                            decoration: const InputDecoration(
-                              labelText: 'Notes',
-                              hintText:
-                                  'Anything to remember about this budget',
-                              alignLabelWithHint: true,
-                              prefixIcon: Icon(Icons.notes_rounded),
-                            ),
+                          const SizedBox(width: AppSpacing.sm),
+                          _CurrencyDropdown(
+                            value: _selectedCurrencyCode,
+                            currencies: _currencies,
+                            onChanged: (code) =>
+                                setState(() => _currency = code),
                           ),
                         ],
                       ),
-                    ),
-                    if (_saveError != null) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      StatusCard(
-                        color: theme.colorScheme.error,
-                        icon: Icons.error_outline_rounded,
-                        message: _saveError!,
+                      if (_tabCurrencyBlock != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        AppNotice(
+                          key: const ValueKey('budgetCurrencyTabsBlock'),
+                          tone: AppTone.critical,
+                          icon: Icons.credit_card_outlined,
+                          title: 'Currency can\'t change',
+                          message: _tabCurrencyBlock!,
+                        ),
+                      ],
+                      if (_relabelsExpenses && _tabCurrencyBlock == null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        AppNotice(
+                          key: const ValueKey('budgetCurrencyExpensesWarning'),
+                          tone: AppTone.caution,
+                          icon: Icons.currency_exchange_rounded,
+                          title: 'Expenses keep their amounts',
+                          message: _relabelSentence,
+                        ),
+                      ],
+                      if (_currencyWarning != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        AppNotice(
+                          key: const ValueKey('budgetCurrencyBillsWarning'),
+                          tone: AppTone.caution,
+                          icon: Icons.receipt_long_rounded,
+                          title: 'Some bills left out',
+                          message: _currencyWarning!,
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // Period
+                      KeyedSubtree(
+                        key: _dateKey,
+                        child: _PeriodSection(
+                          startDate: _startDate,
+                          endDate: _endDate,
+                          dayCount: _dayCount,
+                          errorText: _dateError,
+                          onPickStart: () => _pickDate(isStart: true),
+                          onPickEnd: () => _pickDate(isStart: false),
+                        ),
                       ),
+                      if (_excludedWarning != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        AppNotice(
+                          key: const ValueKey('budgetDatesExcludeWarning'),
+                          tone: AppTone.caution,
+                          icon: Icons.event_busy_rounded,
+                          title: _excludedWarning!,
+                          message:
+                              "They stay in this budget but won't count toward "
+                              "Spent, Remaining or Today's Safe Spending.",
+                        ),
+                      ],
+                      if (_stopsRunningToday) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        AppNotice(
+                          key: const ValueKey('budgetDatesNotToday'),
+                          tone: AppTone.caution,
+                          icon: Icons.today_rounded,
+                          title: "This budget won't run today",
+                          message:
+                              "It's your active budget, so Home will have no "
+                              "Today's Safe Spending until a budget runs today.",
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // Set aside
+                      _SetAsideSection(
+                        currency: _currency,
+                        reserveController: _reserveController,
+                        savingsController: _savingsController,
+                        validator: _validateSetAside,
+                        warning: _setAsideWarning,
+                        onChanged: () => setState(() {}),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // Look and notes: optional, folded away on a new
+                      // budget and open when editing one.
+                      AppDisclosure(
+                        key: const ValueKey('budgetMoreOptions'),
+                        title: 'More options',
+                        summary: 'Icon, colour and notes',
+                        initiallyExpanded: _isEditing,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Look', style: theme.textTheme.titleSmall),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'Optional. Helps you tell budgets apart in lists.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            _IconAndColorPicker(
+                              selectedIcon: _icon,
+                              selectedColor: _color,
+                              onIconSelected: (icon) => setState(
+                                () => _icon = _icon == icon ? null : icon,
+                              ),
+                              onColorSelected: (color) => setState(
+                                () => _color = _color == color ? null : color,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            TextFormField(
+                              controller: _notesController,
+                              maxLines: 3,
+                              minLines: 1,
+                              keyboardType: TextInputType.multiline,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(
+                                labelText: 'Notes',
+                                hintText:
+                                    'Anything to remember about this budget',
+                                alignLabelWithHint: true,
+                                prefixIcon: Icon(Icons.notes_rounded),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_saveError != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        StatusCard(
+                          color: theme.colorScheme.error,
+                          icon: Icons.error_outline_rounded,
+                          message: _saveError!,
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.lg),
                     ],
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
+                  ),
                 ),
               ),
             ),
       bottomNavigationBar: _loading
           ? null
-          : SafeArea(
-              minimum: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.sm,
-                AppSpacing.md,
-                AppSpacing.md,
-              ),
+          : AppFormActionBar(
               child: PrimaryButton(
                 onPressed: _saving ? null : _save,
                 isLoading: _saving,
@@ -846,11 +1087,7 @@ class _SetAsideSection extends StatelessWidget {
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textInputAction: TextInputAction.next,
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(
-          MoneyInput.pattern(MoneyInput.maxDecimals(currency)),
-        ),
-      ],
+      inputFormatters: [MoneyInputFormatter(MoneyInput.maxDecimals(currency))],
       decoration: InputDecoration(
         labelText: label,
         hintText: 'Not set',

@@ -6,6 +6,8 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/widgets/app_list.dart';
+import '../start_next_period.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -182,10 +184,26 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       list.sort((a, b) => a.startDate.compareTo(b.startDate));
     }
 
-    const order = [
-      (BudgetPhase.running, 'Running today', null),
+    final activeRunning = active?.phaseOn(now) == BudgetPhase.running;
+    // The latest to end, which "Start next period" carries on from.
+    final ended = groups[BudgetPhase.ended];
+    final lastEnded = ended == null || ended.isEmpty
+        ? null
+        : ended.reduce((a, b) => b.endDate.isAfter(a.endDate) ? b : a);
+    final order = [
+      (
+        BudgetPhase.running,
+        activeRunning ? 'Also running today' : 'Running today',
+        null,
+      ),
       (BudgetPhase.upcoming, 'Starting later', null),
-      (BudgetPhase.ended, 'Ended', 'Create a new budget to keep tracking'),
+      (
+        BudgetPhase.ended,
+        'Ended',
+        lastEnded == null
+            ? null
+            : 'Start the next period of ${lastEnded.name} to keep tracking',
+      ),
       (BudgetPhase.archived, 'Archived', null),
     ];
 
@@ -193,51 +211,71 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     return RefreshIndicator(
       key: const ValueKey('list'),
       onRefresh: () => _load(silent: true),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
+      child: AppPageBody(
         padding: AppSpacing.pagePaddingWithFab,
-        children: [
-          // The active budget is the one raised surface.
-          if (active != null) ...[
-            FadeSlideIn(
-              index: index++,
-              child: ActiveBudgetCard(
-                budget: active,
-                now: now,
-                onTap: () => context.pushUnique('/app/budgets/${active!.id}'),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-          ],
-          for (final (phase, title, subtitle) in order)
-            if (groups[phase] case final list? when list.isNotEmpty) ...[
+        builder: (context, padding) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: padding,
+          children: [
+            // The active budget is the one raised surface.
+            if (active != null) ...[
               FadeSlideIn(
                 index: index++,
-                child: AppSection(
-                  title: active != null && phase == BudgetPhase.running
-                      ? 'Also running today'
-                      : title,
-                  subtitle: subtitle,
-                  child: AppGroupedList(
-                    dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
-                    children: [
-                      for (final budget in list)
-                        BudgetRow(
-                          budget: budget,
-                          now: now,
-                          onTap: () =>
-                              context.pushUnique('/app/budgets/${budget.id}'),
-                        ),
-                    ],
-                  ),
+                child: ActiveBudgetCard(
+                  budget: active,
+                  now: now,
+                  onTap: () => context.pushUnique('/app/budgets/${active!.id}'),
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
+              if (active.phaseOn(now) == BudgetPhase.ended) ...[
+                const SizedBox(height: AppSpacing.sm),
+                FadeSlideIn(
+                  index: index++,
+                  child: EndedBudgetNotice(budget: active, isActive: true),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xl),
             ],
-          // Last and quiet: a reference figure, never a pooled budget.
-          if (_summary != null && _summary!.activeBudgetCount > 0)
-            BudgetListSummaryCard(summary: _summary!),
-        ],
+            for (final (phase, title, subtitle) in order)
+              if (groups[phase] case final list? when list.isNotEmpty) ...[
+                FadeSlideIn(
+                  index: index++,
+                  child: AppSection(
+                    title: title,
+                    subtitle: subtitle,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AppGroupedList(
+                          dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                          children: [
+                            for (final budget in list)
+                              BudgetRow(
+                                budget: budget,
+                                now: now,
+                                onTap: () => context.pushUnique(
+                                  '/app/budgets/${budget.id}',
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (phase == BudgetPhase.ended && lastEnded != null)
+                          TextButton(
+                            onPressed: () =>
+                                StartNextPeriod.open(context, lastEnded.id),
+                            child: const Text('Start next period'),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+            // Last and quiet: a reference figure, never a pooled budget.
+            if (_summary != null && _summary!.activeBudgetCount > 0)
+              BudgetListSummaryCard(summary: _summary!),
+          ],
+        ),
       ),
     );
   }

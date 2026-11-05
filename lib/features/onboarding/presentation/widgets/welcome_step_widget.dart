@@ -7,7 +7,19 @@ import 'onboarding_step_layout.dart';
 class WelcomeStepWidget extends StatelessWidget {
   final VoidCallback onContinue;
 
-  const WelcomeStepWidget({super.key, required this.onContinue});
+  /// Restores a backup instead of making a first budget (a new phone or a
+  /// reinstall). Hidden when null.
+  final VoidCallback? onRestore;
+
+  /// A restore is running: both actions rest until it ends.
+  final bool isRestoring;
+
+  const WelcomeStepWidget({
+    super.key,
+    required this.onContinue,
+    this.onRestore,
+    this.isRestoring = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -82,9 +94,24 @@ class WelcomeStepWidget extends StatelessWidget {
             AppSpacing.lg,
             AppSpacing.lg,
           ),
-          child: OnboardingContinueButton(
-            label: 'Get started',
-            onPressed: onContinue,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OnboardingContinueButton(
+                label: 'Get started',
+                onPressed: isRestoring ? null : onContinue,
+              ),
+              if (onRestore != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextButton(
+                  onPressed: isRestoring ? null : onRestore,
+                  child: Text(
+                    isRestoring ? 'Restoring…' : 'Restore from backup',
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],

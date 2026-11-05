@@ -6,6 +6,13 @@ import 'package:monivo/core/navigation/animated_bottom_navigation.dart';
 import 'package:monivo/core/navigation/app_nav_destinations.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/theme/contrast.dart';
+import 'package:monivo/core/widgets/app_list.dart';
+import 'package:monivo/core/widgets/app_money.dart';
+import 'package:monivo/core/widgets/app_section.dart';
+import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
+import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/dashboard_header.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/upcoming_bills_section.dart';
 import 'package:monivo/features/categories/domain/usecases/archive_category_usecase.dart';
 import 'package:monivo/features/categories/domain/usecases/delete_category_usecase.dart';
 import 'package:monivo/features/categories/domain/usecases/load_categories_usecase.dart';
@@ -379,6 +386,138 @@ void main() {
       expect(data.label, 'Trip: ₹1,000 safe today, On track');
       expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
       expect(data.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+    });
+  });
+
+  group('UX-045 · Home reads in meaningful pieces', () {
+    setUp(() => DashboardHeader.clock = () => DateTime(2026, 10, 10, 14));
+    tearDown(() => DashboardHeader.clock = DateTime.now);
+
+    testWidgets('the header and a later section never share a node', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      // As on Home: every section inside one list child.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: ListView(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DashboardHeader(
+                      budgetName: 'Groceries',
+                      caption: '1 Oct – 31 Oct 2026',
+                      onSwitchBudget: () {},
+                    ),
+                    const AppSection(
+                      title: 'Other budgets today',
+                      subtitle: 'Each budget has its own safe amount',
+                      child: Text('Trip'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.bySemanticsLabel(
+          RegExp('Good afternoon.*Each budget', dotAll: true),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsLabel('Good afternoon, Saturday 10 October'),
+        findsOneWidget,
+      );
+      // The period belongs to the budget it describes.
+      expect(
+        find.bySemanticsLabel(
+          'Active budget: Groceries, 1 Oct – 31 Oct 2026. Switch budget',
+        ),
+        findsOneWidget,
+      );
+      // A section's subtitle stays with its title.
+      expect(
+        find.bySemanticsLabel(
+          RegExp(r'^Other budgets today\nEach budget has its own safe amount'),
+        ),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+  });
+
+  group('UX-046 · spoken money keeps the Omani rial', () {
+    final sign = RegExp('⃄');
+
+    test('AppMoney.spoken reads the sign as the code; INR is unchanged', () {
+      expect(AppMoney.spoken(1.5, currency: 'OMR'), 'OMR 1.500');
+      expect(AppMoney.spoken(-300, currency: 'INR'), 'minus ₹300');
+    });
+
+    testWidgets('the hero names the currency', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        wrap(
+          SafeSpendingHero(
+            limit: limitFor(safeToSpend(currency: 'OMR', amount: 310)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel(sign), findsNothing);
+      expect(
+        find.bySemanticsLabel(RegExp(r"^Today's Safe Spending, OMR \d")),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('a composed row label names the currency', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        wrap(
+          Column(
+            children: [
+              AppListRow(
+                title: 'Rent',
+                semanticLabel: 'Rent, ${AppMoney.format(120, currency: 'OMR')}',
+                onTap: () {},
+              ),
+              UpcomingBillsSection(
+                bills: [
+                  BillEntity(
+                    id: 'water',
+                    title: 'Water',
+                    amount: 12.5,
+                    currency: 'OMR',
+                    category: BillCategory.water,
+                    dueDate: DateTime.now().add(const Duration(days: 3)),
+                    createdAt: DateTime(2026, 10, 1),
+                    updatedAt: DateTime(2026, 10, 1),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel(sign), findsNothing);
+      expect(find.bySemanticsLabel('Rent, OMR 120'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Water, .*OMR 12\.500$')),
+        findsOne,
+      );
       handle.dispose();
     });
   });

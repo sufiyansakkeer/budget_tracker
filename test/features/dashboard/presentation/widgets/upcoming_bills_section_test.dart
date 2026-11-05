@@ -142,4 +142,17 @@ void main() {
     );
     handle.dispose();
   });
+
+  testWidgets('UX-037: with bills but none coming up it offers "See all"', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: UpcomingBillsSection(bills: [], hasBills: true)),
+      ),
+    );
+
+    expect(find.widgetWithText(TextButton, 'See all'), findsOneWidget);
+    expect(find.text('Add bill'), findsNothing);
+  });
 }

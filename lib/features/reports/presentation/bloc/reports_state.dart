@@ -41,6 +41,10 @@ class ReportsState extends Equatable {
   /// The active budget while [followsBudget], for planned versus actual.
   final BudgetEntity? budget;
 
+  /// The active budget, which every report is limited to; null when there
+  /// is none or it couldn't be read.
+  final BudgetEntity? activeBudget;
+
   const ReportsState({
     this.status = ReportsStatus.initial,
     this.period = ReportPeriod.thisMonth,
@@ -53,6 +57,7 @@ class ReportsState extends Equatable {
     this.errorMessage,
     this.followsBudget = false,
     this.budget,
+    this.activeBudget,
   });
 
   ReportsState copyWith({
@@ -69,6 +74,8 @@ class ReportsState extends Equatable {
     bool? followsBudget,
     BudgetEntity? budget,
     bool clearBudget = false,
+    BudgetEntity? activeBudget,
+    bool clearActiveBudget = false,
   }) {
     return ReportsState(
       status: status ?? this.status,
@@ -82,6 +89,9 @@ class ReportsState extends Equatable {
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       followsBudget: followsBudget ?? this.followsBudget,
       budget: clearBudget ? null : (budget ?? this.budget),
+      activeBudget: clearActiveBudget
+          ? null
+          : (activeBudget ?? this.activeBudget),
     );
   }
 
@@ -98,5 +108,6 @@ class ReportsState extends Equatable {
     errorMessage,
     followsBudget,
     budget,
+    activeBudget,
   ];
 }

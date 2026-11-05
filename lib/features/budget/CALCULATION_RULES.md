@@ -17,8 +17,8 @@ their logic:
 the calculator's inputs from the database. Every surface that shows a daily
 amount reads the entity it produces: the dashboard hero, "Other budgets
 today", the morning notification, the home-screen widget and the onboarding
-preview ("Today's Safe Spending starts at …", the draft budget on its first
-day).
+preview ("Today's Safe Spending", the draft budget on today or on its start
+day, whichever is later).
 
 The morning notification is scheduled once per morning for the next 7
 mornings, each computed for the day it fires (`referenceDate` = that day), so

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
@@ -25,6 +26,12 @@ void main() {
       start: start,
       end: end,
     ),
+    testBudget(
+      id: 'last',
+      name: 'Last month',
+      start: DateTime(today.year, today.month, today.day - 60),
+      end: DateTime(today.year, today.month, today.day - 30),
+    ),
   ];
   final expense = ExpenseEntity(
     id: 'e1',
@@ -37,7 +44,10 @@ void main() {
     updatedAt: day,
   );
 
-  Future<List<BudgetEntity?>> open(WidgetTester tester) async {
+  Future<List<BudgetEntity?>> open(
+    WidgetTester tester, {
+    String? billTitle,
+  }) async {
     final results = <BudgetEntity?>[];
     await tester.pumpWidget(
       MaterialApp(
@@ -50,6 +60,7 @@ void main() {
                   context,
                   expense: expense,
                   budgets: budgets,
+                  billTitle: billTitle,
                 ),
               ),
               child: const Text('Move'),
@@ -87,7 +98,13 @@ void main() {
       'currency it uses', (tester) async {
     final results = await open(tester);
 
-    expect(find.textContaining('· INR'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('moveTarget_home')),
+        matching: find.textContaining('· INR'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('moveTarget_home')));
     await tester.pumpAndSettle();
 
@@ -112,5 +129,42 @@ void main() {
     await tester.tap(find.byKey(const Key('moveTarget_home')));
     await tester.pumpAndSettle();
     expect(results.single?.currency, 'INR');
+  });
+
+  // UX-060: a budget whose period misses the expense's date was offered,
+  // then refused after the pick with a long SnackBar.
+  testWidgets('a budget whose period misses the expense date is listed, '
+      'disabled, with why', (tester) async {
+    final results = await open(tester);
+
+    final last = tester.widget<ListTile>(
+      find.byKey(const Key('moveTarget_last')),
+    );
+    expect(last.enabled, isFalse);
+    expect(last.onTap, isNull);
+    expect(
+      find.textContaining(
+        'This expense is dated ${DateFormat('d MMM yyyy').format(day)}',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('moveTarget_last')));
+    await tester.pumpAndSettle();
+    expect(results, isEmpty, reason: 'the sheet stays open');
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  // UX-059: moving a bill payment unlinks it from the bill, unannounced.
+  testWidgets('a bill payment says which bill, and that moving unlinks it', (
+    tester,
+  ) async {
+    await open(tester, billTitle: 'Rent');
+    expect(
+      find.textContaining(
+        'Paid bill: Rent. Moving it unlinks it from the bill.',
+      ),
+      findsOneWidget,
+    );
   });
 }

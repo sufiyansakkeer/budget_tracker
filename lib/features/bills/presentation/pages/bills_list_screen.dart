@@ -9,6 +9,7 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -191,72 +192,94 @@ class _BillsListScreenState extends State<BillsListScreen> {
     return RefreshIndicator(
       key: const ValueKey('content'),
       onRefresh: _refresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
+      child: AppPageBody(
         padding: AppSpacing.pagePaddingWithFab,
-        children: [
-          TextField(
-            controller: _searchController,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Search bills',
-              prefixIcon: const Icon(Icons.search_rounded),
-              isDense: true,
-              suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _searchController,
-                builder: (context, value, _) => value.text.isEmpty
-                    ? const SizedBox.shrink()
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () {
-                          _searchController.clear();
-                          context.read<BillBloc>().add(
-                            const BillSearchChanged(''),
-                          );
-                        },
-                      ),
+        builder: (context, padding) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: padding,
+          children: [
+            TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search bills',
+                prefixIcon: const Icon(Icons.search_rounded),
+                isDense: true,
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchController,
+                  builder: (context, value, _) => value.text.isEmpty
+                      ? const SizedBox.shrink()
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () {
+                            _searchController.clear();
+                            context.read<BillBloc>().add(
+                              const BillSearchChanged(''),
+                            );
+                          },
+                        ),
+                ),
               ),
+              onChanged: (query) =>
+                  context.read<BillBloc>().add(BillSearchChanged(query)),
             ),
-            onChanged: (query) =>
-                context.read<BillBloc>().add(BillSearchChanged(query)),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final filter in BillFilter.values)
-                  Padding(
-                    padding: const EdgeInsets.only(right: AppSpacing.sm),
-                    child: FilterChip(
-                      label: Text(filter.label),
-                      selected: state.filter == filter,
-                      showCheckmark: false,
-                      onSelected: (_) => context.read<BillBloc>().add(
-                        BillFilterChanged(filter),
+            const SizedBox(height: AppSpacing.sm),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final filter in BillFilter.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: FilterChip(
+                        label: Text(filter.label),
+                        selected: state.filter == filter,
+                        showCheckmark: false,
+                        onSelected: (_) => context.read<BillBloc>().add(
+                          BillFilterChanged(filter),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.md),
 
-          if (filtered.isEmpty)
-            _buildEmptyFilter(context, state)
-          else if (state.filter == BillFilter.all)
-            for (final section in _sections(filtered)) ...[
+            if (filtered.isEmpty)
+              _buildEmptyFilter(context, state)
+            else if (state.filter == BillFilter.all)
+              for (final section in _sections(filtered)) ...[
+                FadeSlideIn(
+                  key: ValueKey('section_${section.title}'),
+                  index: index++,
+                  child: AppSection(
+                    title: section.title,
+                    subtitle: section.summary,
+                    child: AppGroupedList(
+                      dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                      children: [
+                        for (final bill in section.bills)
+                          KeyedSubtree(
+                            key: ValueKey('bill_${bill.id}'),
+                            child: _card(context, bill),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ]
+            else
               FadeSlideIn(
-                key: ValueKey('section_${section.title}'),
                 index: index++,
                 child: AppSection(
-                  title: section.title,
-                  subtitle: section.summary,
+                  title: state.filter.label,
+                  subtitle: _summary(filtered, unpaidOnly: false),
                   child: AppGroupedList(
                     dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
                     children: [
-                      for (final bill in section.bills)
+                      for (final bill in filtered)
                         KeyedSubtree(
                           key: ValueKey('bill_${bill.id}'),
                           child: _card(context, bill),
@@ -265,27 +288,8 @@ class _BillsListScreenState extends State<BillsListScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
-            ]
-          else
-            FadeSlideIn(
-              index: index++,
-              child: AppSection(
-                title: state.filter.label,
-                subtitle: _summary(filtered, unpaidOnly: false),
-                child: AppGroupedList(
-                  dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
-                  children: [
-                    for (final bill in filtered)
-                      KeyedSubtree(
-                        key: ValueKey('bill_${bill.id}'),
-                        child: _card(context, bill),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

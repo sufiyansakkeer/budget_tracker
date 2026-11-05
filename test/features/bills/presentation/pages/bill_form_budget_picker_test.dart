@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -336,8 +337,12 @@ void main() {
     await pumpForm(tester);
     expect(find.text('Repeat this bill', skipOffstage: false), findsNothing);
     expect(
-      // New bills default to a reminder one day before.
-      find.textContaining('One-time · 1 day before', skipOffstage: false),
+      // New bills default to due today with a reminder one day before,
+      // which has already passed (UX-032).
+      find.textContaining(
+        'One-time · Reminder time passed',
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
 
@@ -361,5 +366,93 @@ void main() {
     final saved = bills.store.values.single;
     expect(saved.currency, 'OMR');
     expect(saved.amount, 12.125);
+  });
+
+  group('UX-067 · repeat, clear and currency', () {
+    Finder interval() => find.byKey(const Key('billIntervalField'));
+
+    testWidgets('the repeat interval is labelled and checked as typed', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      bills.store['rent'] = linkedBill().copyWith(
+        isRecurring: true,
+        recurrenceType: RecurrenceType.monthly,
+        recurrenceInterval: 2,
+      );
+      await pumpForm(tester, billId: 'rent');
+      await tester.ensureVisible(interval());
+
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Repeat every … months')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.descendant(of: interval(), matching: find.byType(TextField)),
+        '0',
+      );
+      await tester.pump();
+      expect(find.text('Enter how often it repeats, 1 or more.'), findsOne);
+      handle.dispose();
+    });
+
+    testWidgets('the time field speaks its error and offers Clear', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      bills.store['rent'] = linkedBill().copyWith(
+        dueTime: DateTime(2026, 8, 5, 18, 30),
+      );
+      await pumpForm(tester, billId: 'rent');
+
+      final time = find.bySemanticsLabel(RegExp(r'^Time, 6:30'));
+      expect(time, findsOneWidget);
+      final node = tester.getSemantics(time);
+      final clear = CustomSemanticsAction.getIdentifier(
+        const CustomSemanticsAction(label: 'Clear'),
+      );
+      expect(node.getSemanticsData().customSemanticsActionIds, [clear]);
+
+      node.owner!.performAction(node.id, SemanticsAction.customAction, clear);
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp(r'^Time, 9:00 AM')), findsOne);
+      handle.dispose();
+    });
+
+    testWidgets('a bill not linked to a budget can choose its currency', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+
+      final currency = find.byKey(const Key('billCurrencyPicker'));
+      expect(currency, findsOneWidget);
+      await tester.ensureVisible(currency);
+      await tester.tap(currency);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('OMR').last);
+      await tester.pumpAndSettle();
+
+      final amountField = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'Amount', skipOffstage: false),
+      );
+      expect(
+        amountField.decoration!.prefixText,
+        '${CurrencyFormatter.symbolFor('OMR')} ',
+      );
+      await enter(tester, 'Bill name', 'Visa');
+      await enter(tester, 'Amount', '12.125');
+      await save(tester, 'Add bill');
+      expect(bills.store.values.single.currency, 'OMR');
+    });
+
+    testWidgets('a linked bill takes its budget\'s currency, no picker', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await pick(tester, 'Household ·');
+
+      expect(find.byKey(const Key('billCurrencyPicker')), findsNothing);
+    });
   });
 }

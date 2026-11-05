@@ -12,9 +12,11 @@ import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_form_action_bar.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/dates/date_range_format.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -40,6 +42,7 @@ import '../widgets/expense_date_rules.dart';
 import '../widgets/expense_form_actions.dart';
 import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
+import '../widgets/expense_undo.dart';
 import '../widgets/form_field_error.dart';
 import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
@@ -757,18 +760,29 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   }
 
   /// Quiet success: a light tap, the form closes, and a short note says it
-  /// worked. Nothing holds the screen.
-  void _onSaved() {
+  /// worked; after an add it says what is left today and offers Undo.
+  /// Nothing holds the screen.
+  void _onSaved(ExpenseState state) {
     AppHaptics.confirm();
     setState(() => _justSaved = true);
     final messenger = ScaffoldMessenger.of(context);
+    final currency = _selectedBudget?.currency;
     _close();
+    if (!_isEditing && state.expense != null) {
+      ExpenseUndo.offerAdded(
+        messenger,
+        state.expense!,
+        currency: currency,
+        after: state.afterAdd,
+      );
+      return;
+    }
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(_isEditing ? 'Changes saved' : 'Expense added'),
-          duration: const Duration(seconds: 3),
+        const SnackBar(
+          content: Text('Changes saved'),
+          duration: Duration(seconds: 3),
         ),
       );
   }
@@ -804,7 +818,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         listener: (context, state) {
           if (state.status == ExpenseBlocStatus.success && !_justSaved) {
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
-            _onSaved();
+            _onSaved(state);
           } else if (state.status == ExpenseBlocStatus.error) {
             // Before the form is filled the failure was the load, so Retry
             // loads again; afterwards it was the save.
@@ -871,88 +885,94 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             absorbing: isSaving || _justSaved,
             child: Form(
               key: _formKey,
-              child: ListView(
-                padding: AppSpacing.pagePadding,
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                children: [
-                  // 1. Amount
-                  KeyedSubtree(
-                    key: _amountKey,
-                    child: ExpenseAmountField(
-                      controller: _amountController,
-                      focusNode: _amountFocus,
-                      currencySymbol: _currencySymbol,
-                      maxDecimals: MoneyInput.maxDecimals(
-                        _selectedBudget?.currency,
+              child: AppPageBody(
+                builder: (context, padding) => ListView(
+                  padding: padding,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  children: [
+                    // 1. Amount
+                    KeyedSubtree(
+                      key: _amountKey,
+                      child: ExpenseAmountField(
+                        controller: _amountController,
+                        focusNode: _amountFocus,
+                        currencySymbol: _currencySymbol,
+                        maxDecimals: MoneyInput.maxDecimals(
+                          _selectedBudget?.currency,
+                        ),
+                        errorText: _amountError,
+                        // Checked on save; typing only clears the message.
+                        onChanged: (_) => setState(() => _amountError = null),
                       ),
-                      errorText: _amountError,
-                      // Checked on save; typing only clears the message.
-                      onChanged: (_) => setState(() => _amountError = null),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // Paid: now or pay later.
-                  KeyedSubtree(key: _paidKey, child: _buildPaidChoice()),
-                  const SizedBox(height: AppSpacing.lg),
+                    // Paid: now or pay later.
+                    KeyedSubtree(key: _paidKey, child: _buildPaidChoice()),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // 2. Category
-                  KeyedSubtree(
-                    key: _categoryKey,
-                    child: CategoryPicker(
-                      categories: state.categories,
-                      selectedCategoryId: _selectedCategoryId,
-                      errorText: _categoryError,
-                      onSelected: (id) => setState(() {
-                        _selectedCategoryId = id;
-                        _categoryError = null;
-                      }),
+                    // 2. Category
+                    KeyedSubtree(
+                      key: _categoryKey,
+                      child: CategoryPicker(
+                        categories: state.categories,
+                        selectedCategoryId: _selectedCategoryId,
+                        errorText: _categoryError,
+                        onSelected: (id) {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          setState(() {
+                            _selectedCategoryId = id;
+                            _categoryError = null;
+                          });
+                        },
+                        // Back from managing, the chips show any new or
+                        // renamed category.
+                        onManage: () async {
+                          final bloc = context.read<ExpenseBloc>();
+                          await context.pushUnique(AppRouter.categoriesPath);
+                          bloc.add(const ExpenseLoadCategories());
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // 3. Date & time
-                  KeyedSubtree(key: _dateKey, child: _buildDateTimeRow()),
-                  const SizedBox(height: AppSpacing.lg),
+                    // 3. Date & time
+                    KeyedSubtree(key: _dateKey, child: _buildDateTimeRow()),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // 4. Details
-                  Text(
-                    'Details',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  KeyedSubtree(key: _budgetKey, child: _buildBudgetPicker()),
-                  const SizedBox(height: AppSpacing.md),
-                  ExpenseNoteField(controller: _noteController),
-                  const SizedBox(height: AppSpacing.md),
-                  TagInputField(
-                    key: ValueKey('tags_$_populated'),
-                    initialTags: _tags,
-                    onTagsChanged: (tags) => setState(() => _tags = tags),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  ReceiptPicker(
-                    receiptPath: _receiptPath,
-                    onChanged: (path) => setState(() => _receiptPath = path),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
+                    // 4. Details
+                    Text(
+                      'Details',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    KeyedSubtree(key: _budgetKey, child: _buildBudgetPicker()),
+                    const SizedBox(height: AppSpacing.md),
+                    ExpenseNoteField(controller: _noteController),
+                    const SizedBox(height: AppSpacing.md),
+                    TagInputField(
+                      key: ValueKey('tags_$_populated'),
+                      initialTags: _tags,
+                      onTagsChanged: (tags) => setState(() => _tags = tags),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    ReceiptPicker(
+                      receiptPath: _receiptPath,
+                      onChanged: (path) => setState(() => _receiptPath = path),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                ),
               ),
             ),
           );
         },
       ),
-      // Sticky action bar: always visible, sits above the keyboard.
+      // Sticky action bar, lifted above the keyboard while it is open.
       bottomNavigationBar: BlocBuilder<ExpenseBloc, ExpenseState>(
         buildWhen: (a, b) => a.isBusy != b.isBusy,
-        builder: (context, state) => SafeArea(
-          minimum: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.sm,
-            AppSpacing.md,
-            AppSpacing.md,
-          ),
+        builder: (context, state) => AppFormActionBar(
           child: ExpenseFormActions(
             isSaving: state.isBusy,
             isSaved: _justSaved,

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Rect;
 
 import '../entities/settings_failure.dart';
 import '../services/backup_service.dart';
@@ -20,8 +21,10 @@ class BackupDataUseCase {
     this.delivery = const FileDeliveryService(),
   });
 
+  /// [shareOrigin] anchors the share sheet (see [FileDeliveryService]).
   Future<SettingsResult<FileDeliveryOutcome>> call({
     required FileDestination destination,
+    Rect? shareOrigin,
   }) async {
     try {
       final path = await backupService.createBackup();
@@ -33,6 +36,7 @@ class BackupDataUseCase {
         extension: 'json',
         destination: destination,
         shareText: 'Monivo backup',
+        shareOrigin: shareOrigin,
       );
       return SettingsSuccess(outcome);
     } catch (e) {

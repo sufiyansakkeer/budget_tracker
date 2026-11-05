@@ -39,7 +39,8 @@ void setPendingWidgetRoute(String? route) {
 }
 
 /// Resolves a widget URI to the exact application route:
-/// - Add Expense button: '/app/expenses/add'
+/// - Add Expense button: '/app/home?quickAdd=1' (Home with quick add;
+///   `widgetAddExpensePath`)
 /// - Widget body tap: '/app/home' (Dashboard)
 String? resolveWidgetUriToRoute(Uri? uri) {
   if (uri == null) return null;
@@ -49,7 +50,7 @@ String? resolveWidgetUriToRoute(Uri? uri) {
       str.contains('add') ||
       path.contains('expense') ||
       path.contains('add')) {
-    return '/app/expenses/add';
+    return '/app/home?quickAdd=1';
   }
   return '/app/home';
 }

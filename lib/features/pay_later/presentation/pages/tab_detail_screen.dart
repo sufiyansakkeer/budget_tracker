@@ -17,6 +17,7 @@ import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_metric.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
@@ -180,114 +181,117 @@ class _TabDetailScreenState extends State<TabDetailScreen> {
     final today = _today;
     final owes = ledger.owed > 0;
     final busy = state.busy;
-    return ListView(
-      padding: AppSpacing.pagePadding,
-      children: [
-        if (ledger.needsSettleDate) ...[
-          AppNotice(
-            tone: AppTone.caution,
-            icon: Icons.event_outlined,
-            title: 'Set your next settle-up date',
-            message:
-                'The last settle-up date has passed. Purchases since then '
-                "aren't part of any settle-up until you pick the next date.",
-            action: TextButton(
-              onPressed: () => _edit(ledger),
-              child: const Text('Set date'),
+    return AppPageBody(
+      builder: (context, padding) => ListView(
+        padding: padding,
+        children: [
+          if (ledger.needsSettleDate) ...[
+            AppNotice(
+              tone: AppTone.caution,
+              icon: Icons.event_outlined,
+              title: 'Set your next settle-up date',
+              message:
+                  'The last settle-up date has passed. Purchases since then '
+                  "aren't part of any settle-up until you pick the next date.",
+              action: TextButton(
+                onPressed: () => _edit(ledger),
+                child: const Text('Set date'),
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-        if (tab.isArchived) ...[
-          AppNotice(
-            tone: AppTone.info,
-            icon: Icons.inventory_2_outlined,
-            title: 'Archived',
-            message: owes
-                ? 'This tab is archived but still owes money. It counts in '
-                      'your totals until settled.'
-                : ledger.credit > 0
-                ? 'This tab is archived but holds credit.'
-                : "Archived tabs can't take new purchases. Unarchive it to "
-                      'add to it.',
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-        _Header(ledger: ledger, today: today),
-        const SizedBox(height: AppSpacing.md),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.xs,
-          children: [
-            if (owes)
-              FilledButton.icon(
-                key: const Key('tabRecordPaymentButton'),
-                onPressed: busy ? null : () => _recordPayment(state, ledger),
-                icon: const Icon(Icons.payments_outlined),
-                label: const Text('Record payment'),
-              ),
-            if (owes)
-              FilledButton.tonalIcon(
-                key: const Key('tabSettleAllButton'),
-                onPressed: busy
-                    ? null
-                    : () => _recordPayment(state, ledger, settleAll: true),
-                icon: const Icon(Icons.done_all_rounded),
-                label: const Text('Settle all'),
-              ),
-            // Archived tabs can't take new purchases.
-            if (!tab.isArchived)
-              OutlinedButton.icon(
-                key: const Key('tabAddButton'),
-                onPressed: busy
-                    ? null
-                    : () =>
-                          context.pushUnique('/app/expenses/add?tab=${tab.id}'),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add to tab'),
-              ),
+            const SizedBox(height: AppSpacing.md),
           ],
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        SegmentedButton<_Segment>(
-          segments: const [
-            ButtonSegment(
-              value: _Segment.purchases,
-              label: Text('Purchases'),
-              icon: Icon(Icons.receipt_long_outlined),
+          if (tab.isArchived) ...[
+            AppNotice(
+              tone: AppTone.info,
+              icon: Icons.inventory_2_outlined,
+              title: 'Archived',
+              message: owes
+                  ? 'This tab is archived but still owes money. It counts in '
+                        'your totals until settled.'
+                  : ledger.credit > 0
+                  ? 'This tab is archived but holds credit.'
+                  : "Archived tabs can't take new purchases. Unarchive it to "
+                        'add to it.',
             ),
-            ButtonSegment(
-              value: _Segment.payments,
-              label: Text('Payments'),
-              icon: Icon(Icons.payments_outlined),
-            ),
+            const SizedBox(height: AppSpacing.md),
           ],
-          selected: {_segment},
-          showSelectedIcon: false,
-          onSelectionChanged: (selected) =>
-              setState(() => _segment = selected.single),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        AppStateSwitcher(
-          child: KeyedSubtree(
-            key: ValueKey(_segment),
-            child: _segment == _Segment.purchases
-                ? _purchases(state, ledger, today)
-                : _payments(state, ledger, today),
+          _Header(ledger: ledger, today: today),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              if (owes)
+                FilledButton.icon(
+                  key: const Key('tabRecordPaymentButton'),
+                  onPressed: busy ? null : () => _recordPayment(state, ledger),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Record payment'),
+                ),
+              if (owes)
+                FilledButton.tonalIcon(
+                  key: const Key('tabSettleAllButton'),
+                  onPressed: busy
+                      ? null
+                      : () => _recordPayment(state, ledger, settleAll: true),
+                  icon: const Icon(Icons.done_all_rounded),
+                  label: const Text('Settle all'),
+                ),
+              // Archived tabs can't take new purchases.
+              if (!tab.isArchived)
+                OutlinedButton.icon(
+                  key: const Key('tabAddButton'),
+                  onPressed: busy
+                      ? null
+                      : () => context.pushUnique(
+                          '/app/expenses/add?tab=${tab.id}',
+                        ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Add to tab'),
+                ),
+            ],
           ),
-        ),
-        if (state.byCategory case final byCategory?
-            when byCategory.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
-          _CategoryBreakdown(
-            key: const Key('tabCategoryBreakdown'),
-            byCategory: byCategory,
-            categories: state.categories,
-            currency: tab.currency,
+          SegmentedButton<_Segment>(
+            segments: const [
+              ButtonSegment(
+                value: _Segment.purchases,
+                label: Text('Purchases'),
+                icon: Icon(Icons.receipt_long_outlined),
+              ),
+              ButtonSegment(
+                value: _Segment.payments,
+                label: Text('Payments'),
+                icon: Icon(Icons.payments_outlined),
+              ),
+            ],
+            selected: {_segment},
+            showSelectedIcon: false,
+            onSelectionChanged: (selected) =>
+                setState(() => _segment = selected.single),
           ),
+          const SizedBox(height: AppSpacing.md),
+          AppStateSwitcher(
+            child: KeyedSubtree(
+              key: ValueKey(_segment),
+              child: _segment == _Segment.purchases
+                  ? _purchases(state, ledger, today)
+                  : _payments(state, ledger, today),
+            ),
+          ),
+          if (state.byCategory case final byCategory?
+              when byCategory.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _CategoryBreakdown(
+              key: const Key('tabCategoryBreakdown'),
+              byCategory: byCategory,
+              categories: state.categories,
+              currency: tab.currency,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
         ],
-        const SizedBox(height: AppSpacing.md),
-      ],
+      ),
     );
   }
 

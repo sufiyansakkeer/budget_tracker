@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/di/injection.dart';
@@ -6,7 +7,9 @@ import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
+import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
 import 'package:monivo/features/expenses/domain/usecases/filter_expenses_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/get_categories_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/get_expenses_usecase.dart';
@@ -21,6 +24,7 @@ import 'package:monivo/features/reports/presentation/bloc/reports_event.dart';
 import 'package:monivo/features/reports/presentation/bloc/reports_state.dart';
 import 'package:monivo/features/reports/presentation/pages/reports_screen.dart';
 import 'package:monivo/features/reports/presentation/widgets/bar_chart_card.dart';
+import 'package:monivo/features/reports/presentation/widgets/report_total.dart';
 
 import '../../../helpers/bill_ui_fakes.dart';
 import '../../expenses/presentation/expense_test_fakes.dart';
@@ -120,11 +124,12 @@ void main() {
     clock: () => _today,
   );
 
-  /// Pumps Reports with "This Budget" chosen.
+  /// Pumps Reports with "This Budget" chosen, or [period] when given.
   Future<ReportsBloc> pump(
     WidgetTester tester, {
     Size size = const Size(400, 2200),
     double textScale = 1,
+    ReportPeriod? period,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -147,7 +152,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('period_thisBudget')));
+    final chip = find.byKey(
+      Key(period == null ? 'period_thisBudget' : 'period_${period.name}'),
+    );
+    await tester.ensureVisible(chip);
+    await tester.tap(chip);
     await tester.pumpAndSettle();
     return reports;
   }
@@ -242,7 +251,76 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Daily average'), findsOneWidget);
+    // UX-027: the average says what it divides by.
+    expect(find.text('9 days, incl. today'), findsOneWidget);
     expect(find.text(AppMoney.format(1000, currency: 'INR')), findsWidgets);
+  });
+
+  group('calendar periods say they cover the active budget only (UX-017)', () {
+    testWidgets('the scope is stated under the range', (tester) async {
+      await pump(tester, period: ReportPeriod.lastWeek);
+      expect(find.text('Only expenses in Household'), findsOneWidget);
+      // 28 Sep – 4 Oct, all past.
+      expect(find.text('7 days'), findsOneWidget);
+    });
+
+    testWidgets('"This Budget" needs no scope line', (tester) async {
+      await pump(tester);
+      expect(find.text('Only expenses in Household'), findsNothing);
+    });
+
+    testWidgets('a period before the budget offers to switch budget, not to '
+        'add an expense', (tester) async {
+      expenses.store
+        ..remove('p1')
+        ..remove('p2');
+      await pump(tester, period: ReportPeriod.lastMonth);
+
+      expect(
+        find.text(
+          'Your active budget starts 1 Oct. Switch budget to see earlier '
+          'spending.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Add expense'), findsNothing);
+
+      await tester.tap(find.text('Switch budget'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Home, Expenses and Reports follow the active budget.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a period after the budget ended says when it ended', (
+      tester,
+    ) async {
+      budgets.budgets[0] = _household().copyWith(
+        endDate: DateTime(2026, 10, 4),
+      );
+      expenses.store
+        ..remove('c')
+        ..remove('d');
+      await pump(tester, period: ReportPeriod.thisWeek);
+
+      expect(
+        find.text(
+          'Your active budget ended 4 Oct. Switch budget to see later '
+          'spending.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Add expense'), findsNothing);
+    });
+
+    testWidgets('an empty period inside the budget still offers to add an '
+        'expense', (tester) async {
+      expenses.store.clear();
+      await pump(tester, period: ReportPeriod.thisWeek);
+      expect(find.text('No expenses in this period'), findsOneWidget);
+      expect(find.text('Add expense'), findsOneWidget);
+    });
   });
 
   testWidgets('shows the plan against what was spent, with today ticked', (
@@ -252,7 +330,10 @@ void main() {
 
     expect(find.text('Planned vs actual'), findsOneWidget);
     expect(find.text('of ₹60,000 planned'), findsOneWidget);
-    expect(find.text('15% used · Day 9 of 31 · 23 days left'), findsOneWidget);
+    expect(
+      find.text('15% used · Day 9 of 31 · 23 days left, incl.\u00A0today'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('ranks categories and lists one when tapped', (tester) async {
@@ -322,7 +403,127 @@ void main() {
     await pump(tester);
     // 3 Oct 2026 is a Saturday (4,000, the largest).
     expect(find.text('Weekly rhythm'), findsOneWidget);
-    expect(find.textContaining('Most on Saturdays'), findsOneWidget);
+    // UX-050: a total over this period, not a habit.
+    expect(
+      find.textContaining('Most spent on Saturdays in this period'),
+      findsOneWidget,
+    );
+  });
+
+  group('UX-050: the weekend share needs whole weeks', () {
+    testWidgets('9 days: some weekdays count twice, so no share', (
+      tester,
+    ) async {
+      await pump(tester);
+      expect(find.textContaining('weekends are'), findsNothing);
+    });
+
+    testWidgets('a whole week: the share is shown', (tester) async {
+      await pump(tester, period: ReportPeriod.lastWeek);
+      // 28 Sep – 4 Oct: 3,000 on Monday, 6,500 on the weekend.
+      expect(
+        find.textContaining('weekends are 68% of spending'),
+        findsOneWidget,
+      );
+    });
+
+    test('the weekend insight is dropped too', () {
+      const weekend = SmartInsight(
+        id: 'weekend_spending',
+        message: 'Weekends account for a large share.',
+        type: InsightType.warning,
+      );
+      expect(
+        ReportInsightFilter.visible(
+          [weekend],
+          rhythmShown: false,
+          wholeWeeks: false,
+        ),
+        isEmpty,
+      );
+      expect(
+        ReportInsightFilter.visible(
+          [weekend],
+          rhythmShown: false,
+          wholeWeeks: true,
+        ),
+        [weekend],
+      );
+    });
+  });
+
+  group('UX-053: an active filter is visible', () {
+    Future<ReportsBloc> filtered(WidgetTester tester) async {
+      final reports = await pump(tester);
+      reports.add(
+        const ReportsFilterChanged(ExpenseHistoryFilter(categoryId: 'food')),
+      );
+      await tester.pumpAndSettle();
+      return reports;
+    }
+
+    testWidgets('as removable chips under the range', (tester) async {
+      final reports = await filtered(tester);
+      expect(find.byKey(const ValueKey('activeFilter_Food')), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Remove Food filter'));
+      await tester.pumpAndSettle();
+      expect(reports.state.filter.isActive, isFalse);
+      expect(find.byKey(const ValueKey('activeFilter_Food')), findsNothing);
+    });
+
+    testWidgets('the badge is not an error red', (tester) async {
+      await filtered(tester);
+      final context = tester.element(find.byType(ReportsScreen));
+      expect(
+        tester.widget<Badge>(find.byType(Badge)).backgroundColor,
+        Theme.of(context).colorScheme.primary,
+      );
+    });
+
+    testWidgets('the hidden plan says why', (tester) async {
+      await filtered(tester);
+      expect(find.text('Planned vs actual'), findsNothing);
+      expect(
+        find.text(
+          'Planned vs actual is hidden while a filter is on: the plan '
+          'covers every expense.',
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  testWidgets('UX-061: Reports meets tap target and labelling guidelines', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pump(tester, size: const Size(400, 900));
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+    await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    expect(
+      find.bySemanticsLabel('Report period 1 Oct – 9 Oct 2026, 9 days. Change'),
+      findsOneWidget,
+    );
+    handle.dispose();
+  });
+
+  testWidgets('UX-054: at 200% text the three figures stack, so no label '
+      'breaks mid-word', (tester) async {
+    await pump(tester, size: const Size(360, 4000), textScale: 2);
+    Finder inTotal(String text) => find.descendant(
+      of: find.byType(ReportTotal),
+      matching: find.text(text),
+    );
+    final average = tester.getTopLeft(inTotal('Daily average'));
+    final count = tester.getTopLeft(inTotal('Expenses'));
+    expect(count.dy, greaterThan(average.dy));
+    expect(
+      tester
+          .renderObject<RenderParagraph>(inTotal('Expenses'))
+          .didExceedMaxLines,
+      isFalse,
+    );
   });
 
   testWidgets('buckets a month apart read as months (review: a long custom '

@@ -77,3 +77,9 @@ class OnboardingEndDateChangedEvent extends OnboardingEvent {
 class OnboardingSubmittedEvent extends OnboardingEvent {
   const OnboardingSubmittedEvent();
 }
+
+/// A backup was restored from Welcome: it brought its own budgets, so
+/// onboarding ends without making one.
+class OnboardingRestoredEvent extends OnboardingEvent {
+  const OnboardingRestoredEvent();
+}

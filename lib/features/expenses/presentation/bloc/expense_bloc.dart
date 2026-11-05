@@ -2,7 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../budget/domain/entities/budget_error.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
+import '../../../dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../../pay_later/domain/usecases/tab_purchase_usecase.dart';
 import '../expense_failure_copy.dart';
@@ -37,6 +40,10 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   /// expenses keep their exact path.
   final TabPurchaseUseCase tabPurchases;
 
+  /// Today's Safe Spending, read after an add so the confirmation can say
+  /// what is left today; without it the confirmation gives the amount only.
+  final GetSafeToSpendUseCase? safeToSpend;
+
   ExpenseBloc({
     required this.createExpenseUseCase,
     required this.updateExpenseUseCase,
@@ -46,6 +53,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     required this.getCategoriesUseCase,
     required this.budgetRepository,
     required this.tabPurchases,
+    this.safeToSpend,
     this.rankCategoriesByUse = const RankCategoriesByUseUseCase(),
   }) : super(const ExpenseState()) {
     on<ExpenseLoadCategories>(_onLoadCategories);
@@ -177,6 +185,28 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     return expense.copyWith(budgetId: id);
   }
 
+  /// Today's Safe Spending of [expense]'s budget once it is counted, when
+  /// it was spent today in a running period; null otherwise. A figure that
+  /// can't be read is left out rather than failing the add.
+  Future<SafeToSpendEntity?> _todayAfterAdd(ExpenseEntity expense) async {
+    final useCase = safeToSpend;
+    if (useCase == null) return null;
+    try {
+      final result = await useCase(budgetId: expense.budgetId);
+      if (result case BudgetSuccess(
+        :final data,
+      ) when data.isRunning && _sameDay(data.today, expense.date)) {
+        return data;
+      }
+    } catch (e) {
+      debugPrint('[error] Reading Safe Spending after an add: $e');
+    }
+    return null;
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   Future<void> _onLoadById(
     ExpenseLoadById event,
     Emitter<ExpenseState> emit,
@@ -222,6 +252,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
       case ExpenseSuccess():
         RefreshBuses.expenses.notifyChanged();
         if (tabId != null) RefreshBuses.payLater.notifyChanged();
+        final after = await _todayAfterAdd(expense);
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
@@ -229,6 +260,8 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
             message: 'Expense added successfully',
             lastAction: ExpenseAction.created,
             clearLastDeleted: true,
+            afterAdd: after,
+            clearAfterAdd: after == null,
           ),
         );
       case ExpenseError(:final failure):

@@ -1,3 +1,5 @@
+import 'dart:ui' show Rect;
+
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/notification_settings.dart';
@@ -51,7 +53,11 @@ class SettingsUpdateBiometricEvent extends SettingsEvent {
 class SettingsExportEvent extends SettingsEvent {
   final bool csv;
 
-  const SettingsExportEvent({this.csv = true});
+  /// The Export row's rect, where the share sheet points from on iPad.
+  /// Not part of the event's identity.
+  final Rect? shareOrigin;
+
+  const SettingsExportEvent({this.csv = true, this.shareOrigin});
 
   @override
   List<Object?> get props => [csv];
@@ -72,7 +78,11 @@ class SettingsImportEvent extends SettingsEvent {
 class SettingsBackupEvent extends SettingsEvent {
   final FileDestination destination;
 
-  const SettingsBackupEvent(this.destination);
+  /// The Back up row's rect, where the share sheet points from on iPad.
+  /// Not part of the event's identity.
+  final Rect? shareOrigin;
+
+  const SettingsBackupEvent(this.destination, {this.shareOrigin});
 
   @override
   List<Object?> get props => [destination];

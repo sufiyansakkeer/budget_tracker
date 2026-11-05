@@ -9,6 +9,7 @@ import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dar
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:monivo/features/expenses/presentation/pages/expense_form_screen.dart';
+import 'package:monivo/features/expenses/presentation/widgets/expense_undo.dart';
 
 import '../expense_test_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
@@ -161,7 +162,24 @@ void main() {
 
     expect(expenses.store.values.single.amount, 120);
     expect(find.byType(ExpenseFormScreen), findsNothing);
-    expect(find.text('Expense added'), findsOneWidget);
+    expect(find.text('₹120 added'), findsOneWidget);
+  });
+
+  testWidgets('Undo on the note deletes the expense just added', (
+    tester,
+  ) async {
+    ExpenseUndo.blocFactory = () => memoryExpenseBloc(expenses, budgets);
+    addTearDown(() => ExpenseUndo.blocFactory = () => getIt<ExpenseBloc>());
+    await pumpForm(tester);
+    await tester.enterText(amountField(), '120');
+    await tester.tap(find.byKey(const Key('category_food')));
+    await tester.pump();
+    await tapSave(tester);
+    expect(expenses.store, hasLength(1));
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(expenses.store, isEmpty);
   });
 
   testWidgets('closing an untouched form needs no confirmation', (
@@ -171,6 +189,47 @@ void main() {
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
     expect(find.byType(ExpenseFormScreen), findsNothing);
+  });
+
+  group('with the keyboard open', () {
+    testWidgets('the save button stays above it', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.reset);
+      await pumpForm(tester);
+
+      final save = tester.getRect(find.byKey(const Key('saveExpenseButton')));
+      expect(save.bottom, lessThanOrEqualTo(800 - 300));
+    });
+
+    testWidgets('tapping outside the amount closes it (no Done key on iOS)', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await tester.showKeyboard(amountField());
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      await tester.tap(find.text('Paid'));
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isFalse);
+    });
+
+    testWidgets('choosing a category closes it, from any field', (
+      tester,
+    ) async {
+      // Tall enough that the note and the chips are both on screen.
+      tester.view.physicalSize = const Size(400, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpForm(tester);
+      await tester.showKeyboard(find.widgetWithText(TextField, 'Note'));
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      await tester.tap(find.byKey(const Key('category_food')));
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isFalse);
+    });
   });
 
   testWidgets('closing with something entered asks first', (tester) async {

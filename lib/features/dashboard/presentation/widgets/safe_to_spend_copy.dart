@@ -131,7 +131,10 @@ abstract final class SafeToSpendCopy {
     required SafeToSpendEntity e,
   }) {
     final cur = e.currency;
-    final pace = 'At your average so far (${amount(averageDaily, cur)} a day)';
+    // The forecast's average: completed days, bill payments left out.
+    final pace =
+        'At your average so far (${amount(averageDaily, cur)} a day, not '
+        'counting bill payments or today)';
     final endBalance = e.forecast?.projectedEndBalance;
     if (endBalance == null || endBalance < 0) {
       final short = endBalance == null ? deficit : -endBalance;
@@ -235,9 +238,14 @@ abstract final class SafeToSpendCopy {
   static String dayOfPeriod(SafeToSpendEntity e) =>
       'Day ${e.daysPassed} of ${e.totalDays}';
 
-  /// "24 days left" / "Last day".
-  static String daysLeft(SafeToSpendEntity e) =>
-      e.remainingDays <= 1 ? 'Last day' : '${e.remainingDays} days left';
+  /// "24 days left" / "Last day". [withToday] says that today is one of
+  /// them, for beside [dayOfPeriod], which counts today too: "Day 8 of 31"
+  /// and "24 days left, incl. today" add up to 32 on purpose. A no-break space
+  /// keeps "incl. today" on one line.
+  static String daysLeft(SafeToSpendEntity e, {bool withToday = false}) =>
+      e.remainingDays <= 1
+      ? 'Last day'
+      : '${e.remainingDays} days left${withToday ? ', incl.\u00A0today' : ''}';
 
   /// "₹25,103 left of ₹60,000" / "₹1,200 over ₹60,000".
   static String budgetLeftLine(SafeToSpendEntity e) {

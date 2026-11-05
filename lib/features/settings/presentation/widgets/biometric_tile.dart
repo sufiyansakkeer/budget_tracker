@@ -26,16 +26,33 @@ class BiometricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subtitle = isBusy
-        ? 'Authenticating...'
-        : (message ??
-              "Unlock the app with your device's fingerprint, face unlock "
-                  'or screen lock. Locks again when you leave the app');
+    // The description stays; a status or failure is a line of its own,
+    // announced when it appears.
+    final note = isBusy ? 'Authenticating...' : message;
 
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: Text('Biometric lock', style: theme.textTheme.titleSmall),
-      subtitle: Text(subtitle),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Unlock the app with your device's fingerprint, face unlock "
+            'or screen lock. Locks again when you leave the app',
+          ),
+          if (note != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xxs),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  note,
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                ),
+              ),
+            ),
+        ],
+      ),
       secondary: AnimatedSwitcher(
         duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
         transitionBuilder: (child, animation) => ScaleTransition(

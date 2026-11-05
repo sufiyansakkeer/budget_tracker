@@ -13,6 +13,7 @@ import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_metric.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
@@ -139,88 +140,91 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
     ];
     var index = 0;
 
-    return ListView(
+    return AppPageBody(
       padding: AppSpacing.pagePaddingWithFab,
-      children: [
-        if (overview.totals.isNotEmpty) ...[
+      builder: (context, padding) => ListView(
+        padding: padding,
+        children: [
+          if (overview.totals.isNotEmpty) ...[
+            FadeSlideIn(
+              index: index++,
+              child: _Totals(overview: overview),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              if (owing.isNotEmpty)
+                FilledButton.tonalIcon(
+                  key: const Key('payLaterRecordPaymentButton'),
+                  onPressed: () => _recordPayment(context, owing),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Record payment'),
+                ),
+              TextButton.icon(
+                key: const Key('payLaterNewTabButton'),
+                onPressed: () => _newTab(context),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('New tab'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          if (archivedOwing.isNotEmpty || archivedInCredit.isNotEmpty) ...[
+            AppNotice(
+              tone: AppTone.caution,
+              icon: Icons.inventory_2_outlined,
+              title: 'Archived, has a balance',
+              message: _archivedMessage(archivedOwing, archivedInCredit),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           FadeSlideIn(
             index: index++,
-            child: _Totals(overview: overview),
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.xs,
-          children: [
-            if (owing.isNotEmpty)
-              FilledButton.tonalIcon(
-                key: const Key('payLaterRecordPaymentButton'),
-                onPressed: () => _recordPayment(context, owing),
-                icon: const Icon(Icons.payments_outlined),
-                label: const Text('Record payment'),
-              ),
-            TextButton.icon(
-              key: const Key('payLaterNewTabButton'),
-              onPressed: () => _newTab(context),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('New tab'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        if (archivedOwing.isNotEmpty || archivedInCredit.isNotEmpty) ...[
-          AppNotice(
-            tone: AppTone.caution,
-            icon: Icons.inventory_2_outlined,
-            title: 'Archived, has a balance',
-            message: _archivedMessage(archivedOwing, archivedInCredit),
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-        FadeSlideIn(
-          index: index++,
-          child: AppSection(
-            title: 'Tabs',
-            subtitle: overview.activeTabCount == 1
-                ? '1 active'
-                : '${overview.activeTabCount} active',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (listed.isNotEmpty)
-                  AppGroupedList(
-                    dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
-                    children: [for (final l in listed) _tile(context, l)],
-                  ),
-                if (archived.isNotEmpty)
-                  AppDisclosure(
-                    title: 'Archived tabs',
-                    summary: archived.length == 1
-                        ? '1 tab with nothing owed'
-                        : '${archived.length} tabs with nothing owed',
-                    child: AppGroupedList(
+            child: AppSection(
+              title: 'Tabs',
+              subtitle: overview.activeTabCount == 1
+                  ? '1 active'
+                  : '${overview.activeTabCount} active',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (listed.isNotEmpty)
+                    AppGroupedList(
                       dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
-                      children: [for (final l in archived) _tile(context, l)],
+                      children: [for (final l in listed) _tile(context, l)],
                     ),
-                  ),
-              ],
+                  if (archived.isNotEmpty)
+                    AppDisclosure(
+                      title: 'Archived tabs',
+                      summary: archived.length == 1
+                          ? '1 tab with nothing owed'
+                          : '${archived.length} tabs with nothing owed',
+                      child: AppGroupedList(
+                        dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                        children: [for (final l in archived) _tile(context, l)],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
-        if (overview.recentPurchases.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.lg),
-          _recentPurchases(context, overview),
+          if (overview.recentPurchases.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _recentPurchases(context, overview),
+          ],
+          if (overview.recentPayments.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _recentPayments(context, overview),
+          ],
+          if (state.currency != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _charts(context, state, overview),
+          ],
         ],
-        if (overview.recentPayments.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.lg),
-          _recentPayments(context, overview),
-        ],
-        if (state.currency != null) ...[
-          const SizedBox(height: AppSpacing.lg),
-          _charts(context, state, overview),
-        ],
-      ],
+      ),
     );
   }
 

@@ -122,6 +122,74 @@ void main() {
     );
   }, skip: goldenSkip);
 
+  testWidgets('expenses tablet', (tester) async {
+    // Fixed days in a past year, drawn as "7 Oct 2025", so the image never
+    // changes with the calendar (UX-062: the list keeps to the content
+    // width, centred, like home_tablet).
+    final usd = testBudget(
+      currency: 'USD',
+      start: DateTime(2025, 10, 1),
+      end: DateTime(2025, 10, 31),
+    );
+    ExpenseEntity at(
+      String id,
+      double amount,
+      String categoryId,
+      DateTime when, {
+      String? note,
+    }) => ExpenseEntity(
+      id: id,
+      budgetId: usd.id,
+      amount: amount,
+      categoryId: categoryId,
+      note: note,
+      date: DateTime(when.year, when.month, when.day),
+      time: when,
+      createdAt: when,
+      updatedAt: when,
+    );
+    final wide = [
+      at('lunch', 14.5, 'food', DateTime(2025, 10, 8, 12, 40), note: 'Lunch'),
+      at('fuel', 42.75, 'fuel', DateTime(2025, 10, 8, 9, 15)),
+      at(
+        'veg',
+        23.1,
+        'grocery',
+        DateTime(2025, 10, 8, 8, 5),
+        note: 'Vegetables and fruit',
+      ),
+      at(
+        'gift',
+        65,
+        'shopping',
+        DateTime(2025, 10, 7, 19, 30),
+        note: 'Birthday gift for Ananya',
+      ),
+      at('cab', 18.2, 'travel', DateTime(2025, 10, 7, 18, 2), note: 'Cab home'),
+    ];
+    final state = ExpenseHistoryState(
+      status: ExpenseHistoryStatus.loaded,
+      allExpenses: wide,
+      visibleExpenses: wide,
+      pageExpenses: wide,
+      loadedExpenses: wide,
+      categories: defaultCategories,
+      summary: const CalculateExpenseSummaryUseCase()(wide),
+      budgetId: usd.id,
+      budgetName: usd.name,
+      budgetCurrency: 'USD',
+    );
+    await expectGoldenMatrix(
+      tester,
+      'expenses_tablet',
+      BlocProvider<ExpenseHistoryBloc>(
+        create: (_) => _StaticHistoryBloc(state),
+        child: const ExpenseHistoryScreen(),
+      ),
+      size: const Size(1024, 1300),
+    );
+  }, skip: goldenSkip);
+
   testWidgets('expenses empty', (tester) async {
     final state = ExpenseHistoryState(
       status: ExpenseHistoryStatus.loaded,
@@ -181,12 +249,10 @@ void main() {
                   top: Radius.circular(AppSpacing.radiusXl),
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.lg),
-                child: BlocProvider<ExpenseBloc>(
-                  create: (_) => _StaticExpenseBloc(state),
-                  child: const QuickAddSheet(),
-                ),
+              // The sheet draws its own drag handle.
+              child: BlocProvider<ExpenseBloc>(
+                create: (_) => _StaticExpenseBloc(state),
+                child: const QuickAddSheet(),
               ),
             ),
           ),
@@ -220,13 +286,21 @@ void main() {
       expense: gift.copyWith(tags: ['family', 'birthday']),
       categories: defaultCategories,
     );
+    final details = BlocProvider<ExpenseBloc>(
+      create: (_) => _StaticExpenseBloc(state),
+      child: const ExpenseDetailsScreen(expenseId: 'gift'),
+    );
+    // The receipt's file is checked off the build: let that finish first.
+    await tester.pumpWidget(
+      goldenFrame(child: details, brightness: Brightness.dark, textScale: 1),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
     await expectGoldenMatrix(
       tester,
       'expense_details',
-      BlocProvider<ExpenseBloc>(
-        create: (_) => _StaticExpenseBloc(state),
-        child: const ExpenseDetailsScreen(expenseId: 'gift'),
-      ),
+      details,
       size: const Size(360, 900),
     );
   }, skip: goldenSkip);

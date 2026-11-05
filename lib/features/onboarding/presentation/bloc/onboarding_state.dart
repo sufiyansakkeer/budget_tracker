@@ -4,6 +4,7 @@ import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart'
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
 import '../../../budget/domain/services/budget_calculation_service.dart';
 import '../../../budget/domain/services/safe_to_spend_calculator.dart';
+import '../../../../core/dates/calendar_dates.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 
 enum OnboardingStatus { initial, loading, success, failure }
@@ -58,11 +59,14 @@ class OnboardingState extends Equatable {
     BudgetCalculationService(),
   );
 
-  /// The draft budget on its first day, before anything is spent, from the
-  /// same engine the dashboard uses: the preview's daily amount and day
-  /// count are the dashboard's own. Null while the dates are invalid.
-  SafeToSpendEntity? get firstDaySafeToSpend {
+  /// The draft budget before anything is spent, on the first day the
+  /// dashboard will show it: [today], or the start if that is later. From
+  /// the same engine the dashboard uses, so the preview's daily amount and
+  /// day counts are the dashboard's own. Null while the dates are invalid.
+  SafeToSpendEntity? safeToSpendPreview(DateTime today) {
     if (!isDateRangeValid) return null;
+    final start = startDate.dateOnly;
+    final day = today.dateOnly.isAfter(start) ? today.dateOnly : start;
     return _safeToSpend.calculate(
       SafeToSpendInput(
         budgetId: '',
@@ -70,7 +74,7 @@ class OnboardingState extends Equatable {
         currency: selectedCurrency.code,
         startDate: startDate,
         endDate: endDate,
-        today: startDate,
+        today: day,
         budgetAmount: isBudgetValid ? parsedBudget! : 0,
         periodSpent: 0,
         todaySpent: 0,

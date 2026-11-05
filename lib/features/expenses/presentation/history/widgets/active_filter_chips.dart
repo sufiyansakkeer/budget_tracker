@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/currency/money_input.dart';
+import '../../../../../core/widgets/app_money.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
 import 'quick_filter_chips.dart';
@@ -13,12 +15,21 @@ class ActiveFilterChips extends StatelessWidget {
   final List<ExpenseCategory> categories;
   final ValueChanged<ExpenseHistoryFilter> onChanged;
 
+  /// The currency the amount bounds are in; null when the view mixes
+  /// currencies, where they are plain numbers.
+  final String? currency;
+
   const ActiveFilterChips({
     super.key,
     required this.filter,
     required this.categories,
     required this.onChanged,
+    this.currency,
   });
+
+  String _amount(double value) => currency == null
+      ? MoneyInput.forInput(value)
+      : AppMoney.format(value, currency: currency);
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +87,7 @@ class ActiveFilterChips extends StatelessWidget {
     if (filter.minAmount != null) {
       chips.add(
         _chip(
-          label: 'Min ${MoneyInput.forInput(filter.minAmount!)}',
+          label: 'Min ${_amount(filter.minAmount!)}',
           onDeleted: () => onChanged(filter.copyWithMinAmount(null)),
         ),
       );
@@ -85,7 +96,7 @@ class ActiveFilterChips extends StatelessWidget {
     if (filter.maxAmount != null) {
       chips.add(
         _chip(
-          label: 'Max ${MoneyInput.forInput(filter.maxAmount!)}',
+          label: 'Max ${_amount(filter.maxAmount!)}',
           onDeleted: () => onChanged(filter.copyWithMaxAmount(null)),
         ),
       );
@@ -132,7 +143,9 @@ class ActiveFilterChips extends StatelessWidget {
       label: Text(label),
       onDeleted: onDeleted,
       deleteIconColor: null,
-      deleteButtonTooltipMessage: 'Remove $label filter',
+      deleteButtonTooltipMessage: CurrencyFormatter.forSpeech(
+        'Remove $label filter',
+      ),
     );
   }
 }

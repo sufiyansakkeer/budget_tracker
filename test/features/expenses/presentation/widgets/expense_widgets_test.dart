@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_theme.dart';
@@ -153,6 +155,28 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Receipt file is missing'), findsOneWidget);
+    });
+
+    // UX-064: a 12 MP photo was decoded at full size for a 180 dp preview,
+    // and had no label.
+    testWidgets('the preview is decoded at its display size, and labelled', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final dir = Directory.systemTemp.createTempSync('receipt');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}/r.jpg')..writeAsBytesSync([0, 1, 2]);
+
+      await tester.pumpWidget(
+        wrap(ReceiptPicker(receiptPath: file.path, onChanged: (_) {})),
+      );
+
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.semanticLabel, 'Receipt photo');
+      expect(image.image, isA<ResizeImage>());
+      expect((image.image as ResizeImage).width, 400 * 3);
     });
   });
 }

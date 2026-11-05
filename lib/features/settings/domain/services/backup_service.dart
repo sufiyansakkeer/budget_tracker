@@ -23,6 +23,23 @@ class BackupMetadata {
   });
 }
 
+/// What a backup holds, read before Restore replaces anything, so the
+/// confirmation can say which file was picked.
+class BackupSummary {
+  /// When the backup was made; null when the file doesn't say.
+  final DateTime? createdAt;
+  final int budgets;
+  final int expenses;
+  final int bills;
+
+  const BackupSummary({
+    required this.createdAt,
+    required this.budgets,
+    required this.expenses,
+    required this.bills,
+  });
+}
+
 /// The file picked for Restore is a Monivo file, but not a backup: a data
 /// export, which leaves out bills and is meant for Import. Its [message] is
 /// written for people.
@@ -240,20 +257,7 @@ class BackupService {
   /// Validates the payload and schema before applying. Returns the metadata
   /// that was restored.
   Future<BackupMetadata> restore(String path) async {
-    await _rejectExport(path);
-    // Validate first.
-    final errors = await validateBackup(path);
-    if (errors.isNotEmpty) {
-      throw FormatException(
-        'Backup validation failed:\n${errors.map((e) => '• ${e.message}').join('\n')}',
-      );
-    }
-
-    final file = File(path);
-    final raw = await file.readAsString();
-    final Map<String, Object?> payload =
-        jsonDecode(raw) as Map<String, Object?>;
-
+    final payload = await _validatedPayload(path);
     final meta = payload['metadata'] as Map<String, Object?>;
     final data = payload['data'] as Map<String, Object?>;
 
@@ -291,6 +295,37 @@ class BackupService {
       appVersion: meta['appVersion']?.toString() ?? 'unknown',
       schemaVersion: (meta['schemaVersion'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  /// What the backup at [path] holds, read without writing anything. Throws
+  /// as [restore] does for an export or a file that fails validation, so
+  /// Restore can refuse it before asking to replace the data.
+  Future<BackupSummary> readSummary(String path) async {
+    final payload = await _validatedPayload(path);
+    final meta = payload['metadata'] as Map<String, Object?>;
+    final data = payload['data'] as Map<String, Object?>;
+    int count(String key) => switch (data[key]) {
+      final List<Object?> rows => rows.length,
+      _ => 0,
+    };
+    return BackupSummary(
+      createdAt: DateTime.tryParse(meta['createdAt']?.toString() ?? ''),
+      budgets: count('budgets'),
+      expenses: count('expenses'),
+      bills: count('bills'),
+    );
+  }
+
+  /// The decoded payload at [path] once it is known to be a valid backup.
+  Future<Map<String, Object?>> _validatedPayload(String path) async {
+    await _rejectExport(path);
+    final errors = await validateBackup(path);
+    if (errors.isNotEmpty) {
+      throw FormatException(
+        'Backup validation failed:\n${errors.map((e) => '• ${e.message}').join('\n')}',
+      );
+    }
+    return jsonDecode(await File(path).readAsString()) as Map<String, Object?>;
   }
 
   /// Throws [WrongFileKindException] when [path] holds a Monivo export, so

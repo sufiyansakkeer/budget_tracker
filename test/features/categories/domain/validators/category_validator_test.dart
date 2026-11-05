@@ -55,6 +55,18 @@ void main() {
       }
     });
 
+    test('UX-066: every catalog icon has a human name for screen readers', () {
+      final names = <String>{};
+      for (final name in CategoryCatalog.iconNames) {
+        final label = CategoryVisuals.iconLabel(name);
+        expect(label, isNot(contains('_')), reason: name);
+        expect(label, isNot(name), reason: '$name reads as an identifier');
+        expect(names.add(label), isTrue, reason: '$label is used twice');
+      }
+      expect(CategoryVisuals.iconLabel('local_grocery_store'), 'Groceries');
+      expect(CategoryVisuals.iconLabel('checkroom'), 'Clothes');
+    });
+
     test('every default category icon and colour is in the catalog', () {
       for (final row in defaultCategoryRows) {
         expect(CategoryCatalog.isKnownIcon(row.icon), isTrue, reason: row.id);

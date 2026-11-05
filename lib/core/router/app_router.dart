@@ -16,6 +16,7 @@ import '../../features/expenses/presentation/history/bloc/expense_history_bloc.d
 import '../../features/expenses/presentation/history/pages/expense_history_screen.dart';
 import '../../features/expenses/presentation/pages/expense_details_screen.dart';
 import '../../features/expenses/presentation/pages/expense_form_screen.dart';
+import '../../features/expenses/presentation/quick_add/quick_add_sheet.dart';
 import '../../features/onboarding/domain/usecases/check_first_launch_usecase.dart';
 import '../../features/onboarding/presentation/pages/onboarding_screen.dart';
 import '../../features/reports/presentation/bloc/reports_bloc.dart';
@@ -40,8 +41,9 @@ import '../../features/pay_later/presentation/pages/tab_detail_screen.dart';
 import '../../features/pay_later/presentation/pages/tab_form_screen.dart';
 import '../../features/widgets/home_widget_service.dart';
 
-/// Sentinel value for the widget-launched add-expense deep link.
-const String widgetAddExpensePath = '/app/expenses/add';
+/// Where the home-screen widget's "Add expense" leads: Home, with quick add
+/// open over it ([DashboardScreen.openQuickAdd]).
+const String widgetAddExpensePath = '/app/home?quickAdd=1';
 
 class AppRouter {
   AppRouter._();
@@ -63,6 +65,15 @@ class AppRouter {
   /// (forms, details, pickers) are pushed here with `parentNavigatorKey`.
   static GlobalKey<NavigatorState> get rootNavigatorKey =>
       UpdateDialogService.rootNavigatorKey;
+
+  /// Opens what a home-screen widget tap asked for while the app is
+  /// running. Quick add opens over whatever is on screen, which keeps an
+  /// open form and its input, and never as a second sheet.
+  static void openFromWidget(String route) {
+    if (route != widgetAddExpensePath) return router.go(route);
+    final context = rootNavigatorKey.currentState?.overlay?.context;
+    if (context != null) QuickAddSheet.show(context);
+  }
 
   static final GoRouter router = GoRouter(
     navigatorKey: UpdateDialogService.rootNavigatorKey,
@@ -122,7 +133,10 @@ class AppRouter {
               context: context,
               state: state,
               transition: AppTransition.fadeScale,
-              child: const BudgetFormScreen(),
+              // `?next=<id>`: Start next period (StartNextPeriod.location).
+              child: BudgetFormScreen(
+                nextAfterId: state.uri.queryParameters['next'],
+              ),
             ),
           ),
           GoRoute(
@@ -318,7 +332,9 @@ class AppRouter {
                           getIt<PayLaterSummaryCubit>()..load(),
                     ),
                   ],
-                  child: const DashboardScreen(),
+                  child: DashboardScreen(
+                    openQuickAdd: state.uri.queryParameters['quickAdd'] == '1',
+                  ),
                 ),
               ),
             ],

@@ -59,7 +59,8 @@ void main() {
       // The budget behind the figure: what is left, the days to go and
       // today's place in the period (calendar days, today included).
       expect(find.text('₹21,750 left of ₹22,000'), findsOneWidget);
-      expect(find.text('22 days left'), findsOneWidget);
+      // Both count today (UX-047), so the days left say so.
+      expect(find.text('22 days left, incl.\u00A0today'), findsOneWidget);
       expect(find.text('Day 10 of 31'), findsOneWidget);
       // The budget's name is the screen title now, not repeated here.
       expect(find.text('Groceries · until 31 Aug'), findsNothing);

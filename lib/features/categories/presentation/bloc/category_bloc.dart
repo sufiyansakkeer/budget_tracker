@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/events/refresh_bus.dart';
+import '../../../expenses/domain/entities/expense_category.dart';
 import '../../domain/entities/category_failure.dart';
 import '../../domain/usecases/archive_category_usecase.dart';
 import '../../domain/usecases/delete_category_usecase.dart';
@@ -126,6 +128,21 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
     }
   }
 
+  /// Expenses per custom category, so the screen never offers a delete
+  /// that would be refused. One that can't be counted is left out.
+  Future<Map<String, int>> _usage(List<ExpenseCategory> categories) async {
+    final usage = <String, int>{};
+    for (final c in categories) {
+      if (c.isSystem) continue;
+      try {
+        usage[c.id] = await deleteCategory.usage(c.id);
+      } catch (e) {
+        debugPrint('[error] Counting the expenses in category ${c.id}: $e');
+      }
+    }
+    return usage;
+  }
+
   Future<void> _reload(Emitter<CategoryState> emit, {String? message}) async {
     final result = await loadCategories();
     switch (result) {
@@ -135,6 +152,7 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
             status: CategoryBlocStatus.loaded,
             categories: data,
             message: message,
+            usage: await _usage(data),
           ),
         );
       case CategoryError(:final failure):

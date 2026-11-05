@@ -34,6 +34,7 @@ import '../widgets/recent_expense_tile.dart';
 import '../widgets/safe_spending_hero.dart';
 import '../widgets/safe_to_spend_breakdown_card.dart';
 import '../widgets/safe_to_spend_notices.dart';
+import '../widgets/notification_priming_card.dart';
 import '../widgets/spending_pace_section.dart';
 import '../widgets/upcoming_bills_section.dart';
 
@@ -47,7 +48,11 @@ import '../widgets/upcoming_bills_section.dart';
 /// say; other budgets running today; recent expenses. Sections sit on the
 /// page, separated by space and type rather than borders.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  /// Opened from the home-screen widget's "Add expense": quick add opens
+  /// over Home once, when it first shows.
+  final bool openQuickAdd;
+
+  const DashboardScreen({super.key, this.openQuickAdd = false});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -61,6 +66,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Whether [state] shows a dashboard the FAB belongs on.
   static bool _hasContent(DashboardState state) =>
       state is DashboardLoaded || state is DashboardNotRunning;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openQuickAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) QuickAddSheet.show(context);
+      });
+    }
+  }
 
   bool _onScroll(UserScrollNotification notification) {
     final extended = switch (notification.direction) {
@@ -209,6 +224,7 @@ class _DashboardContent extends StatelessWidget {
           ),
           ..._notices(context, safeToSpend, index: 2),
         ],
+        const NotificationPrimingCard(),
 
         const SizedBox(height: _sectionGap),
         FadeSlideIn(
@@ -216,6 +232,7 @@ class _DashboardContent extends StatelessWidget {
           child: UpcomingBillsSection(
             bills: state.upcomingBills,
             unavailable: state.upcomingBillsUnavailable,
+            hasBills: state.hasBills,
             onRetry: () =>
                 context.read<DashboardBloc>().add(const DashboardRefresh()),
             activeBudgetId: state.activeBudgetId,
@@ -333,6 +350,7 @@ class _NotRunningContent extends StatelessWidget {
           child: UpcomingBillsSection(
             bills: state.upcomingBills,
             unavailable: state.upcomingBillsUnavailable,
+            hasBills: state.hasBills,
             onRetry: () =>
                 context.read<DashboardBloc>().add(const DashboardRefresh()),
             activeBudgetId: state.activeBudgetId,

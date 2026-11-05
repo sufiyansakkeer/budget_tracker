@@ -13,8 +13,9 @@ import 'lock_auth_result.dart';
 ///   becomes locked and immediately prompts; otherwise it becomes unlocked.
 /// - [AppAuthenticated] -> unlocked (the app content is revealed).
 /// - [AppAuthFailed] -> locked (stays on the gate).
-/// - [AppLockRequested] (e.g. on backgrounding) -> locked again, but only if
-///   the lock is on.
+/// - [AppLockRequested] (back from the background past the grace period)
+///   -> locked again, but only if the lock is on.
+/// - [AppReturned] (back from the background) prompts at once if locked.
 /// - [AppLockPreferenceChanged] (Settings turned the lock on or off) takes
 ///   effect at once; it used to need a restart. [AppLockSyncRequested] (on
 ///   resume) re-reads the stored setting, e.g. after a restore.
@@ -52,6 +53,9 @@ class AppLockBloc extends Bloc<AppLockEvent, AppLockState> {
   /// [AppLockPreferenceChanged] and [AppLockSyncRequested].
   bool _biometricEnabled = false;
 
+  /// Whether the app lock is on, as far as the bloc knows.
+  bool get lockEnabled => _biometricEnabled;
+
   AppLockBloc({required BiometricInitializer biometricInitializer})
     : _biometricInitializer = biometricInitializer,
       super(const AppLockState()) {
@@ -63,6 +67,7 @@ class AppLockBloc extends Bloc<AppLockEvent, AppLockState> {
     on<AppLocked>(_onLocked);
     on<AppLockPreferenceChanged>(_onPreferenceChanged);
     on<AppLockSyncRequested>(_onSyncRequested);
+    on<AppReturned>(_onReturned);
   }
 
   Future<void> _onStartLockCheck(
@@ -108,6 +113,12 @@ class AppLockBloc extends Bloc<AppLockEvent, AppLockState> {
     if (state.status == AppLockStatus.unlocked) {
       debugPrint('[AppLockBloc] Backgrounding -> locked');
       emit(const AppLockState(status: AppLockStatus.locked));
+    }
+  }
+
+  void _onReturned(AppReturned event, Emitter<AppLockState> emit) {
+    if (_biometricEnabled && state.status == AppLockStatus.locked) {
+      add(const AppUnlockRequested());
     }
   }
 

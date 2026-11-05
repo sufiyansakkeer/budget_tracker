@@ -188,6 +188,31 @@ class NotificationService {
     }
   }
 
+  /// Whether the system lets Monivo post notifications, without asking.
+  /// False also when permission was never asked for (Android 13+, iOS).
+  Future<bool> areNotificationsEnabled() async {
+    await initialize();
+
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android != null) {
+      return await android.areNotificationsEnabled() ?? false;
+    }
+
+    final ios = _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
+    if (ios != null) {
+      final settings = await ios.checkPermissions();
+      return settings?.isEnabled ?? false;
+    }
+
+    return true;
+  }
+
   /// Schedules all daily notifications based on [settings].
   ///
   /// The morning notification is scheduled once per day for the next

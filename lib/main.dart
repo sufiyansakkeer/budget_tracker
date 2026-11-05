@@ -67,10 +67,10 @@ Future<void> main() async {
   );
 
   // Notifications initialise in the background: the chain parses the IANA
-  // time-zone database, crosses several platform channels and — on Android
-  // 13+ and iOS — shows the permission dialog, so awaiting it here held the
-  // splash screen up for an unbounded, user-gated amount of time. The BLoC
-  // guards against running twice, and a failure never blocks the app.
+  // time-zone database and crosses several platform channels, so awaiting
+  // it here held the splash screen up. It never asks for permission; that
+  // happens when the user turns reminders on. The BLoC guards against
+  // running twice, and a failure never blocks the app.
   unawaited(di.getIt<NotificationBloc>().initializeOnStartup());
 
   // Stored remaining amounts that an import or restore left stale (before
@@ -262,11 +262,7 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
         final pending = consumePendingWidgetRoute();
         if (pending == null) return;
 
-        if (route == widgetAddExpensePath) {
-          AppRouter.router.push(widgetAddExpensePath);
-        } else {
-          AppRouter.router.go(route);
-        }
+        AppRouter.openFromWidget(route);
       }
     });
 
@@ -342,7 +338,7 @@ class _SmartBudgetAppState extends State<SmartBudgetApp> {
                         },
                         listener: (context, state) {
                           if (state is AppUpdateAvailable) {
-                            UpdateDialogService.show(state.result);
+                            UpdateDialogService.showOnLaunch(state.result);
                           }
                         },
                         child: child ?? const SizedBox.shrink(),

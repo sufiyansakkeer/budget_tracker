@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -169,10 +170,11 @@ class _SafeToSpendBreakdownCardState extends State<SafeToSpendBreakdownCard> {
       Semantics(
         button: true,
         expanded: _billsExpanded,
-        label:
-            'Bills due by ${SafeToSpendCopy.spokenDate(e.endDate)}, '
-            '$count ${count == 1 ? 'bill' : 'bills'}, minus $total. '
-            '${_billsExpanded ? 'Hide' : 'Show'} bills',
+        label: CurrencyFormatter.forSpeech(
+          'Bills due by ${SafeToSpendCopy.spokenDate(e.endDate)}, '
+          '$count ${count == 1 ? 'bill' : 'bills'}, minus $total. '
+          '${_billsExpanded ? 'Hide' : 'Show'} bills',
+        ),
         onTap: toggle,
         excludeSemantics: true,
         child: InkWell(
@@ -361,7 +363,7 @@ class BreakdownRow extends StatelessWidget {
     if (semanticsLabel == null) return row;
     return Semantics(
       container: true,
-      label: semanticsLabel,
+      label: CurrencyFormatter.forSpeech(semanticsLabel!),
       excludeSemantics: true,
       child: row,
     );
@@ -386,7 +388,7 @@ class _OccurrenceLine extends StatelessWidget {
     final theme = Theme.of(context);
     return Semantics(
       container: true,
-      label: semanticsLabel,
+      label: CurrencyFormatter.forSpeech(semanticsLabel),
       excludeSemantics: true,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
@@ -471,9 +473,11 @@ class _ForecastSection extends StatelessWidget {
       children: [
         title,
         BreakdownRow(
-          label: 'Average a day so far',
+          label: 'Average a day so far, not counting bill payments or today',
           value: average,
-          semanticsLabel: 'Average a day so far, $average',
+          semanticsLabel:
+              'Average a day so far, not counting bill payments or today, '
+              '$average',
         ),
         BreakdownRow(
           label: 'Projected spending by $end',

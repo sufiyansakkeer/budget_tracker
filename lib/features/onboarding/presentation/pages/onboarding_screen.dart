@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/router/app_router.dart';
 import '../bloc/onboarding_bloc.dart';
@@ -16,6 +17,9 @@ import '../widgets/confirmation_step_widget.dart';
 import '../widgets/currency_step_widget.dart';
 import '../widgets/welcome_step_widget.dart';
 import '../../../../core/currency/money_input.dart';
+import '../../../settings/presentation/bloc/settings_bloc.dart';
+import '../../../settings/presentation/bloc/settings_event.dart';
+import '../../../settings/presentation/widgets/restore_backup_flow.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -58,6 +62,39 @@ class _OnboardingViewState extends State<_OnboardingView> {
     );
   }
 
+  /// A returning user restores their backup instead of making a budget;
+  /// Restore runs exactly as in Settings, then onboarding ends.
+  bool _restoring = false;
+
+  Future<void> _restoreBackup() async {
+    final messenger = ScaffoldMessenger.of(context);
+    void show(String message) => messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+
+    final settings = getIt<SettingsBloc>();
+    try {
+      final path = await RestoreBackupFlow.pickAndConfirm(
+        context,
+        preview: settings.restoreDataUseCase.preview,
+        onRefused: show,
+      );
+      if (path == null || !mounted) return;
+      setState(() => _restoring = true);
+      settings.add(SettingsRestoreEvent(path));
+      final done = await settings.stream.firstWhere((s) => !s.isBusy);
+      if (!mounted) return;
+      if (done.errorMessage case final error?) {
+        show(error);
+        return;
+      }
+      context.read<OnboardingBloc>().add(const OnboardingRestoredEvent());
+    } finally {
+      await settings.close();
+      if (mounted) setState(() => _restoring = false);
+    }
+  }
+
   void _previousPage() {
     _pageController.previousPage(
       duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
@@ -94,122 +131,132 @@ class _OnboardingViewState extends State<_OnboardingView> {
             if (!didPop) _previousPage();
           },
           child: Scaffold(
-            body: SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: AppSpacing.sm),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Semantics(
-                            label: 'Step $step of $_totalSteps',
-                            child: TweenAnimationBuilder<double>(
-                              tween: Tween(end: step / _totalSteps),
-                              duration: AppMotion.respectReducedMotion(
-                                context,
-                                AppMotion.medium,
-                              ),
-                              curve: AppMotion.standardCurve,
-                              builder: (context, value, _) => ClipRRect(
-                                borderRadius: AppSpacing.borderRadiusFull,
-                                child: LinearProgressIndicator(
-                                  value: value,
-                                  minHeight: AppSizes.progressSm,
+            body: AppPageBody(
+              // The whole flow keeps to the content width on a tablet.
+              padding: EdgeInsets.zero,
+              builder: (context, padding) => SafeArea(
+                minimum: padding,
+                child: Column(
+                  children: [
+                    const SizedBox(height: AppSpacing.sm),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Semantics(
+                              label: 'Step $step of $_totalSteps',
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(end: step / _totalSteps),
+                                duration: AppMotion.respectReducedMotion(
+                                  context,
+                                  AppMotion.medium,
+                                ),
+                                curve: AppMotion.standardCurve,
+                                builder: (context, value, _) => ClipRRect(
+                                  borderRadius: AppSpacing.borderRadiusFull,
+                                  child: LinearProgressIndicator(
+                                    value: value,
+                                    minHeight: AppSizes.progressSm,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: AppSpacing.smd),
-                        ExcludeSemantics(
-                          child: Text(
-                            '$step / $_totalSteps',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          const SizedBox(width: AppSpacing.smd),
+                          ExcludeSemantics(
+                            child: Text(
+                              '$step / $_totalSteps',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: PageView(
-                      controller: _pageController,
-                      physics: const NeverScrollableScrollPhysics(),
-                      onPageChanged: (index) {
-                        bloc.add(OnboardingPageChangedEvent(index));
-                      },
-                      children: [
-                        WelcomeStepWidget(onContinue: _nextPage),
-                        BudgetNameStepWidget(
-                          initialValue: state.budgetNameInput,
-                          errorMessage: state.nameValidationError,
-                          onChanged: (val) =>
-                              bloc.add(OnboardingBudgetNameChangedEvent(val)),
-                          onContinue: _nextPage,
-                          onBack: _previousPage,
-                        ),
-                        // Currency first, so the amount step shows its symbol
-                        // and decimals.
-                        CurrencyStepWidget(
-                          selectedCurrency: state.selectedCurrency,
-                          onSelected: (curr) => bloc.add(
-                            OnboardingCurrencySelectedEvent(
-                              code: curr.code,
-                              symbol: curr.symbol,
+                    Expanded(
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (index) {
+                          bloc.add(OnboardingPageChangedEvent(index));
+                        },
+                        children: [
+                          WelcomeStepWidget(
+                            onContinue: _nextPage,
+                            onRestore: _restoreBackup,
+                            isRestoring: _restoring,
+                          ),
+                          BudgetNameStepWidget(
+                            initialValue: state.budgetNameInput,
+                            errorMessage: state.nameValidationError,
+                            onChanged: (val) =>
+                                bloc.add(OnboardingBudgetNameChangedEvent(val)),
+                            onContinue: _nextPage,
+                            onBack: _previousPage,
+                          ),
+                          // Currency first, so the amount step shows its symbol
+                          // and decimals.
+                          CurrencyStepWidget(
+                            selectedCurrency: state.selectedCurrency,
+                            onSelected: (curr) => bloc.add(
+                              OnboardingCurrencySelectedEvent(
+                                code: curr.code,
+                                symbol: curr.symbol,
+                              ),
                             ),
+                            onContinue: _nextPage,
+                            onBack: _previousPage,
                           ),
-                          onContinue: _nextPage,
-                          onBack: _previousPage,
-                        ),
-                        BudgetStepWidget(
-                          initialValue: state.monthlyBudgetInput,
-                          currencySymbol: state.selectedCurrency.symbol,
-                          maxDecimals: MoneyInput.maxDecimals(
-                            state.selectedCurrency.code,
+                          BudgetStepWidget(
+                            initialValue: state.monthlyBudgetInput,
+                            currencySymbol: state.selectedCurrency.symbol,
+                            maxDecimals: MoneyInput.maxDecimals(
+                              state.selectedCurrency.code,
+                            ),
+                            errorMessage: state.budgetValidationError,
+                            onChanged: (val) => bloc.add(
+                              OnboardingBudgetInputChangedEvent(val),
+                            ),
+                            onContinue: _nextPage,
+                            onBack: _previousPage,
                           ),
-                          errorMessage: state.budgetValidationError,
-                          onChanged: (val) =>
-                              bloc.add(OnboardingBudgetInputChangedEvent(val)),
-                          onContinue: _nextPage,
-                          onBack: _previousPage,
-                        ),
-                        BudgetDateStepWidget(
-                          title: 'When does your budget start?',
-                          subtitle: 'Any date works. It defaults to today.',
-                          date: state.startDate,
-                          onDateChanged: (d) =>
-                              bloc.add(OnboardingStartDateChangedEvent(d)),
-                          onContinue: _nextPage,
-                          onBack: _previousPage,
-                        ),
-                        BudgetDateStepWidget(
-                          title: 'When does your budget end?',
-                          subtitle:
-                              'A budget can span days, weeks, months or a '
-                              "year. Today's Safe Spending is worked out from "
-                              'the days left until this date.',
-                          date: state.endDate,
-                          errorMessage: state.dateValidationError,
-                          onDateChanged: (d) =>
-                              bloc.add(OnboardingEndDateChangedEvent(d)),
-                          onContinue: _nextPage,
-                          onBack: _previousPage,
-                        ),
-                        ConfirmationStepWidget(
-                          state: state,
-                          onCreateBudget: () =>
-                              bloc.add(const OnboardingSubmittedEvent()),
-                          onBack: _previousPage,
-                        ),
-                      ],
+                          BudgetDateStepWidget(
+                            title: 'When does your budget start?',
+                            subtitle: 'Any date works. It defaults to today.',
+                            date: state.startDate,
+                            onDateChanged: (d) =>
+                                bloc.add(OnboardingStartDateChangedEvent(d)),
+                            onContinue: _nextPage,
+                            onBack: _previousPage,
+                          ),
+                          BudgetDateStepWidget(
+                            title: 'When does your budget end?',
+                            subtitle:
+                                'A budget can span days, weeks, months or a '
+                                "year. Today's Safe Spending is worked out from "
+                                'the days left until this date.',
+                            date: state.endDate,
+                            errorMessage: state.dateValidationError,
+                            onDateChanged: (d) =>
+                                bloc.add(OnboardingEndDateChangedEvent(d)),
+                            onContinue: _nextPage,
+                            onBack: _previousPage,
+                          ),
+                          ConfirmationStepWidget(
+                            state: state,
+                            onCreateBudget: () =>
+                                bloc.add(const OnboardingSubmittedEvent()),
+                            onBack: _previousPage,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -8,9 +8,11 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/app_track.dart';
 import '../../../../core/widgets/status_chip.dart';
+import '../start_next_period.dart';
 import 'budget_visuals.dart';
 
 /// Words for where a budget is in its period, shared by the list and the
@@ -19,11 +21,19 @@ abstract final class BudgetPeriodCopy {
   static final DateFormat _day = DateFormat('d MMM');
 
   /// "23 days left", "Last day", "Starts 1 Nov", "Ended 31 Oct", "Archived".
-  static String when(BudgetEntity budget, DateTime now) {
+  /// [withToday] says that today is one of the days left, for beside
+  /// [dayOf], which counts today too ("23 days left, incl. today", with a
+  /// no-break space so the qualifier never splits).
+  static String when(
+    BudgetEntity budget,
+    DateTime now, {
+    bool withToday = false,
+  }) {
     switch (budget.phaseOn(now)) {
       case BudgetPhase.running:
         final left = budget.daysRemaining(now);
-        return left <= 1 ? 'Last day' : '$left days left';
+        if (left <= 1) return 'Last day';
+        return '$left days left${withToday ? ', incl.\u00A0today' : ''}';
       case BudgetPhase.upcoming:
         return 'Starts ${_day.format(budget.startDate)}';
       case BudgetPhase.ended:
@@ -104,6 +114,97 @@ class BudgetUsageTrack extends StatelessWidget {
   }
 }
 
+/// Where a budget is in its period, under its name. The active budget says
+/// so and, unless it runs today, where it is ("Active · Ended"), so an ended
+/// active budget never reads as a healthy one.
+class BudgetStatusChip extends StatelessWidget {
+  final BudgetEntity budget;
+  final bool isActive;
+  final DateTime now;
+
+  const BudgetStatusChip({
+    super.key,
+    required this.budget,
+    required this.isActive,
+    required this.now,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final phase = budget.phaseOn(now);
+    final (label, tone, icon) = switch (phase) {
+      BudgetPhase.running when isActive => (
+        'Active',
+        AppTone.positive,
+        Icons.check_circle_rounded,
+      ),
+      BudgetPhase.running => (
+        'Not active',
+        AppTone.neutral,
+        Icons.radio_button_off_rounded,
+      ),
+      BudgetPhase.upcoming => (
+        'Upcoming',
+        AppTone.info,
+        Icons.schedule_rounded,
+      ),
+      // Ended while Home still follows it: something to act on.
+      BudgetPhase.ended => (
+        'Ended',
+        isActive ? AppTone.caution : AppTone.neutral,
+        Icons.event_busy_rounded,
+      ),
+      BudgetPhase.archived => (
+        'Archived',
+        AppTone.neutral,
+        Icons.archive_rounded,
+      ),
+    };
+    return StatusChip.tone(
+      wrapLabel: true,
+      label: isActive && phase != BudgetPhase.running
+          ? 'Active · $label'
+          : label,
+      tone: tone,
+      icon: icon,
+    );
+  }
+}
+
+/// A budget whose period is over, with "Start next period". For the active
+/// budget it is a caution: Home has no daily figure until a budget runs.
+class EndedBudgetNotice extends StatelessWidget {
+  final BudgetEntity budget;
+  final bool isActive;
+
+  const EndedBudgetNotice({
+    super.key,
+    required this.budget,
+    required this.isActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const carryOn =
+        'Start the next period to carry on with the same amount and '
+        'set-asides.';
+    return AppNotice(
+      tone: isActive ? AppTone.caution : AppTone.neutral,
+      icon: Icons.event_busy_rounded,
+      title:
+          '${budget.name} ended ${BudgetPeriodCopy._day.format(budget.endDate)}',
+      message: isActive
+          ? "Home has no Today's Safe Spending until a budget runs today. "
+                '$carryOn'
+          : carryOn,
+      action: TextButton(
+        onPressed: () => StartNextPeriod.open(context, budget.id),
+        child: const Text('Start next period'),
+      ),
+    );
+  }
+}
+
 /// The active budget: the one raised surface on the Budgets screen.
 class ActiveBudgetCard extends StatelessWidget {
   final BudgetEntity budget;
@@ -126,7 +227,7 @@ class ActiveBudgetCard extends StatelessWidget {
     );
     final over = budget.remainingAmount < 0;
     final dayOf = BudgetPeriodCopy.dayOf(budget, now);
-    final when = BudgetPeriodCopy.when(budget, now);
+    final when = BudgetPeriodCopy.when(budget, now, withToday: true);
 
     return AppSurface(
       key: ValueKey('budget_${budget.id}'),
@@ -165,12 +266,7 @@ class ActiveBudgetCard extends StatelessWidget {
                     Text(BudgetPeriodCopy.range(budget), style: muted),
                     // Under the name, so a long name keeps its width.
                     const SizedBox(height: AppSpacing.xs),
-                    const StatusChip.tone(
-                      wrapLabel: true,
-                      label: 'Active',
-                      tone: AppTone.positive,
-                      icon: Icons.check_circle_rounded,
-                    ),
+                    BudgetStatusChip(budget: budget, isActive: true, now: now),
                   ],
                 ),
               ),

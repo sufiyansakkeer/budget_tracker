@@ -28,6 +28,17 @@ class WidgetRefreshListener {
   StreamSubscription<void>? _daySubscription;
   StreamSubscription<Object?>? _appearanceSubscription;
 
+  /// Why the widget is about to update; buses notified together (a bill
+  /// payment, an import) update it once.
+  final Set<String> _reasons = {};
+  late final RefreshCoalescer _update = RefreshCoalescer(() {
+    final reason = _reasons.join(', ');
+    _reasons.clear();
+    // Stopped since it was asked for.
+    if (_expenseSubscription == null) return;
+    _updateWidget(reason);
+  });
+
   WidgetRefreshListener({
     required HomeWidgetService widgetService,
     Stream<Object?>? appearanceChanges,
@@ -44,23 +55,23 @@ class WidgetRefreshListener {
     _appearanceSubscription?.cancel();
 
     _expenseSubscription = RefreshBuses.expenses.changes.listen((_) {
-      _updateWidget('expense change');
+      _request('expense change');
     });
 
     _budgetSubscription = RefreshBuses.budgets.changes.listen((_) {
-      _updateWidget('budget change');
+      _request('budget change');
     });
 
     _billSubscription = RefreshBuses.bills.changes.listen((_) {
-      _updateWidget('bill change');
+      _request('bill change');
     });
 
     _daySubscription = RefreshBuses.day.changes.listen((_) {
-      _updateWidget('new day');
+      _request('new day');
     });
 
     _appearanceSubscription = _appearanceChanges?.listen((_) {
-      _updateWidget('appearance change');
+      _request('appearance change');
     });
   }
 
@@ -76,6 +87,11 @@ class WidgetRefreshListener {
     _billSubscription = null;
     _daySubscription = null;
     _appearanceSubscription = null;
+  }
+
+  void _request(String reason) {
+    _reasons.add(reason);
+    _update();
   }
 
   Future<void> _updateWidget(String reason) async {

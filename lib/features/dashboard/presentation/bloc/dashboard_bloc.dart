@@ -52,31 +52,23 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<DashboardRefresh>(_onRefresh);
 
     // Auto-refresh when expenses change (created, updated, or deleted).
-    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
-      if (!isClosed) {
-        add(const DashboardRefresh());
-      }
+    // Buses notified together (a bill payment, an import) reload once.
+    final refresh = RefreshCoalescer(() {
+      if (!isClosed) add(const DashboardRefresh());
     });
-
-    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
-      if (!isClosed) {
-        add(const DashboardRefresh());
-      }
-    });
-
-    _billRefreshSubscription = RefreshBuses.bills.changes.listen((_) {
-      if (!isClosed) {
-        add(const DashboardRefresh());
-      }
-    });
+    _refreshSubscription = RefreshBuses.expenses.changes.listen(
+      (_) => refresh(),
+    );
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen(
+      (_) => refresh(),
+    );
+    _billRefreshSubscription = RefreshBuses.bills.changes.listen(
+      (_) => refresh(),
+    );
 
     // A new calendar day: today's amount, "Spent today" and the day count
     // all move, even though no data changed.
-    _dayChangeSubscription = RefreshBuses.day.changes.listen((_) {
-      if (!isClosed) {
-        add(const DashboardRefresh());
-      }
-    });
+    _dayChangeSubscription = RefreshBuses.day.changes.listen((_) => refresh());
   }
 
   StreamSubscription<void>? _refreshSubscription;
@@ -193,6 +185,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           referenceDate: today,
         );
         final upcomingBills = await _upcomingBills(today);
+        final hasBills = await _hasBills(upcomingBills);
         final perBudget = await _perBudgetLimits(today);
 
         // Load per-budget daily spending limits (primary data source).
@@ -231,6 +224,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             insights: insights,
             upcomingBills: upcomingBills ?? const [],
             upcomingBillsUnavailable: upcomingBills == null,
+            hasBills: hasBills,
             budgetDailyLimits: budgetDailyLimits,
             activeBudgetId: activeId,
             activeBudgetArchived: activeArchived,
@@ -286,6 +280,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           referenceDate: today,
         );
         final upcomingBills = await _upcomingBills(today);
+        final hasBills = await _hasBills(upcomingBills);
         final perBudget = await _perBudgetLimits(today);
         if (!isCurrent()) return;
 
@@ -296,6 +291,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             recentExpenses: recentExpenses,
             upcomingBills: upcomingBills ?? const [],
             upcomingBillsUnavailable: upcomingBills == null,
+            hasBills: hasBills,
             otherBudgetLimits: [
               for (final limit in perBudget?.budgetLimits ?? const [])
                 if (limit.budgetId != activeId) limit,
@@ -319,6 +315,20 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     } catch (error, stackTrace) {
       _logRecovered('Could not read bills', error, stackTrace);
       return null;
+    }
+  }
+
+  /// Whether any bill exists, paid ones included, so Home links to the
+  /// bills even when none is coming up. Only read when [upcoming] is empty;
+  /// false when the bills cannot be read.
+  Future<bool> _hasBills(List<BillEntity>? upcoming) async {
+    if (upcoming == null) return false;
+    if (upcoming.isNotEmpty) return true;
+    try {
+      return (await billRepository.getBills()).isNotEmpty;
+    } catch (error, stackTrace) {
+      _logRecovered('Could not read bills', error, stackTrace);
+      return false;
     }
   }
 

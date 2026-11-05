@@ -34,14 +34,21 @@ class RecordingNotificationService extends NotificationService {
   AppSettings? lastSettings;
   bool throwOnSchedule = false;
 
-  /// What the permission prompt answers at startup.
+  /// Whether the system allows notifications (and what a prompt answers).
   bool grantPermission = true;
+  int permissionRequests = 0;
 
   @override
   Future<bool> initialize() async => true;
 
   @override
-  Future<bool> requestPermission() async => grantPermission;
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return grantPermission;
+  }
+
+  @override
+  Future<bool> areNotificationsEnabled() async => grantPermission;
 
   @override
   Future<void> scheduleAll(AppSettings settings) async {
@@ -132,6 +139,17 @@ void main() {
     await Future<void>.delayed(debounce * 4);
 
     expect(service.scheduleCount, 1);
+  });
+
+  test('UX-013: startup never shows the permission prompt (it came over '
+      'onboarding, with no context)', () async {
+    service.grantPermission = false;
+    final bloc = build();
+    addTearDown(bloc.close);
+    await bloc.initializeOnStartup();
+
+    expect(service.permissionRequests, 0);
+    expect(bloc.state.status, NotificationStatus.permissionDenied);
   });
 
   test('does nothing before notifications are ready', () async {

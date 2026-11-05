@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import '../currency/currency_formatter.dart';
 
 /// A thin tick drawn across an [AppTrack], e.g. "today" on a budget period
 /// or the day free money runs out.
@@ -28,7 +29,8 @@ class AppTrack extends StatelessWidget {
   final double height;
   final List<TrackMarker> markers;
 
-  /// Spoken as "label, value", e.g. "Spent today, 66%".
+  /// Spoken as "label, value", e.g. "Spent today, 66%"; money in either
+  /// keeps its currency ([CurrencyFormatter.forSpeech]).
   final String? semanticLabel;
   final String? semanticValue;
 
@@ -59,8 +61,12 @@ class AppTrack extends StatelessWidget {
     );
 
     return Semantics(
-      label: semanticLabel,
-      value: semanticValue ?? '${(clamped * 100).round()}%',
+      label: semanticLabel == null
+          ? null
+          : CurrencyFormatter.forSpeech(semanticLabel!),
+      value: CurrencyFormatter.forSpeech(
+        semanticValue ?? '${(clamped * 100).round()}%',
+      ),
       child: ExcludeSemantics(
         child: SizedBox(
           height: height + overhang * 2,

@@ -312,6 +312,9 @@ void main() {
 
   group('UX-004: a currency change never relabels expenses silently', () {
     Future<void> pickCurrency(WidgetTester tester, String code) async {
+      // Fully in view, not just its edge under the app bar.
+      await tester.ensureVisible(find.byType(DropdownButton<String>));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(DropdownButton<String>));
       await tester.pumpAndSettle();
       await tester.tap(

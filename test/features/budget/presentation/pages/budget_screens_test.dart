@@ -7,6 +7,10 @@ import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/core/widgets/app_surface.dart';
+import 'package:monivo/core/dates/date_range_format.dart';
+import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
+import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
@@ -17,6 +21,7 @@ import 'package:monivo/features/budget/presentation/widgets/budget_list_items.da
 
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
+import '../../../../helpers/safe_to_spend_fakes.dart';
 
 /// Budgets whose statistics can be set per budget.
 class _StatsBudgetRepository extends ListBudgetRepository {
@@ -33,6 +38,37 @@ class _StatsBudgetRepository extends ListBudgetRepository {
     String budgetId, {
     DateTime? referenceDate,
   }) async => stats[budgetId] ?? MonthlyStatisticsEntity.empty;
+
+  /// As BudgetRepositoryImpl: once the active budget is gone, a budget
+  /// running today takes over.
+  @override
+  Future<String?> getActiveBudgetId() async {
+    if (budgets.any((b) => b.id == activeId)) return activeId;
+    final open = budgets.where((b) => !b.isArchived).toList();
+    if (open.isEmpty) return activeId = null;
+    final now = DateTime.now();
+    return activeId = open
+        .firstWhere((b) => b.isActiveOn(now), orElse: () => open.first)
+        .id;
+  }
+
+  @override
+  Future<BudgetEntity> duplicateBudget(
+    String id, {
+    required String newName,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final source = budgets.firstWhere((b) => b.id == id);
+    final copy = source.copyWith(
+      id: '${id}_copy',
+      name: newName,
+      startDate: startDate,
+      endDate: endDate,
+    );
+    budgets.add(copy);
+    return copy;
+  }
 
   /// Makes a delete fail, as when the database is busy.
   bool failDelete = false;
@@ -113,6 +149,7 @@ void main() {
     List<BudgetEntity> budgets,
     String? activeId, {
     Map<String, MonthlyStatisticsEntity> stats = const {},
+    List<BillEntity>? bills,
   }) async {
     await getIt.reset();
     repository = _StatsBudgetRepository(budgets, activeId, stats: stats);
@@ -128,6 +165,67 @@ void main() {
       ..registerSingleton<GetBudgetListSummaryUseCase>(
         GetBudgetListSummaryUseCase(repository: repository),
       );
+    if (bills != null) {
+      getIt.registerSingleton<GetSafeToSpendUseCase>(
+        fakeSafeToSpendUseCase(
+          repository,
+          billRepository: SafeSpendFakeBillRepository(bills),
+        ),
+      );
+    }
+  }
+
+  /// [screen] at [location] under a router, with the budget routes the
+  /// screens push to.
+  Future<void> pumpRouted(
+    WidgetTester tester,
+    String location, {
+    Widget? home,
+  }) async {
+    tester.view.physicalSize = const Size(400, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp.router(
+        theme: AppTheme.lightTheme,
+        routerConfig: GoRouter(
+          initialLocation: location,
+          routes: [
+            GoRoute(
+              path: '/app/budgets',
+              builder: (_, _) => const BudgetListScreen(),
+              routes: [
+                GoRoute(
+                  path: 'create',
+                  builder: (_, state) => Scaffold(
+                    body: Text('Form ${state.uri.queryParameters['next']}'),
+                  ),
+                ),
+                GoRoute(
+                  path: ':id',
+                  builder: (_, state) => BudgetDetailsScreen(
+                    budgetId: state.pathParameters['id']!,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'edit',
+                      builder: (_, state) => Scaffold(
+                        body: Text('Edit ${state.pathParameters['id']}'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/app/home',
+              builder: (_, _) => const Scaffold(body: Text('Home screen')),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
   }
 
   tearDown(() => getIt.reset());
@@ -445,7 +543,7 @@ void main() {
         find.text(AppMoney.format(25103, currency: 'INR')),
         findsOneWidget,
       );
-      expect(find.text('Spent today'), findsOneWidget);
+      expect(find.text('Spent today, incl. bills'), findsOneWidget);
       expect(find.text(AppMoney.format(570, currency: 'INR')), findsOneWidget);
       expect(find.text('21'), findsOneWidget);
       expect(find.textContaining('58% used'), findsOneWidget);
@@ -463,5 +561,315 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+  });
+
+  final september = _budget(
+    'sep',
+    'September',
+    start: day(-40),
+    end: day(-10),
+    remaining: 2000,
+  );
+
+  group('UX-021 · an ended active budget', () {
+    testWidgets('the list says it ended and titles running ones "Running '
+        'today"', (tester) async {
+      await register([september, personal], 'sep');
+      await pump(tester, const BudgetListScreen());
+
+      expect(find.text('Active · Ended'), findsOneWidget);
+      expect(find.text('Active'), findsNothing);
+      expect(find.text('Running today'), findsOneWidget);
+      expect(find.text('Also running today'), findsNothing);
+      expect(
+        find.widgetWithText(TextButton, 'Start next period'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('details show the phase beside "Active"', (tester) async {
+      await register([september, personal], 'sep');
+      await pump(tester, const BudgetDetailsScreen(budgetId: 'sep'));
+
+      expect(find.text('Active · Ended'), findsOneWidget);
+      expect(
+        find.widgetWithText(TextButton, 'Start next period'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a running active budget is plainly "Active"', (tester) async {
+      await register([household, personal], 'household');
+      await pump(tester, const BudgetDetailsScreen(budgetId: 'household'));
+
+      expect(find.text('Active'), findsOneWidget);
+      expect(find.text('Start next period'), findsNothing);
+    });
+  });
+
+  group('ended and set-aside states fit at 320dp with 200% text', () {
+    testWidgets('the list with an ended active budget', (tester) async {
+      await register([september, personal, household], 'sep');
+      await pump(
+        tester,
+        const BudgetListScreen(),
+        size: const Size(320, 1800),
+        textScale: 2,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('details of an ended active budget', (tester) async {
+      await register(
+        [september.copyWith(reservedAmount: 500), personal],
+        'sep',
+        bills: const [],
+      );
+      await pump(
+        tester,
+        const BudgetDetailsScreen(budgetId: 'sep'),
+        size: const Size(320, 2400),
+        textScale: 2,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the archive dialog with a budget to switch to', (
+      tester,
+    ) async {
+      await register([household, personal], 'household');
+      await pump(
+        tester,
+        const BudgetDetailsScreen(budgetId: 'household'),
+        size: const Size(320, 1600),
+        textScale: 2,
+      );
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Archive'));
+      await tester.pumpAndSettle();
+      expect(find.text('Archive and switch to Personal'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('UX-022 · Start next period', () {
+    testWidgets('the Ended group offers it and opens the prefilled form', (
+      tester,
+    ) async {
+      await register([household, september], 'household');
+      await pumpRouted(tester, '/app/budgets');
+
+      await tester.tap(find.widgetWithText(TextButton, 'Start next period'));
+      await tester.pumpAndSettle();
+      expect(find.text('Form sep'), findsOneWidget);
+    });
+
+    testWidgets('details of an ended budget offer it', (tester) async {
+      await register([household, september], 'household');
+      await pumpRouted(tester, '/app/budgets/sep');
+
+      await tester.tap(find.widgetWithText(TextButton, 'Start next period'));
+      await tester.pumpAndSettle();
+      expect(find.text('Form sep'), findsOneWidget);
+    });
+
+    testWidgets('Duplicate shows the dates, needs a name and opens the copy', (
+      tester,
+    ) async {
+      await register([household], 'household');
+      await pumpRouted(tester, '/app/budgets/household');
+
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Duplicate'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining(
+            formatDateRange(household.startDate, household.endDate),
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tester.enterText(find.byType(TextField), '  ');
+      await tester.pump();
+      final button = find.widgetWithText(FilledButton, 'Duplicate');
+      expect(tester.widget<FilledButton>(button).onPressed, isNull);
+
+      await tester.enterText(find.byType(TextField), 'Household copy');
+      await tester.pump();
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      expect(repository.budgets.map((b) => b.id), contains('household_copy'));
+      expect(find.text('Household copy'), findsOneWidget);
+    });
+  });
+
+  group('UX-037 · Change amount on details', () {
+    testWidgets('details offer it and it opens the edit form', (tester) async {
+      await register([household], 'household');
+      await pumpRouted(tester, '/app/budgets/household');
+
+      final button = find.widgetWithText(TextButton, 'Change amount');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.text('Edit household'), findsOneWidget);
+    });
+  });
+
+  group('UX-047 · day counts that agree', () {
+    // 9 + 23 is 32 for a 31-day budget: today is counted in both.
+    testWidgets('the list and details say the days left include today', (
+      tester,
+    ) async {
+      await register([household], 'household');
+      await pumpRouted(tester, '/app/budgets');
+      expect(
+        find.text('Day 9 of 31 · 23 days left, incl.\u00A0today'),
+        findsOneWidget,
+      );
+
+      await pumpRouted(tester, '/app/budgets/household');
+      expect(
+        find.textContaining('Day 9 of 31 · 23 days left, incl.\u00A0today'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('UX-029 · what is set aside', () {
+    final linkedBill = BillEntity(
+      id: 'rent',
+      title: 'Rent',
+      amount: 1500,
+      currency: 'INR',
+      category: BillCategory.utilities,
+      dueDate: day(5),
+      budgetId: 'household',
+      createdAt: today,
+      updatedAt: today,
+    );
+
+    testWidgets('details list kept aside, the savings goal and bills due, '
+        'read-only, with a link to Home', (tester) async {
+      await register(
+        [household.copyWith(reservedAmount: 2000)],
+        'household',
+        bills: [linkedBill],
+      );
+      await pumpRouted(tester, '/app/budgets/household');
+
+      expect(find.text('Set aside'), findsOneWidget);
+      expect(find.text('Kept aside'), findsOneWidget);
+      expect(find.text(AppMoney.format(2000, currency: 'INR')), findsOneWidget);
+      expect(find.text('Savings goal'), findsOneWidget);
+      expect(find.text('Not set'), findsOneWidget);
+      expect(find.text('Bills due'), findsOneWidget);
+      expect(find.text(AppMoney.format(1500, currency: 'INR')), findsOneWidget);
+      // Still one raised surface.
+      expect(find.byType(AppSurface), findsOneWidget);
+
+      await tester.tap(find.text("See Today's Safe Spending on Home"));
+      await tester.pumpAndSettle();
+      expect(find.text('Home screen'), findsOneWidget);
+    });
+
+    testWidgets('another budget has no link to Home', (tester) async {
+      await register([household, personal], 'household', bills: const []);
+      await pump(tester, const BudgetDetailsScreen(budgetId: 'personal'));
+
+      expect(find.text('Set aside'), findsOneWidget);
+      expect(find.text("See Today's Safe Spending on Home"), findsNothing);
+    });
+  });
+
+  group('UX-035 · archiving or deleting the active budget', () {
+    Future<void> archive(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Archive'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('always asks, and Undo restores it', (tester) async {
+      await register([household, nextYear], 'household');
+      await pump(tester, const BudgetDetailsScreen(budgetId: 'household'));
+
+      await archive(tester);
+      expect(find.text('Archive your active budget?'), findsOneWidget);
+      expect(find.textContaining('Archive and switch'), findsNothing);
+      await tester.tap(find.widgetWithText(FilledButton, 'Archive'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.budgets.firstWhere((b) => b.id == 'household').isArchived,
+        isTrue,
+      );
+      expect(find.text('Budget archived'), findsOneWidget);
+      await tester.tap(find.widgetWithText(SnackBarAction, 'Undo'));
+      await tester.pumpAndSettle();
+      expect(
+        repository.budgets.firstWhere((b) => b.id == 'household').isArchived,
+        isFalse,
+      );
+      expect(repository.activeId, 'household');
+    });
+
+    testWidgets('offers to switch to a running budget; Undo switches back', (
+      tester,
+    ) async {
+      await register([household, personal], 'household');
+      await pump(tester, const BudgetDetailsScreen(budgetId: 'household'));
+
+      await archive(tester);
+      await tester.tap(find.text('Archive and switch to Personal'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.budgets.firstWhere((b) => b.id == 'household').isArchived,
+        isTrue,
+      );
+      expect(repository.activeId, 'personal');
+      expect(
+        find.text('Budget archived. Personal is now active.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(SnackBarAction, 'Undo'));
+      await tester.pumpAndSettle();
+      expect(
+        repository.budgets.firstWhere((b) => b.id == 'household').isArchived,
+        isFalse,
+      );
+      expect(repository.activeId, 'household');
+    });
+
+    testWidgets('deleting it names the budget Home switches to', (
+      tester,
+    ) async {
+      await register([household, personal], 'household');
+      await pumpRouted(tester, '/app/budgets/household');
+
+      await tester.tap(find.byTooltip('More actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Home will switch to "Personal".'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Budget deleted. Personal is now active.'),
+        findsOneWidget,
+      );
+    });
   });
 }

@@ -244,6 +244,31 @@ void main() {
       });
     });
 
+    test('UX-013: reads whether Android blocks notifications, without '
+        'asking', () async {
+      final android = FakeAndroidFlutterLocalNotificationsPlugin()
+        ..enabled = false;
+      when(
+        mockPlugin.initialize(
+          any,
+          onDidReceiveNotificationResponse: anyNamed(
+            'onDidReceiveNotificationResponse',
+          ),
+        ),
+      ).thenAnswer((_) async => true);
+      when(
+        mockPlugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >(),
+      ).thenReturn(android);
+
+      expect(await notificationService.areNotificationsEnabled(), isFalse);
+      android.enabled = true;
+      expect(await notificationService.areNotificationsEnabled(), isTrue);
+      expect(android.requestNotificationsPermissionCallCount, 0);
+    });
+
     group('scheduleAll', () {
       setUp(() {
         stubPluginInitialization();
@@ -1150,6 +1175,12 @@ void main() {
 class FakeAndroidFlutterLocalNotificationsPlugin extends Fake
     implements AndroidFlutterLocalNotificationsPlugin {
   int requestNotificationsPermissionCallCount = 0;
+
+  /// What [areNotificationsEnabled] answers.
+  bool enabled = true;
+
+  @override
+  Future<bool?> areNotificationsEnabled() async => enabled;
 
   @override
   Future<bool?> requestNotificationsPermission() async {

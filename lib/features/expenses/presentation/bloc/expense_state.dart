@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -41,6 +42,11 @@ class ExpenseState extends Equatable {
   /// null when it was on no tab.
   final TabLinkSnapshot? lastDeletedLink;
 
+  /// After an add dated today in a running period: that budget's Today's
+  /// Safe Spending with the expense counted, for "₹627 left today". Null
+  /// otherwise, or when it couldn't be read.
+  final SafeToSpendEntity? afterAdd;
+
   /// Default date captured once when the Add Expense form is initialized.
   final DateTime? initialDate;
 
@@ -65,6 +71,7 @@ class ExpenseState extends Equatable {
     this.lastAction = ExpenseAction.none,
     this.lastDeleted,
     this.lastDeletedLink,
+    this.afterAdd,
     this.initialDate,
     this.initialTime,
     this.quickAddLoad = QuickAddLoad.idle,
@@ -91,6 +98,8 @@ class ExpenseState extends Equatable {
     /// Clears [lastDeleted] and [lastDeletedLink] together.
     bool clearLastDeleted = false,
     bool clearLastDeletedLink = false,
+    SafeToSpendEntity? afterAdd,
+    bool clearAfterAdd = false,
     DateTime? initialDate,
     DateTime? initialTime,
     QuickAddLoad? quickAddLoad,
@@ -108,6 +117,7 @@ class ExpenseState extends Equatable {
       lastDeletedLink: clearLastDeleted || clearLastDeletedLink
           ? null
           : (lastDeletedLink ?? this.lastDeletedLink),
+      afterAdd: clearAfterAdd ? null : (afterAdd ?? this.afterAdd),
       initialDate: initialDate ?? this.initialDate,
       initialTime: initialTime ?? this.initialTime,
       quickAddLoad: quickAddLoad ?? this.quickAddLoad,
@@ -127,6 +137,7 @@ class ExpenseState extends Equatable {
     lastAction,
     lastDeleted,
     lastDeletedLink,
+    afterAdd,
     initialDate,
     initialTime,
     quickAddLoad,

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/core/files/file_delivery_service.dart';
 import 'package:monivo/core/di/injection.dart';
+import 'package:monivo/core/notifications/notification_permission_notice.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
@@ -12,6 +16,8 @@ import 'package:monivo/features/settings/presentation/bloc/theme/theme_event.dar
 import 'package:monivo/features/settings/presentation/bloc/theme/theme_state.dart';
 import 'package:monivo/features/settings/presentation/pages/settings_screen.dart';
 
+import '../../../../helpers/bill_ui_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
 import 'settings_test_harness.dart';
 
 void main() {
@@ -114,6 +120,29 @@ void main() {
   });
 
   group('notifications', () {
+    testWidgets('UX-013: blocked notifications are said under the switch', (
+      tester,
+    ) async {
+      getIt.registerSingleton<NotificationPermission>(
+        NotificationPermission(
+          isAllowed: () async => false,
+          request: () async => false,
+        ),
+      );
+      await pump(tester);
+
+      expect(find.text('Notifications are blocked for Monivo'), findsOneWidget);
+      final toggle = tester.getRect(find.text('Daily notifications'));
+      final notice = tester.getRect(
+        find.text('Notifications are blocked for Monivo'),
+      );
+      expect(notice.top, greaterThan(toggle.bottom));
+      expect(
+        notice.top,
+        lessThan(tester.getRect(find.text('Morning reminder')).top),
+      );
+    });
+
     testWidgets('times use the same format as the rest of Settings', (
       tester,
     ) async {
@@ -251,6 +280,35 @@ void main() {
       );
     });
 
+    testWidgets('UX-019: export and shared backups anchor the share sheet '
+        'to their row (iPad)', (tester) async {
+      final (settings, _) = await pump(tester);
+      final exportRow = tester.getRect(
+        find.byKey(const Key('settingsExportTile')),
+      );
+      final backupRow = tester.getRect(
+        find.byKey(const Key('settingsBackupTile')),
+      );
+
+      await tester.tap(find.text('Export'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Spreadsheet (CSV)'));
+      await tester.pumpAndSettle();
+      expect(
+        settings.received.whereType<SettingsExportEvent>().single.shareOrigin,
+        exportRow,
+      );
+
+      await tester.tap(find.text('Back up'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect(
+        settings.received.whereType<SettingsBackupEvent>().single.shareOrigin,
+        backupRow,
+      );
+    });
+
     testWidgets('UX-003: the JSON export says it is not a backup', (
       tester,
     ) async {
@@ -382,5 +440,94 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Restore from backup'), findsOneWidget);
+  });
+
+  group('UX-034: change the active budget amount', () {
+    /// Settings inside a router, so the row can open the budget form.
+    Future<GoRouter> pumpRouted(
+      WidgetTester tester, {
+      required String? activeId,
+    }) async {
+      getIt.registerSingleton<ManageBudgetUseCase>(
+        ManageBudgetUseCase(
+          repository: ListBudgetRepository([
+            BudgetEntity(
+              id: 'omr-1',
+              name: 'Muscat trip',
+              monthlyAmount: 120.5,
+              remainingAmount: 120.5,
+              currency: 'OMR',
+              startDate: DateTime(2026, 10, 1),
+              endDate: DateTime(2026, 10, 31),
+              createdAt: DateTime(2026, 10, 1),
+              updatedAt: DateTime(2026, 10, 1),
+            ),
+          ], activeId),
+          reconcileTabs: FakeReconcileTabUseCase(),
+        ),
+      );
+      final settings = StaticSettingsBloc(loadedSettings);
+      final themeBloc = StaticThemeBloc(const ThemeState());
+      addTearDown(settings.close);
+      addTearDown(themeBloc.close);
+      tester.view.devicePixelRatio = 2;
+      tester.view.physicalSize = const Size(720, 18000);
+      addTearDown(tester.view.reset);
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                settingsScreen(settings: settings, theme: themeBloc),
+          ),
+          GoRoute(
+            path: '/app/budgets',
+            builder: (context, state) => const Text('Budget list'),
+            routes: [
+              GoRoute(
+                path: 'create',
+                builder: (context, state) => const Text('New budget form'),
+              ),
+              GoRoute(
+                path: ':id/edit',
+                builder: (context, state) =>
+                    Text('Edit form for ${state.pathParameters['id']}'),
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        MaterialApp.router(theme: AppTheme.lightTheme, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    testWidgets("opens the active budget's own form, in its currency", (
+      tester,
+    ) async {
+      await pumpRouted(tester, activeId: 'omr-1');
+
+      await tester.tap(find.text('Change active budget amount'));
+      await tester.pumpAndSettle();
+
+      // No dialog priced in the default currency that closes silently.
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('Edit form for omr-1'), findsOneWidget);
+    });
+
+    testWidgets('with no budget yet, opens the new budget form', (
+      tester,
+    ) async {
+      await pumpRouted(tester, activeId: null);
+
+      await tester.tap(find.text('Change active budget amount'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('New budget form'), findsOneWidget);
+    });
   });
 }

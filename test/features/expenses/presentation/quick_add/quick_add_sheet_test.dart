@@ -2,14 +2,58 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/widgets/app_bottom_sheet.dart';
+import 'package:monivo/features/budget/domain/entities/budget_error.dart';
+import 'package:monivo/features/budget/presentation/start_next_period.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/services/safe_to_spend_calculator.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/presentation/bloc/expense_bloc.dart';
 import 'package:monivo/features/expenses/presentation/quick_add/quick_add_sheet.dart';
+import 'package:monivo/features/expenses/presentation/widgets/expense_undo.dart';
 
 import '../expense_test_fakes.dart';
 
 final _now = DateTime(2026, 10, 8, 14, 30);
+
+/// Today's Safe Spending for the Personal budget as the engine works it out
+/// from [periodSpent] and [todaySpent], dated [_now].
+class _FakeSafeToSpend implements GetSafeToSpendUseCase {
+  double budgetAmount = 2400;
+  double todaySpent = 0;
+  final List<String> asked = [];
+
+  @override
+  Future<BudgetResult<SafeToSpendEntity>> call({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
+    asked.add(budgetId);
+    return BudgetSuccess(
+      SafeToSpendCalculator(BudgetCalculationService()).calculate(
+        SafeToSpendInput(
+          budgetId: budgetId,
+          budgetName: 'Personal',
+          currency: 'INR',
+          startDate: DateTime(2026, 10, 8),
+          endDate: DateTime(2026, 10, 31),
+          today: DateTime(2026, 10, 8),
+          budgetAmount: budgetAmount,
+          periodSpent: todaySpent,
+          todaySpent: todaySpent,
+          commitments: const [],
+        ),
+      ),
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   late MemoryExpenseRepository expenses;
@@ -41,12 +85,13 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(400, 900),
     double textScale = 1,
+    GetSafeToSpendUseCase? safeToSpend,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final results = <String?>[];
-    final bloc = memoryExpenseBloc(expenses, budgets);
+    final bloc = memoryExpenseBloc(expenses, budgets, safeToSpend: safeToSpend);
     addTearDown(bloc.close);
     await tester.pumpWidget(
       MaterialApp(
@@ -64,6 +109,8 @@ void main() {
                     results.add(
                       await AppBottomSheet.show<String>(
                         context: context,
+                        // As QuickAddSheet.show: the sheet draws its own.
+                        showDragHandle: false,
                         builder: (_) => BlocProvider<ExpenseBloc>.value(
                           value: bloc,
                           child: const QuickAddSheet(),
@@ -148,7 +195,193 @@ void main() {
     expect(saved.time, DateTime(2026, 10, 8, 14, 30));
     // Quiet success: the sheet closes and a short note confirms it.
     expect(find.byType(QuickAddSheet), findsNothing);
-    expect(find.text('Expense added'), findsOneWidget);
+    expect(find.text('₹250.50 added'), findsOneWidget);
+  });
+
+  group('the "added" note', () {
+    late _FakeSafeToSpend safe;
+    setUp(() {
+      safe = _FakeSafeToSpend();
+      ExpenseUndo.blocFactory = () => memoryExpenseBloc(expenses, budgets);
+    });
+    tearDown(() => ExpenseUndo.blocFactory = () => getIt<ExpenseBloc>());
+
+    Future<void> add(WidgetTester tester, String amount) async {
+      await open(tester, safeToSpend: safe);
+      await typeAmount(tester, amount);
+      await tester.tap(find.byKey(const Key('quickCategory_food')));
+      await tester.pump();
+      // What the engine sees once the expense is saved.
+      safe.todaySpent = double.parse(amount);
+      await tapAdd(tester);
+    }
+
+    testWidgets("says what is left today, from the engine", (tester) async {
+      await add(tester, '40');
+      expect(safe.asked, ['personal']);
+      // 2400 over 24 days is 100 a day; 40 spent leaves 60.
+      expect(find.text('₹40 added · ₹60 left today'), findsOneWidget);
+    });
+
+    testWidgets('or how far over today it is', (tester) async {
+      await add(tester, '250');
+      expect(find.text('₹250 added · over by ₹150 today'), findsOneWidget);
+    });
+
+    testWidgets('an expense on another day shows the amount only', (
+      tester,
+    ) async {
+      budgets.budgets['personal'] = testBudget(
+        start: DateTime(2026, 10, 1),
+        end: DateTime(2026, 10, 31),
+      );
+      await open(tester, safeToSpend: safe);
+      await typeAmount(tester, '30');
+      await tester.tap(find.byKey(const Key('quickCategory_food')));
+      await tester.tap(find.byKey(const Key('quickDate_yesterday')));
+      await tester.pump();
+      await tapAdd(tester);
+      expect(find.text('₹30 added'), findsOneWidget);
+    });
+
+    testWidgets('Undo deletes the expense it added', (tester) async {
+      await add(tester, '40');
+      expect(expenses.store, hasLength(1));
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(expenses.store, isEmpty);
+    });
+  });
+
+  group('leaving with something entered', () {
+    testWidgets('an untouched sheet closes at once on Back', (tester) async {
+      final results = await open(tester);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(QuickAddSheet), findsNothing);
+      expect(find.text('Discard this expense?'), findsNothing);
+      expect(results, [null]);
+    });
+
+    testWidgets('an untouched sheet still swipes away', (tester) async {
+      await open(tester);
+      await tester.fling(
+        find.text('Add expense').first,
+        const Offset(0, 400),
+        2000,
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(QuickAddSheet), findsNothing);
+    });
+
+    testWidgets('Back with an amount asks, as the form does', (tester) async {
+      final results = await open(tester);
+      await typeAmount(tester, '25');
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Discard this expense?'), findsOneWidget);
+      expect(find.text("What you entered hasn't been saved."), findsOneWidget);
+
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuickAddSheet), findsOneWidget);
+      expect(find.text('Add ₹25'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuickAddSheet), findsNothing);
+      expect(results, [null]);
+      expect(expenses.store, isEmpty);
+    });
+
+    testWidgets('a scrim tap with a category asks', (tester) async {
+      await open(tester);
+      await tester.tap(find.byKey(const Key('quickCategory_food')));
+      await tester.pump();
+
+      await tester.tapAt(const Offset(200, 10));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard this expense?'), findsOneWidget);
+      expect(find.byType(QuickAddSheet), findsOneWidget);
+    });
+
+    testWidgets('a swipe down with an amount asks', (tester) async {
+      await open(tester);
+      await typeAmount(tester, '25');
+
+      await tester.fling(
+        find.text('Add expense').first,
+        const Offset(0, 400),
+        2000,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Discard this expense?'), findsOneWidget);
+      expect(find.byType(QuickAddSheet), findsOneWidget);
+    });
+  });
+
+  group('a budget not running today', () {
+    testWidgets('an ended one says so and offers the next budget', (
+      tester,
+    ) async {
+      budgets.budgets['personal'] = testBudget(
+        start: DateTime(2026, 9, 1),
+        end: DateTime(2026, 9, 30),
+      );
+      final results = await open(tester);
+      expect(find.text('Your Personal budget ended on 30 Sep'), findsOneWidget);
+
+      await tester.tap(find.text('Start next budget'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuickAddSheet), findsNothing);
+      expect(results, [StartNextPeriod.location('personal')]);
+    });
+
+    testWidgets('"Add to Personal" picks a day in its period, then adds', (
+      tester,
+    ) async {
+      budgets.budgets['personal'] = testBudget(
+        start: DateTime(2026, 9, 1),
+        end: DateTime(2026, 9, 30),
+      );
+      await open(tester);
+      await typeAmount(tester, '12');
+      await tester.tap(find.byKey(const Key('quickCategory_food')));
+      await tester.tap(find.text('Add to Personal'));
+      await tester.pumpAndSettle();
+
+      // The picker stops at the budget's last day.
+      expect(find.text('September 2026'), findsOneWidget);
+      await tester.tap(find.text('15'));
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your Personal budget ended on 30 Sep'), findsNothing);
+
+      await tapAdd(tester);
+      expect(expenses.store.values.single.date, DateTime(2026, 9, 15));
+    });
+
+    testWidgets('one not started yet explains why Add is off', (tester) async {
+      budgets.budgets['personal'] = testBudget(
+        start: DateTime(2026, 11, 1),
+        end: DateTime(2026, 11, 30),
+      );
+      await open(tester);
+      expect(find.text('Your Personal budget starts on 1 Nov'), findsOneWidget);
+      final add = tester.widget<FilledButton>(
+        find.byKey(const Key('quickAddSave')),
+      );
+      expect(add.onPressed, isNull);
+    });
+
+    testWidgets('a running budget shows no notice', (tester) async {
+      await open(tester);
+      expect(find.textContaining('Your Personal budget'), findsNothing);
+    });
   });
 
   testWidgets('checks only when Add is tapped, then says what is missing', (

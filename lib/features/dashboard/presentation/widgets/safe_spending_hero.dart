@@ -14,6 +14,8 @@ import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/app_track.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
+import '../../../budget/presentation/start_next_period.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
 import 'dashboard_info.dart';
 import 'safe_to_spend_copy.dart';
@@ -105,7 +107,7 @@ class _SafeToSpendHero extends StatelessWidget {
           // a separate, focusable child.
           Semantics(
             container: true,
-            label: semantics.toString(),
+            label: CurrencyFormatter.forSpeech(semantics.toString()),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -294,7 +296,7 @@ class _BudgetLine extends StatelessWidget {
                 fontFeatures: AppTypography.tabularFigures,
               ),
             ),
-            Text(SafeToSpendCopy.daysLeft(e), style: muted),
+            Text(SafeToSpendCopy.daysLeft(e, withToday: true), style: muted),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -385,9 +387,10 @@ class OtherBudgetLimitTile extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label:
-          '${limit.budgetName}: $amountText safe today'
-          '${status == null ? '' : ', ${status.label}'}',
+      label: CurrencyFormatter.forSpeech(
+        '${limit.budgetName}: $amountText safe today'
+        '${status == null ? '' : ', ${status.label}'}',
+      ),
       onTap: open,
       excludeSemantics: true,
       child: InkWell(
@@ -457,6 +460,7 @@ class OtherBudgetLimitTile extends StatelessWidget {
 /// Shown in place of the hero when the active budget's period does not
 /// include today, from the engine's not-started / ended result: when it
 /// starts and what it sets aside, or how it ended. There is no daily figure.
+/// An ended budget leads with "Start next period".
 class SafeSpendingNotRunningCard extends StatelessWidget {
   final SafeToSpendEntity safeToSpend;
   final VoidCallback onSwitch;
@@ -477,16 +481,27 @@ class SafeSpendingNotRunningCard extends StatelessWidget {
       chip: SafeToSpendStatusChip(status: e.status),
       title: SafeToSpendCopy.notRunningTitle(e),
       message: SafeToSpendCopy.notRunningMessage(e),
-      actions: [
-        FilledButton.tonal(
-          onPressed: onSwitch,
-          child: const Text('Switch budget'),
-        ),
-        TextButton(
-          onPressed: () => context.pushUnique('/app/budgets/create'),
-          child: const Text('New budget'),
-        ),
-      ],
+      actions: e.status == SafeToSpendStatus.notStarted
+          ? [
+              FilledButton.tonal(
+                onPressed: onSwitch,
+                child: const Text('Switch budget'),
+              ),
+              TextButton(
+                onPressed: () => context.pushUnique('/app/budgets/create'),
+                child: const Text('New budget'),
+              ),
+            ]
+          : [
+              FilledButton.tonal(
+                onPressed: () => StartNextPeriod.open(context, e.budgetId),
+                child: const Text('Start next period'),
+              ),
+              TextButton(
+                onPressed: onSwitch,
+                child: const Text('Switch budget'),
+              ),
+            ],
     );
   }
 }

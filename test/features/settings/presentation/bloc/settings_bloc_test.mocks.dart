@@ -4,6 +4,7 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i10;
+import 'dart:ui' as _i26;
 
 import 'package:mockito/mockito.dart' as _i1;
 import 'package:mockito/src/dummies.dart' as _i13;
@@ -310,13 +311,22 @@ class MockExportDataUseCase extends _i1.Mock implements _i19.ExportDataUseCase {
           as _i4.ExportService);
 
   @override
-  _i10.Future<_i11.SettingsResult<String>> call({bool? csv = true}) =>
+  _i10.Future<_i11.SettingsResult<String>> call({
+    bool? csv = true,
+    _i26.Rect? shareOrigin,
+  }) =>
       (super.noSuchMethod(
-            Invocation.method(#call, [], {#csv: csv}),
+            Invocation.method(#call, [], {
+              #csv: csv,
+              #shareOrigin: shareOrigin,
+            }),
             returnValue: _i10.Future<_i11.SettingsResult<String>>.value(
               _i13.dummyValue<_i11.SettingsResult<String>>(
                 this,
-                Invocation.method(#call, [], {#csv: csv}),
+                Invocation.method(#call, [], {
+                  #csv: csv,
+                  #shareOrigin: shareOrigin,
+                }),
               ),
             ),
           )
@@ -393,14 +403,21 @@ class MockBackupDataUseCase extends _i1.Mock implements _i22.BackupDataUseCase {
   @override
   _i10.Future<_i11.SettingsResult<_i7.FileDeliveryOutcome>> call({
     required _i7.FileDestination? destination,
+    _i26.Rect? shareOrigin,
   }) =>
       (super.noSuchMethod(
-            Invocation.method(#call, [], {#destination: destination}),
+            Invocation.method(#call, [], {
+              #destination: destination,
+              #shareOrigin: shareOrigin,
+            }),
             returnValue:
                 _i10.Future<_i11.SettingsResult<_i7.FileDeliveryOutcome>>.value(
                   _i13.dummyValue<_i11.SettingsResult<_i7.FileDeliveryOutcome>>(
                     this,
-                    Invocation.method(#call, [], {#destination: destination}),
+                    Invocation.method(#call, [], {
+                      #destination: destination,
+                      #shareOrigin: shareOrigin,
+                    }),
                   ),
                 ),
           )

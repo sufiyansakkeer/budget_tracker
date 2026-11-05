@@ -1,6 +1,7 @@
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
 import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/domain/repository/expense_repository.dart';
@@ -165,11 +166,13 @@ BudgetEntity testBudget({
 );
 
 /// A real [ExpenseBloc] over the in-memory repositories. [tabPurchases]
-/// defaults to a fake on which no expense is on a tab.
+/// defaults to a fake on which no expense is on a tab; without
+/// [safeToSpend] an add reports no figure for today.
 ExpenseBloc memoryExpenseBloc(
   MemoryExpenseRepository expenses,
   StubBudgetRepository budgets, {
   TabPurchaseUseCase? tabPurchases,
+  GetSafeToSpendUseCase? safeToSpend,
 }) => ExpenseBloc(
   createExpenseUseCase: CreateExpenseUseCase(repository: expenses),
   updateExpenseUseCase: UpdateExpenseUseCase(repository: expenses),
@@ -179,4 +182,5 @@ ExpenseBloc memoryExpenseBloc(
   getCategoriesUseCase: GetCategoriesUseCase(repository: expenses),
   budgetRepository: budgets,
   tabPurchases: tabPurchases ?? FakeTabPurchaseUseCase(),
+  safeToSpend: safeToSpend,
 );

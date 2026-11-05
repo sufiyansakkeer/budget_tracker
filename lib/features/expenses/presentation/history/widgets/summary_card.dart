@@ -38,7 +38,7 @@ class SummaryCard extends StatelessWidget {
     final line =
         caption ??
         '$count ${count == 1 ? 'expense' : 'expenses'}'
-            '${count > 0 && !mixed ? ' · avg ${AppMoney.format(summary.averageExpense, currency: currency)}' : ''}';
+            '${count > 0 && !mixed ? ' · ${AppMoney.format(summary.averageExpense, currency: currency)} avg each' : ''}';
 
     final totals = mixed
         ? Wrap(

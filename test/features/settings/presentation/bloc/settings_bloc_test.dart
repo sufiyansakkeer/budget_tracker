@@ -17,6 +17,7 @@ import 'package:monivo/features/settings/domain/usecases/update_notification_set
 import 'package:monivo/features/settings/presentation/bloc/settings_bloc.dart';
 import 'package:monivo/features/settings/presentation/bloc/settings_event.dart';
 import 'package:monivo/features/settings/presentation/bloc/settings_state.dart';
+import 'package:flutter/services.dart' show Rect;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:mockito/annotations.dart';
@@ -701,6 +702,30 @@ void main() {
         });
       }
     });
+
+    test(
+      'UX-019: a shared backup passes its anchor to the share sheet',
+      () async {
+        const origin = Rect.fromLTWH(16, 500, 328, 72);
+        when(
+          backupDataUseCase.call(
+            destination: FileDestination.share,
+            shareOrigin: origin,
+          ),
+        ).thenAnswer(
+          (_) async => const SettingsSuccess(FileDeliveryOutcome.shared),
+        );
+
+        final bloc = buildBloc();
+        bloc.add(
+          const SettingsBackupEvent(FileDestination.share, shareOrigin: origin),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(bloc.state.infoMessage, 'Backup shared.');
+        await bloc.close();
+      },
+    );
 
     test('UX-003: an export picked for Restore says to use Import', () async {
       when(restoreDataUseCase.call('/export.json')).thenAnswer(

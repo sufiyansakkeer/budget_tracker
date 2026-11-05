@@ -9,11 +9,13 @@ import '../../../../core/constants/app_motion.dart';
 
 /// Visual category selector: icon + name chips. The icon carries the
 /// category's colour; the selected chip uses the theme's neutral selection.
+/// With [onManage], a last chip opens category management.
 class CategoryPicker extends StatelessWidget {
   final List<ExpenseCategory> categories;
   final String? selectedCategoryId;
   final ValueChanged<String> onSelected;
   final String? errorText;
+  final VoidCallback? onManage;
 
   const CategoryPicker({
     super.key,
@@ -21,6 +23,7 @@ class CategoryPicker extends StatelessWidget {
     required this.selectedCategoryId,
     required this.onSelected,
     this.errorText,
+    this.onManage,
   });
 
   @override
@@ -56,41 +59,49 @@ class CategoryPicker extends StatelessWidget {
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
-            children: categories
-                .where((c) => !c.isArchived || c.id == selectedCategoryId)
-                .map((category) {
-                  final isSelected = category.id == selectedCategoryId;
-                  final color = CategoryVisuals.adaptiveColor(
-                    context,
-                    category.colorHex,
-                  );
-                  // The chosen chip lifts slightly so the selection reads at a
-                  // glance; the chip itself animates its colours.
-                  return AnimatedScale(
-                    scale: isSelected ? 1.04 : 1,
-                    duration: AppMotion.respectReducedMotion(
+            children: [
+              ...categories
+                  .where((c) => !c.isArchived || c.id == selectedCategoryId)
+                  .map((category) {
+                    final isSelected = category.id == selectedCategoryId;
+                    final color = CategoryVisuals.adaptiveColor(
                       context,
-                      AppMotion.fast,
-                    ),
-                    curve: AppMotion.standardCurve,
-                    // Selection is neutral (the theme's selected chip), so a
-                    // red or amber category never reads as a warning; the
-                    // icon keeps the category's colour.
-                    child: ChoiceChip(
-                      key: Key('category_${category.id}'),
-                      selected: isSelected,
-                      showCheckmark: false,
-                      onSelected: (_) => onSelected(category.id),
-                      avatar: Icon(
-                        CategoryVisuals.iconFor(category.icon),
-                        size: AppSizes.iconSm + 2,
-                        color: color,
+                      category.colorHex,
+                    );
+                    // The chosen chip lifts slightly so the selection reads at a
+                    // glance; the chip itself animates its colours.
+                    return AnimatedScale(
+                      scale: isSelected ? 1.04 : 1,
+                      duration: AppMotion.respectReducedMotion(
+                        context,
+                        AppMotion.fast,
                       ),
-                      label: Text(category.name),
-                    ),
-                  );
-                })
-                .toList(),
+                      curve: AppMotion.standardCurve,
+                      // Selection is neutral (the theme's selected chip), so a
+                      // red or amber category never reads as a warning; the
+                      // icon keeps the category's colour.
+                      child: ChoiceChip(
+                        key: Key('category_${category.id}'),
+                        selected: isSelected,
+                        showCheckmark: false,
+                        onSelected: (_) => onSelected(category.id),
+                        avatar: Icon(
+                          CategoryVisuals.iconFor(category.icon),
+                          size: AppSizes.iconSm + 2,
+                          color: color,
+                        ),
+                        label: Text(category.name),
+                      ),
+                    );
+                  }),
+              if (onManage != null)
+                ActionChip(
+                  key: const Key('category_manage'),
+                  avatar: const Icon(Icons.tune_rounded, size: AppSizes.iconSm),
+                  label: const Text('Manage categories'),
+                  onPressed: onManage,
+                ),
+            ],
           ),
         if (errorText != null) FormFieldError(message: errorText!),
       ],

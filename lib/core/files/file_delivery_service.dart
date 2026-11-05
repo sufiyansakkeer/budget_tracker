@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/widgets.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../platform/system_ui_session.dart';
@@ -40,6 +41,17 @@ enum FileDeliveryOutcome {
 class FileDeliveryService {
   const FileDeliveryService();
 
+  /// The on-screen rect of the control at [context], for [deliver]'s
+  /// `shareOrigin`; null when it is not laid out.
+  static Rect? originOf(BuildContext context) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// [shareOrigin] is where the share sheet points from: on iPad it is a
+  /// popover, and share_plus fails without one. Pass the rect of the control
+  /// the user tapped ([originOf]).
   Future<FileDeliveryOutcome> deliver({
     required File file,
     required String fileName,
@@ -47,6 +59,7 @@ class FileDeliveryService {
     required String extension,
     required FileDestination destination,
     String? shareText,
+    Rect? shareOrigin,
   }) => SystemUiSession.run(() async {
     switch (destination) {
       case FileDestination.device:
@@ -65,6 +78,7 @@ class FileDeliveryService {
         final result = await Share.shareXFiles(
           [XFile(file.path, mimeType: mimeType, name: fileName)],
           text: shareText,
+          sharePositionOrigin: shareOrigin,
           fileNameOverrides: [fileName],
         );
         return switch (result.status) {

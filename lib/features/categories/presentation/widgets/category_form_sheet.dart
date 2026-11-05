@@ -4,6 +4,7 @@ import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/domain/entities/expense_category.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
@@ -28,8 +29,9 @@ class CategoryDraft {
 
 /// Bottom sheet to create or edit a category: name, icon grid, colour
 /// swatches and a live preview. Returns a [CategoryDraft] on save, null when
-/// dismissed. Validation is inline; uniqueness is checked against
-/// [existing] so the user sees the clash before saving.
+/// dismissed; dismissing with unsaved input asks first. Validation is
+/// inline; uniqueness is checked against [existing] so the user sees the
+/// clash before saving.
 class CategoryFormSheet extends StatefulWidget {
   final ExpenseCategory? category;
   final List<ExpenseCategory> existing;
@@ -41,9 +43,13 @@ class CategoryFormSheet extends StatefulWidget {
     ExpenseCategory? category,
     required List<ExpenseCategory> existing,
   }) {
+    final key = GlobalKey<_CategoryFormSheetState>();
     return AppBottomSheet.show<CategoryDraft>(
       context: context,
-      builder: (_) => CategoryFormSheet(category: category, existing: existing),
+      confirmClose: () =>
+          key.currentState?._confirmClose() ?? Future.value(true),
+      builder: (_) =>
+          CategoryFormSheet(key: key, category: category, existing: existing),
     );
   }
 
@@ -62,6 +68,32 @@ class _CategoryFormSheetState extends State<CategoryFormSheet> {
   String? _nameError;
 
   bool get _isEdit => widget.category != null;
+
+  /// Whether closing now would lose something the person entered.
+  bool get _isDirty =>
+      _name.text != (widget.category?.name ?? '') ||
+      _icon != (widget.category?.icon ?? CategoryCatalog.iconNames.first) ||
+      _color !=
+          (widget.category?.colorHex.toUpperCase() ??
+              CategoryCatalog.colorHexes.first);
+
+  /// Whether the sheet may close without saving: at once when nothing
+  /// changed, else after the person agrees to discard.
+  Future<bool> _confirmClose() {
+    if (!_isDirty) return Future.value(true);
+    FocusManager.instance.primaryFocus?.unfocus();
+    return ConfirmationDialog.show(
+      context: context,
+      title: _isEdit ? 'Discard changes?' : 'Discard this category?',
+      message: _isEdit
+          ? "Your changes haven't been saved."
+          : "What you entered hasn't been saved.",
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      icon: Icons.edit_off_outlined,
+      isDestructive: true,
+    );
+  }
 
   @override
   void dispose() {
@@ -176,7 +208,7 @@ class _CategoryFormSheetState extends State<CategoryFormSheet> {
                         icon: CategoryVisuals.iconFor(name),
                         color: previewColor,
                         selected: name == _icon,
-                        semanticLabel: name.replaceAll('_', ' '),
+                        semanticLabel: CategoryVisuals.iconLabel(name),
                         onTap: () => setState(() => _icon = name),
                       ),
                   ],

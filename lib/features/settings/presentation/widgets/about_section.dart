@@ -23,9 +23,10 @@ class _AboutSectionState extends State<AboutSection> {
     additionalNotes:
         '• No account is needed\n'
         '• No personal or financial data is collected or sent anywhere\n'
-        '• The only network requests are the optional "Check for updates", '
-        'which asks GitHub for the latest release version, and the currency '
-        'converter, which fetches exchange rates from Frankfurter',
+        '• The app makes two kinds of network request, and neither carries '
+        'any of your data: each time it opens, and when you tap "Check for '
+        'updates", it asks GitHub for the latest release version; the '
+        'currency converter fetches exchange rates from Frankfurter',
   );
 
   /// Kept once read, so a rebuild (theme change, settings reload) or a

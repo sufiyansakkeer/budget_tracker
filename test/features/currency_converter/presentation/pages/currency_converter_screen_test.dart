@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/currency_converter/data/repository/currency_converter_repository_impl.dart';
 import 'package:monivo/features/currency_converter/domain/entities/exchange_rate_failure.dart';
@@ -209,5 +210,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(resultText(tester), '₹87.05');
+  });
+
+  testWidgets('the converter clears the side and bottom insets (UX-063)', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 800);
+    // A landscape notch on the left, the gesture bar at the bottom.
+    tester.view.padding = const FakeViewPadding(left: 44, bottom: 34);
+    addTearDown(tester.view.reset);
+    await pumpScreen(tester);
+
+    final padding = tester
+        .widget<ListView>(find.byType(ListView).first)
+        .padding!
+        .resolve(TextDirection.ltr);
+    expect(padding.left, AppSpacing.md + 44);
+    expect(padding.bottom, AppSpacing.md + 34);
   });
 }

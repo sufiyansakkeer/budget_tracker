@@ -226,13 +226,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
     final scheduleResult = await scheduleNotificationsUseCase(updatedSettings);
     if (scheduleResult case SettingsError(:final failure)) {
+      // The change is already stored, so show it: keeping the old value
+      // made the switch flip back on the next load.
       emit(
         state.copyWith(
+          settings: updatedSettings,
           isBusy: false,
           errorMessage: _shown(
             failure,
-            "Couldn't schedule your reminders. Check that Monivo may send "
-            'notifications in your device settings.',
+            "Settings saved, but reminders couldn't be scheduled. Check that "
+            'Monivo may send notifications in your device settings.',
           ),
         ),
       );
@@ -291,7 +294,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       emit(
         state.copyWith(
           isBiometricBusy: false,
-          biometricMessage: 'Authentication not completed. Toggle unchanged.',
+          biometricMessage: event.enabled
+              ? 'Not confirmed, so the app lock is still off.'
+              : 'Not confirmed, so the app lock is still on.',
         ),
       );
       return;
@@ -327,7 +332,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     Emitter<SettingsState> emit,
   ) async {
     emit(state.copyWith(isBusy: true, clearError: true, clearInfo: true));
-    final result = await exportDataUseCase(csv: event.csv);
+    final result = await exportDataUseCase(
+      csv: event.csv,
+      shareOrigin: event.shareOrigin,
+    );
     switch (result) {
       case SettingsSuccess():
         emit(
@@ -425,7 +433,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     Emitter<SettingsState> emit,
   ) async {
     emit(state.copyWith(isBusy: true, clearError: true, clearInfo: true));
-    final result = await backupDataUseCase(destination: event.destination);
+    final result = await backupDataUseCase(
+      destination: event.destination,
+      shareOrigin: event.shareOrigin,
+    );
     switch (result) {
       case SettingsSuccess(:final data):
         // Said only once the file reached the user: a backup left in the
@@ -490,20 +501,31 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         emit(
           state.copyWith(
             isBusy: false,
-            errorMessage: switch (failure.type) {
-              // An export picked by mistake: say which action to use.
-              SettingsErrorType.wrongFileKind => failure.message,
-              SettingsErrorType.invalidData => _shown(
-                failure,
-                "This file isn't a Monivo backup, or it is damaged. "
-                'Nothing was changed.',
-              ),
-              _ => _shown(failure, "Couldn't restore the backup. Try again."),
-            },
+            errorMessage: restoreErrorMessage(failure),
           ),
         );
     }
   }
+
+  /// Why a backup was refused or couldn't be restored, for people. Also
+  /// used when the file is refused before the confirmation.
+  static String restoreErrorMessage(SettingsFailure failure) =>
+      switch (failure.type) {
+        // An export picked by mistake: say which action to use.
+        SettingsErrorType.wrongFileKind => failure.message,
+        SettingsErrorType.invalidData => userFacingError(
+          failure.message,
+          forPeople: false,
+          fallback:
+              "This file isn't a Monivo backup, or it is damaged. "
+              'Nothing was changed.',
+        ),
+        _ => userFacingError(
+          failure.message,
+          forPeople: false,
+          fallback: "Couldn't restore the backup. Try again.",
+        ),
+      };
 
   Future<void> _onResetBudget(
     SettingsResetBudgetEvent event,

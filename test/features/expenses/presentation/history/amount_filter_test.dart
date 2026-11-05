@@ -28,6 +28,7 @@ void main() {
     expect(texts, containsAll(['12.5', '99.99']));
   });
 
+  // A view that mixes currencies has no one symbol for the bounds.
   testWidgets('the chips show the exact amounts', (tester) async {
     await tester.pumpWidget(
       host(
@@ -41,5 +42,24 @@ void main() {
 
     expect(find.text('Min 12.5'), findsOneWidget);
     expect(find.text('Max 99.99'), findsOneWidget);
+  });
+
+  testWidgets('the chips show the amounts in the view\'s currency', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        ActiveFilterChips(
+          filter: filter,
+          categories: const [],
+          currency: 'USD',
+          onChanged: (_) {},
+        ),
+      ),
+    );
+
+    expect(find.text(r'Min $12.50'), findsOneWidget);
+    expect(find.text(r'Max $99.99'), findsOneWidget);
+    expect(find.byTooltip(r'Remove Min $12.50 filter'), findsOneWidget);
   });
 }

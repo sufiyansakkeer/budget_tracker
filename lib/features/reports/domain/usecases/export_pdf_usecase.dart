@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Rect;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -11,6 +12,7 @@ import '../../../../core/files/file_delivery_service.dart';
 
 import '../entities/report_data.dart';
 import '../entities/report_failure.dart';
+import '../services/report_filter_text.dart';
 import '../services/report_insight_generator.dart';
 
 /// The fonts a report PDF is drawn with: the app's own Manrope, and the
@@ -57,7 +59,11 @@ class ExportPdfUseCase {
   const ExportPdfUseCase({this.delivery = const FileDeliveryService()});
 
   /// What happened to the file: a closed share sheet is not an export.
-  Future<ReportResult<FileDeliveryOutcome>> call(ReportData data) async {
+  /// [shareOrigin] anchors the share sheet on iPad.
+  Future<ReportResult<FileDeliveryOutcome>> call(
+    ReportData data, {
+    Rect? shareOrigin,
+  }) async {
     try {
       final document = buildDocument(data, await PdfFonts.load());
       final bytes = await document.save();
@@ -75,6 +81,7 @@ class ExportPdfUseCase {
           extension: 'pdf',
           destination: FileDestination.share,
           shareText: 'Budget Report PDF',
+          shareOrigin: shareOrigin,
         ),
       );
     } catch (e) {
@@ -123,6 +130,11 @@ class ExportPdfUseCase {
             '${_fmtDate(data.range.start)} — ${_fmtDate(data.range.end)}',
             style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
           ),
+          if (ReportFilterText.line(data, money) case final filtered?)
+            pw.Text(
+              filtered,
+              style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+            ),
           pw.SizedBox(height: 16),
 
           pw.Header(level: 1, text: 'Overview'),

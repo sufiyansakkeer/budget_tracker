@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/di/injection.dart';
+import 'package:monivo/core/notifications/notification_permission_notice.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/budget/domain/entities/budget_status.dart';
@@ -15,6 +16,10 @@ import 'package:monivo/features/dashboard/presentation/pages/dashboard_screen.da
 import 'package:monivo/features/dashboard/presentation/widgets/free_to_spend_summary.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_breakdown_card.dart';
 import 'package:monivo/features/pay_later/presentation/bloc/pay_later_summary_cubit.dart';
+import 'package:monivo/features/settings/domain/entities/app_settings.dart';
+import 'package:monivo/features/settings/domain/repository/settings_repository.dart';
+import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/safe_to_spend_fixtures.dart';
 import '../../../pay_later/presentation/fake_pay_later_summary_cubit.dart';
@@ -36,6 +41,15 @@ class _StaticDashboardBloc extends Bloc<DashboardEvent, DashboardState>
 class _FakeManageBudget implements ManageBudgetUseCase {
   @override
   Future<BudgetEntity?> getActive() async => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Saved settings at their defaults: reminders on.
+class _DefaultSettings implements SettingsRepository {
+  @override
+  Future<AppSettings> loadSettings() async => const AppSettings();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -100,6 +114,34 @@ void main() {
     startDate: DateTime(2026, 8, 1),
     endDate: DateTime(2026, 8, 31),
   );
+
+  testWidgets('Home offers notifications once while they are blocked', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    getIt.registerSingleton<NotificationPermission>(
+      NotificationPermission(
+        isAllowed: () async => false,
+        request: () async => false,
+      ),
+    );
+    getIt.registerSingleton<LoadSettingsUseCase>(
+      LoadSettingsUseCase(repository: _DefaultSettings()),
+    );
+    final entity = safeToSpend();
+    await pump(
+      tester,
+      DashboardLoaded(
+        budgetSummary: summaryFor('INR'),
+        recentExpenses: const [],
+        insights: const [],
+        budgetDailyLimits: [limitFor(entity)],
+        activeBudgetId: 'b1',
+      ),
+    );
+
+    expect(find.text("Get Today's Safe Spending each morning"), findsOneWidget);
+  });
 
   testWidgets('a not-started active budget shows when it starts and what it '
       'sets aside', (tester) async {

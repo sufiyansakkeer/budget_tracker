@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -17,7 +19,9 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../budget/presentation/start_next_period.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/validators/expense_validator.dart';
@@ -26,6 +30,7 @@ import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
 import '../widgets/category_visuals.dart';
 import '../widgets/expense_date_rules.dart';
+import '../widgets/expense_undo.dart';
 import '../widgets/form_field_error.dart';
 import 'amount_entry.dart';
 import '../../../../core/dates/calendar_dates.dart';
@@ -39,7 +44,11 @@ enum _Day { today, yesterday, other }
 ///
 /// The expense goes to the active budget. Nothing is checked while typing;
 /// tapping Add checks the amount, the category and that the day falls in
-/// the budget's period, and says what is missing.
+/// the budget's period, and says what is missing. A budget that has ended or
+/// not started yet is said up front.
+///
+/// Once an amount or a category is entered, Back, a scrim tap or a swipe
+/// down asks before throwing it away, as the full form does.
 class QuickAddSheet extends StatefulWidget {
   const QuickAddSheet({super.key});
 
@@ -47,17 +56,37 @@ class QuickAddSheet extends StatefulWidget {
   @visibleForTesting
   static DateTime Function() clock = DateTime.now;
 
-  /// Opens the sheet over [context]. If the person asks for the full form
-  /// (or to create a budget), that screen opens once the sheet has closed.
+  /// Whether a sheet is open, so a second tap (or the home-screen widget)
+  /// never stacks another.
+  static bool _open = false;
+
+  /// Opens the sheet over [context] unless one is already open. If the
+  /// person asks for the full form (or to create a budget), that screen
+  /// opens once the sheet has closed.
   static Future<void> show(BuildContext context) async {
-    final route = await AppBottomSheet.show<String>(
-      context: context,
-      builder: (_) => BlocProvider(
-        create: (_) => getIt<ExpenseBloc>(),
-        child: const QuickAddSheet(),
-      ),
-    );
-    if (route != null && context.mounted) context.pushUnique(route);
+    if (_open) return;
+    _open = true;
+    final String? route;
+    try {
+      route = await AppBottomSheet.show<String>(
+        context: context,
+        // The sheet draws its own, so a swipe on it can ask first.
+        showDragHandle: false,
+        builder: (_) => BlocProvider(
+          create: (_) => getIt<ExpenseBloc>(),
+          child: const QuickAddSheet(),
+        ),
+      );
+    } finally {
+      _open = false;
+    }
+    if (route == null || !context.mounted) return;
+    final nextAfter = Uri.parse(route).queryParameters['next'];
+    if (nextAfter != null) {
+      unawaited(StartNextPeriod.open(context, nextAfter));
+    } else {
+      context.pushUnique(route);
+    }
   }
 
   @override
@@ -77,6 +106,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   String? _saveError;
 
   DateTime get _today => DateTime(_now.year, _now.month, _now.day);
+
+  /// Leaving now would lose what was entered.
+  bool get _hasInput => !_entry.isEmpty || _categoryId != null;
 
   DateTime get _date => switch (_day) {
     _Day.today => _today,
@@ -216,20 +248,32 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     },
   ).toString();
 
+  /// The full form's question, so both ways of adding ask alike.
+  Future<void> _requestClose() async {
+    final discard = await ConfirmationDialog.show(
+      context: context,
+      title: 'Discard this expense?',
+      message: "What you entered hasn't been saved.",
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      icon: Icons.edit_off_outlined,
+      isDestructive: true,
+    );
+    if (discard && mounted) Navigator.of(context).pop();
+  }
+
   void _onState(BuildContext context, ExpenseState state) {
     if (state.status == ExpenseBlocStatus.success &&
         state.lastAction == ExpenseAction.created) {
       AppHaptics.confirm();
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Expense added'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+      ExpenseUndo.offerAdded(
+        messenger,
+        state.expense!,
+        currency: state.quickAddBudget?.currency,
+        after: state.afterAdd,
+      );
     } else if (state.status == ExpenseBlocStatus.error &&
         state.message != null) {
       setState(() => _saveError = state.message);
@@ -237,8 +281,75 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     }
   }
 
+  bool _startsLater(BudgetEntity budget) => _today.isBefore(
+    DateTime(
+      budget.startDate.year,
+      budget.startDate.month,
+      budget.startDate.day,
+    ),
+  );
+
+  /// Up front when the budget isn't running today: an ended one (until a
+  /// day in its period is picked) and one not started yet.
+  Widget? _periodNotice(BudgetEntity budget) {
+    if (_startsLater(budget)) {
+      return AppNotice(
+        tone: AppTone.caution,
+        icon: Icons.event_outlined,
+        title:
+            'Your ${budget.name} budget starts on '
+            '${DateFormat('d MMM').format(budget.startDate)}',
+        message: 'You can add expenses to it from that day.',
+      );
+    }
+    if (budget.isActiveOn(_today) || budget.isActiveOn(_date)) return null;
+    return AppNotice(
+      tone: AppTone.caution,
+      icon: Icons.event_busy_outlined,
+      title:
+          'Your ${budget.name} budget ended on '
+          '${DateFormat('d MMM').format(budget.endDate)}',
+      message: 'Start the next one, or add this to a day before it ended.',
+      action: Wrap(
+        spacing: AppSpacing.sm,
+        children: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(StartNextPeriod.location(budget.id)),
+            child: const Text('Start next budget'),
+          ),
+          TextButton(
+            onPressed: () => _pickOtherDay(budget),
+            child: Text('Add to ${budget.name}'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_hasInput,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: _SwipeGuard(
+        active: _hasInput,
+        onSwipeDown: () => Navigator.of(context).maybePop(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _SheetHandle(),
+            Flexible(child: _buildContent(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     return BlocConsumer<ExpenseBloc, ExpenseState>(
       listenWhen: (a, b) =>
           a.status != b.status || a.quickAddBudget != b.quickAddBudget,
@@ -254,6 +365,8 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         final failed = state.quickAddLoad == QuickAddLoad.failed;
         final noBudget = loaded && budget == null;
         final currency = budget?.currency;
+        final notice = loaded && budget != null ? _periodNotice(budget) : null;
+        final notStarted = budget != null && _startsLater(budget);
 
         return SingleChildScrollView(
           child: Column(
@@ -275,6 +388,10 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (notice != null) ...[
+                      notice,
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
                     _AmountDisplay(
                       entry: _entry,
                       currency: currency,
@@ -348,7 +465,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                       ),
                     _Actions(
                       busy: state.isBusy,
-                      canAdd: budget != null,
+                      canAdd: budget != null && !notStarted,
                       addLabel: state.isBusy
                           ? 'Adding…'
                           : _entry.value > 0
@@ -366,6 +483,69 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The sheet's drag handle, drawn here rather than by the route so a swipe
+/// on it goes through [_SwipeGuard] too. Same size and colour as the
+/// theme's.
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final size = theme.bottomSheetTheme.dragHandleSize ?? const Size(32, 4);
+    return Semantics(
+      label: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      container: true,
+      button: true,
+      onTap: () => Navigator.of(context).maybePop(),
+      child: SizedBox(
+        height: kMinInteractiveDimension,
+        child: Center(
+          child: Container(
+            width: size.width,
+            height: size.height,
+            decoration: BoxDecoration(
+              color:
+                  theme.bottomSheetTheme.dragHandleColor ??
+                  theme.colorScheme.onSurfaceVariant,
+              borderRadius: BorderRadius.circular(size.height / 2),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// While [active], takes vertical drags from the sheet, whose own drag
+/// closes it without asking; a swipe down calls [onSwipeDown] instead.
+/// Otherwise the sheet drags as usual.
+class _SwipeGuard extends StatelessWidget {
+  final bool active;
+  final VoidCallback onSwipeDown;
+  final Widget child;
+
+  const _SwipeGuard({
+    required this.active,
+    required this.onSwipeDown,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Always present, so turning it on never rebuilds the sheet.
+    return GestureDetector(
+      onVerticalDragUpdate: active ? (_) {} : null,
+      onVerticalDragEnd: active
+          ? (details) {
+              if ((details.primaryVelocity ?? 0) > 300) onSwipeDown();
+            }
+          : null,
+      child: child,
     );
   }
 }

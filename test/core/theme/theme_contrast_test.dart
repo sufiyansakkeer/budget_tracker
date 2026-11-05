@@ -178,6 +178,22 @@ void main() {
           );
         });
 
+        // Reports draws its bars flat on the page: the lead in primary,
+        // the rest (and a zero day's tick) in onSurfaceVariant (UX-070,
+        // WCAG 1.4.11). The outline is not enough on the light page.
+        test('chart bars meet the 3:1 non-text floor on the page', () {
+          for (final s in {'background': bg, 'surface': c.surface}.entries) {
+            expectRatio(c.primary, s.value, 3.0, 'lead bar/${s.key}', where);
+            expectRatio(
+              c.onSurfaceVariant,
+              s.value,
+              3.0,
+              'other bars/${s.key}',
+              where,
+            );
+          }
+        });
+
         test('the surface hierarchy is visible', () {
           expectRatio(card, bg, 1.05, 'card/background', where);
           expectRatio(inputFill, card, 1.1, 'input fill/card', where);

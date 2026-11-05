@@ -7,13 +7,21 @@ class RestoreDataUseCase {
 
   RestoreDataUseCase({required this.backupService});
 
-  Future<SettingsResult<String>> call(String path) async {
+  Future<SettingsResult<String>> call(String path) => _guard(() async {
+    final metadata = await backupService.restore(path);
+    return 'Restored backup from ${metadata.createdAt.toIso8601String()} '
+        '(schema v${metadata.schemaVersion}).';
+  });
+
+  /// What the backup at [path] holds, without restoring it, so the
+  /// confirmation can describe the file. Fails as [call] would, before
+  /// anything is asked.
+  Future<SettingsResult<BackupSummary>> preview(String path) =>
+      _guard(() => backupService.readSummary(path));
+
+  Future<SettingsResult<T>> _guard<T>(Future<T> Function() run) async {
     try {
-      final metadata = await backupService.restore(path);
-      return SettingsSuccess(
-        'Restored backup from ${metadata.createdAt.toIso8601String()} '
-        '(schema v${metadata.schemaVersion}).',
-      );
+      return SettingsSuccess(await run());
     } on WrongFileKindException catch (e) {
       return SettingsError(
         SettingsFailure(

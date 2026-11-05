@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:ui' show Rect;
 
 import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../entities/report_data.dart';
 import '../entities/report_failure.dart';
+import '../services/report_filter_text.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/files/file_delivery_service.dart';
 
@@ -16,7 +18,11 @@ class ExportCsvUseCase {
   const ExportCsvUseCase({this.delivery = const FileDeliveryService()});
 
   /// What happened to the file: a closed share sheet is not an export.
-  Future<ReportResult<FileDeliveryOutcome>> call(ReportData data) async {
+  /// [shareOrigin] anchors the share sheet on iPad.
+  Future<ReportResult<FileDeliveryOutcome>> call(
+    ReportData data, {
+    Rect? shareOrigin,
+  }) async {
     try {
       final csv = _buildCsv(data);
       final directory = await getTemporaryDirectory();
@@ -33,6 +39,7 @@ class ExportCsvUseCase {
           extension: 'csv',
           destination: FileDestination.share,
           shareText: 'Budget Report CSV',
+          shareOrigin: shareOrigin,
         ),
       );
     } catch (e) {
@@ -55,6 +62,7 @@ class ExportCsvUseCase {
         'Expense Report - ${data.range.start.toIso8601String().substring(0, 10)} '
             'to ${data.range.end.toIso8601String().substring(0, 10)}',
       ],
+      if (ReportFilterText.line(data, money) case final filtered?) [filtered],
       [],
       ['Total Spending', money(data.overview.totalSpending)],
       ['Total Transactions', data.overview.totalTransactions],
