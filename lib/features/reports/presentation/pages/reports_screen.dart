@@ -26,7 +26,7 @@ import '../bloc/reports_event.dart';
 import '../bloc/reports_state.dart';
 import '../widgets/bar_chart_card.dart';
 import '../widgets/category_comparison_card.dart';
-import '../../../expenses/presentation/history/widgets/activity_switch.dart';
+import '../../../expenses/presentation/history/widgets/activity_header.dart';
 import '../widgets/category_ranking.dart';
 import '../widgets/category_treemap.dart';
 import '../widgets/daily_columns_chart.dart';
@@ -166,120 +166,153 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        // Blueprint: Insights is Activity's other side, one switch away.
-        title: const Text('Activity'),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(56),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: ActivitySwitch(insights: true),
-          ),
-        ),
-        actions: [
-          BlocBuilder<ReportsBloc, ReportsState>(
-            buildWhen: (a, b) => a.filter != b.filter,
-            builder: (context, state) => IconButton(
-              key: const Key('reportsFilter'),
-              tooltip: state.filter.isActive
-                  ? 'Filters on · tap to change'
-                  : 'Filter report',
-              onPressed: _openFilterSheet,
-              // Primary, not M3's default error red: a filter is a choice,
-              // not a problem (UX-053).
-              icon: Badge(
-                isLabelVisible: state.filter.isActive,
-                smallSize: 8,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: const Icon(Icons.filter_list_rounded),
-              ),
+    // Blueprint: Insights is Activity's other side, one switch away, so it
+    // shares Stream's header: same title, switch and icon positions.
+    final header = ActivityHeader(
+      insights: true,
+      actions: [
+        BlocBuilder<ReportsBloc, ReportsState>(
+          buildWhen: (a, b) => a.filter != b.filter,
+          builder: (context, state) => IconButton(
+            key: const Key('reportsFilter'),
+            tooltip: state.filter.isActive
+                ? 'Filters on · tap to change'
+                : 'Filter report',
+            onPressed: _openFilterSheet,
+            // Primary, not M3's default error red: a filter is a choice,
+            // not a problem (UX-053).
+            icon: Badge(
+              isLabelVisible: state.filter.isActive,
+              smallSize: 8,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: const Icon(Icons.filter_list_rounded),
             ),
           ),
-        ],
-      ),
-      body: BlocBuilder<ReportsBloc, ReportsState>(
-        // Rebuilding on every status flip reconstructed the charts; they
-        // only depend on the report itself, and on whether it is busy or
-        // failed. A refresh (loaded → refreshing → loaded) changes neither,
-        // so it rebuilds once, for its data (UX-065).
-        buildWhen: (prev, curr) =>
-            !identical(prev.data, curr.data) ||
-            !identical(prev.insights, curr.insights) ||
-            prev.period != curr.period ||
-            prev.followsBudget != curr.followsBudget ||
-            prev.budget != curr.budget ||
-            prev.filter != curr.filter ||
-            _isBusy(prev) != _isBusy(curr) ||
-            (prev.status == ReportsStatus.error) !=
-                (curr.status == ReportsStatus.error),
-        builder: (context, state) {
-          final data = state.data;
-          final Widget child;
-          if (data == null &&
-              state.status == ReportsStatus.error &&
-              state.errorMessage == ReportsBloc.noBudgetMessage) {
-            // Not a failure to retry: there is nothing to report on until a
-            // budget is active (UX-086).
-            child = EmptyState(
-              key: const ValueKey('noBudget'),
-              icon: Icons.account_balance_wallet_outlined,
-              title: 'No active budget',
-              message:
-                  'Reports cover the active budget. Choose or create one to '
-                  'see where its money went.',
-              actionLabel: 'Choose a budget',
-              onAction: () => ActiveBudgetSelector.open(context),
-              secondaryActionLabel: 'Show this month',
-              onSecondaryAction: () => context.read<ReportsBloc>().add(
-                const ReportsPeriodChanged(ReportPeriod.thisMonth),
+        ),
+        // The budget is switched where Stream switches it: the menu.
+        PopupMenuButton<int>(
+          key: const Key('insightsMenu'),
+          tooltip: 'More options',
+          position: PopupMenuPosition.under,
+          onSelected: (_) => ActiveBudgetSelector.open(context),
+          itemBuilder: (menuContext) {
+            final name = context.read<ReportsBloc>().state.activeBudget?.name;
+            return [
+              PopupMenuItem(
+                key: const Key('insightsSwitchBudget'),
+                value: 0,
+                child: ListTile(
+                  leading: const Icon(Icons.swap_horiz_rounded),
+                  title: const Text('Switch budget'),
+                  subtitle: name == null ? null : Text('Showing $name'),
+                ),
               ),
+            ];
+          },
+        ),
+      ],
+    );
+
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: BlocBuilder<ReportsBloc, ReportsState>(
+          // Rebuilding on every status flip reconstructed the charts; they
+          // only depend on the report itself, and on whether it is busy or
+          // failed. A refresh (loaded → refreshing → loaded) changes neither,
+          // so it rebuilds once, for its data (UX-065).
+          buildWhen: (prev, curr) =>
+              !identical(prev.data, curr.data) ||
+              !identical(prev.insights, curr.insights) ||
+              prev.period != curr.period ||
+              prev.followsBudget != curr.followsBudget ||
+              prev.budget != curr.budget ||
+              prev.filter != curr.filter ||
+              _isBusy(prev) != _isBusy(curr) ||
+              (prev.status == ReportsStatus.error) !=
+                  (curr.status == ReportsStatus.error),
+          builder: (context, state) {
+            final data = state.data;
+            final Widget child;
+            if (data == null &&
+                state.status == ReportsStatus.error &&
+                state.errorMessage == ReportsBloc.noBudgetMessage) {
+              // Not a failure to retry: there is nothing to report on until a
+              // budget is active (UX-086).
+              child = EmptyState(
+                key: const ValueKey('noBudget'),
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'No active budget',
+                message:
+                    'Reports cover the active budget. Choose or create one to '
+                    'see where its money went.',
+                actionLabel: 'Choose a budget',
+                onAction: () => ActiveBudgetSelector.open(context),
+                secondaryActionLabel: 'Show this month',
+                onSecondaryAction: () => context.read<ReportsBloc>().add(
+                  const ReportsPeriodChanged(ReportPeriod.thisMonth),
+                ),
+              );
+            } else if (data == null && state.status == ReportsStatus.error) {
+              // The bloc's budget messages are written for people; any other
+              // failure text is not.
+              final message = state.errorMessage;
+              final isBudgetMessage =
+                  message == ReportsBloc.noBudgetMessage ||
+                  message == ReportsBloc.budgetUnreadableMessage;
+              child = ReportsErrorWidget(
+                key: const ValueKey('error'),
+                message: isBudgetMessage
+                    ? message!
+                    : 'Your expenses are still on this device. Try again in '
+                          'a moment.',
+                onRetry: _retry,
+              );
+            } else if (data == null) {
+              child = const _ReportsSkeleton(key: ValueKey('loading'));
+            } else {
+              // Period and filter changes keep the previous report on screen
+              // with a slim progress bar instead of dropping to a spinner.
+              child = _ReportContent(
+                key: const ValueKey('content'),
+                header: header,
+                state: state,
+                data: data,
+                busy: _isBusy(state),
+                failed: state.status == ReportsStatus.error,
+                onPeriodSelected: _onPeriodSelected,
+                exporting: _exporting,
+                onExport: (csv, origin) => _export(
+                  csv: csv,
+                  shareOrigin: FileDeliveryService.originOf(origin),
+                ),
+                // No budget, no "This Budget" (UX-086).
+                onBudget: state.followsBudget || state.activeBudget != null
+                    ? () => context.read<ReportsBloc>().add(
+                        const ReportsBudgetPeriodSelected(),
+                      )
+                    : null,
+                onEditRange: _pickCustomRange,
+                onRefresh: _refresh,
+                onRetry: _retry,
+              );
+            }
+            return AppStateSwitcher(
+              child: child is _ReportContent
+                  ? child
+                  // Loading, error and no-budget states keep the header, so
+                  // the switch back to Stream is always there.
+                  : Column(
+                      key: child.key,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        header,
+                        Expanded(child: child),
+                      ],
+                    ),
             );
-          } else if (data == null && state.status == ReportsStatus.error) {
-            // The bloc's budget messages are written for people; any other
-            // failure text is not.
-            final message = state.errorMessage;
-            final isBudgetMessage =
-                message == ReportsBloc.noBudgetMessage ||
-                message == ReportsBloc.budgetUnreadableMessage;
-            child = ReportsErrorWidget(
-              key: const ValueKey('error'),
-              message: isBudgetMessage
-                  ? message!
-                  : 'Your expenses are still on this device. Try again in '
-                        'a moment.',
-              onRetry: _retry,
-            );
-          } else if (data == null) {
-            child = const _ReportsSkeleton(key: ValueKey('loading'));
-          } else {
-            // Period and filter changes keep the previous report on screen
-            // with a slim progress bar instead of dropping to a spinner.
-            child = _ReportContent(
-              key: const ValueKey('content'),
-              state: state,
-              data: data,
-              busy: _isBusy(state),
-              failed: state.status == ReportsStatus.error,
-              onPeriodSelected: _onPeriodSelected,
-              exporting: _exporting,
-              onExport: (csv, origin) => _export(
-                csv: csv,
-                shareOrigin: FileDeliveryService.originOf(origin),
-              ),
-              // No budget, no "This Budget" (UX-086).
-              onBudget: state.followsBudget || state.activeBudget != null
-                  ? () => context.read<ReportsBloc>().add(
-                      const ReportsBudgetPeriodSelected(),
-                    )
-                  : null,
-              onEditRange: _pickCustomRange,
-              onRefresh: _refresh,
-              onRetry: _retry,
-            );
-          }
-          return AppStateSwitcher(child: child);
-        },
+          },
+        ),
       ),
     );
   }
@@ -316,6 +349,8 @@ abstract final class ReportInsightFilter {
 }
 
 class _ReportContent extends StatelessWidget {
+  /// The shared Activity header; it scrolls with the report, as on Stream.
+  final Widget header;
   final ReportsState state;
   final ReportData data;
   final bool busy;
@@ -333,6 +368,7 @@ class _ReportContent extends StatelessWidget {
 
   const _ReportContent({
     super.key,
+    required this.header,
     required this.state,
     required this.data,
     required this.busy,
@@ -385,6 +421,9 @@ class _ReportContent extends StatelessWidget {
     final scoped = !state.followsBudget && active != null;
     final startsAfter = scoped && range.end.isBefore(active.startDate.dateOnly);
     final endedBefore = scoped && range.start.isAfter(active.endDate.dateOnly);
+    final scopeName = state.followsBudget
+        ? (budget ?? active)?.name
+        : (scoped ? active.name : null);
 
     return Stack(
       children: [
@@ -392,7 +431,7 @@ class _ReportContent extends StatelessWidget {
           onRefresh: onRefresh,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: AppSpacing.pagePadding,
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
             children: [
               Center(
                 child: ConstrainedBox(
@@ -402,303 +441,340 @@ class _ReportContent extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const ActiveBudgetSelector(),
-                      const SizedBox(height: AppSpacing.md),
-                      PeriodSelector(
-                        selected: state.period,
-                        followsBudget: state.followsBudget,
-                        onSelected: onPeriodSelected,
-                        onBudget: onBudget,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      ReportRangeLabel(range: range, onEdit: onEditRange),
-                      // The totals below describe only what the filter
-                      // keeps, so it is shown, not just a dot (UX-053).
-                      if (state.filter.isActive)
-                        ActiveFilterChips(
-                          filter: state.filter,
-                          categories: data.categories,
-                          onChanged: (filter) => context
-                              .read<ReportsBloc>()
-                              .add(ReportsFilterChanged(filter)),
+                      header,
+                      // The chips start where Stream's do: 12 under the
+                      // switch, on the 16 start edge.
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md,
+                          AppSpacing.xs,
+                          AppSpacing.md,
+                          0,
                         ),
-                      if (scoped)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.xs,
-                          ),
-                          child: Text(
-                            'Only expenses in ${active.name}',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
-                        ),
-                      if (failed) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        AppNotice(
-                          key: const ValueKey('reportStale'),
-                          tone: AppTone.caution,
-                          icon: Icons.cloud_off_rounded,
-                          // Said for what failed: the budget, or the report
-                          // (UX-086).
-                          title:
-                              state.errorMessage ==
-                                  ReportsBloc.budgetUnreadableMessage
-                              ? "Couldn't load your budget"
-                              : "Couldn't update the report",
-                          message: 'This is the last report that loaded.',
-                          action: TextButton(
-                            onPressed: onRetry,
-                            child: const Text('Retry'),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // Sections stay mounted across period and filter
-                      // changes so amounts and bars animate to their new
-                      // values; only "nothing here" and a populated report
-                      // cross-fade.
-                      AnimatedSwitcher(
-                        duration: AppMotion.respectReducedMotion(
-                          context,
-                          AppMotion.standard,
-                        ),
-                        switchInCurve: AppMotion.enter,
-                        switchOutCurve: AppMotion.exit,
-                        layoutBuilder: (current, previous) => Stack(
-                          alignment: Alignment.topCenter,
-                          children: [...previous, ?current],
-                        ),
-                        child: KeyedSubtree(
-                          key: ValueKey(data.isEmpty ? 'empty' : 'report'),
-                          child: data.isEmpty
-                              ? ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    minHeight: 420,
-                                  ),
-                                  child: EmptyReportsState(
-                                    filtered: state.filter.isActive,
-                                    budgetStartsOn: startsAfter
-                                        ? active.startDate
-                                        : null,
-                                    budgetEndedOn: endedBefore
-                                        ? active.endDate
-                                        : null,
-                                    onSwitchBudget: () =>
-                                        ActiveBudgetSelector.open(context),
-                                    onAddExpense: () =>
-                                        QuickAddSheet.show(context),
-                                    onClearFilters: () =>
-                                        context.read<ReportsBloc>().add(
-                                          const ReportsFilterChanged(
-                                            ExpenseHistoryFilter(),
-                                          ),
-                                        ),
-                                  ),
-                                )
-                              : Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    FadeSlideIn(
-                                      index: index++,
-                                      child: ReportTotal(
-                                        data: data,
-                                        currency: currency,
-                                        // The same "now" the report's range was taken from.
-                                        today: context
-                                            .read<ReportsBloc>()
-                                            .clock(),
-                                      ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            PeriodSelector(
+                              selected: state.period,
+                              followsBudget: state.followsBudget,
+                              onSelected: onPeriodSelected,
+                              onBudget: onBudget,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            ReportRangeLabel(range: range, onEdit: onEditRange),
+                            // The totals below describe only what the filter
+                            // keeps, so it is shown, not just a dot (UX-053).
+                            if (state.filter.isActive)
+                              ActiveFilterChips(
+                                filter: state.filter,
+                                categories: data.categories,
+                                onChanged: (filter) => context
+                                    .read<ReportsBloc>()
+                                    .add(ReportsFilterChanged(filter)),
+                              ),
+                            // Names the budget the report covers (the
+                            // budget card above the chips is gone, as on
+                            // Stream).
+                            if (scopeName != null)
+                              Text(
+                                'Only expenses in $scopeName',
+                                key: const Key('reportScope'),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                     ),
-                                    if (showPlan) ...[
-                                      const SizedBox(height: _gap),
-                                      FadeSlideIn(
-                                        index: index++,
-                                        child: PlannedVsActual(
-                                          budget: budget,
-                                          spent: data.overview.totalSpending,
-                                          // The same "now" the report's range was taken from.
-                                          now: context
-                                              .read<ReportsBloc>()
-                                              .clock(),
+                              ),
+                            if (failed) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              AppNotice(
+                                key: const ValueKey('reportStale'),
+                                tone: AppTone.caution,
+                                icon: Icons.cloud_off_rounded,
+                                // Said for what failed: the budget, or the report
+                                // (UX-086).
+                                title:
+                                    state.errorMessage ==
+                                        ReportsBloc.budgetUnreadableMessage
+                                    ? "Couldn't load your budget"
+                                    : "Couldn't update the report",
+                                message: 'This is the last report that loaded.',
+                                action: TextButton(
+                                  onPressed: onRetry,
+                                  child: const Text('Retry'),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: AppSpacing.lg),
+
+                            // Sections stay mounted across period and filter
+                            // changes so amounts and bars animate to their new
+                            // values; only "nothing here" and a populated report
+                            // cross-fade.
+                            AnimatedSwitcher(
+                              duration: AppMotion.respectReducedMotion(
+                                context,
+                                AppMotion.standard,
+                              ),
+                              switchInCurve: AppMotion.enter,
+                              switchOutCurve: AppMotion.exit,
+                              layoutBuilder: (current, previous) => Stack(
+                                alignment: Alignment.topCenter,
+                                children: [...previous, ?current],
+                              ),
+                              child: KeyedSubtree(
+                                key: ValueKey(
+                                  data.isEmpty ? 'empty' : 'report',
+                                ),
+                                child: data.isEmpty
+                                    ? ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          minHeight: 420,
                                         ),
-                                      ),
-                                    ],
-                                    if (planFiltered) ...[
-                                      const SizedBox(height: AppSpacing.md),
-                                      Text(
-                                        'Planned vs actual is hidden while '
-                                        'a filter is on: the plan covers '
-                                        'every expense.',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Theme.of(
+                                        child: EmptyReportsState(
+                                          filtered: state.filter.isActive,
+                                          budgetStartsOn: startsAfter
+                                              ? active.startDate
+                                              : null,
+                                          budgetEndedOn: endedBefore
+                                              ? active.endDate
+                                              : null,
+                                          onSwitchBudget: () =>
+                                              ActiveBudgetSelector.open(
                                                 context,
-                                              ).colorScheme.onSurfaceVariant,
-                                            ),
-                                      ),
-                                    ],
-                                    const SizedBox(height: _gap),
-                                    FadeSlideIn(
-                                      index: index++,
-                                      child: AppSection(
-                                        title: 'Where it went',
-                                        subtitle:
-                                            '$count '
-                                            '${count == 1 ? 'category' : 'categories'}'
-                                            ' · tap one to see its expenses',
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            // Blueprint: the shares as
-                                            // areas, then the ranking.
-                                            if (data.categoryAnalytics.length >
-                                                1) ...[
-                                              CategoryTreemap(
-                                                analytics:
-                                                    data.categoryAnalytics,
-                                                currency: currency,
                                               ),
-                                              const SizedBox(
-                                                height: AppSpacing.md,
+                                          onAddExpense: () =>
+                                              QuickAddSheet.show(context),
+                                          onClearFilters: () =>
+                                              context.read<ReportsBloc>().add(
+                                                const ReportsFilterChanged(
+                                                  ExpenseHistoryFilter(),
+                                                ),
                                               ),
-                                            ],
-                                            CategoryRanking(
-                                              analytics: data.categoryAnalytics,
-                                              categories: data.categories,
-                                              expenses: data.filteredExpenses,
+                                        ),
+                                      )
+                                    : Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          FadeSlideIn(
+                                            index: index++,
+                                            child: ReportTotal(
+                                              data: data,
                                               currency: currency,
-                                              onOpenExpense: (expense) =>
-                                                  context.pushUnique(
-                                                    '/app/expenses/${expense.id}',
+                                              // The same "now" the report's range was taken from.
+                                              today: context
+                                                  .read<ReportsBloc>()
+                                                  .clock(),
+                                            ),
+                                          ),
+                                          if (showPlan) ...[
+                                            const SizedBox(height: _gap),
+                                            FadeSlideIn(
+                                              index: index++,
+                                              child: PlannedVsActual(
+                                                budget: budget,
+                                                spent:
+                                                    data.overview.totalSpending,
+                                                // The same "now" the report's range was taken from.
+                                                now: context
+                                                    .read<ReportsBloc>()
+                                                    .clock(),
+                                              ),
+                                            ),
+                                          ],
+                                          if (planFiltered) ...[
+                                            const SizedBox(
+                                              height: AppSpacing.md,
+                                            ),
+                                            Text(
+                                              'Planned vs actual is hidden while '
+                                              'a filter is on: the plan covers '
+                                              'every expense.',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
                                                   ),
                                             ),
                                           ],
-                                        ),
-                                      ),
-                                    ),
-                                    if (CategoryComparisonCard.hasComparison(
-                                      data.categoryComparison,
-                                    )) ...[
-                                      const SizedBox(height: AppSpacing.lg),
-                                      FadeSlideIn(
-                                        index: index++,
-                                        child: CategoryComparisonCard(
-                                          comparison: data.categoryComparison,
-                                          categories: data.categories,
-                                          range: range,
-                                          currency: currency,
-                                        ),
-                                      ),
-                                    ],
-                                    if (showDaily) ...[
-                                      const SizedBox(height: _gap),
-                                      FadeSlideIn(
-                                        index: index++,
-                                        child: AppSection(
-                                          title: 'Day by day',
-                                          child: DailyColumnsChart(
-                                            points: data.dailySpending,
-                                            average: data
-                                                .overview
-                                                .averageDailySpending,
-                                            currency: currency,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    if (showBuckets) ...[
-                                      const SizedBox(height: _gap),
-                                      FadeSlideIn(
-                                        index: index++,
-                                        child: BarChartCard(
-                                          buckets: data.spendingBuckets,
-                                          currency: currency,
-                                          range: range,
-                                        ),
-                                      ),
-                                    ],
-                                    if (showRhythm) ...[
-                                      const SizedBox(height: _gap),
-                                      FadeSlideIn(
-                                        index: index++,
-                                        child: AppSection(
-                                          title: 'Weekly rhythm',
-                                          subtitle:
-                                              'Spending by day of the week',
-                                          child: WeekdayRhythm(
-                                            analytics: data.timeAnalytics,
-                                            currency: currency,
-                                            wholeWeeks: wholeWeeks,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    if (insights.isNotEmpty) ...[
-                                      const SizedBox(height: _gap),
-                                      FadeSlideIn(
-                                        index: index++,
-                                        child: AppSection(
-                                          title: 'Worth knowing',
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: [
-                                              for (final insight in insights)
-                                                InsightRow(insight: insight),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    // Blueprint: export comes last, after the
-                                    // report it shares.
-                                    const SizedBox(height: _gap),
-                                    Row(
-                                      children: [
-                                        for (final csv in [true, false]) ...[
-                                          if (!csv)
-                                            const SizedBox(
-                                              width: AppSpacing.smd,
-                                            ),
-                                          Expanded(
-                                            child: Builder(
-                                              builder: (origin) => OutlinedButton.icon(
-                                                onPressed: exporting
-                                                    ? null
-                                                    : () =>
-                                                          onExport(csv, origin),
-                                                icon: Icon(
-                                                  csv
-                                                      ? Icons
-                                                            .table_chart_outlined
-                                                      : Icons
-                                                            .picture_as_pdf_outlined,
-                                                  size: 18,
-                                                ),
-                                                label: Text(
-                                                  csv
-                                                      ? 'Export CSV'
-                                                      : 'Export PDF',
-                                                ),
+                                          const SizedBox(height: _gap),
+                                          FadeSlideIn(
+                                            index: index++,
+                                            child: AppSection(
+                                              title: 'Where it went',
+                                              subtitle:
+                                                  '$count '
+                                                  '${count == 1 ? 'category' : 'categories'}'
+                                                  ' · tap one to see its expenses',
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  // Blueprint: the shares as
+                                                  // areas, then the ranking.
+                                                  if (data
+                                                          .categoryAnalytics
+                                                          .length >
+                                                      1) ...[
+                                                    CategoryTreemap(
+                                                      analytics: data
+                                                          .categoryAnalytics,
+                                                      currency: currency,
+                                                    ),
+                                                    const SizedBox(
+                                                      height: AppSpacing.md,
+                                                    ),
+                                                  ],
+                                                  CategoryRanking(
+                                                    analytics:
+                                                        data.categoryAnalytics,
+                                                    categories: data.categories,
+                                                    expenses:
+                                                        data.filteredExpenses,
+                                                    currency: currency,
+                                                    onOpenExpense: (expense) =>
+                                                        context.pushUnique(
+                                                          '/app/expenses/${expense.id}',
+                                                        ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
+                                          if (CategoryComparisonCard.hasComparison(
+                                            data.categoryComparison,
+                                          )) ...[
+                                            const SizedBox(
+                                              height: AppSpacing.lg,
+                                            ),
+                                            FadeSlideIn(
+                                              index: index++,
+                                              child: CategoryComparisonCard(
+                                                comparison:
+                                                    data.categoryComparison,
+                                                categories: data.categories,
+                                                range: range,
+                                                currency: currency,
+                                              ),
+                                            ),
+                                          ],
+                                          if (showDaily) ...[
+                                            const SizedBox(height: _gap),
+                                            FadeSlideIn(
+                                              index: index++,
+                                              child: AppSection(
+                                                title: 'Day by day',
+                                                child: DailyColumnsChart(
+                                                  points: data.dailySpending,
+                                                  average: data
+                                                      .overview
+                                                      .averageDailySpending,
+                                                  currency: currency,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                          if (showBuckets) ...[
+                                            const SizedBox(height: _gap),
+                                            FadeSlideIn(
+                                              index: index++,
+                                              child: BarChartCard(
+                                                buckets: data.spendingBuckets,
+                                                currency: currency,
+                                                range: range,
+                                              ),
+                                            ),
+                                          ],
+                                          if (showRhythm) ...[
+                                            const SizedBox(height: _gap),
+                                            FadeSlideIn(
+                                              index: index++,
+                                              child: AppSection(
+                                                title: 'Weekly rhythm',
+                                                subtitle:
+                                                    'Spending by day of the week',
+                                                child: WeekdayRhythm(
+                                                  analytics: data.timeAnalytics,
+                                                  currency: currency,
+                                                  wholeWeeks: wholeWeeks,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                          if (insights.isNotEmpty) ...[
+                                            const SizedBox(height: _gap),
+                                            FadeSlideIn(
+                                              index: index++,
+                                              child: AppSection(
+                                                title: 'Worth knowing',
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    for (final insight
+                                                        in insights)
+                                                      InsightRow(
+                                                        insight: insight,
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                          // Blueprint: export comes last, after the
+                                          // report it shares.
+                                          const SizedBox(height: _gap),
+                                          Row(
+                                            children: [
+                                              for (final csv in [
+                                                true,
+                                                false,
+                                              ]) ...[
+                                                if (!csv)
+                                                  const SizedBox(
+                                                    width: AppSpacing.smd,
+                                                  ),
+                                                Expanded(
+                                                  child: Builder(
+                                                    builder: (origin) =>
+                                                        OutlinedButton.icon(
+                                                          onPressed: exporting
+                                                              ? null
+                                                              : () => onExport(
+                                                                  csv,
+                                                                  origin,
+                                                                ),
+                                                          icon: Icon(
+                                                            csv
+                                                                ? Icons
+                                                                      .table_chart_outlined
+                                                                : Icons
+                                                                      .picture_as_pdf_outlined,
+                                                            size: 18,
+                                                          ),
+                                                          label: Text(
+                                                            csv
+                                                                ? 'Export CSV'
+                                                                : 'Export PDF',
+                                                          ),
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          const SizedBox(height: AppSpacing.xl),
                                         ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: AppSpacing.xl),
-                                  ],
-                                ),
+                                      ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

@@ -52,9 +52,7 @@ void main() {
     expect(width('bills') / width('kept'), closeTo(1500 / 500, 0.05));
   });
 
-  testWidgets('parts that are not set say so and draw nothing', (
-    tester,
-  ) async {
+  testWidgets('parts that are not set say so and draw nothing', (tester) async {
     await tester.pumpWidget(harness(safeToSpend(periodSpent: 2000)));
 
     expect(find.text('Not set'), findsNWidgets(2)); // kept aside, savings

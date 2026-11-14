@@ -125,7 +125,6 @@ class _BudgetChip extends StatelessWidget {
                       ),
                     ],
                   ),
-
                 ],
               ),
             ),
