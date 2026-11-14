@@ -26,7 +26,7 @@ import '../bloc/expense_history_bloc.dart';
 import '../bloc/expense_history_event.dart';
 import '../bloc/expense_history_state.dart';
 import '../widgets/activity_extra_row.dart';
-import '../widgets/activity_switch.dart';
+import '../widgets/activity_header.dart';
 import '../widgets/active_filter_chips.dart';
 import '../widgets/budget_info_bottom_sheet.dart';
 import '../widgets/budget_selection_sheet.dart';
@@ -543,130 +543,100 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
 
   // ── Header ───────────────────────────────────────────────────────────────
 
-  /// The title, the budget menu under it, and info, filter and sort.
+  /// The shared Activity header: the title, the budget menu under it,
+  /// search, filter and the menu, then the Stream | Insights switch.
   Widget _buildHeader(ExpenseHistoryState state) {
     final theme = Theme.of(context);
     final caption = state.isCombinedMode
         ? 'Each expense keeps its own budget'
         : null;
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppSpacing.md,
-        AppSpacing.md,
-        AppSpacing.xs,
-        AppSpacing.xs,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // With very large text the title shrinks to fit beside the
-                // buttons rather than breaking mid-word.
-                Semantics(
-                  header: true,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(
-                      'Activity',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.7,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
-                // Blueprint: the title alone; the budgets shown are named
-                // only when several are viewed together.
-                if (state.isCombinedMode)
-                  _BudgetMenu(
-                    state: state,
-                    onSwitchBudget: () => ActiveBudgetSelector.open(context),
-                    onCombine: _chooseCombinedBudgets,
-                    onSingle: _exitCombined,
-                  ),
-                if (caption != null)
-                  Text(
-                    caption,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
+    return ActivityHeader(
+      insights: false,
+      // Blueprint: the title alone; the budgets shown are named only when
+      // several are viewed together.
+      below: [
+        if (state.isCombinedMode)
+          _BudgetMenu(
+            state: state,
+            onSwitchBudget: () => ActiveBudgetSelector.open(context),
+            onCombine: _chooseCombinedBudgets,
+            onSingle: _exitCombined,
+          ),
+        if (caption != null)
+          Text(
+            caption,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          // Blueprint header: search and filter; sort, the budget and the
-          // info sheet are one tap further, in the menu.
-          IconButton(
-            key: const Key('searchButton'),
-            icon: const Icon(Icons.search_rounded),
-            tooltip: 'Search expenses',
-            onPressed: _openSearch,
-          ),
-          IconButton(
-            key: const Key('filterButton'),
-            icon: const Icon(Icons.filter_list_rounded),
-            tooltip: 'Filter expenses',
-            onPressed: _openFilterSheet,
-          ),
-          PopupMenuButton<_HeaderAction>(
-            key: const Key('activityMenu'),
-            tooltip: 'More options',
-            position: PopupMenuPosition.under,
-            onSelected: (action) => switch (action) {
-              _HeaderAction.sort => _openSortSheet(),
-              _HeaderAction.switchBudget => ActiveBudgetSelector.open(context),
-              _HeaderAction.combine => _chooseCombinedBudgets(),
-              _HeaderAction.info => InfoIcon.showSheet(
-                context,
-                _expenseListInfo(state),
+      ],
+      actions: [
+        // Blueprint header: search and filter; sort, the budget and the
+        // info sheet are one tap further, in the menu.
+        IconButton(
+          key: const Key('searchButton'),
+          icon: const Icon(Icons.search_rounded),
+          tooltip: 'Search expenses',
+          onPressed: _openSearch,
+        ),
+        IconButton(
+          key: const Key('filterButton'),
+          icon: const Icon(Icons.filter_list_rounded),
+          tooltip: 'Filter expenses',
+          onPressed: _openFilterSheet,
+        ),
+        PopupMenuButton<_HeaderAction>(
+          key: const Key('activityMenu'),
+          tooltip: 'More options',
+          position: PopupMenuPosition.under,
+          onSelected: (action) => switch (action) {
+            _HeaderAction.sort => _openSortSheet(),
+            _HeaderAction.switchBudget => ActiveBudgetSelector.open(context),
+            _HeaderAction.combine => _chooseCombinedBudgets(),
+            _HeaderAction.info => InfoIcon.showSheet(
+              context,
+              _expenseListInfo(state),
+            ),
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              key: Key('sortButton'),
+              value: _HeaderAction.sort,
+              child: ListTile(
+                leading: Icon(Icons.swap_vert_rounded),
+                title: Text('Sort'),
               ),
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                key: Key('sortButton'),
-                value: _HeaderAction.sort,
+            ),
+            if (!state.isCombinedMode) ...[
+              PopupMenuItem(
+                key: const Key('viewModeToggle'),
+                value: _HeaderAction.switchBudget,
                 child: ListTile(
-                  leading: Icon(Icons.swap_vert_rounded),
-                  title: Text('Sort'),
+                  leading: const Icon(Icons.swap_horiz_rounded),
+                  title: const Text('Switch budget'),
+                  subtitle: state.budgetName == null
+                      ? null
+                      : Text('Showing ${state.budgetName}'),
                 ),
               ),
-              if (!state.isCombinedMode) ...[
-                PopupMenuItem(
-                  key: const Key('viewModeToggle'),
-                  value: _HeaderAction.switchBudget,
-                  child: ListTile(
-                    leading: const Icon(Icons.swap_horiz_rounded),
-                    title: const Text('Switch budget'),
-                    subtitle: state.budgetName == null
-                        ? null
-                        : Text('Showing ${state.budgetName}'),
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: _HeaderAction.combine,
-                  child: ListTile(
-                    leading: Icon(Icons.layers_outlined),
-                    title: Text('View budgets together'),
-                  ),
-                ),
-              ],
               const PopupMenuItem(
-                value: _HeaderAction.info,
+                value: _HeaderAction.combine,
                 child: ListTile(
-                  leading: Icon(Icons.info_outline_rounded),
-                  title: Text('About this list'),
+                  leading: Icon(Icons.layers_outlined),
+                  title: Text('View budgets together'),
                 ),
               ),
             ],
-          ),
-        ],
-      ),
+            const PopupMenuItem(
+              value: _HeaderAction.info,
+              child: ListTile(
+                leading: Icon(Icons.info_outline_rounded),
+                title: Text('About this list'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -685,19 +655,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             for (final sliver in <Widget>[
-              SliverToBoxAdapter(child: _buildHeader(state)),
               // Blueprint: the stream and its insights, one switch apart.
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    AppSpacing.md,
-                    0,
-                    AppSpacing.md,
-                    AppSpacing.sm,
-                  ),
-                  child: ActivitySwitch(insights: false),
-                ),
-              ),
+              SliverToBoxAdapter(child: _buildHeader(state)),
               if (_searching || state.query.isNotEmpty)
                 SliverToBoxAdapter(
                   child: ExpenseSearchBar(

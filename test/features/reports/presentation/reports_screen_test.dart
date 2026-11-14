@@ -264,9 +264,10 @@ void main() {
       expect(find.text('7 days'), findsOneWidget);
     });
 
-    testWidgets('"This Budget" needs no scope line', (tester) async {
+    testWidgets('"This Budget" names the budget it covers (the budget card '
+        'left with the shared Activity header)', (tester) async {
       await pump(tester);
-      expect(find.text('Only expenses in Household'), findsNothing);
+      expect(find.text('Only expenses in Household'), findsOneWidget);
     });
 
     testWidgets('a period before the budget offers to switch budget, not to '

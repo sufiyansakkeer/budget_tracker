@@ -38,18 +38,19 @@ void main() {
       harness(safeToSpend(periodSpent: 250, todaySpent: 250)),
     );
     final scheme = AppTheme.lightTheme.colorScheme;
-    Color? fill(String label) => (tester
-                .widget<DecoratedBox>(
-                  find
-                      .ancestor(
-                        of: find.text(label),
-                        matching: find.byType(DecoratedBox),
-                      )
-                      .first,
-                )
-                .decoration
-            as BoxDecoration)
-        .color;
+    Color? fill(String label) =>
+        (tester
+                    .widget<DecoratedBox>(
+                      find
+                          .ancestor(
+                            of: find.text(label),
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color;
     expect(fill('If you spend nothing more today'), scheme.primaryContainer);
     expect(fill('If you spend the rest'), scheme.surfaceContainer);
   });

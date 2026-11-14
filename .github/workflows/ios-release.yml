@@ -14,7 +14,7 @@ env:
 jobs:
   ios:
     name: Build unsigned iOS app
-    runs-on: macos-14
+    runs-on: macos-15
     environment: development
     steps:
       - name: Checkout
@@ -37,9 +37,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pods-
       - name: Install CocoaPods
+        # Pinned to the version that wrote ios/Podfile.lock; --deployment
+        # fails when the runner's CocoaPods version differs from it.
         run: |
+          gem install cocoapods -v 1.16.2 --no-document
           cd ios
-          pod install --deployment
+          pod _1.16.2_ install --deployment
       - name: Build unsigned iOS app
         run: flutter build ios --release --no-codesign
       - name: Upload iOS artifact

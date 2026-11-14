@@ -71,7 +71,9 @@ class TodayImpact extends StatelessWidget {
     final leftFrom = _left(before);
     final leftTo = _left(after);
     final spoken = [
-      changed ? 'Left today, $leftFrom, becomes $leftTo' : 'Left today, $leftFrom',
+      changed
+          ? 'Left today, $leftFrom, becomes $leftTo'
+          : 'Left today, $leftFrom',
       if (tomorrowBefore != null && tomorrowAfter != null)
         changed
             ? 'Tomorrow, ${SafeToSpendCopy.safeAmount(tomorrowBefore, before.currency)}, '

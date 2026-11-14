@@ -4,7 +4,7 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i10;
-import 'dart:ui' as _i26;
+import 'dart:ui' as _i20;
 
 import 'package:mockito/mockito.dart' as _i1;
 import 'package:mockito/src/dummies.dart' as _i13;
@@ -13,7 +13,7 @@ import 'package:monivo/core/files/file_delivery_service.dart' as _i7;
 import 'package:monivo/features/settings/domain/entities/app_settings.dart'
     as _i12;
 import 'package:monivo/features/settings/domain/entities/import_report.dart'
-    as _i21;
+    as _i22;
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart'
     as _i16;
 import 'package:monivo/features/settings/domain/entities/settings_failure.dart'
@@ -31,19 +31,19 @@ import 'package:monivo/features/settings/domain/services/import_service.dart'
 import 'package:monivo/features/settings/domain/services/notification_service.dart'
     as _i8;
 import 'package:monivo/features/settings/domain/usecases/backup_data_usecase.dart'
-    as _i22;
+    as _i23;
 import 'package:monivo/features/settings/domain/usecases/export_data_usecase.dart'
     as _i19;
 import 'package:monivo/features/settings/domain/usecases/import_data_usecase.dart'
-    as _i20;
+    as _i21;
 import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart'
     as _i9;
 import 'package:monivo/features/settings/domain/usecases/reset_budget_usecase.dart'
-    as _i24;
-import 'package:monivo/features/settings/domain/usecases/restore_data_usecase.dart'
-    as _i23;
-import 'package:monivo/features/settings/domain/usecases/schedule_notifications_usecase.dart'
     as _i25;
+import 'package:monivo/features/settings/domain/usecases/restore_data_usecase.dart'
+    as _i24;
+import 'package:monivo/features/settings/domain/usecases/schedule_notifications_usecase.dart'
+    as _i26;
 import 'package:monivo/features/settings/domain/usecases/update_biometric_usecase.dart'
     as _i17;
 import 'package:monivo/features/settings/domain/usecases/update_currency_usecase.dart'
@@ -313,7 +313,7 @@ class MockExportDataUseCase extends _i1.Mock implements _i19.ExportDataUseCase {
   @override
   _i10.Future<_i11.SettingsResult<String>> call({
     bool? csv = true,
-    _i26.Rect? shareOrigin,
+    _i20.Rect? shareOrigin,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#call, [], {
@@ -336,7 +336,7 @@ class MockExportDataUseCase extends _i1.Mock implements _i19.ExportDataUseCase {
 /// A class which mocks [ImportDataUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockImportDataUseCase extends _i1.Mock implements _i20.ImportDataUseCase {
+class MockImportDataUseCase extends _i1.Mock implements _i21.ImportDataUseCase {
   MockImportDataUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -353,27 +353,27 @@ class MockImportDataUseCase extends _i1.Mock implements _i20.ImportDataUseCase {
           as _i5.ImportService);
 
   @override
-  _i10.Future<_i11.SettingsResult<_i21.ImportReport>> call(
+  _i10.Future<_i11.SettingsResult<_i22.ImportReport>> call(
     String? path, {
     required bool? json,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#call, [path], {#json: json}),
             returnValue:
-                _i10.Future<_i11.SettingsResult<_i21.ImportReport>>.value(
-                  _i13.dummyValue<_i11.SettingsResult<_i21.ImportReport>>(
+                _i10.Future<_i11.SettingsResult<_i22.ImportReport>>.value(
+                  _i13.dummyValue<_i11.SettingsResult<_i22.ImportReport>>(
                     this,
                     Invocation.method(#call, [path], {#json: json}),
                   ),
                 ),
           )
-          as _i10.Future<_i11.SettingsResult<_i21.ImportReport>>);
+          as _i10.Future<_i11.SettingsResult<_i22.ImportReport>>);
 }
 
 /// A class which mocks [BackupDataUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockBackupDataUseCase extends _i1.Mock implements _i22.BackupDataUseCase {
+class MockBackupDataUseCase extends _i1.Mock implements _i23.BackupDataUseCase {
   MockBackupDataUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -403,7 +403,7 @@ class MockBackupDataUseCase extends _i1.Mock implements _i22.BackupDataUseCase {
   @override
   _i10.Future<_i11.SettingsResult<_i7.FileDeliveryOutcome>> call({
     required _i7.FileDestination? destination,
-    _i26.Rect? shareOrigin,
+    _i20.Rect? shareOrigin,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#call, [], {
@@ -428,7 +428,7 @@ class MockBackupDataUseCase extends _i1.Mock implements _i22.BackupDataUseCase {
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockRestoreDataUseCase extends _i1.Mock
-    implements _i23.RestoreDataUseCase {
+    implements _i24.RestoreDataUseCase {
   MockRestoreDataUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -456,13 +456,27 @@ class MockRestoreDataUseCase extends _i1.Mock
             ),
           )
           as _i10.Future<_i11.SettingsResult<String>>);
+
+  @override
+  _i10.Future<_i11.SettingsResult<_i6.BackupSummary>> preview(String? path) =>
+      (super.noSuchMethod(
+            Invocation.method(#preview, [path]),
+            returnValue:
+                _i10.Future<_i11.SettingsResult<_i6.BackupSummary>>.value(
+                  _i13.dummyValue<_i11.SettingsResult<_i6.BackupSummary>>(
+                    this,
+                    Invocation.method(#preview, [path]),
+                  ),
+                ),
+          )
+          as _i10.Future<_i11.SettingsResult<_i6.BackupSummary>>);
 }
 
 /// A class which mocks [ResetBudgetUseCase].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockResetBudgetUseCase extends _i1.Mock
-    implements _i24.ResetBudgetUseCase {
+    implements _i25.ResetBudgetUseCase {
   MockResetBudgetUseCase() {
     _i1.throwOnMissingStub(this);
   }
@@ -500,7 +514,7 @@ class MockResetBudgetUseCase extends _i1.Mock
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockScheduleNotificationsUseCase extends _i1.Mock
-    implements _i25.ScheduleNotificationsUseCase {
+    implements _i26.ScheduleNotificationsUseCase {
   MockScheduleNotificationsUseCase() {
     _i1.throwOnMissingStub(this);
   }

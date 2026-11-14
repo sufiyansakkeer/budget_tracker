@@ -166,6 +166,8 @@ class ReportRangeLabel extends StatelessWidget {
         '$days ${days == 1 ? 'day' : 'days'}';
     // One 48 dp button read as "Report period …, change" (UX-061).
     return Semantics(
+      // Its own node: without it the label merges into the rows after it.
+      container: true,
       button: true,
       label:
           'Report period ${AppDates.range(range.start, range.end)}, '
@@ -176,19 +178,12 @@ class ReportRangeLabel extends StatelessWidget {
         borderRadius: AppSpacing.borderRadiusSm,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+          // Blueprint: a plain meta line on the chips' start edge, with
+          // "Change" at the end; no icon, no inset.
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xs,
-              vertical: AppSpacing.xs,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
             child: Row(
               children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: AppSizes.iconXs,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   // Two lines at large text rather than cutting the year.
                   child: Text(
