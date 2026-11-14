@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
@@ -25,6 +27,13 @@ import '../../../../core/widgets/app_surface.dart';
 /// switcher from elsewhere on the same screen.
 class ActiveBudgetSelector extends StatefulWidget {
   const ActiveBudgetSelector({super.key});
+
+  /// Makes [budgetId] the active budget and tells every screen.
+  static Future<void> select(String budgetId) async {
+    await getIt<ManageBudgetUseCase>().setActive(budgetId);
+    RefreshBuses.budgets.notifyChanged();
+    AppHaptics.confirm();
+  }
 
   /// Opens the budget switcher sheet and applies the chosen action.
   static Future<void> open(BuildContext context) async {
@@ -53,6 +62,7 @@ class ActiveBudgetSelector extends StatefulWidget {
       onOpen: BudgetAction.open,
       footer: (sheetContext) => [
         FilledButton.tonalIcon(
+          style: AppTheme.tonal(context),
           onPressed: () =>
               Navigator.of(sheetContext).pop(const BudgetAction.create()),
           icon: const Icon(Icons.add_rounded),
@@ -75,14 +85,12 @@ class ActiveBudgetSelector extends StatefulWidget {
       case BudgetActionType.open:
         await context.pushUnique('/app/budgets/${action.budget!.id}');
       case BudgetActionType.manage:
-        await context.pushUnique('/app/budgets');
+        await context.pushUnique('/app/budgets/all');
         RefreshBuses.budgets.notifyChanged();
       case BudgetActionType.select:
         final budget = action.budget!;
         if (budget.isArchived || budget.id == activeId) return;
-        await manageBudget.setActive(budget.id);
-        RefreshBuses.budgets.notifyChanged();
-        AppHaptics.confirm();
+        await select(budget.id);
     }
   }
 

@@ -361,13 +361,19 @@ void main() {
     expect(find.text('Amount range'), findsOneWidget);
   });
 
-  testWidgets('export lives in the menu', (tester) async {
-    await pump(tester);
-    expect(find.text('Share this report as a file'), findsNothing);
-    await tester.tap(find.byKey(const Key('reportsMenu')));
-    await tester.pumpAndSettle();
-    expect(find.text('Export CSV'), findsOneWidget);
-    expect(find.text('Export PDF'), findsOneWidget);
+  testWidgets('export comes last, after the report (blueprint)', (
+    tester,
+  ) async {
+    await pump(tester, size: const Size(400, 6000));
+    expect(find.byKey(const Key('reportsMenu')), findsNothing);
+    final csv = find.text('Export CSV');
+    final pdf = find.text('Export PDF');
+    expect(csv, findsOneWidget);
+    expect(pdf, findsOneWidget);
+    expect(
+      tester.getTopLeft(csv).dy,
+      greaterThan(tester.getTopLeft(find.text('Where it went')).dy),
+    );
   });
 
   testWidgets('a failed refresh keeps the last report with a retry '
@@ -647,22 +653,11 @@ void main() {
   });
 
   group('UX-089: export', () {
-    testWidgets('greyed-out items say why', (tester) async {
+    testWidgets('nothing to export, no export buttons', (tester) async {
       expenses.store.clear();
       await pump(tester, period: ReportPeriod.thisWeek);
-      await tester.tap(find.byKey(const Key('reportsMenu')));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('No expenses to export in this period'),
-        findsNWidgets(2),
-      );
-    });
-
-    testWidgets('an available export carries no reason', (tester) async {
-      await pump(tester);
-      await tester.tap(find.byKey(const Key('reportsMenu')));
-      await tester.pumpAndSettle();
-      expect(find.text('No expenses to export in this period'), findsNothing);
+      expect(find.text('Export CSV'), findsNothing);
+      expect(find.text('Export PDF'), findsNothing);
     });
   });
 }

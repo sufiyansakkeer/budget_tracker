@@ -4,6 +4,8 @@ import 'package:monivo/core/dates/calendar_dates.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:go_router/go_router.dart';
 import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/di/injection.dart';
@@ -76,8 +78,9 @@ void main() {
     String? copyFromId,
     ExpensePrefill? prefill,
     bool settle = true,
+    GetSafeToSpendUseCase? safeToSpend,
   }) async {
-    final bloc = memoryExpenseBloc(expenses, budgets);
+    final bloc = memoryExpenseBloc(expenses, budgets, safeToSpend: safeToSpend);
     addTearDown(bloc.close);
     final router = GoRouter(
       initialLocation: '/app/home',
@@ -803,4 +806,62 @@ void main() {
       expect(picker.value, 'trip');
     });
   });
+
+  group('what it does to today, before saving (blueprint)', () {
+    testWidgets('a new expense today shows left today as it is typed', (
+      tester,
+    ) async {
+      await pumpForm(tester, safeToSpend: _TodayInput());
+      expect(find.text('Left today'), findsOneWidget);
+
+      await tester.enterText(amountField(), '40');
+      await tester.pump();
+      expect(find.text('₹60'), findsOneWidget);
+    });
+
+    testWidgets('editing an expense shows nothing', (tester) async {
+      final today = DateTime.now();
+      final day = DateTime(today.year, today.month, today.day);
+      expenses.store['e1'] = ExpenseEntity(
+        id: 'e1',
+        budgetId: 'personal',
+        amount: 30,
+        categoryId: 'food',
+        date: day,
+        time: day,
+        createdAt: day,
+        updatedAt: day,
+      );
+      await pumpForm(tester, expenseId: 'e1', safeToSpend: _TodayInput());
+      expect(find.byKey(const Key('todayImpact')), findsNothing);
+    });
+  });
+}
+
+/// 1,100 over the 11 days left of the test budget (it ends in 10 days):
+/// 100 a day, nothing spent.
+class _TodayInput implements GetSafeToSpendUseCase {
+  @override
+  Future<SafeToSpendInput?> inputFor({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return SafeToSpendInput(
+      budgetId: budgetId,
+      budgetName: 'Personal',
+      currency: 'INR',
+      startDate: today.subtract(const Duration(days: 20)),
+      endDate: DateTime(today.year, today.month, today.day + 10),
+      today: today,
+      budgetAmount: 1100,
+      periodSpent: 0,
+      todaySpent: 0,
+      commitments: const [],
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

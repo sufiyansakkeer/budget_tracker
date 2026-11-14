@@ -83,6 +83,9 @@ void main() {
         });
 
         test('the tint alpha is the one the status containers use', () {
+          // Default's fills are the blueprint's, authored (theme_contrast_test
+          // pins them); the derived palettes tint.
+          if (palette == ColorPalette.defaultPalette) return;
           final tokens = theme.extension<AppColorTokens>()!;
           final alpha = AppColorTokens.tintAlpha(brightness);
           expect(
@@ -99,7 +102,7 @@ void main() {
 
   for (final brightness in Brightness.values) {
     for (final animate in [false, true]) {
-      testWidgets('IconTile takes its tint from the tokens '
+      testWidgets('IconTile tints its colour at the blueprint 15% '
           '(${brightness.name}, animate: $animate)', (tester) async {
         final theme = brightness == Brightness.light
             ? AppTheme.lightTheme
@@ -126,7 +129,7 @@ void main() {
           ),
         );
         final fill = (box.decoration! as BoxDecoration).color!;
-        expect(fill.a, closeTo(AppColorTokens.tintAlpha(brightness), 0.005));
+        expect(fill.a, closeTo(IconTile.tileAlpha, 0.005));
       });
     }
   }

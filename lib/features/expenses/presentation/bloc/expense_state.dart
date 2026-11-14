@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
 import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -63,6 +64,11 @@ class ExpenseState extends Equatable {
   /// none, or it could not be read).
   final BudgetEntity? quickAddBudget;
 
+  /// Quick add: the engine's input for that budget today, so the sheet can
+  /// show what the amount does to today before saving
+  /// (`SafeToSpendCalculator.preview`). Null when it couldn't be read.
+  final SafeToSpendInput? quickAddInput;
+
   /// Quick add: the category shortcuts, most used first.
   final List<ExpenseCategory> frequentCategories;
 
@@ -80,6 +86,7 @@ class ExpenseState extends Equatable {
     this.initialTime,
     this.quickAddLoad = QuickAddLoad.idle,
     this.quickAddBudget,
+    this.quickAddInput,
     this.frequentCategories = const [],
   });
 
@@ -110,6 +117,8 @@ class ExpenseState extends Equatable {
     QuickAddLoad? quickAddLoad,
     BudgetEntity? quickAddBudget,
     bool clearQuickAddBudget = false,
+    SafeToSpendInput? quickAddInput,
+    bool clearQuickAddInput = false,
     List<ExpenseCategory>? frequentCategories,
   }) {
     return ExpenseState(
@@ -130,6 +139,9 @@ class ExpenseState extends Equatable {
       quickAddBudget: clearQuickAddBudget
           ? null
           : (quickAddBudget ?? this.quickAddBudget),
+      quickAddInput: clearQuickAddInput
+          ? null
+          : (quickAddInput ?? this.quickAddInput),
       frequentCategories: frequentCategories ?? this.frequentCategories,
     );
   }
@@ -149,6 +161,7 @@ class ExpenseState extends Equatable {
     initialTime,
     quickAddLoad,
     quickAddBudget,
+    quickAddInput,
     frequentCategories,
   ];
 }

@@ -118,6 +118,13 @@ void main() {
       find.widgetWithText(TextFormField, label, skipOffstage: false);
 
   Future<void> enter(WidgetTester tester, String label, String text) async {
+    // A new budget opens "By day" (blueprint); these tests enter a total.
+    if (label == 'Budget amount' && field(label).evaluate().isEmpty) {
+      await tester.ensureVisible(find.text('By total', skipOffstage: false));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('By total'));
+      await tester.pumpAndSettle();
+    }
     await tester.ensureVisible(field(label));
     await tester.pumpAndSettle();
     await tester.enterText(field(label), text);
@@ -536,9 +543,109 @@ void main() {
     // its content and the theme, so it grows with large text.
     final currency = tester.getSize(find.byType(CurrencyPickerField));
     expect(currency.height, greaterThanOrEqualTo(56));
+    // A new budget opens by the day (blueprint).
     final amount = tester.getSize(
-      find.widgetWithText(TextFormField, 'Budget amount'),
+      find.widgetWithText(TextFormField, 'Daily target'),
     );
     expect(currency.height, lessThanOrEqualTo(amount.height));
+  });
+
+  group('per day (blueprint: "by day")', () {
+    test('the amount over the days, after money set aside, floored', () {
+      expect(
+        BudgetFormScreen.perDayLine(
+          amount: 31000,
+          reserved: null,
+          savings: null,
+          days: 31,
+          currency: 'INR',
+        ),
+        "That's about ₹1,000 a day for 31 days, before bills.",
+      );
+      expect(
+        BudgetFormScreen.perDayLine(
+          amount: 31000,
+          reserved: 1000,
+          savings: 2000,
+          days: 30,
+          currency: 'INR',
+        ),
+        "That's about ₹933.33 a day for 30 days, after money set aside "
+        'and before bills.',
+      );
+    });
+
+    test(
+      'nothing to say without an amount, or when set-asides take it all',
+      () {
+        String? line(double amount, double? savings) =>
+            BudgetFormScreen.perDayLine(
+              amount: amount,
+              reserved: null,
+              savings: savings,
+              days: 30,
+              currency: 'INR',
+            );
+        expect(line(0, null), isNull);
+        expect(line(1000, 1000), isNull);
+      },
+    );
+
+    testWidgets('the form says it as the amount is typed', (tester) async {
+      await pumpForm(tester);
+      expect(
+        find.textContaining('a day for', skipOffstage: false),
+        findsNothing,
+      );
+      await enter(tester, 'Budget amount', '3100');
+      expect(
+        find.textContaining('a day for 31 days', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('By day (blueprint)', () {
+    testWidgets('a new budget starts by the day: the total follows', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+
+      expect(field('Daily target'), findsOneWidget);
+      expect(field('Budget amount'), findsNothing);
+      await enter(tester, 'Budget name', 'Household');
+      await enter(tester, 'Daily target', '100');
+      await enter(tester, 'Savings goal', '300');
+
+      // 31 days by default.
+      expect(
+        find.text('₹100 a day × 31 days + ₹300 savings', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.text('₹3,400', skipOffstage: false), findsOneWidget);
+      expect(
+        find.text('Saved as the budget amount', skipOffstage: false),
+        findsOneWidget,
+      );
+
+      await save(tester, 'Create budget');
+      final saved = (await budgets.getAllBudgets()).single;
+      expect(saved.monthlyAmount, 3400);
+      expect(saved.savingsTarget, 300);
+    });
+
+    testWidgets('switching to the total carries the figure over', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await enter(tester, 'Daily target', '100');
+      await tester.ensureVisible(find.text('By total', skipOffstage: false));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('By total'));
+      await tester.pumpAndSettle();
+
+      final total = tester.widget<TextFormField>(field('Budget amount'));
+      expect(total.controller!.text, '3100');
+    });
   });
 }

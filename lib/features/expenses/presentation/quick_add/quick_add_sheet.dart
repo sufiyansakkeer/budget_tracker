@@ -23,6 +23,9 @@ import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../../../budget/domain/services/safe_to_spend_calculator.dart';
 import '../../../budget/presentation/start_next_period.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -34,6 +37,9 @@ import '../widgets/category_visuals.dart';
 import '../widgets/expense_date_rules.dart';
 import '../widgets/expense_undo.dart';
 import '../widgets/form_field_error.dart';
+import '../widgets/today_impact.dart';
+import '../../../dashboard/presentation/widgets/safe_to_spend_copy.dart';
+import '../../../dashboard/presentation/widgets/target_ring.dart';
 import 'amount_entry.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/dates/date_range_format.dart';
@@ -115,6 +121,18 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   String? _saveError;
 
   DateTime get _today => DateTime(_now.year, _now.month, _now.day);
+
+  static final _calculator = SafeToSpendCalculator(BudgetCalculationService());
+
+  /// Today's figures before and as if the amount were already saved, for
+  /// an expense today in a running budget; null otherwise.
+  (SafeToSpendEntity, SafeToSpendEntity)? _preview(ExpenseState state) {
+    final input = state.quickAddInput;
+    if (input == null || _day != _Day.today) return null;
+    final before = _calculator.preview(input, draftToday: 0);
+    if (!before.isRunning) return null;
+    return (before, _calculator.preview(input, draftToday: _entry.value));
+  }
 
   /// Leaving now would lose what was entered.
   bool get _hasInput => !_entry.isEmpty || _categoryId != null;
@@ -409,21 +427,39 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         final currency = budget?.currency;
         final notice = loaded && budget != null ? _periodNotice(budget) : null;
         final notStarted = budget != null && _startsLater(budget);
+        final preview = _preview(state);
 
         return SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppSheetHeader(
-                title: 'Add expense',
-                subtitle: !loaded
-                    ? ' '
-                    : budget == null
-                    ? 'No budget yet'
-                    : 'To ${budget.name} · until '
-                          '${AppDates.day(budget.endDate)}',
-              ),
+              if (preview == null)
+                AppSheetHeader(
+                  title: 'Add expense',
+                  subtitle: !loaded
+                      ? ' '
+                      : budget == null
+                      ? 'No budget yet'
+                      : 'To ${budget.name} · until '
+                            '${AppDates.day(budget.endDate)}',
+                )
+              else
+                _RingHeader(
+                  before: preview.$1,
+                  after: preview.$2,
+                  draft: _entry.value,
+                  subtitle: budget == null
+                      ? ''
+                      : 'To ${budget.name} · until '
+                            '${AppDates.day(budget.endDate)}',
+                  amount: _AmountDisplay(
+                    entry: _entry,
+                    currency: currency,
+                    hasError: _amountError != null,
+                    start: true,
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 child: Column(
@@ -434,13 +470,18 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                       notice,
                       const SizedBox(height: AppSpacing.sm),
                     ],
-                    _AmountDisplay(
-                      entry: _entry,
-                      currency: currency,
-                      hasError: _amountError != null,
-                    ),
+                    if (preview == null)
+                      _AmountDisplay(
+                        entry: _entry,
+                        currency: currency,
+                        hasError: _amountError != null,
+                      ),
                     if (_amountError != null)
                       Center(child: _CenteredError(message: _amountError!)),
+                    if (preview != null) ...[
+                      const SizedBox(height: AppSpacing.smd),
+                      TodayImpact(before: preview.$1, after: preview.$2),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     if (failed)
                       AppNotice(
@@ -621,7 +662,8 @@ class _Actions extends StatelessWidget {
       icon: Icons.add_rounded,
       label: addLabel,
     );
-    final more = TextButton(
+    // Blueprint: an outlined "More details" beside the filled Add.
+    final more = OutlinedButton(
       key: const Key('quickAddMoreDetails'),
       onPressed: busy ? null : onMoreDetails,
       child: const Text('More details', textAlign: TextAlign.center),
@@ -638,10 +680,33 @@ class _Actions extends StatelessWidget {
     }
     return Row(
       children: [
-        more,
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: add),
+        Expanded(flex: 2, child: more),
+        const SizedBox(width: AppSpacing.smd),
+        Expanded(flex: 3, child: add),
       ],
+    );
+  }
+}
+
+/// Blueprint .chips: one row that scrolls sideways, to the screen edge.
+class _ChipRow extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ChipRow({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.sm),
+            children[i],
+          ],
+        ],
+      ),
     );
   }
 }
@@ -657,10 +722,14 @@ class _AmountDisplay extends StatelessWidget {
   final String? currency;
   final bool hasError;
 
+  /// Left-aligned under the ring header's title (blueprint), else centred.
+  final bool start;
+
   const _AmountDisplay({
     required this.entry,
     required this.currency,
     required this.hasError,
+    this.start = false,
   });
 
   /// "Amount, empty" or "Amount, OMR 1.500".
@@ -684,9 +753,15 @@ class _AmountDisplay extends StatelessWidget {
       excludeSemantics: true,
       child: SizedBox(
         height: 72,
-        child: Center(
+        child: Align(
+          alignment: start
+              ? AlignmentDirectional.centerStart
+              : AlignmentDirectional.center,
           child: FittedBox(
             fit: BoxFit.scaleDown,
+            alignment: start
+                ? AlignmentDirectional.centerStart
+                : AlignmentDirectional.center,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -778,9 +853,7 @@ class _CategoryChoice extends StatelessWidget {
     return Semantics(
       container: true,
       label: 'Category',
-      child: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
+      child: _ChipRow(
         children: [
           for (final c in shown)
             ChoiceChip(
@@ -828,9 +901,7 @@ class _DayChoice extends StatelessWidget {
     return Semantics(
       container: true,
       label: 'Day',
-      child: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
+      child: _ChipRow(
         children: [
           ChoiceChip(
             key: const Key('quickDate_today'),
@@ -892,7 +963,7 @@ class _AllCategoriesSheet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               children: [
                 AppGroupedList(
-                  dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                  dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                   children: [
                     for (final c in shown)
                       AppListRow(
@@ -916,6 +987,82 @@ class _AllCategoriesSheet extends StatelessWidget {
                       ),
                   ],
                 ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The sheet's head with a preview ring (blueprint): the ring with the
+/// amount as a faint arc, its centre what is left (or "+₹92" over, amber),
+/// then the title, the budget and the amount.
+class _RingHeader extends StatelessWidget {
+  final SafeToSpendEntity before;
+  final SafeToSpendEntity after;
+  final double draft;
+  final String subtitle;
+  final Widget amount;
+
+  const _RingHeader({
+    required this.before,
+    required this.after,
+    required this.draft,
+    required this.subtitle,
+    required this.amount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final over = after.overToday > 0;
+    final centre = over
+        ? '+${SafeToSpendCopy.amount(after.overToday, after.currency)}'
+        : SafeToSpendCopy.safeAmount(after.remainingToday, after.currency);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        0,
+      ),
+      child: Row(
+        children: [
+          TargetRing(
+            key: const Key('quickAddRing'),
+            spent: before.todayDiscretionary,
+            target: before.dailySafeToSpend,
+            draft: draft > 0 ? draft : 0,
+            diameter: 96,
+            stroke: 10,
+            semanticsLabel: '',
+            child: Text(
+              centre,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: over ? context.tone(AppTone.caution).accent : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text('Add expense', style: theme.textTheme.titleLarge),
+                ),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                amount,
               ],
             ),
           ),

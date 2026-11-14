@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/target_ring.dart';
 import 'package:go_router/go_router.dart';
 import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:monivo/core/di/injection.dart';
@@ -17,6 +18,7 @@ import 'package:monivo/features/budget/domain/repository/budget_repository.dart'
 import 'package:monivo/features/budget/domain/usecases/get_budget_list_summary_usecase.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/features/budget/presentation/pages/budget_details_screen.dart';
+import 'package:monivo/features/budget/presentation/pages/budget_tab_screen.dart';
 import 'package:monivo/features/budget/presentation/pages/budget_list_screen.dart';
 import 'package:monivo/features/budget/presentation/widgets/budget_list_items.dart';
 
@@ -24,7 +26,6 @@ import '../../../../helpers/haptics_recorder.dart';
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
-import 'package:monivo/core/constants/app_copy.dart';
 
 /// Budgets whose statistics can be set per budget.
 class _StatsBudgetRepository extends ListBudgetRepository {
@@ -258,8 +259,8 @@ void main() {
   }
 
   group('Budgets list', () {
-    testWidgets('the active budget leads as the one raised card, the rest '
-        'are compact rows', (tester) async {
+    testWidgets('every budget is a row (blueprint): the active one leads '
+        'its group with an Active chip', (tester) async {
       await register([
         personal,
         household,
@@ -269,27 +270,29 @@ void main() {
       ], 'household');
       await pump(tester, const BudgetListScreen());
 
-      expect(find.byType(AppSurface), findsOneWidget);
-      expect(find.byType(ActiveBudgetCard), findsOneWidget);
-      expect(
-        find.text('Home, Expenses and Reports follow this budget'),
-        findsOneWidget,
-      );
-      expect(find.byType(BudgetRow), findsNWidgets(4));
-      expect(find.text('Also running today'), findsOneWidget);
-      expect(find.text(AppTerms.notStarted), findsWidgets);
-      expect(find.text('Starting later'), findsNothing);
+      expect(find.byType(AppSurface), findsNothing);
+      expect(find.byType(BudgetRow), findsNWidgets(5));
+      expect(find.byKey(const ValueKey('activeBudgetChip')), findsOneWidget);
+      expect(find.text('Running today'), findsOneWidget);
+      expect(find.text('Also running today'), findsNothing);
+      expect(find.text('Starting later'), findsOneWidget);
       expect(find.text('Archived'), findsWidgets);
 
-      // The active card comes first, the footer last.
-      final card = tester.getTopLeft(find.byType(ActiveBudgetCard)).dy;
-      final rows = tester.getTopLeft(find.text('Also running today')).dy;
-      final footer = tester.getTopLeft(find.text('Total remaining budget')).dy;
-      expect(card, lessThan(rows));
-      expect(rows, lessThan(footer));
+      // Blueprint: total remaining is the list's one display figure, at
+      // the top; then the rows, the active budget first.
+      final total = tester.getTopLeft(find.text('Total remaining')).dy;
+      final rows = tester.getTopLeft(find.text('Running today')).dy;
+      expect(total, lessThan(rows));
+      final active = tester
+          .getTopLeft(find.byKey(const ValueKey('budget_household')))
+          .dy;
+      for (final other in ['budget_personal', 'budget_muscat']) {
+        final y = tester.getTopLeft(find.byKey(ValueKey(other)));
+        expect(active, lessThan(y.dy));
+      }
     });
 
-    testWidgets('the footer gives one total per currency, never pooled', (
+    testWidgets('the total gives one figure per currency, never pooled', (
       tester,
     ) async {
       await register([household, personal, muscat], 'household');
@@ -301,6 +304,22 @@ void main() {
       );
       expect(find.text(AppMoney.format(120.5, currency: 'OMR')), findsWidgets);
       expect(find.text('Across 3 budgets running today'), findsOneWidget);
+    });
+
+    testWidgets('a running budget\'s row says its daily target, with its '
+        'ring (blueprint)', (tester) async {
+      await register([household, personal], 'household', bills: const []);
+      await pump(tester, const BudgetListScreen());
+
+      final row = find.byKey(const ValueKey('budget_personal'));
+      expect(
+        find.descendant(of: row, matching: find.byType(MiniTargetRing)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.textContaining(' a day · ')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an overspent budget reads "over", in the critical tone', (
@@ -667,7 +686,8 @@ void main() {
       await register([household, september], 'household');
       await pumpRouted(tester, '/app/budgets');
 
-      await tester.tap(find.widgetWithText(TextButton, 'Start next period'));
+      // Blueprint: a small tonal button under the Ended rows.
+      await tester.tap(find.widgetWithText(FilledButton, 'Start next period'));
       await tester.pumpAndSettle();
       expect(find.text('Form sep'), findsOneWidget);
     });
@@ -736,10 +756,8 @@ void main() {
     ) async {
       await register([household], 'household');
       await pumpRouted(tester, '/app/budgets');
-      expect(
-        find.text('Day 9 of 31 · 23 days left, incl.\u00A0today'),
-        findsOneWidget,
-      );
+      // The list's row counts the same days left (today included).
+      expect(find.textContaining('23 days left'), findsOneWidget);
 
       await pumpRouted(tester, '/app/budgets/household');
       expect(
@@ -771,7 +789,8 @@ void main() {
       );
       await pumpRouted(tester, '/app/budgets/household');
 
-      expect(find.text('Set aside'), findsOneWidget);
+      // Blueprint: the money map, whole amount first.
+      expect(find.text('Where the ₹60,000 is'), findsOneWidget);
       expect(find.text('Kept aside'), findsOneWidget);
       expect(find.text(AppMoney.format(2000, currency: 'INR')), findsOneWidget);
       expect(find.text('Savings goal'), findsOneWidget);
@@ -790,7 +809,7 @@ void main() {
       await register([household, personal], 'household', bills: const []);
       await pump(tester, const BudgetDetailsScreen(budgetId: 'personal'));
 
-      expect(find.text('Set aside'), findsOneWidget);
+      expect(find.text('Where the ₹9,000 is'), findsOneWidget);
       expect(find.text("See Today's Safe Spending on Home"), findsNothing);
     });
   });
@@ -934,7 +953,8 @@ void main() {
       await pump(tester, const BudgetListScreen());
 
       expect(find.textContaining('Show all'), findsNothing);
-      expect(find.byType(BudgetRow), findsNWidgets(5));
+      // The five past budgets and the active one, each a row.
+      expect(find.byType(BudgetRow), findsNWidgets(6));
     });
   });
 
@@ -967,6 +987,159 @@ void main() {
       );
       final theme = AppTheme.lightTheme;
       expect(title.style?.color, theme.colorScheme.onSurfaceVariant);
+    });
+  });
+
+  group('Budget tab (blueprint)', () {
+    const spent = MonthlyStatisticsEntity(
+      totalSpent: 34897,
+      expenseCount: 13,
+      todaySpending: 570,
+    );
+
+    Future<void> tab(WidgetTester tester, {List<BudgetEntity>? budgets}) async {
+      await register(
+        budgets ?? [household, personal],
+        'household',
+        bills: const [],
+        stats: {'household': spent},
+      );
+      await pump(tester, const BudgetTabScreen(), size: const Size(400, 2400));
+    }
+
+    Finder title(String name) => find.descendant(
+      of: find.byKey(const Key('budgetTabTitle')),
+      matching: find.text(name),
+    );
+
+    testWidgets('the period: what is left, how much is used against time', (
+      tester,
+    ) async {
+      await tab(tester);
+
+      expect(title('Household'), findsOneWidget);
+      expect(find.text('Left in this budget'), findsOneWidget);
+      // Left in the budget; with nothing set aside the Free pot is the same.
+      expect(find.text('₹25,103'), findsNWidgets(2));
+      // 34,897 of 60,000 used; 22 of 31 days still to go.
+      expect(
+        find.text('of ₹60,000 · 58% used with 71% of the period to go'),
+        findsOneWidget,
+      );
+      // No app bar title, no back, no add button: it is a tab.
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.byType(BackButton), findsNothing);
+      expect(find.byType(FloatingActionButton), findsNothing);
+    });
+
+    testWidgets('where the money is: the map, then the pots in its order', (
+      tester,
+    ) async {
+      await tab(tester);
+
+      expect(find.text('Where the ₹60,000 is'), findsOneWidget);
+      expect(
+        find.text("Each square is one day of free money. Today's is filled."),
+        findsOneWidget,
+      );
+      expect(find.text('Pots'), findsOneWidget);
+      double y(String t) => tester.getTopLeft(find.text(t).last).dy;
+      final order = [
+        'Free to spend',
+        'Bills set aside',
+        'Savings goal',
+        'Kept aside',
+        'Spent',
+      ];
+      for (var i = 1; i < order.length; i++) {
+        expect(y(order[i - 1]), lessThan(y(order[i])), reason: order[i]);
+      }
+      expect(find.text('13 expenses'), findsOneWidget);
+      expect(find.text('Change your daily target'), findsOneWidget);
+    });
+
+    testWidgets('other budgets, with all budgets one tap away', (tester) async {
+      await tab(tester);
+
+      expect(find.text('Other budgets'), findsOneWidget);
+      expect(find.text('All budgets'), findsOneWidget);
+      expect(find.text('Personal'), findsOneWidget);
+    });
+
+    testWidgets('"Change your daily target" previews, then applies', (
+      tester,
+    ) async {
+      await tab(tester);
+      await tester.ensureVisible(find.text('Change your daily target'));
+      await tester.tap(find.text('Change your daily target'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Target from tomorrow'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Savings goal'),
+        '1000',
+      );
+      await tester.pump();
+      await tester.ensureVisible(find.text('Apply'));
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Target from tomorrow'), findsNothing);
+      final saved = await getIt<ManageBudgetUseCase>().getById('household');
+      expect(saved!.savingsTarget, 1000);
+      expect(find.text('Daily target updated'), findsOneWidget);
+    });
+
+    testWidgets('the name switches the budget; the tab follows', (
+      tester,
+    ) async {
+      await tab(tester);
+      expect(find.byTooltip('Switch budget'), findsOneWidget);
+
+      await getIt<ManageBudgetUseCase>().setActive('personal');
+      RefreshBuses.budgets.notifyChanged();
+      await tester.pumpAndSettle();
+
+      expect(title('Personal'), findsOneWidget);
+    });
+
+    testWidgets('with no budget it offers to create one', (tester) async {
+      await register(const [], null);
+      await pump(tester, const BudgetTabScreen());
+
+      expect(find.text('Create your first budget'), findsOneWidget);
+    });
+
+    testWidgets('"All budgets" opens the list', (tester) async {
+      await register([household, personal], 'household', bills: const []);
+      tester.view.physicalSize = const Size(400, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp.router(
+          theme: AppTheme.lightTheme,
+          routerConfig: GoRouter(
+            initialLocation: '/app/budgets',
+            routes: [
+              GoRoute(
+                path: '/app/budgets',
+                builder: (_, _) => const BudgetTabScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'all',
+                    builder: (_, _) => const BudgetListScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('All budgets'));
+      await tester.pumpAndSettle();
+      expect(find.text('All budgets'), findsOneWidget);
     });
   });
 }

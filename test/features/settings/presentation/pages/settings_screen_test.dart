@@ -78,48 +78,40 @@ void main() {
     minute: minute,
   ).format(tester.element(find.byType(SettingsScreen)));
 
-  Finder inSummary(String text) => find.descendant(
-    of: find.byKey(const Key('settingsSummary')),
-    matching: find.text(text),
-  );
-
-  group('summary strip', () {
-    testWidgets('shows the current choices', (tester) async {
-      await pump(
-        tester,
-        state: loadedSettings.copyWith(
-          settings: loadedSettings.settings.copyWith(biometricEnabled: true),
-        ),
-        theme: const ThemeState(
-          mode: AppThemeMode.dark,
-          palette: ColorPalette.ocean,
-        ),
-      );
-
-      expect(inSummary('USD'), findsOneWidget);
-      expect(inSummary('Dark · Ocean'), findsOneWidget);
-      expect(
-        inSummary('${time(tester, 8, 0)} · ${time(tester, 21, 30)}'),
-        findsOneWidget,
-      );
-      expect(inSummary('On'), findsOneWidget);
-    });
-
-    testWidgets('reminders read Off when notifications are off', (
+  group('More tiles (blueprint)', () {
+    testWidgets('every feature beyond the daily view leads the screen', (
       tester,
     ) async {
-      await pump(
-        tester,
-        state: loadedSettings.copyWith(
-          settings: loadedSettings.settings.copyWith(
-            notifications: const NotificationSettings(
-              notificationsEnabled: false,
-            ),
-          ),
-        ),
-      );
+      await pump(tester);
 
-      expect(inSummary('Off'), findsNWidgets(2), reason: 'reminders, lock');
+      final tiles = find.byKey(const Key('moreTiles'));
+      expect(tiles, findsOneWidget);
+      for (final title in const [
+        'Bills',
+        'Pay later',
+        'Categories',
+        'Currency converter',
+        'All budgets',
+        'Your data',
+      ]) {
+        expect(
+          find.descendant(of: tiles, matching: find.text(title)),
+          findsOneWidget,
+          reason: title,
+        );
+      }
+      // The rows the tiles replace are gone.
+      expect(find.text('Budgets'), findsNothing);
+    });
+
+    testWidgets('"Your data" brings the data settings into view', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.tap(find.text('Your data'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Data').hitTestable(), findsOneWidget);
     });
   });
 
@@ -143,7 +135,7 @@ void main() {
       expect(notice.top, greaterThan(toggle.bottom));
       expect(
         notice.top,
-        lessThan(tester.getRect(find.text('Morning reminder')).top),
+        lessThan(tester.getRect(find.text('Morning target')).top),
       );
     });
 
@@ -154,9 +146,9 @@ void main() {
 
       final morning = time(tester, 8, 0);
       final evening = time(tester, 21, 30);
-      // Once in the summary, once on the row.
-      expect(find.textContaining(morning), findsNWidgets(2));
-      expect(find.textContaining(evening), findsNWidgets(2));
+      // On the row (the summary strip gave way to the More tiles).
+      expect(find.textContaining(morning), findsOneWidget);
+      expect(find.textContaining(evening), findsOneWidget);
       // The 24-hour pills are gone.
       expect(find.text('08:00'), findsNothing);
       expect(find.text('21:30'), findsNothing);
@@ -178,7 +170,7 @@ void main() {
 
       final morning = tester.widget<ListTile>(
         find.ancestor(
-          of: find.text('Morning reminder'),
+          of: find.text('Morning target'),
           matching: find.byType(ListTile),
         ),
       );
@@ -408,14 +400,12 @@ void main() {
     });
   });
 
-  testWidgets('rows other flows rely on keep their keys', (tester) async {
+  testWidgets('tiles other flows rely on keep their keys', (tester) async {
     await pump(tester);
 
-    expect(find.byKey(const Key('settingsCategoriesTile')), findsOneWidget);
-    expect(
-      find.byKey(const Key('settingsCurrencyConverterTile')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('more_categories')), findsOneWidget);
+    expect(find.byKey(const Key('more_converter')), findsOneWidget);
+    expect(find.byKey(const Key('more_payLater')), findsOneWidget);
   });
 
   testWidgets('about shows the installed version', (tester) async {
@@ -446,94 +436,6 @@ void main() {
     expect(find.text('Restore from backup'), findsOneWidget);
   });
 
-  group('UX-034: change the active budget amount', () {
-    /// Settings inside a router, so the row can open the budget form.
-    Future<GoRouter> pumpRouted(
-      WidgetTester tester, {
-      required String? activeId,
-    }) async {
-      getIt.registerSingleton<ManageBudgetUseCase>(
-        ManageBudgetUseCase(
-          repository: ListBudgetRepository([
-            BudgetEntity(
-              id: 'omr-1',
-              name: 'Muscat trip',
-              monthlyAmount: 120.5,
-              remainingAmount: 120.5,
-              currency: 'OMR',
-              startDate: DateTime(2026, 10, 1),
-              endDate: DateTime(2026, 10, 31),
-              createdAt: DateTime(2026, 10, 1),
-              updatedAt: DateTime(2026, 10, 1),
-            ),
-          ], activeId),
-          reconcileTabs: FakeReconcileTabUseCase(),
-        ),
-      );
-      final settings = StaticSettingsBloc(loadedSettings);
-      final themeBloc = StaticThemeBloc(const ThemeState());
-      addTearDown(settings.close);
-      addTearDown(themeBloc.close);
-      tester.view.devicePixelRatio = 2;
-      tester.view.physicalSize = const Size(720, 18000);
-      addTearDown(tester.view.reset);
-      final router = GoRouter(
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) =>
-                settingsScreen(settings: settings, theme: themeBloc),
-          ),
-          GoRoute(
-            path: '/app/budgets',
-            builder: (context, state) => const Text('Budget list'),
-            routes: [
-              GoRoute(
-                path: 'create',
-                builder: (context, state) => const Text('New budget form'),
-              ),
-              GoRoute(
-                path: ':id/edit',
-                builder: (context, state) =>
-                    Text('Edit form for ${state.pathParameters['id']}'),
-              ),
-            ],
-          ),
-        ],
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(
-        MaterialApp.router(theme: AppTheme.lightTheme, routerConfig: router),
-      );
-      await tester.pumpAndSettle();
-      return router;
-    }
-
-    testWidgets("opens the active budget's own form, in its currency", (
-      tester,
-    ) async {
-      await pumpRouted(tester, activeId: 'omr-1');
-
-      await tester.tap(find.text('Change active budget amount'));
-      await tester.pumpAndSettle();
-
-      // No dialog priced in the default currency that closes silently.
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(find.text('Edit form for omr-1'), findsOneWidget);
-    });
-
-    testWidgets('with no budget yet, opens the new budget form', (
-      tester,
-    ) async {
-      await pumpRouted(tester, activeId: null);
-
-      await tester.tap(find.text('Change active budget amount'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(find.text('New budget form'), findsOneWidget);
-    });
-  });
   group('UX-099: the default currency', () {
     testWidgets('reaches the app only once saved; row and picker agree', (
       tester,

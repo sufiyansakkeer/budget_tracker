@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_spacing.dart';
@@ -169,6 +171,7 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
             children: [
               if (owing.isNotEmpty)
                 FilledButton.tonalIcon(
+                  style: AppTheme.tonal(context),
                   key: const Key('payLaterRecordPaymentButton'),
                   onPressed: () => _recordPayment(context, owing),
                   icon: const Icon(Icons.payments_outlined),
@@ -204,7 +207,7 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
                 children: [
                   if (listed.isNotEmpty)
                     AppGroupedList(
-                      dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                      dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                       children: [for (final l in listed) _tile(context, l)],
                     ),
                   if (archived.isNotEmpty)
@@ -214,7 +217,7 @@ class _PayLaterOverviewScreenState extends State<PayLaterOverviewScreen> {
                           ? '1 tab with nothing owed'
                           : '${archived.length} tabs with nothing owed',
                       child: AppGroupedList(
-                        dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                        dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                         children: [for (final l in archived) _tile(context, l)],
                       ),
                     ),

@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_amount_field.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_color_swatch.dart';
+import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_snack.dart';
@@ -72,6 +73,30 @@ class BudgetFormScreen extends StatefulWidget {
   @visibleForTesting
   static DateTime Function() clock = DateTime.now;
 
+  /// The amount as a day's worth: (amount − kept aside − savings goal) ÷
+  /// days, floored, before bills (they depend on the dates and links, and
+  /// Home sets them aside). Null when nothing would be left to spend.
+  static String? perDayLine({
+    required double amount,
+    required double? reserved,
+    required double? savings,
+    required int days,
+    required String currency,
+  }) {
+    if (days < 1 || !MoneyMath.isWithinLimit(amount)) return null;
+    final money = MoneyMath.forCurrency(currency);
+    final setAside = money.toUnits(reserved ?? 0) + money.toUnits(savings ?? 0);
+    final freeU = money.toUnits(amount) - setAside;
+    if (freeU <= 0) return null;
+    final perDay = AppMoney.format(
+      money.toAmount(freeU) / days,
+      currency: currency,
+      floored: true,
+    );
+    return "That's about $perDay a day for $days days, "
+        '${setAside > 0 ? 'after money set aside and ' : ''}before bills.';
+  }
+
   @override
   State<BudgetFormScreen> createState() => _BudgetFormScreenState();
 }
@@ -94,6 +119,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   BudgetEntity? _budget;
   late DateTime _startDate;
   late DateTime _endDate;
+
+  /// "By day" (blueprint): the amount field is the daily target and the
+  /// budget amount follows (× days + set-asides). New budgets start here;
+  /// an edit or a next period opens on the total it already has.
+  late bool _byDay = widget.budgetId == null && widget.nextAfterId == null;
   String _currency = 'INR';
   String? _color;
   String? _icon;
@@ -394,6 +424,121 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   }
 
   /// Parsed set-aside field: null when empty (not set).
+  /// [BudgetFormScreen.perDayLine] under the set-asides, as they change.
+  Widget? _perDay(BuildContext context) {
+    final line = BudgetFormScreen.perDayLine(
+      amount: double.tryParse(_amountController.text.trim()) ?? 0,
+      reserved: _parseOptional(_reserveController.text),
+      savings: _parseOptional(_savingsController.text),
+      days: _dayCount,
+      currency: _currency,
+    );
+    if (line == null) return null;
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: Text(
+        line,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  /// The budget amount the form saves: typed, or by day the daily target
+  /// over the days plus what is set aside.
+  double get _budgetAmountValue {
+    final typed = double.tryParse(_amountController.text.trim()) ?? 0;
+    if (!_byDay) return typed;
+    final money = MoneyMath.forCurrency(_currency);
+    if (!MoneyMath.isWithinLimit(typed)) return typed;
+    final units =
+        money.toUnits(typed) * _dayCount +
+        money.toUnits(_parseOptional(_reserveController.text) ?? 0) +
+        money.toUnits(_parseOptional(_savingsController.text) ?? 0);
+    return money.toAmount(units);
+  }
+
+  /// Switches by day ↔ by total, carrying the figure over.
+  void _setByDay(bool byDay) {
+    if (byDay == _byDay) return;
+    final typed = double.tryParse(_amountController.text.trim());
+    String? text;
+    if (typed != null && typed > 0) {
+      if (byDay) {
+        final money = MoneyMath.forCurrency(_currency);
+        final setAside =
+            money.toUnits(_parseOptional(_reserveController.text) ?? 0) +
+            money.toUnits(_parseOptional(_savingsController.text) ?? 0);
+        final free = money.toUnits(typed) - setAside;
+        text = free <= 0
+            ? ''
+            : MoneyInput.forInput(
+                CurrencyFormatter.floorForDisplay(
+                  money.toAmount(free) / _dayCount,
+                  code: _currency,
+                ).amount,
+              );
+      } else {
+        text = MoneyInput.forInput(_budgetAmountValue);
+      }
+    }
+    setState(() {
+      _byDay = byDay;
+      if (text != null) _amountController.text = text;
+    });
+  }
+
+  /// By day: the sum written out, ending at the budget amount it saves.
+  Widget? _byDaySum(BuildContext context) {
+    final daily = double.tryParse(_amountController.text.trim()) ?? 0;
+    if (!_byDay || daily <= 0) return null;
+    final theme = Theme.of(context);
+    final kept = _parseOptional(_reserveController.text) ?? 0;
+    final savings = _parseOptional(_savingsController.text) ?? 0;
+    String m(double v) => AppMoney.format(v, currency: _currency);
+    final sum = [
+      '${m(daily)} a day × $_dayCount ${_dayCount == 1 ? 'day' : 'days'}',
+      if (kept > 0) '${m(kept)} kept aside',
+      if (savings > 0) '${m(savings)} savings',
+    ].join(' + ');
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Container(
+        key: const ValueKey('budgetByDaySum'),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              sum,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            AppMoney(
+              amount: _budgetAmountValue,
+              currency: _currency,
+              role: MoneyRole.display,
+            ),
+            Text(
+              'Saved as the budget amount',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   static double? _parseOptional(String text) =>
       text.trim().isEmpty ? null : double.tryParse(text.trim());
 
@@ -402,10 +547,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     if (text.isEmpty) return null;
     final amount = double.tryParse(text);
     if (amount == null) return ValidationCopy.amountInvalid;
-    return ManageBudgetUseCase.validateSetAside(
-          amount,
-          double.tryParse(_amountController.text) ?? 0,
-        ) ??
+    return ManageBudgetUseCase.validateSetAside(amount, _budgetAmountValue) ??
         MoneyInput.decimalsError(text, _currency);
   }
 
@@ -439,7 +581,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// Inline warning when the kept-aside amount and savings goal together
   /// take the whole budget. Not a blocker.
   String? get _setAsideWarning {
-    final budgetAmount = double.tryParse(_amountController.text) ?? 0;
+    final budgetAmount = _budgetAmountValue;
     if (budgetAmount <= 0) return null;
     final reserve = _parseOptional(_reserveController.text) ?? 0;
     final savings = _parseOptional(_savingsController.text) ?? 0;
@@ -572,7 +714,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final invalid = _formKey.currentState!.validateGranularly();
     final fieldsOk = invalid.isEmpty;
 
-    final amount = double.tryParse(_amountController.text) ?? 0;
+    final amount = _budgetAmountValue;
     final error = _manageBudget.validate(
       _nameController.text,
       amount,
@@ -810,6 +952,24 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                       ),
                       const SizedBox(height: AppSpacing.md),
 
+                      // By day or by the total (blueprint).
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<bool>(
+                          showSelectedIcon: false,
+                          segments: const [
+                            ButtonSegment(value: true, label: Text('By day')),
+                            ButtonSegment(
+                              value: false,
+                              label: Text('By total'),
+                            ),
+                          ],
+                          selected: {_byDay},
+                          onSelectionChanged: (v) => _setByDay(v.single),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
                       // Amount + currency
                       Row(
                         key: _amountRowKey,
@@ -819,9 +979,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                             child: AppAmountField(
                               controller: _amountController,
                               currency: _currency,
-                              label: 'Budget amount',
-                              helperText:
-                                  'The total for the whole budget period',
+                              label: _byDay ? 'Daily target' : 'Budget amount',
+                              helperText: _byDay
+                                  ? 'What you want to spend each day'
+                                  : 'The total for the whole budget period',
                               // The set-aside checks depend on the amount.
                               onChanged: (_) => setState(() {}),
                               validator: (value) {
@@ -929,6 +1090,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         warning: _setAsideWarning,
                         onChanged: () => setState(() {}),
                       ),
+                      ?(_byDay ? _byDaySum(context) : _perDay(context)),
                       const SizedBox(height: AppSpacing.lg),
 
                       // Look and notes: optional, folded away on a new

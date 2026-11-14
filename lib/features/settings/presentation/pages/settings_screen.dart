@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/di/injection.dart' as di;
-import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_snack.dart';
@@ -15,7 +14,6 @@ import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../app_update/presentation/bloc/app_update_bloc.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../../app_update/presentation/widgets/app_update_section.dart';
-import '../../domain/entities/notification_settings.dart';
 import '../../domain/entities/color_palette_entity.dart';
 import '../../domain/entities/theme_mode_entity.dart';
 import '../bloc/settings_bloc.dart';
@@ -23,6 +21,8 @@ import '../bloc/settings_event.dart';
 import '../bloc/settings_state.dart';
 import '../bloc/theme/theme_bloc.dart';
 import '../bloc/theme/theme_event.dart';
+import '../../../../core/constants/app_motion.dart';
+import '../widgets/more_tiles.dart';
 import '../widgets/about_section.dart';
 import '../widgets/backup_destination_sheet.dart';
 import '../widgets/biometric_tile.dart';
@@ -34,7 +34,6 @@ import '../widgets/notification_toggle.dart';
 import '../widgets/reset_confirmation_dialog.dart';
 import '../widgets/restore_backup_flow.dart';
 import '../widgets/settings_section.dart';
-import '../widgets/settings_summary.dart';
 import '../widgets/settings_tile.dart';
 import '../widgets/theme_selector.dart';
 import '../../../../core/router/app_router.dart';
@@ -54,6 +53,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   /// Set once a load has completed so reloads keep the list on screen.
   bool _loadedOnce = false;
+
+  /// The Data section, where the "Your data" tile scrolls.
+  final _dataKey = GlobalKey();
 
   @override
   void initState() {
@@ -192,96 +194,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirm) bloc.add(const SettingsResetMonthEvent());
   }
 
-  /// Opens the active budget's own form, which already edits the amount in
-  /// the budget's currency, prefilled, with inline errors. The dialog this
-  /// replaced used the default currency and closed silently on bad input.
-  Future<void> _editActiveBudget(BuildContext context) async {
-    BudgetEntity? active;
-    try {
-      active = await di.getIt<ManageBudgetUseCase>().getActive();
-    } catch (e) {
-      debugPrint('[error] Reading the active budget: $e');
-    }
-    if (!context.mounted) return;
-    await context.pushUnique(
-      active == null
-          ? '${AppRouter.budgetsPath}/create'
-          : '${AppRouter.budgetsPath}/${active.id}/edit',
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<SettingsBloc>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: BlocListener<SettingsBloc, SettingsState>(
-        listenWhen: (prev, curr) =>
-            prev.settings.currencyCode != curr.settings.currencyCode ||
-            prev.settings.currencySymbol != curr.settings.currencySymbol,
-        listener: (_, state) => _syncCurrencyProvider(state),
-        child: BlocConsumer<SettingsBloc, SettingsState>(
-          // Showing a snackbar immediately clears the message, so every toast
-          // emitted twice and rebuilt this ~20-tile list both times.
-          buildWhen: (prev, curr) =>
-              prev.settings != curr.settings ||
-              prev.status != curr.status ||
-              prev.isBusy != curr.isBusy ||
-              prev.isBiometricBusy != curr.isBiometricBusy ||
-              prev.biometricMessage != curr.biometricMessage,
-          listener: (context, state) {
-            final messenger = ScaffoldMessenger.of(context);
-            if (state.integrityResult != null) {
-              final result = state.integrityResult!;
-              bloc.add(const SettingsClearMessageEvent());
-              IntegrityResultSheet.show(context, result);
-              return;
-            }
-            if (state.errorMessage != null &&
-                state.status == SettingsStatus.error &&
-                !_loadedOnce) {
-              // A failed first load is the error view's to show.
-              bloc.add(const SettingsClearMessageEvent());
-            } else if (state.errorMessage != null) {
-              AppSnack.showOn(messenger, state.errorMessage!);
-              bloc.add(const SettingsClearMessageEvent());
-            } else if (state.infoMessage != null) {
-              AppSnack.showOn(messenger, state.infoMessage!);
-              bloc.add(const SettingsClearMessageEvent());
-            }
-          },
-          builder: (context, state) {
-            // Default settings are a valid loaded result, so "never loaded"
-            // must come from the status, not from comparing values: otherwise
-            // every reload on a fresh install swaps the list for a skeleton.
-            if (state.status == SettingsStatus.loaded) _loadedOnce = true;
-            final neverLoaded = !_loadedOnce;
-            final Widget child;
-            if ((state.status == SettingsStatus.initial ||
-                    state.status == SettingsStatus.loading) &&
-                neverLoaded) {
-              child = const FormSkeleton(key: ValueKey('loading'), rows: 6);
-            } else if (state.status == SettingsStatus.error && neverLoaded) {
-              child = ErrorState(
-                key: const ValueKey('error'),
-                title: "Couldn't load settings",
-                message:
-                    'Your settings are still on this device. Try again in a '
-                    'moment.',
-                onRetry: () => bloc.add(const SettingsLoadEvent()),
-              );
-            } else {
-              child = _buildContent(context, state, bloc);
-            }
-            return AppStateSwitcher(child: child);
-          },
+      // Blueprint: the title is the page's own, large, as on Activity.
+      body: SafeArea(
+        bottom: false,
+        child: BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (prev, curr) =>
+              prev.settings.currencyCode != curr.settings.currencyCode ||
+              prev.settings.currencySymbol != curr.settings.currencySymbol,
+          listener: (_, state) => _syncCurrencyProvider(state),
+          child: BlocConsumer<SettingsBloc, SettingsState>(
+            // Showing a snackbar immediately clears the message, so every toast
+            // emitted twice and rebuilt this ~20-tile list both times.
+            buildWhen: (prev, curr) =>
+                prev.settings != curr.settings ||
+                prev.status != curr.status ||
+                prev.isBusy != curr.isBusy ||
+                prev.isBiometricBusy != curr.isBiometricBusy ||
+                prev.biometricMessage != curr.biometricMessage,
+            listener: (context, state) {
+              final messenger = ScaffoldMessenger.of(context);
+              if (state.integrityResult != null) {
+                final result = state.integrityResult!;
+                bloc.add(const SettingsClearMessageEvent());
+                IntegrityResultSheet.show(context, result);
+                return;
+              }
+              if (state.errorMessage != null &&
+                  state.status == SettingsStatus.error &&
+                  !_loadedOnce) {
+                // A failed first load is the error view's to show.
+                bloc.add(const SettingsClearMessageEvent());
+              } else if (state.errorMessage != null) {
+                AppSnack.showOn(messenger, state.errorMessage!);
+                bloc.add(const SettingsClearMessageEvent());
+              } else if (state.infoMessage != null) {
+                AppSnack.showOn(messenger, state.infoMessage!);
+                bloc.add(const SettingsClearMessageEvent());
+              }
+            },
+            builder: (context, state) {
+              // Default settings are a valid loaded result, so "never loaded"
+              // must come from the status, not from comparing values: otherwise
+              // every reload on a fresh install swaps the list for a skeleton.
+              if (state.status == SettingsStatus.loaded) _loadedOnce = true;
+              final neverLoaded = !_loadedOnce;
+              final Widget child;
+              if ((state.status == SettingsStatus.initial ||
+                      state.status == SettingsStatus.loading) &&
+                  neverLoaded) {
+                child = const FormSkeleton(key: ValueKey('loading'), rows: 6);
+              } else if (state.status == SettingsStatus.error && neverLoaded) {
+                child = ErrorState(
+                  key: const ValueKey('error'),
+                  title: "Couldn't load settings",
+                  message:
+                      'Your settings are still on this device. Try again in a '
+                      'moment.',
+                  onRetry: () => bloc.add(const SettingsLoadEvent()),
+                );
+              } else {
+                child = _buildContent(context, state, bloc);
+              }
+              return AppStateSwitcher(child: child);
+            },
+          ),
         ),
       ),
     );
-  }
-
-  String _formatTime(BuildContext context, NotificationTime time) {
-    return TimeOfDay(hour: time.hour, minute: time.minute).format(context);
   }
 
   /// [context] is the Export row's: the share sheet points at it on iPad.
@@ -312,20 +295,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = state.settings;
     final notifications = settings.notifications;
     final themeState = context.watch<ThemeBloc>().state;
-    final themeLabel = themeOptions
-        .firstWhere(
-          (o) => o.mode == themeState.mode,
-          orElse: () => themeOptions.first,
-        )
-        .label;
     final paletteLabel = paletteOptions
         .firstWhere(
           (o) => o.palette == themeState.palette,
           orElse: () => paletteOptions.first,
         )
         .label;
-    final morning = _formatTime(context, notifications.morningReminderTime);
-    final evening = _formatTime(context, notifications.eveningSummaryTime);
     final dataEnabled = !state.isBusy;
 
     return RefreshIndicator(
@@ -341,16 +316,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: padding,
           children: [
-            SettingsSummary(
-              key: const Key('settingsSummary'),
-              currency: settings.currencyCode,
-              theme: '$themeLabel · $paletteLabel',
-              reminders: notifications.notificationsEnabled
-                  ? '$morning · $evening'
-                  : 'Off',
-              lock: settings.biometricEnabled ? 'On' : 'Off',
+            Semantics(
+              header: true,
+              child: Text(
+                'More',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.7,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            // Blueprint: every feature beyond the daily view, one tap
+            // away, each with a live line.
+            MoreTiles(
+              key: const Key('moreTiles'),
+              onData: () {
+                final target = _dataKey.currentContext;
+                if (target != null) {
+                  Scrollable.ensureVisible(
+                    target,
+                    duration: AppMotion.respectReducedMotion(
+                      context,
+                      AppMotion.medium,
+                    ),
+                    curve: AppMotion.standardCurve,
+                  );
+                }
+              },
             ),
             const SizedBox(height: AppSpacing.lg),
+
+            SettingsSection(
+              title: 'Your daily rhythm',
+              description:
+                  'Notification permission must be allowed in your device '
+                  'settings.',
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    NotificationToggle(
+                      title: 'Daily notifications',
+                      subtitle: 'Morning target and evening review',
+                      value: notifications.notificationsEnabled,
+                      onChanged: (v) => bloc.add(
+                        SettingsUpdateNotificationsEvent(
+                          notifications.copyWith(notificationsEnabled: v),
+                        ),
+                      ),
+                    ),
+                    NotificationPermissionNotice(
+                      remindersOn: notifications.notificationsEnabled,
+                    ),
+                  ],
+                ),
+                NotificationTimeTile(
+                  title: 'Morning target',
+                  subtitle:
+                      "Today's Safe Spending for each budget running today",
+                  icon: Icons.wb_sunny_outlined,
+                  enabled: notifications.notificationsEnabled,
+                  time: notifications.morningReminderTime,
+                  onChanged: (time) => bloc.add(
+                    SettingsUpdateNotificationsEvent(
+                      notifications.copyWith(morningReminderTime: time),
+                    ),
+                  ),
+                ),
+                NotificationTimeTile(
+                  title: 'Evening review',
+                  subtitle: 'A nudge to review the day',
+                  icon: Icons.nights_stay_outlined,
+                  enabled: notifications.notificationsEnabled,
+                  time: notifications.eveningSummaryTime,
+                  onChanged: (time) => bloc.add(
+                    SettingsUpdateNotificationsEvent(
+                      notifications.copyWith(eveningSummaryTime: time),
+                    ),
+                  ),
+                ),
+              ],
+            ),
 
             SettingsSection(
               title: 'Appearance',
@@ -374,31 +422,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             SettingsSection(
-              title: 'Budgets & bills',
+              title: 'Security and defaults',
               children: [
-                SettingsTile(
-                  icon: Icons.account_balance_wallet_outlined,
-                  title: 'Budgets',
-                  subtitle: 'Create, switch, edit and archive budgets',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.pushUnique('/app/budgets'),
-                ),
-                SettingsTile(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Bills',
-                  subtitle:
-                      'Due dates, recurring bills and reminders. Reminders '
-                      'are set on each bill.',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.pushUnique('/app/bills'),
-                ),
-                SettingsTile(
-                  key: const Key('settingsPayLaterTile'),
-                  icon: Icons.credit_card_outlined,
-                  title: 'Pay later',
-                  subtitle: 'Tabs for things you buy now and pay for later',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.pushUnique(AppRouter.payLaterPath),
+                BiometricTile(
+                  enabled: settings.biometricEnabled,
+                  isBusy: state.isBiometricBusy,
+                  message: state.biometricMessage,
+                  onChanged: (v) => bloc.add(SettingsUpdateBiometricEvent(v)),
                 ),
                 SettingsTile(
                   icon: Icons.payments_outlined,
@@ -417,105 +447,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'with the same amount',
                   onTap: () => _startNewPeriod(context, bloc),
                 ),
-                SettingsTile(
-                  icon: Icons.tune_rounded,
-                  title: 'Change active budget amount',
-                  subtitle: 'Dates and expenses stay as they are',
-                  onTap: () => _editActiveBudget(context),
-                ),
               ],
             ),
 
             SettingsSection(
-              title: 'Expenses & tools',
-              children: [
-                SettingsTile(
-                  key: const Key('settingsCategoriesTile'),
-                  icon: Icons.category_outlined,
-                  title: 'Categories',
-                  subtitle: 'Add your own, rename, restyle or archive',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.pushUnique('/app/categories'),
-                ),
-                SettingsTile(
-                  key: const Key('settingsCurrencyConverterTile'),
-                  icon: Icons.currency_exchange_rounded,
-                  title: 'Currency converter',
-                  subtitle:
-                      'Daily reference rates. Works offline with saved rates.',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () =>
-                      context.pushUnique(AppRouter.currencyConverterPath),
-                ),
-              ],
-            ),
-
-            SettingsSection(
-              title: 'Notifications',
-              description:
-                  'Notification permission must be allowed in your device '
-                  'settings.',
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    NotificationToggle(
-                      title: 'Daily notifications',
-                      subtitle:
-                          'Morning safe-spending reminder and evening summary',
-                      value: notifications.notificationsEnabled,
-                      onChanged: (v) => bloc.add(
-                        SettingsUpdateNotificationsEvent(
-                          notifications.copyWith(notificationsEnabled: v),
-                        ),
-                      ),
-                    ),
-                    NotificationPermissionNotice(
-                      remindersOn: notifications.notificationsEnabled,
-                    ),
-                  ],
-                ),
-                NotificationTimeTile(
-                  title: 'Morning reminder',
-                  subtitle:
-                      "Today's Safe Spending for each budget running today",
-                  icon: Icons.wb_sunny_outlined,
-                  enabled: notifications.notificationsEnabled,
-                  time: notifications.morningReminderTime,
-                  onChanged: (time) => bloc.add(
-                    SettingsUpdateNotificationsEvent(
-                      notifications.copyWith(morningReminderTime: time),
-                    ),
-                  ),
-                ),
-                NotificationTimeTile(
-                  title: 'Evening summary',
-                  subtitle: 'A nudge to review the day',
-                  icon: Icons.nights_stay_outlined,
-                  enabled: notifications.notificationsEnabled,
-                  time: notifications.eveningSummaryTime,
-                  onChanged: (time) => bloc.add(
-                    SettingsUpdateNotificationsEvent(
-                      notifications.copyWith(eveningSummaryTime: time),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            SettingsSection(
-              title: 'Security',
-              children: [
-                BiometricTile(
-                  enabled: settings.biometricEnabled,
-                  isBusy: state.isBiometricBusy,
-                  message: state.biometricMessage,
-                  onChanged: (v) => bloc.add(SettingsUpdateBiometricEvent(v)),
-                ),
-              ],
-            ),
-
-            SettingsSection(
+              key: _dataKey,
               title: 'Data',
               busy: state.isBusy,
               children: [

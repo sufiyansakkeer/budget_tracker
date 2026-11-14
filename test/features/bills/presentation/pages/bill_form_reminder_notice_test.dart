@@ -47,10 +47,8 @@ void main() {
       routes: [
         GoRoute(
           path: '/form',
-          builder: (_, _) => BlocProvider.value(
-            value: bloc,
-            child: const BillFormScreen(),
-          ),
+          builder: (_, _) =>
+              BlocProvider.value(value: bloc, child: const BillFormScreen()),
         ),
       ],
     );

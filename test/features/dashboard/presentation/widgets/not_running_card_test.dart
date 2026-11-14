@@ -41,8 +41,8 @@ void main() {
       'opens the form prefilled from it', (tester) async {
     await pump(tester, safeToSpend(today: DateTime(2026, 9, 5)));
 
-    expect(find.text('This budget ended 31 Aug'), findsOneWidget);
-    await tester.tap(find.text('Start next period'));
+    expect(find.text('Ended 31 Aug'), findsOneWidget);
+    await tester.tap(find.textContaining('Start next period'));
     await tester.pumpAndSettle();
     expect(find.text('Form b1'), findsOneWidget);
   });
@@ -52,7 +52,7 @@ void main() {
   ) async {
     await pump(tester, safeToSpend(today: DateTime(2026, 7, 25)));
 
-    expect(find.text('Start next period'), findsNothing);
+    expect(find.textContaining('Start next period'), findsNothing);
     expect(find.text('New budget'), findsOneWidget);
   });
 }

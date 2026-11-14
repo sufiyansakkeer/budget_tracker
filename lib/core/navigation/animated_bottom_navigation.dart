@@ -23,17 +23,21 @@ import '../feedback/app_haptics.dart';
 /// pulse never plays.
 ///
 /// The bar knows nothing about routing; it only reports taps through
-/// [onDestinationSelected].
+/// [onDestinationSelected]. An optional [center] widget (the add button)
+/// takes a slot of its own in the middle of the destinations; it is not a
+/// tab, so tab positions ("Tab 2 of 4") count only [destinations].
 class AnimatedBottomNavigation extends StatefulWidget {
   final List<AppNavDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final Widget? center;
 
   const AnimatedBottomNavigation({
     super.key,
     required this.destinations,
     required this.selectedIndex,
     required this.onDestinationSelected,
+    this.center,
   }) : assert(destinations.length >= 2),
        assert(selectedIndex >= 0 && selectedIndex < destinations.length);
 
@@ -111,7 +115,10 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
                 explicitChildNodes: true,
                 child: Row(
                   children: [
-                    for (var i = 0; i < widget.destinations.length; i++)
+                    for (var i = 0; i < widget.destinations.length; i++) ...[
+                      if (widget.center != null &&
+                          i == widget.destinations.length ~/ 2)
+                        Expanded(child: widget.center!),
                       Expanded(
                         child: _NavItem(
                           key: widget.destinations[i].key,
@@ -130,6 +137,7 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
                           onTap: () => _onTap(i),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -183,9 +191,9 @@ class _NavItem extends StatefulWidget {
 class _NavItemState extends State<_NavItem> {
   bool _pressed = false;
 
-  /// Material 3 active-indicator size.
-  static const double _indicatorWidth = 64;
-  static const double _indicatorHeight = 32;
+  /// The blueprint's pill behind the selected icon.
+  static const double _indicatorWidth = 52;
+  static const double _indicatorHeight = 30;
 
   @override
   Widget build(BuildContext context) {

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/navigation/animated_bottom_navigation.dart';
 import 'package:monivo/core/navigation/app_nav_destinations.dart';
+import 'package:monivo/core/navigation/nav_add_button.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/theme/contrast.dart';
 import 'package:monivo/core/widgets/app_list.dart';
@@ -61,6 +62,7 @@ void main() {
                   destinations: appNavDestinations,
                   selectedIndex: 0,
                   onDestinationSelected: (_) {},
+                  center: NavAddButton(onPressed: () {}, onLongPress: () {}),
                 ),
               ),
             ),

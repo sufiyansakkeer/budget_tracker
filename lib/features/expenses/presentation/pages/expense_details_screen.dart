@@ -25,6 +25,9 @@ import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/day_target.dart';
+import '../../../dashboard/domain/usecases/get_day_targets_usecase.dart';
+import '../../../dashboard/presentation/widgets/target_ring.dart';
 import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
@@ -77,6 +80,27 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   /// The Pay later tab the expense is on and how much is paid on it; null
   /// when on no tab (or not known).
   ({PayLaterTab tab, double paid})? _tabInfo;
+
+  /// The target of the day the expense was spent (blueprint: "45% of that
+  /// day's ₹867.62 target"); null when it can't be worked out.
+  DayTarget? _dayTarget;
+  String? _dayTargetFor;
+
+  /// Best effort, once per expense: the budget's target that day.
+  Future<void> _loadDayTarget(ExpenseEntity expense) async {
+    _dayTargetFor = expense.id;
+    if (expense.billId != null || !getIt.isRegistered<GetDayTargetsUseCase>()) {
+      return;
+    }
+    try {
+      final targets = await getIt<GetDayTargetsUseCase>()(expense.budgetId);
+      final d = expense.date;
+      final target = targets[DateTime(d.year, d.month, d.day)];
+      if (mounted) setState(() => _dayTarget = target);
+    } catch (e) {
+      debugPrint('[error] Reading the day\'s target of an expense: $e');
+    }
+  }
 
   @override
   void initState() {
@@ -290,6 +314,15 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         builder: (context, state) {
           final Widget child;
           final expense = state.expense;
+          if (expense != null && _dayTargetFor != expense.id) {
+            // After this frame: the read sets state when it lands.
+            final loaded = expense;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _dayTargetFor != loaded.id) {
+                _loadDayTarget(loaded);
+              }
+            });
+          }
           if ((state.status == ExpenseBlocStatus.loading && expense == null) ||
               (expense != null && !_budgetsKnown)) {
             child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
@@ -323,6 +356,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               budget: _budgetFor(expense),
               billTitle: expense.billId == null ? null : _billTitle,
               tabInfo: _tabInfo,
+              dayTarget: _dayTarget,
               onOpenTab: (tabId) async {
                 await context.pushUnique('${AppRouter.payLaterPath}/$tabId');
                 // A payment made there changes "paid X of Y" here.
@@ -356,6 +390,7 @@ class _Details extends StatelessWidget {
   /// The bill the expense paid; null when none (or not known).
   final String? billTitle;
   final ({PayLaterTab tab, double paid})? tabInfo;
+  final DayTarget? dayTarget;
   final ValueChanged<String> onOpenTab;
   final bool canMove;
   final bool busy;
@@ -370,6 +405,7 @@ class _Details extends StatelessWidget {
     required this.budget,
     required this.billTitle,
     required this.tabInfo,
+    this.dayTarget,
     required this.onOpenTab,
     required this.canMove,
     required this.busy,
@@ -440,9 +476,31 @@ class _Details extends StatelessWidget {
                   amount: expense.amount,
                   currency: budget?.currency,
                   role: MoneyRole.display,
+                  split: true,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                Divider(color: theme.colorScheme.outlineVariant),
+                if (dayTarget case final target? when target.target > 0) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      MiniTargetRing(
+                        spent: expense.amount,
+                        target: target.target,
+                        size: 30,
+                      ),
+                      const SizedBox(width: AppSpacing.smd),
+                      Expanded(
+                        child: Text(
+                          '${(expense.amount / target.target * 100).round()}% '
+                          "of that day's "
+                          '${AppMoney.format(target.target, currency: budget?.currency, floored: true)} '
+                          'target',
+                          style: muted?.copyWith(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
                 _Fact(label: 'Budget', value: budget?.name ?? 'Unknown budget'),
                 if (billTitle != null)
                   _Fact(label: 'Paid bill', value: billTitle),
@@ -466,23 +524,28 @@ class _Details extends StatelessWidget {
                   _Fact(
                     label: 'Tags',
                     child: Wrap(
+                      alignment: WrapAlignment.end,
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
                       children: [
                         for (final tag in expense.tags)
+                          // Blueprint .chip.neu.
                           DecoratedBox(
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHigh,
-                              borderRadius: AppSpacing.borderRadiusXs,
+                              color: theme.colorScheme.surfaceContainer,
+                              borderRadius: AppSpacing.borderRadiusFull,
                             ),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                                vertical: AppSpacing.xxs,
+                                horizontal: 10,
+                                vertical: 4,
                               ),
                               child: Text(
                                 '#$tag',
-                                style: theme.textTheme.labelMedium,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ),
                           ),
@@ -505,32 +568,38 @@ class _Details extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
 
-          // Actions sit on the page, quietest first.
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
+          // Blueprint: Duplicate and Move side by side, outlined; Delete on
+          // its own line in the error colour.
+          Row(
             children: [
-              TextButton.icon(
-                key: const Key('duplicateExpenseButton'),
-                onPressed: busy ? null : onDuplicate,
-                icon: const Icon(Icons.copy_rounded),
-                label: const Text('Duplicate'),
-              ),
-              if (canMove)
-                TextButton.icon(
-                  key: const Key('moveExpenseBudgetButton'),
-                  onPressed: busy ? null : onMove,
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  label: const Text('Move to another budget'),
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('duplicateExpenseButton'),
+                  onPressed: busy ? null : onDuplicate,
+                  icon: const Icon(Icons.copy_rounded),
+                  label: const Text('Duplicate'),
                 ),
-              TextButton.icon(
-                key: const Key('deleteExpenseButton'),
-                onPressed: busy ? null : onDelete,
-                style: TextButton.styleFrom(foregroundColor: critical),
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('Delete expense'),
               ),
+              if (canMove) ...[
+                const SizedBox(width: AppSpacing.smd),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('moveExpenseBudgetButton'),
+                    onPressed: busy ? null : onMove,
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    label: const Text('Move'),
+                  ),
+                ),
+              ],
             ],
+          ),
+          const SizedBox(height: AppSpacing.smd),
+          OutlinedButton.icon(
+            key: const Key('deleteExpenseButton'),
+            onPressed: busy ? null : onDelete,
+            style: OutlinedButton.styleFrom(foregroundColor: critical),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Delete expense'),
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
@@ -647,7 +716,10 @@ class _TabFact extends StatelessWidget {
             Expanded(
               child: Text(
                 'On ${tab.name} · paid $paidText of $total',
-                style: theme.textTheme.bodyLarge,
+                textAlign: TextAlign.end,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             Icon(
@@ -662,8 +734,8 @@ class _TabFact extends StatelessWidget {
   }
 }
 
-/// One fact: the label on the left, the value beside it; stacked when the
-/// text is too large to share a line.
+/// One fact (blueprint .kv): the label in secondary ink, the value bold at
+/// the right, a hairline above.
 class _Fact extends StatelessWidget {
   final String label;
   final String? value;
@@ -680,29 +752,48 @@ class _Fact extends StatelessWidget {
         color: theme.colorScheme.onSurfaceVariant,
       ),
     );
-    final valueWidget =
-        child ?? Text(value ?? '', style: theme.textTheme.bodyLarge);
     final stacked = AppSizes.isLargeText(context);
+    final valueWidget =
+        child ??
+        Text(
+          value ?? '',
+          textAlign: stacked ? TextAlign.start : TextAlign.end,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        );
     return MergeSemantics(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        child: stacked
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  labelText,
-                  const SizedBox(height: AppSpacing.xxs),
-                  valueWidget,
-                ],
-              )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: 96, child: labelText),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(child: valueWidget),
-                ],
-              ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.smd),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    labelText,
+                    const SizedBox(height: AppSpacing.xxs),
+                    valueWidget,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    labelText,
+                    const SizedBox(width: AppSpacing.smd),
+                    Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: valueWidget,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }

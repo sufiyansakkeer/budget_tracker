@@ -186,6 +186,12 @@ class MockGetSafeToSpendUseCase implements GetSafeToSpendUseCase {
     required DateTime referenceDate,
     List<BudgetEntity>? allBudgets,
   }) async => const {};
+
+  @override
+  Future<SafeToSpendInput?> inputFor({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async => null;
 }
 
 class MockGetRecentExpensesUseCase implements GetRecentExpensesUseCase {

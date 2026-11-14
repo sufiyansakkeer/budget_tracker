@@ -83,3 +83,13 @@ class OnboardingSubmittedEvent extends OnboardingEvent {
 class OnboardingRestoredEvent extends OnboardingEvent {
   const OnboardingRestoredEvent();
 }
+
+/// "A day" or "In total" for the amount (blueprint).
+class OnboardingAmountModeChangedEvent extends OnboardingEvent {
+  final bool byDay;
+
+  const OnboardingAmountModeChangedEvent(this.byDay);
+
+  @override
+  List<Object?> get props => [byDay];
+}

@@ -39,13 +39,16 @@ internal enum class WidgetLayout(
     val minWidthDp: Float,
     val mustFit: IntArray,
 ) {
-    /** Large: budget, amount, status, today, budget left and its track, Add expense. */
+    /**
+     * Large: budget, amount, status, today's ring beside what was spent,
+     * budget left and its track, Add expense. The ring's centre text sizes
+     * itself to fit, so it isn't measured.
+     */
     EXPANDED(
         R.layout.widget_expanded, true, 220f,
         intArrayOf(
             R.id.widget_label, R.id.widget_amount, R.id.widget_status,
             R.id.widget_spent_label, R.id.widget_spent,
-            R.id.widget_rest_label, R.id.widget_rest,
             R.id.widget_budget_left, R.id.widget_add_label,
         ),
     ),
@@ -60,12 +63,12 @@ internal enum class WidgetLayout(
         ),
     ),
 
-    /** Narrow and tall: amount, status, today's track, left today, Add. */
+    /** Narrow and tall: amount, status, today's ring with left today, Add. */
     COMPACT_TALL(
         R.layout.widget_compact_tall, true, 96f,
         intArrayOf(
             R.id.widget_label, R.id.widget_amount, R.id.widget_status,
-            R.id.widget_rest_label, R.id.widget_rest, R.id.widget_add_label,
+            R.id.widget_add_label,
         ),
     ),
 

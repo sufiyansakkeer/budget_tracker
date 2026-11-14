@@ -3,16 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/theme/app_tone.dart';
-import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
-import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/app_track.dart';
 import '../../../../core/widgets/status_chip.dart';
 import '../start_next_period.dart';
 import 'budget_visuals.dart';
+import '../../../dashboard/presentation/widgets/target_ring.dart';
+import '../../../dashboard/presentation/widgets/safe_to_spend_copy.dart';
+import '../../domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../../core/dates/date_range_format.dart';
 import '../../../../core/constants/app_copy.dart';
 
@@ -201,117 +202,6 @@ class EndedBudgetNotice extends StatelessWidget {
   }
 }
 
-/// The active budget: the one raised surface on the Budgets screen.
-class ActiveBudgetCard extends StatelessWidget {
-  final BudgetEntity budget;
-  final DateTime now;
-  final VoidCallback onTap;
-
-  const ActiveBudgetCard({
-    super.key,
-    required this.budget,
-    required this.now,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final typography = context.appTypography;
-    final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
-    final over = budget.remainingAmount < 0;
-    final dayOf = BudgetPeriodCopy.dayOf(budget, now);
-    final when = BudgetPeriodCopy.when(budget, now, withToday: true);
-
-    return AppSurface(
-      key: ValueKey('budget_${budget.id}'),
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.mlg,
-        AppSpacing.md,
-        AppSpacing.mlg,
-        AppSpacing.mlg,
-      ),
-      onTap: onTap,
-      semanticLabel:
-          '${budget.name}, active budget. ${BudgetPeriodCopy.leftLine(budget)}. '
-          '${dayOf == null ? when : '$dayOf, $when'}. Home, Expenses and '
-          'Reports follow this budget.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              IconTile(
-                icon: BudgetVisuals.iconFor(budget.icon),
-                color: BudgetVisuals.colorFor(context, budget),
-                size: AppSizes.avatarSm,
-              ),
-              const SizedBox(width: AppSpacing.smd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      budget.name,
-                      style: theme.textTheme.titleMedium,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(BudgetPeriodCopy.range(budget), style: muted),
-                    // Under the name, so a long name keeps its width.
-                    const SizedBox(height: AppSpacing.xs),
-                    BudgetStatusChip(budget: budget, isActive: true, now: now),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            over ? 'Over by' : AppTerms.remainingBudget,
-            style: typography.eyebrow.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          AppMoney(
-            amount: budget.remainingAmount.abs(),
-            currency: budget.currency,
-            role: MoneyRole.display,
-            color: over ? context.tone(AppTone.critical).accent : null,
-          ),
-          Text(
-            'of ${AppMoney.format(budget.monthlyAmount, currency: budget.currency)}',
-            style: muted,
-          ),
-          const SizedBox(height: AppSpacing.smd),
-          BudgetUsageTrack(budget: budget, now: now),
-          const SizedBox(height: AppSpacing.sm),
-          Text([?dayOf, when].join(' · '), style: muted),
-          const SizedBox(height: AppSpacing.smd),
-          Row(
-            children: [
-              Icon(
-                Icons.sync_alt_rounded,
-                size: AppSizes.iconSm,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  'Home, Expenses and Reports follow this budget',
-                  style: muted,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Any other budget: one compact row with what is left and, while it
 /// runs, a thin bar with a tick for today.
 class BudgetRow extends StatelessWidget {
@@ -319,11 +209,20 @@ class BudgetRow extends StatelessWidget {
   final DateTime now;
   final VoidCallback onTap;
 
+  /// Its figures today, when running: the row then leads with a small ring
+  /// of its day and says its daily target (blueprint).
+  final SafeToSpendEntity? figures;
+
+  /// The active budget: an "Active" chip after its name (blueprint).
+  final bool isActive;
+
   const BudgetRow({
     super.key,
     required this.budget,
     required this.now,
     required this.onTap,
+    this.figures,
+    this.isActive = false,
   });
 
   @override
@@ -335,7 +234,12 @@ class BudgetRow extends StatelessWidget {
     final phase = budget.phaseOn(now);
     final over = budget.remainingAmount < 0;
     final when = BudgetPeriodCopy.when(budget, now);
-    final detail = '${BudgetPeriodCopy.range(budget)} · $when';
+    final f = figures;
+    final daily = f != null && f.isRunning ? f : null;
+    final detail = daily == null
+        ? '${BudgetPeriodCopy.range(budget)} · $when'
+        : '${SafeToSpendCopy.safeAmount(daily.dailySafeToSpend, daily.currency)} '
+              'a day · ${daily.overToday > 0 ? 'over today' : when}';
     // An archived budget steps back in the muted text colour, which keeps
     // its contrast (a faded row did not).
     final archived = phase == BudgetPhase.archived;
@@ -343,13 +247,53 @@ class BudgetRow extends StatelessWidget {
 
     return AppListRow(
       key: ValueKey('budget_${budget.id}'),
-      leading: IconTile(
-        icon: BudgetVisuals.iconFor(budget.icon),
-        color: BudgetVisuals.colorFor(context, budget),
-        size: AppSizes.avatarSm,
-      ),
+      leading: daily == null
+          ? IconTile(
+              icon: BudgetVisuals.iconFor(budget.icon),
+              color: BudgetVisuals.colorFor(context, budget),
+              size: AppSizes.avatarSm,
+            )
+          : SizedBox.square(
+              dimension: AppSizes.avatarSm,
+              child: Center(
+                child: MiniTargetRing(
+                  spent: daily.todayDiscretionary,
+                  target: daily.dailySafeToSpend,
+                  size: 36,
+                ),
+              ),
+            ),
       title: budget.name,
       titleColor: quiet,
+      titleTrailing: isActive
+          ? DecoratedBox(
+              key: const ValueKey('activeBudgetChip'),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: AppSpacing.borderRadiusFull,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
+                child: Text(
+                  // Unless it runs today, where it is ("Active · Ended").
+                  phase == BudgetPhase.running
+                      ? 'Active'
+                      : 'Active · ${switch (phase) {
+                          BudgetPhase.upcoming => AppTerms.notStarted,
+                          BudgetPhase.ended => 'Ended',
+                          _ => 'Archived',
+                        }}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            )
+          : null,
       subtitleWidget: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -375,7 +319,8 @@ class BudgetRow extends StatelessWidget {
         ],
       ),
       semanticLabel:
-          '${budget.name}, ${BudgetPeriodCopy.leftLine(budget)}, $detail',
+          '${budget.name}${isActive ? ', active' : ''}, '
+          '${BudgetPeriodCopy.leftLine(budget)}, $detail',
       onTap: onTap,
     );
   }

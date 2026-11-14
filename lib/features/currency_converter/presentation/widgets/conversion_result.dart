@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -224,6 +226,7 @@ class _Failure extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         FilledButton.tonalIcon(
+          style: AppTheme.tonal(context),
           key: const Key('converterRetryButton'),
           onPressed: onRetry,
           icon: const Icon(Icons.refresh_rounded),

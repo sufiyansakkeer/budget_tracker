@@ -434,6 +434,40 @@ Overspend per later day                 = Over Today ÷ (Remaining Days − 1)
 Fields: `SafeToSpendEntity.tomorrowIfNoMoreSpending` and
 `overTodayPerRemainingDay`.
 
+## Preview before saving (informational)
+
+`SafeToSpendCalculator.preview(input, draftToday: x)` is `calculate` with
+x added to both Period Spending and Today's Spending, in money units. A
+form calls it to show what saving would do before the user saves. x is the
+change in today's discretionary spending, so editing an expense down passes
+a negative x.
+
+- Today's Safe Spending does not move: x is added to Raw Spendable's
+  spending and added back as today's discretionary, as for a saved expense.
+- Remaining Today, Over Today, Status and Tomorrow move exactly as they would
+  after saving.
+- Outside the running period an expense today is not this budget's, so the
+  result equals `calculate(input)`.
+
+## Per-day targets (informational)
+
+`SafeToSpendCalculator.targetSeries(entity, spentByDay)` gives one
+`DayTarget` (date, target, spent, result = target − spent) per day from the
+start of the period to today, for a running budget only.
+
+```
+Target(d) = max(0, (Raw Spendable today + discretionary spending from d to today) ÷ Remaining Days(d))
+```
+
+- **Today's set-asides for every day.** Bills, kept-aside money and the
+  savings goal are not stored per day, so past days use today's. A bill paid
+  last week therefore reads as if it had been set aside from the start. No
+  schema change is needed.
+- **Today's entry** uses `todayDiscretionary` from the entity, not the map,
+  and equals `dailySafeToSpend` exactly (same single division).
+- `spentByDay` is discretionary spending (no set-aside bill payments). A time
+  of day in a key is ignored, and a missing day spent nothing.
+
 ## Spending pace (informational)
 
 The dashboard compares discretionary spending so far with an even pace

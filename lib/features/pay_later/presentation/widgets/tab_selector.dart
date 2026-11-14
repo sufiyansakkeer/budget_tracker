@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -86,6 +88,7 @@ class TabSelector extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 FilledButton.tonalIcon(
+                  style: AppTheme.tonal(context),
                   key: const Key('createFirstTabButton'),
                   onPressed: onCreateTab,
                   icon: const Icon(Icons.add_rounded),

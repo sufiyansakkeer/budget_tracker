@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/theme/contrast.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
@@ -59,7 +60,7 @@ class TransactionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
+      color: context.appColors.textTertiary,
     );
     final large = MediaQuery.textScalerOf(context).scale(12) > 18;
     final receipt = hasReceipt

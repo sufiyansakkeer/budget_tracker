@@ -150,6 +150,16 @@ class AppTheme {
       buildLightTheme(ColorPalette.defaultPalette);
   static ThemeData get darkTheme => buildDarkTheme(ColorPalette.defaultPalette);
 
+  /// Blueprint .btn.ton: the primary container with its own ink. The filled
+  /// button theme would otherwise paint FilledButton.tonal in primary.
+  static ButtonStyle tonal(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+    return FilledButton.styleFrom(
+      backgroundColor: c.primaryContainer,
+      foregroundColor: c.onPrimaryContainer,
+    );
+  }
+
   /// System bar styling for a theme of the given [brightness].
   ///
   /// The app draws edge-to-edge, so the status and navigation bars show the
@@ -276,6 +286,9 @@ class AppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: bg,
+      // Material widgets with no colour of their own (a chip's body) take
+      // the page tone, so an unchosen chip is clear like the blueprint's.
+      canvasColor: bg,
       fontFamily: _family,
       fontFamilyFallback: _fallback,
       textTheme: _textTheme,
@@ -291,6 +304,16 @@ class AppTheme {
     final lgShape = RoundedRectangleBorder(
       borderRadius: AppSpacing.borderRadiusLg,
     );
+    // Blueprint: buttons 14, fields 12, sheets and dialogs 28.
+    final buttonShape = RoundedRectangleBorder(
+      borderRadius: AppSpacing.borderRadiusMd,
+    );
+    final fieldRadius = AppSpacing.borderRadiusSmd;
+    final xlShape = RoundedRectangleBorder(
+      borderRadius: AppSpacing.borderRadiusXl,
+    );
+    // Blueprint button label: 15/700.
+    final buttonText = base.textTheme.labelLarge?.copyWith(fontSize: 15);
 
     final appBarTheme = AppBarTheme(
       backgroundColor: Colors.transparent,
@@ -317,7 +340,9 @@ class AppTheme {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusLg,
-        side: BorderSide(color: dividerColor),
+        // Blueprint: a hairline in dark; in light the card is lifted by a
+        // shadow instead (AppCard draws it), so no border.
+        side: isDark ? BorderSide(color: dividerColor) : BorderSide.none,
       ),
     );
 
@@ -331,27 +356,27 @@ class AppTheme {
       // The fill alone is only ~1.1:1 against a card, so a hairline keeps the
       // field a visible shape on every surface in both themes.
       border: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusSm,
+        borderRadius: fieldRadius,
         borderSide: BorderSide(color: dividerColor),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusSm,
+        borderRadius: fieldRadius,
         borderSide: BorderSide(color: dividerColor),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusSm,
+        borderRadius: fieldRadius,
         borderSide: BorderSide(color: dividerColor.withValues(alpha: 0.5)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusSm,
+        borderRadius: fieldRadius,
         borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusSm,
+        borderRadius: fieldRadius,
         borderSide: BorderSide(color: colorScheme.error, width: 1.5),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: AppSpacing.borderRadiusSm,
+        borderRadius: fieldRadius,
         borderSide: BorderSide(color: colorScheme.error, width: 1.5),
       ),
       labelStyle: TextStyle(color: textSecondary),
@@ -390,8 +415,8 @@ class AppTheme {
           vertical: AppSpacing.smd,
         ),
       ),
-      shape: WidgetStatePropertyAll(controlShape),
-      textStyle: WidgetStatePropertyAll(_textTheme.labelLarge),
+      shape: WidgetStatePropertyAll(buttonShape),
+      textStyle: WidgetStatePropertyAll(buttonText),
     );
 
     final filledButtonTheme = FilledButtonThemeData(style: primaryButtonStyle);
@@ -410,8 +435,8 @@ class AppTheme {
           horizontal: AppSpacing.smd,
           vertical: AppSpacing.sm,
         ),
-        shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSm),
-        textStyle: _textTheme.labelLarge,
+        shape: buttonShape,
+        textStyle: buttonText,
       ),
     );
 
@@ -423,9 +448,10 @@ class AppTheme {
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.smd,
         ),
-        side: BorderSide(color: outline),
-        shape: controlShape,
-        textStyle: _textTheme.labelLarge,
+        // Blueprint .btn.out: a hairline, not the 3:1 outline.
+        side: BorderSide(color: dividerColor),
+        shape: buttonShape,
+        textStyle: buttonText,
       ),
     );
 
@@ -437,21 +463,28 @@ class AppTheme {
       ),
     );
 
+    // Blueprint .sg: the segments sit on the inset tone; the chosen one is
+    // raised to the card tone with ink text, the rest are secondary ink.
+    // No border and no check mark.
     final segmentedButtonTheme = SegmentedButtonThemeData(
+      selectedIcon: const SizedBox.shrink(),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return colorScheme.primaryContainer;
-          }
-          return Colors.transparent;
+          if (states.contains(WidgetState.selected)) return cardColor;
+          return surfaceContainer;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return colorScheme.onPrimaryContainer;
+            return colorScheme.onSurface;
           }
           return textSecondary;
         }),
-        side: WidgetStatePropertyAll(BorderSide(color: dividerColor)),
+        side: WidgetStatePropertyAll(
+          BorderSide(color: surfaceContainer, width: 3),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSmd),
+        ),
         textStyle: WidgetStatePropertyAll(_textTheme.labelLarge),
         minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
         padding: const WidgetStatePropertyAll(
@@ -490,7 +523,7 @@ class AppTheme {
         final selected = states.contains(WidgetState.selected);
         return _textTheme.labelSmall?.copyWith(
           color: selected ? colorScheme.onSurface : textSecondary,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
@@ -502,20 +535,31 @@ class AppTheme {
       }),
     );
 
+    // Blueprint .fc: 36 high, radius 10, a hairline and secondary ink;
+    // chosen = primary container, no border.
     final chipTheme = ChipThemeData(
-      backgroundColor: surfaceContainer,
-      selectedColor: colorScheme.primaryContainer,
-      disabledColor: surfaceContainer,
-      labelStyle: _textTheme.labelMedium?.copyWith(
-        color: colorScheme.onSurface,
+      // M3 fills an unchosen chip with the surface; the blueprint's is clear.
+      color: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? colorScheme.primaryContainer
+            : Colors.transparent,
       ),
-      secondaryLabelStyle: _textTheme.labelMedium?.copyWith(
+      backgroundColor: Colors.transparent,
+      selectedColor: colorScheme.primaryContainer,
+      disabledColor: Colors.transparent,
+      // Blueprint .fc: 14/600; chosen chips use the secondary style.
+      labelStyle: base.textTheme.titleSmall?.copyWith(color: textSecondary),
+      secondaryLabelStyle: base.textTheme.titleSmall?.copyWith(
         color: colorScheme.onPrimaryContainer,
       ),
       checkmarkColor: colorScheme.onPrimaryContainer,
       showCheckmark: false,
-      shape: const StadiumBorder(),
-      side: BorderSide(color: dividerColor),
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSm),
+      side: WidgetStateBorderSide.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? BorderSide.none
+            : BorderSide(color: dividerColor),
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.smd,
         vertical: AppSpacing.sm,
@@ -534,7 +578,11 @@ class AppTheme {
       surfaceTintColor: Colors.transparent,
       modalBackgroundColor: raisedSurface,
       showDragHandle: true,
-      dragHandleColor: outline,
+      // Blueprint .hdl: the track tone (Default); derived palettes keep
+      // their 3:1 handle.
+      dragHandleColor: palette == ColorPalette.defaultPalette
+          ? surfaceContainerHighest
+          : outline,
       dragHandleSize: const Size(
         AppSizes.dragHandleWidth,
         AppSizes.dragHandleHeight,
@@ -542,7 +590,7 @@ class AppTheme {
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
+          top: Radius.circular(AppSpacing.radiusXl),
         ),
       ),
     );
@@ -551,7 +599,7 @@ class AppTheme {
       backgroundColor: raisedSurface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      shape: lgShape,
+      shape: xlShape,
       titleTextStyle: _textTheme.titleLarge?.copyWith(
         color: colorScheme.onSurface,
       ),
@@ -578,16 +626,15 @@ class AppTheme {
 
     final snackBarTheme = SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: isDark
-          ? surfaceContainerHigh
-          : colorScheme.inverseSurface,
+      // Blueprint .snack: ink with page-tone text in both themes; the
+      // action is the accent mixed 55% into the page tone.
+      backgroundColor: colorScheme.onSurface,
       contentTextStyle: _textTheme.bodyMedium?.copyWith(
-        color: isDark ? colorScheme.onSurface : colorScheme.onInverseSurface,
+        color: bg,
+        fontWeight: FontWeight.w600,
       ),
-      actionTextColor: isDark
-          ? colorScheme.primary
-          : colorScheme.inversePrimary,
-      shape: controlShape,
+      actionTextColor: Color.lerp(colorScheme.primary, bg, 0.45),
+      shape: RoundedRectangleBorder(borderRadius: fieldRadius),
       insetPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
@@ -631,24 +678,23 @@ class AppTheme {
       extendedPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.mlg),
     );
 
+    // Blueprint .swt: off = track tone with a card-tone thumb, on = the
+    // accent; no outline.
     final switchTheme = SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return colorScheme.onPrimary;
-        return null;
+        return cardColor;
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return colorScheme.primary;
-        return null;
+        return surfaceContainerHighest;
       }),
-      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return Colors.transparent;
-        return outline;
-      }),
+      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
     );
 
     final checkboxTheme = CheckboxThemeData(
-      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusXs),
-      side: BorderSide(color: outline, width: 1.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      side: BorderSide(color: tokens.textTertiary, width: 2),
       fillColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return colorScheme.primary;
         return Colors.transparent;
@@ -659,7 +705,7 @@ class AppTheme {
     final radioTheme = RadioThemeData(
       fillColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return colorScheme.primary;
-        return outline;
+        return tokens.textTertiary;
       }),
     );
 

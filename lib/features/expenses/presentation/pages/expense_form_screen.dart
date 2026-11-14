@@ -38,6 +38,9 @@ import '../../domain/validators/expense_validator.dart';
 import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
+import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../../../budget/domain/services/safe_to_spend_calculator.dart';
+import '../widgets/today_impact.dart';
 import '../widgets/category_picker.dart';
 import '../widgets/expense_date_picker.dart';
 import '../widgets/expense_date_rules.dart';
@@ -61,12 +64,17 @@ class ExpensePrefill {
   /// later is chosen with this tab, and the tab's default category.
   final String? tabId;
 
+  /// "On a tab" from the add sheet: Pay later is chosen, the tab still to
+  /// pick.
+  final bool payLater;
+
   const ExpensePrefill({
     this.amount,
     this.categoryId,
     this.date,
     this.budgetId,
     this.tabId,
+    this.payLater = false,
   });
 
   /// From `?amount=250&category=food&date=2026-10-08&budget=…&tab=…`;
@@ -82,6 +90,7 @@ class ExpensePrefill {
       date: date == null ? null : DateTime(date.year, date.month, date.day),
       budgetId: query['budget'],
       tabId: query['tab'],
+      payLater: query['payLater'] == '1',
     );
   }
 
@@ -90,7 +99,8 @@ class ExpensePrefill {
       categoryId == null &&
       date == null &&
       budgetId == null &&
-      tabId == null;
+      tabId == null &&
+      !payLater;
 }
 
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense, or
@@ -241,7 +251,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final bloc = context.read<ExpenseBloc>();
     bloc.add(const ExpenseLoadCategories());
     // Default date/time are captured once by the BLoC and kept in state.
-    if (!_isEditing) bloc.add(const ExpenseInitialize());
+    if (!_isEditing) {
+      bloc.add(const ExpenseInitialize());
+      // The engine's input for the active budget, for [_todayImpact].
+      bloc.add(const ExpenseLoadQuickAdd(days: 0));
+    }
     _loadBudgets();
     if (_isEditing) {
       bloc.add(ExpenseLoadById(widget.expenseId!));
@@ -266,6 +280,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         _payLater = true;
         _tabId = prefill.tabId;
         _applyTabDefaults = true;
+        _loadTabs();
+      } else if (prefill.payLater) {
+        _payLater = true;
         _loadTabs();
       }
     }
@@ -608,6 +625,29 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     for (final b in _allBudgets)
       if (!b.isArchived || b.id == _originalBudgetId) b,
   ];
+
+  static final _calculator = SafeToSpendCalculator(BudgetCalculationService());
+
+  /// What a new expense today in the active budget does to today, before
+  /// it is saved; null for anything else (an edit, a tab purchase, another
+  /// day or budget), where the preview would not be today's story.
+  Widget? _todayImpact(ExpenseState state) {
+    final input = state.quickAddInput;
+    if (input == null || _isEditing || _payLater) return null;
+    if (_selectedBudget?.id != input.budgetId) return null;
+    final date = _date ?? state.initialDate;
+    if (date == null || !DateUtils.isSameDay(date, input.today)) return null;
+    final before = _calculator.preview(input, draftToday: 0);
+    if (!before.isRunning) return null;
+    final after = _calculator.preview(
+      input,
+      draftToday: double.tryParse(_amountController.text.trim()) ?? 0,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: TodayImpact(before: before, after: after),
+    );
+  }
 
   BudgetEntity? get _selectedBudget {
     for (final b in _budgets) {
@@ -966,6 +1006,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                         onChanged: (_) => setState(() => _amountError = null),
                       ),
                     ),
+                    ?_todayImpact(state),
                     const SizedBox(height: AppSpacing.lg),
 
                     // Paid: now or pay later.
@@ -1040,15 +1081,32 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       bottomNavigationBar: BlocBuilder<ExpenseBloc, ExpenseState>(
         buildWhen: (a, b) => a.isBusy != b.isBusy,
         builder: (context, state) => AppFormActionBar(
-          // A spinner while saving and a brief check mark once saved, so
-          // the confirmation shows without a blocking dialog.
-          child: PrimaryButton(
-            buttonKey: const Key('saveExpenseButton'),
-            onPressed: _save,
-            isLoading: state.isBusy,
-            isDone: _justSaved,
-            icon: _isEditing ? Icons.check_rounded : Icons.add_rounded,
-            label: _isEditing ? 'Save changes' : 'Add expense',
+          // Blueprint: Cancel (outlined) beside the filled save, 1 : 2.
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  key: const Key('cancelExpenseButton'),
+                  onPressed: state.isBusy
+                      ? null
+                      : () => Navigator.of(context).maybePop(),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.smd),
+              Expanded(
+                flex: 2,
+                // A spinner while saving and a brief check mark once
+                // saved, so the confirmation shows without a dialog.
+                child: PrimaryButton(
+                  buttonKey: const Key('saveExpenseButton'),
+                  onPressed: _save,
+                  isLoading: state.isBusy,
+                  isDone: _justSaved,
+                  label: _isEditing ? 'Save changes' : 'Add expense',
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1152,10 +1210,18 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Blueprint: the label above a full-width segmented control.
+        Text(
+          'Paid',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            Text('Paid', style: theme.textTheme.titleSmall),
-            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: SegmentedButton<bool>(
                 showSelectedIcon: false,

@@ -101,7 +101,7 @@ class DataFormatSheet extends StatelessWidget {
               AppSpacing.md,
             ),
             child: AppGroupedList(
-              dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+              dividerIndent: AppSizes.avatarSm + AppSpacing.md,
               children: [
                 for (final MapEntry(key: format, value: option)
                     in options.entries)

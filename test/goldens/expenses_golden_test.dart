@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/expenses/presentation/history/widgets/expense_group_header.dart';
 import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
@@ -50,6 +51,9 @@ void main() {
   // labels ("Today", "Yesterday") never change.
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
+  // "Today" without its date, so the image doesn't change every day.
+  setUp(() => ExpenseGroupHeader.dateAfterToday = false);
+  tearDown(() => ExpenseGroupHeader.dateAfterToday = true);
   final yesterday = DateTime(now.year, now.month, now.day - 1);
   final budget = testBudget(
     start: DateTime(today.year, today.month, today.day - 7),

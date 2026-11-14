@@ -3,5 +3,6 @@
         "Txns",
         "usecase",
         "usecases"
-    ]
+    ],
+    "liveServer.settings.port": 5501
 }

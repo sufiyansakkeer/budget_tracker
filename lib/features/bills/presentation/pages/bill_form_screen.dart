@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/app_money.dart';
+import '../../../dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
+import '../../../budget/domain/services/safe_to_spend_calculator.dart';
+import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import '../../../budget/domain/entities/safe_to_spend/commitment_occurrence.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/money_math.dart';
@@ -97,6 +106,153 @@ class _BillFormScreenState extends State<BillFormScreen> {
   bool _loadingBudgets = true;
   bool _budgetsFailed = false;
   String? _budgetId;
+
+  /// The engine's input for the picked budget, for the effect line under
+  /// it (blueprint); a new bill only.
+  SafeToSpendInput? _linkInput;
+  static final _calculator = SafeToSpendCalculator(BudgetCalculationService());
+
+  Future<void> _loadLinkInput(String? budgetId) async {
+    if (_isEditing || budgetId == null) {
+      setState(() => _linkInput = null);
+      return;
+    }
+    if (!getIt.isRegistered<GetSafeToSpendUseCase>()) return;
+    try {
+      final input = await getIt<GetSafeToSpendUseCase>().inputFor(
+        budgetId: budgetId,
+      );
+      if (mounted && _budgetId == budgetId) {
+        setState(() => _linkInput = input);
+      }
+    } catch (e) {
+      debugPrint('[error] Reading the daily target for a bill: $e');
+    }
+  }
+
+  /// "Daily target ₹880.57 → ₹862.31": what linking this new bill does to
+  /// the picked budget today; null when it would not be set aside there.
+  Widget? _linkEffect(ThemeData theme) {
+    final input = _linkInput;
+    final due = _dueDate;
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    if (_isEditing ||
+        input == null ||
+        input.budgetId != _budgetId ||
+        input.currency != _currency ||
+        due == null ||
+        amount <= 0) {
+      return null;
+    }
+    final day = DateTime(due.year, due.month, due.day);
+    if (day.isAfter(input.endDate)) return null;
+    final before = _calculator.calculate(input);
+    if (!before.isRunning) return null;
+    final after = _calculator.calculate(
+      SafeToSpendInput(
+        budgetId: input.budgetId,
+        budgetName: input.budgetName,
+        currency: input.currency,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        today: input.today,
+        budgetAmount: input.budgetAmount,
+        periodSpent: input.periodSpent,
+        todaySpent: input.todaySpent,
+        committedSpentInPeriod: input.committedSpentInPeriod,
+        committedSpentToday: input.committedSpentToday,
+        commitments: [
+          ...?input.commitments,
+          CommitmentOccurrence(
+            billId: '_new',
+            title: _titleController.text.trim(),
+            amount: amount,
+            dueDate: day,
+            isOverdue: day.isBefore(input.today),
+          ),
+        ],
+        currencyExcluded: input.currencyExcluded,
+        unlinked: input.unlinked,
+        reservedAmount: input.reservedAmount,
+        savingsTarget: input.savingsTarget,
+        thresholds: input.thresholds,
+      ),
+    );
+    final scheme = theme.colorScheme;
+    final figure = theme.textTheme.titleSmall?.copyWith(
+      fontSize: 15,
+      fontWeight: FontWeight.w800,
+    );
+    final from = AppMoney.format(
+      before.dailySafeToSpend,
+      currency: _currency,
+      floored: true,
+    );
+    final to = AppMoney.format(
+      after.dailySafeToSpend,
+      currency: _currency,
+      floored: true,
+    );
+    final holds = AppMoney.format(amount, currency: _currency);
+    return Semantics(
+      container: true,
+      label: CurrencyFormatter.forSpeech(
+        'Daily target, $from, becomes $to. Linking holds $holds back until '
+        "it's paid.",
+      ),
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Daily target',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Text(from, style: figure),
+                const SizedBox(width: AppSpacing.sm),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  to,
+                  style: figure?.copyWith(
+                    color: context.tone(AppTone.caution).accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 0, 0),
+            child: Text(
+              "Linking holds $holds back until it's paid.",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Set when picking a budget switched the bill's currency.
   String? _currencyNote;
@@ -234,6 +390,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   }
 
   Future<void> _onBudgetPicked(String? id) async {
+    unawaited(_loadLinkInput(id));
     if (id == null) {
       setState(() {
         _budgetId = null;
@@ -585,8 +742,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
 
-                  // Which budget pays it
+                  // Which budget pays it, and what linking does today.
                   _buildBudgetPicker(theme),
+                  ?_linkEffect(theme),
                   const SizedBox(height: AppSpacing.md),
 
                   // When

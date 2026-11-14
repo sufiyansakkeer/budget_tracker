@@ -62,3 +62,6 @@ android/key.properties
 /ios/build/
 /android/build/
 *.xcode.env.local
+
+# Local design explorations and reports
+/docs/design/

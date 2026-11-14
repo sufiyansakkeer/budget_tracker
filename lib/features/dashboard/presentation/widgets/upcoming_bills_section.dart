@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_card.dart';
@@ -10,6 +11,8 @@ import '../../../../core/widgets/app_section.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/entities/bill_enums.dart';
 import '../../../bills/presentation/pages/bill_widgets.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import 'safe_to_spend_copy.dart';
 
 /// "Coming up": overdue bills first, then the next unpaid ones, as compact
 /// rows, each saying when it is due and which budget pays it. Bills stay one
@@ -45,6 +48,10 @@ class UpcomingBillsSection extends StatelessWidget {
   /// "Add bill" even when [bills] is empty.
   final bool hasBills;
 
+  /// Today's Safe Spending of the budget on screen: a bill linked to no
+  /// budget says what linking it here would cost each day ([dailyEffect]).
+  final SafeToSpendEntity? activeSafeToSpend;
+
   const UpcomingBillsSection({
     super.key,
     required this.bills,
@@ -54,7 +61,25 @@ class UpcomingBillsSection extends StatelessWidget {
     this.unavailable = false,
     this.onRetry,
     this.hasBills = false,
+    this.activeSafeToSpend,
   });
+
+  /// How much less today's amount would be if [bill], linked to no budget,
+  /// were linked to [e]'s budget: its amount over the days left, the same
+  /// division as today's amount. Null when that budget could not set it
+  /// aside (not running, another currency, due after the end) or when the
+  /// bill is linked already.
+  static double? dailyEffect(BillEntity bill, SafeToSpendEntity? e) {
+    if (e == null || bill.budgetId != null || !e.isRunning) return null;
+    if (bill.currency != e.currency || e.remainingDays < 1) return null;
+    final due = DateTime(
+      bill.dueDate.year,
+      bill.dueDate.month,
+      bill.dueDate.day,
+    );
+    if (due.isAfter(e.endDate)) return null;
+    return bill.amount / e.remainingDays;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,8 +103,9 @@ class UpcomingBillsSection extends StatelessWidget {
     final seeAll = bills.isNotEmpty || hasBills;
     return AppSection(
       title: 'Coming up',
+      // Overdue first: money already owed outranks the per-day effects.
       subtitle: overdue == 0
-          ? null
+          ? 'By what each does to your daily target'
           : overdue == 1
           ? '1 bill is overdue'
           : '$overdue bills are overdue',
@@ -100,11 +126,13 @@ class UpcomingBillsSection extends StatelessWidget {
               ),
             )
           : AppGroupedList(
-              dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+              dividerIndent: AppSizes.avatarSm + AppSpacing.md,
               children: [
                 for (final bill in bills)
                   _BillRow(
                     bill: bill,
+                    dailyEffect: dailyEffect(bill, activeSafeToSpend),
+                    budgetCurrency: activeSafeToSpend?.currency,
                     link: _BillLink.of(
                       bill,
                       activeBudgetId,
@@ -136,28 +164,79 @@ class _BillLink {
   ) {
     final budgetId = bill.budgetId;
     if (budgetId == null) {
-      return const _BillLink('Not linked', 'not linked to a budget');
+      return const _BillLink('not linked', 'not linked to a budget');
     }
     if (budgetId == activeBudgetId && setAsideBillIds.contains(bill.id)) {
-      return const _BillLink('Set aside', 'set aside', setAside: true);
+      return const _BillLink(
+        'already set aside',
+        'already set aside',
+        setAside: true,
+      );
     }
     final name = budgetNames[budgetId];
-    final text = name == null ? 'Paid from another budget' : 'Paid from $name';
-    return _BillLink(text, text.toLowerCase());
+    final text = name == null ? 'paid from another budget' : 'paid from $name';
+    return _BillLink(text, text);
   }
 }
 
 class _BillRow extends StatelessWidget {
   final BillEntity bill;
   final _BillLink link;
+  final double? dailyEffect;
+  final String? budgetCurrency;
 
-  const _BillRow({required this.bill, required this.link});
+  const _BillRow({
+    required this.bill,
+    required this.link,
+    this.dailyEffect,
+    this.budgetCurrency,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final due = BillVisuals.dueText(bill);
     final overdue = bill.status == BillStatus.overdue;
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final effect = dailyEffect == null
+        ? null
+        : '\u2212${SafeToSpendCopy.amount(dailyEffect!, budgetCurrency!)} a day';
+    final effectStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+    );
+    // What the bill does to today's target (blueprint): nothing when it is
+    // already set aside, less a day when it isn't linked, else its amount.
+    final Widget trailing = link.setAside
+        ? Text(
+            'No change',
+            textAlign: TextAlign.end,
+            style: muted?.copyWith(fontSize: 14),
+          )
+        : effect != null
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                effect,
+                style: effectStyle?.copyWith(
+                  color: context.tone(AppTone.caution).accent,
+                ),
+              ),
+              Text(
+                'if paid from this budget',
+                textAlign: TextAlign.end,
+                style: muted,
+              ),
+            ],
+          )
+        : AppMoney(
+            amount: bill.amount,
+            currency: bill.currency,
+            textAlign: TextAlign.end,
+          );
     return AppListRow(
       key: ValueKey('upcoming_${bill.id}'),
       leading: IconTile(
@@ -182,12 +261,7 @@ class _BillRow extends StatelessWidget {
             const TextSpan(text: ' · '),
             TextSpan(
               text: link.text,
-              style: TextStyle(
-                color: link.setAside
-                    ? context.tone(AppTone.positive).accent
-                    : theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -197,14 +271,19 @@ class _BillRow extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: AppMoney(
-        amount: bill.amount,
-        currency: bill.currency,
-        textAlign: TextAlign.end,
+      // Capped, so a long effect never squeezes the title at large text.
+      trailing: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 112),
+        child: trailing,
       ),
       semanticLabel:
           '${bill.title}, $due, ${link.spoken}, '
-          '${AppMoney.format(bill.amount, currency: bill.currency)}',
+          '${AppMoney.format(bill.amount, currency: bill.currency)}'
+          '${link.setAside
+              ? ', no change to the daily target'
+              : effect == null
+              ? ''
+              : ', ${CurrencyFormatter.forSpeech(effect.replaceFirst('\u2212', 'minus '))} if paid from this budget'}',
       onTap: () => context.pushUnique('/app/bills/${bill.id}'),
     );
   }

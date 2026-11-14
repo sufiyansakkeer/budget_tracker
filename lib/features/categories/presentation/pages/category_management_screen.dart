@@ -237,7 +237,6 @@ class _CategoryList extends StatelessWidget {
             subtitle:
                 '${active.length} ${active.length == 1 ? 'category' : 'categories'}',
             child: AppGroupedList(
-              filled: true,
               dividerIndent: CategoryListTile.dividerIndent,
               children: [
                 for (final c in active)
@@ -261,7 +260,6 @@ class _CategoryList extends StatelessWidget {
               title: 'Archived',
               subtitle: 'Hidden from the expense form; history is kept',
               child: AppGroupedList(
-                filled: true,
                 dividerIndent: CategoryListTile.dividerIndent,
                 children: [
                   for (final c in archived)
@@ -302,7 +300,7 @@ class CategoryListTile extends StatelessWidget {
   final int? usage;
 
   /// Hairlines between rows start under the name, past the icon tile.
-  static const double dividerIndent = AppSizes.avatarSm + AppSpacing.smd;
+  static const double dividerIndent = AppSizes.avatarSm + AppSpacing.md;
 
   const CategoryListTile({
     super.key,

@@ -44,6 +44,26 @@ class QuickFilterChips extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Blueprint: what kind of money event, first.
+          for (final kind in ExpenseKind.values)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+              child: ChoiceChip(
+                key: Key('kindFilter_${kind.label}'),
+                label: Text(kind.label),
+                selected: current.kind == kind,
+                showCheckmark: false,
+                onSelected: (_) {
+                  if (current.kind == kind) return;
+                  AppHaptics.selection();
+                  onSelected(current.copyWithKind(kind));
+                },
+              ),
+            ),
+          const SizedBox(
+            height: 24,
+            child: VerticalDivider(width: AppSpacing.md),
+          ),
           _chip(
             label: 'Today',
             icon: Icons.today_rounded,

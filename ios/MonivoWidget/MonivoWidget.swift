@@ -260,6 +260,13 @@ private struct Figures: View {
         switch family {
         case .systemSmall:
             Fitting {
+                // The blueprint's small widget: today's ring, what is left
+                // in the middle, like Today.
+                VStack(alignment: .leading, spacing: 6) {
+                    label(short: true)
+                    Ring(p: p, colors: colors, diameter: 96, stroke: 9)
+                        .frame(maxWidth: .infinity)
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     label(short: true); amount(.title); statusLine
                     track.padding(.top, 6)
@@ -273,6 +280,13 @@ private struct Figures: View {
             // The Add button sits over the top-right corner; the top block
             // keeps that corner free.
             Fitting {
+                // Today's ring beside the target and its status (blueprint).
+                HStack(alignment: .center, spacing: 14) {
+                    Ring(p: p, colors: colors, diameter: 104, stroke: 10)
+                    beside(button: VStack(alignment: .leading, spacing: 4) {
+                        label(short: false); amount(.title); statusLine
+                    })
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     beside(button: VStack(alignment: .leading, spacing: 0) { label(short: false); amount(.largeTitle) })
                     budgetStatusLine
@@ -287,10 +301,6 @@ private struct Figures: View {
                     beside(button: VStack(alignment: .leading, spacing: 0) { label(short: true); amount(.largeTitle) })
                     statusLine
                     InlineMetric(label: p.today?.restLabel, value: p.today?.rest, colors: colors)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    beside(button: VStack(alignment: .leading, spacing: 0) { label(short: true); amount(.largeTitle) })
-                    statusLine
                 }
                 beside(button: VStack(alignment: .leading, spacing: 0) { label(short: true); amount(.largeTitle) })
                 beside(button: amount(.largeTitle))
@@ -349,8 +359,13 @@ private struct Figures: View {
             label(short: false).padding(.top, 8)
             amount(.largeTitle, scale: 1.25)
             statusLine
-            track.padding(.top, 10)
-            metrics.padding(.top, 4)
+            // Today's ring, what is left in the middle, beside what was spent.
+            HStack(alignment: .center, spacing: 16) {
+                Ring(p: p, colors: colors, diameter: 96, stroke: 9)
+                Metric(label: p.today?.spentLabel ?? "", value: p.today?.spent ?? "", colors: colors, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 10)
             Rectangle().fill(colors.color("divider")).frame(height: 1).padding(.vertical, 8)
             OmaniRialSign.text(p.budget?.left ?? "", style: .subheadline, bold: false)
                 .font(.subheadline.weight(.medium))
@@ -489,6 +504,46 @@ private struct InlineMetric: View {
                 .font(.footnote.weight(.semibold)).monospacedDigit()
                 .foregroundColor(colors.color("ink")).lineLimit(1)
         }
+    }
+}
+
+/// Today's target as a ring, like the app's: the track is the whole target
+/// and the arc what has been spent, from the top, clockwise. What is left
+/// today (or how far over) sits in the middle, set smaller rather than cut.
+private struct Ring: View {
+    let p: WidgetPayload
+    let colors: PaletteColors
+    let diameter: CGFloat
+    let stroke: CGFloat
+
+    var body: some View {
+        let value = min(1, max(0, p.today?.progress ?? 0))
+        ZStack {
+            Circle().stroke(colors.color("track"), lineWidth: stroke)
+            if value > 0 {
+                Circle()
+                    .trim(from: 0, to: value)
+                    .stroke(colors.tone(p.status?.tone), style: StrokeStyle(lineWidth: stroke, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .accentable()
+            }
+            VStack(spacing: 1) {
+                OmaniRialSign.text(p.today?.rest ?? "", style: .subheadline, bold: true)
+                    .font(.subheadline.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(colors.color("ink"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                Text(ltr: p.today?.restLabel ?? "")
+                    .font(.caption2)
+                    .foregroundStyle(colors.color("muted"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .padding(stroke + 6)
+        }
+        .frame(width: diameter, height: diameter)
+        .accessibilityHidden(true)
     }
 }
 

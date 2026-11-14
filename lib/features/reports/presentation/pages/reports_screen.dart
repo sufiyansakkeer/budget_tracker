@@ -26,7 +26,9 @@ import '../bloc/reports_event.dart';
 import '../bloc/reports_state.dart';
 import '../widgets/bar_chart_card.dart';
 import '../widgets/category_comparison_card.dart';
+import '../../../expenses/presentation/history/widgets/activity_switch.dart';
 import '../widgets/category_ranking.dart';
+import '../widgets/category_treemap.dart';
 import '../widgets/daily_columns_chart.dart';
 import '../widgets/empty_reports_state.dart';
 import '../widgets/period_selector.dart';
@@ -147,13 +149,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (mounted) setState(() => _exporting = false);
   }
 
-  /// Why the export items are greyed out, said under each (UX-089).
-  static String? _exportBlockedReason(ReportData? data) => data == null
-      ? 'The report is still loading'
-      : data.isEmpty
-      ? 'No expenses to export in this period'
-      : null;
-
   Future<void> _refresh() async {
     final bloc = context.read<ReportsBloc>();
     final done = bloc.stream
@@ -173,7 +168,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reports'),
+        // Blueprint: Insights is Activity's other side, one switch away.
+        title: const Text('Activity'),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(56),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: ActivitySwitch(insights: true),
+          ),
+        ),
         actions: [
           BlocBuilder<ReportsBloc, ReportsState>(
             buildWhen: (a, b) => a.filter != b.filter,
@@ -192,50 +195,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 child: const Icon(Icons.filter_list_rounded),
               ),
             ),
-          ),
-          BlocBuilder<ReportsBloc, ReportsState>(
-            buildWhen: (a, b) => !identical(a.data, b.data),
-            builder: (context, state) {
-              final blocked = _exportBlockedReason(state.data);
-              final canExport = blocked == null && !_exporting;
-              Widget item(IconData icon, String title) => ListTile(
-                leading: Icon(icon),
-                title: Text(title),
-                subtitle: blocked == null ? null : Text(blocked),
-              );
-              return PopupMenuButton<bool>(
-                key: const Key('reportsMenu'),
-                // Building a long PDF takes a moment: the button turns into
-                // a spinner until the share sheet opens (UX-089).
-                enabled: !_exporting,
-                tooltip: _exporting ? 'Preparing the report' : 'More',
-                icon: _exporting
-                    ? const SizedBox.square(
-                        key: Key('reportsExporting'),
-                        dimension: AppSizes.iconMd,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : null,
-                // The menu button's own context: on iPad the share sheet
-                // points at it.
-                onSelected: (csv) => _export(
-                  csv: csv,
-                  shareOrigin: FileDeliveryService.originOf(context),
-                ),
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: true,
-                    enabled: canExport,
-                    child: item(Icons.table_chart_outlined, 'Export CSV'),
-                  ),
-                  PopupMenuItem(
-                    value: false,
-                    enabled: canExport,
-                    child: item(Icons.picture_as_pdf_outlined, 'Export PDF'),
-                  ),
-                ],
-              );
-            },
           ),
         ],
       ),
@@ -303,6 +262,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
               busy: _isBusy(state),
               failed: state.status == ReportsStatus.error,
               onPeriodSelected: _onPeriodSelected,
+              exporting: _exporting,
+              onExport: (csv, origin) => _export(
+                csv: csv,
+                shareOrigin: FileDeliveryService.originOf(origin),
+              ),
               // No budget, no "This Budget" (UX-086).
               onBudget: state.followsBudget || state.activeBudget != null
                   ? () => context.read<ReportsBloc>().add(
@@ -362,6 +326,11 @@ class _ReportContent extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final VoidCallback onRetry;
 
+  /// Export runs (the buttons wait); [onExport] with csv true or false and
+  /// the pressed button's context (the share sheet points at it on iPad).
+  final bool exporting;
+  final void Function(bool csv, BuildContext origin) onExport;
+
   const _ReportContent({
     super.key,
     required this.state,
@@ -373,6 +342,8 @@ class _ReportContent extends StatelessWidget {
     required this.onEditRange,
     required this.onRefresh,
     required this.onRetry,
+    required this.exporting,
+    required this.onExport,
   });
 
   static const double _gap = AppSpacing.xl;
@@ -584,15 +555,34 @@ class _ReportContent extends StatelessWidget {
                                             '$count '
                                             '${count == 1 ? 'category' : 'categories'}'
                                             ' · tap one to see its expenses',
-                                        child: CategoryRanking(
-                                          analytics: data.categoryAnalytics,
-                                          categories: data.categories,
-                                          expenses: data.filteredExpenses,
-                                          currency: currency,
-                                          onOpenExpense: (expense) =>
-                                              context.pushUnique(
-                                                '/app/expenses/${expense.id}',
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            // Blueprint: the shares as
+                                            // areas, then the ranking.
+                                            if (data.categoryAnalytics.length >
+                                                1) ...[
+                                              CategoryTreemap(
+                                                analytics:
+                                                    data.categoryAnalytics,
+                                                currency: currency,
                                               ),
+                                              const SizedBox(
+                                                height: AppSpacing.md,
+                                              ),
+                                            ],
+                                            CategoryRanking(
+                                              analytics: data.categoryAnalytics,
+                                              categories: data.categories,
+                                              expenses: data.filteredExpenses,
+                                              currency: currency,
+                                              onOpenExpense: (expense) =>
+                                                  context.pushUnique(
+                                                    '/app/expenses/${expense.id}',
+                                                  ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -670,6 +660,42 @@ class _ReportContent extends StatelessWidget {
                                         ),
                                       ),
                                     ],
+                                    // Blueprint: export comes last, after the
+                                    // report it shares.
+                                    const SizedBox(height: _gap),
+                                    Row(
+                                      children: [
+                                        for (final csv in [true, false]) ...[
+                                          if (!csv)
+                                            const SizedBox(
+                                              width: AppSpacing.smd,
+                                            ),
+                                          Expanded(
+                                            child: Builder(
+                                              builder: (origin) => OutlinedButton.icon(
+                                                onPressed: exporting
+                                                    ? null
+                                                    : () =>
+                                                          onExport(csv, origin),
+                                                icon: Icon(
+                                                  csv
+                                                      ? Icons
+                                                            .table_chart_outlined
+                                                      : Icons
+                                                            .picture_as_pdf_outlined,
+                                                  size: 18,
+                                                ),
+                                                label: Text(
+                                                  csv
+                                                      ? 'Export CSV'
+                                                      : 'Export PDF',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                     const SizedBox(height: AppSpacing.xl),
                                   ],
                                 ),

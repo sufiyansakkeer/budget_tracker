@@ -5,6 +5,8 @@ import '../../../../core/dates/calendar_dates.dart';
 /// Applies the active [ExpenseHistoryFilter] to a list of expenses.
 ///
 /// All filters are combined with AND semantics. Returns a new list.
+/// [tabPurchaseIds] are the expenses bought on a Pay later tab, for
+/// [ExpenseKind.payLater].
 ///
 /// The clauses are composed into one predicate and applied in a single pass:
 /// evaluating them one at a time allocated a fresh list per active clause,
@@ -15,6 +17,7 @@ class FilterExpensesUseCase {
   List<ExpenseEntity> call({
     required List<ExpenseEntity> expenses,
     required ExpenseHistoryFilter filter,
+    Set<String> tabPurchaseIds = const {},
   }) {
     if (!filter.isActive) {
       return List.of(expenses);
@@ -28,8 +31,16 @@ class FilterExpensesUseCase {
     // Lower-cased once, not once per expense.
     final tags = filter.tags.map((t) => t.toLowerCase()).toList();
     final receiptOnly = filter.receiptOnly;
+    final kind = filter.kind;
 
     bool matches(ExpenseEntity e) {
+      if (kind == ExpenseKind.expenses && e.billId != null) return false;
+      if (kind == ExpenseKind.bills && e.billId == null) return false;
+      if (kind == ExpenseKind.payLater && !tabPurchaseIds.contains(e.id)) {
+        return false;
+      }
+      // Budget starts and ends only; they aren't expenses.
+      if (kind == ExpenseKind.budgets) return false;
       if (categoryId != null && e.categoryId != categoryId) return false;
       if (start != null || end != null) {
         final day = e.date.dateOnly;

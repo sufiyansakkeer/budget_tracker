@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -498,6 +500,7 @@ class _Details extends StatelessWidget {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         FilledButton.tonalIcon(
+                          style: AppTheme.tonal(context),
                           onPressed: busy ? null : onMarkPaidAndExpense,
                           icon: const Icon(Icons.receipt_long_rounded),
                           label: const Text('Mark paid & record expense'),

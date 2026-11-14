@@ -33,6 +33,19 @@ class _FakeSafeToSpend implements GetSafeToSpendUseCase {
   double todaySpent = 0;
   final List<String> asked = [];
 
+  SafeToSpendInput _input(String budgetId) => SafeToSpendInput(
+    budgetId: budgetId,
+    budgetName: 'Personal',
+    currency: 'INR',
+    startDate: DateTime(2026, 10, 8),
+    endDate: DateTime(2026, 10, 31),
+    today: DateTime(2026, 10, 8),
+    budgetAmount: budgetAmount,
+    periodSpent: todaySpent,
+    todaySpent: todaySpent,
+    commitments: const [],
+  );
+
   @override
   Future<BudgetResult<SafeToSpendEntity>> call({
     required String budgetId,
@@ -40,22 +53,17 @@ class _FakeSafeToSpend implements GetSafeToSpendUseCase {
   }) async {
     asked.add(budgetId);
     return BudgetSuccess(
-      SafeToSpendCalculator(BudgetCalculationService()).calculate(
-        SafeToSpendInput(
-          budgetId: budgetId,
-          budgetName: 'Personal',
-          currency: 'INR',
-          startDate: DateTime(2026, 10, 8),
-          endDate: DateTime(2026, 10, 31),
-          today: DateTime(2026, 10, 8),
-          budgetAmount: budgetAmount,
-          periodSpent: todaySpent,
-          todaySpent: todaySpent,
-          commitments: const [],
-        ),
-      ),
+      SafeToSpendCalculator(
+        BudgetCalculationService(),
+      ).calculate(_input(budgetId)),
     );
   }
+
+  @override
+  Future<SafeToSpendInput?> inputFor({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async => _input(budgetId);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -224,6 +232,51 @@ void main() {
     expect(find.text('₹250.50 added'), findsOneWidget);
   });
 
+  group('before saving: what it does to today (blueprint)', () {
+    // 2400 over 24 days (8–31 Oct): 100 a day, nothing spent yet.
+    testWidgets('left today and tomorrow move as the amount is typed', (
+      tester,
+    ) async {
+      await open(tester, safeToSpend: _FakeSafeToSpend());
+      final impact = find.byKey(const Key('todayImpact'));
+      expect(impact, findsOneWidget);
+      expect(find.text('Left today'), findsOneWidget);
+      expect(find.text('Tomorrow'), findsOneWidget);
+      // 2400 ÷ 23.
+      expect(find.text('₹104.34'), findsOneWidget);
+
+      await typeAmount(tester, '40');
+      // Before → after, as the blueprint's two lines; the ring's centre
+      // shows what would be left too.
+      expect(find.text('₹60'), findsNWidgets(2));
+      // 2360 ÷ 23.
+      expect(find.text('₹102.60'), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_forward_rounded), findsNWidgets(2));
+      // The ring beside the amount previews the new expense.
+      expect(find.byKey(const Key('quickAddRing')), findsOneWidget);
+    });
+
+    testWidgets('past today\'s amount it says how far over', (tester) async {
+      await open(tester, safeToSpend: _FakeSafeToSpend());
+      await typeAmount(tester, '250');
+      expect(find.text('over by ₹150'), findsOneWidget);
+      // The ring's centre says it too, in amber.
+      expect(find.text('+₹150'), findsOneWidget);
+    });
+
+    testWidgets('an expense on another day leaves today alone', (tester) async {
+      await open(tester, safeToSpend: _FakeSafeToSpend());
+      await tester.tap(find.text('Yesterday'));
+      await tester.pump();
+      expect(find.byKey(const Key('todayImpact')), findsNothing);
+    });
+
+    testWidgets('nothing when the figures cannot be read', (tester) async {
+      await open(tester);
+      expect(find.byKey(const Key('todayImpact')), findsNothing);
+    });
+  });
+
   group('the "added" note', () {
     late _FakeSafeToSpend safe;
     setUp(() {
@@ -246,12 +299,14 @@ void main() {
       await add(tester, '40');
       expect(safe.asked, ['personal']);
       // 2400 over 24 days is 100 a day; 40 spent leaves 60.
-      expect(find.text('₹40 added · ₹60 left today'), findsOneWidget);
+      // Blueprint: the note gives tomorrow's new target. 2360 ÷ 23.
+      expect(find.text('₹40 added · tomorrow ₹102.60'), findsOneWidget);
     });
 
     testWidgets('or how far over today it is', (tester) async {
       await add(tester, '250');
-      expect(find.text('₹250 added · over by ₹150 today'), findsOneWidget);
+      // 2150 ÷ 23.
+      expect(find.text('₹250 added · tomorrow ₹93.47'), findsOneWidget);
     });
 
     testWidgets('an expense on another day shows the amount only', (
@@ -460,6 +515,9 @@ void main() {
     tester,
   ) async {
     await open(tester);
+    // Blueprint: the chips scroll sideways; More comes last.
+    await tester.ensureVisible(find.byKey(const Key('quickCategory_all')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('quickCategory_all')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('allCategory_health')));

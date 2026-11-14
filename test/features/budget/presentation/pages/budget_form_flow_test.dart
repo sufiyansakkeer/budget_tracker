@@ -100,6 +100,13 @@ void main() {
       find.widgetWithText(TextFormField, label, skipOffstage: false);
 
   Future<void> enter(WidgetTester tester, String label, String text) async {
+    // A new budget opens "By day" (blueprint); these tests enter a total.
+    if (label == 'Budget amount' && field(label).evaluate().isEmpty) {
+      await tester.ensureVisible(find.text('By total', skipOffstage: false));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('By total'));
+      await tester.pumpAndSettle();
+    }
     await tester.ensureVisible(field(label));
     await tester.pumpAndSettle();
     await tester.enterText(field(label), text);

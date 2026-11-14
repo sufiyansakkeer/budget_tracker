@@ -56,7 +56,7 @@ void main() {
 
   testWidgets('a later choice scrolls into view', (tester) async {
     await pump(tester, selected: ReportPeriod.thisWeek);
-    expect(offset(tester), 0, reason: 'already in view: the row stays');
+    expectWhollyVisible(tester, 'period_thisWeek');
     await pump(tester, selected: ReportPeriod.custom);
     expectWhollyVisible(tester, 'period_custom');
   });

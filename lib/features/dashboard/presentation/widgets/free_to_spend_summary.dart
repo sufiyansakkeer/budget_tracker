@@ -1,122 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/theme/app_tone.dart';
-import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
-import '../../../../core/widgets/app_surface.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import 'safe_to_spend_breakdown_card.dart';
 import 'safe_to_spend_copy.dart';
-
-/// "Free to spend until 31 Oct · ₹20,253", with one line naming what was
-/// set aside. One tap opens the full working ([SafeToSpendWorkingSheet]).
-///
-/// This is the progressive-disclosure step between the hero's figure and
-/// the ledger: the result first, the reasoning on request.
-class FreeToSpendSummary extends StatelessWidget {
-  final SafeToSpendEntity safeToSpend;
-  final VoidCallback onTap;
-
-  const FreeToSpendSummary({
-    super.key,
-    required this.safeToSpend,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final e = safeToSpend;
-    final value = SafeToSpendCopy.freeToSpendValue(e);
-    final detail = SafeToSpendCopy.freeToSpendContext(e);
-    return AppSurface(
-      level: SurfaceLevel.sunken,
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppSpacing.md,
-        AppSpacing.smd,
-        AppSpacing.sm,
-        AppSpacing.smd,
-      ),
-      onTap: onTap,
-      semanticLabel:
-          'Free to spend until ${SafeToSpendCopy.spokenDate(e.endDate)}, '
-          '$value. $detail. Shows how today\'s amount is worked out',
-      // The figure hugs the chevron at the right edge and may take up to
-      // 45% of the row before it scales down; the label wraps in the rest.
-      // At large text (the same point [BreakdownRow] stacks) the figure moves
-      // under the label instead of squeezing it into a narrow column.
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final figure = FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerEnd,
-            child: Text(
-              value,
-              style: context.appTypography.moneyTitle.copyWith(
-                color: e.shortfall > 0
-                    ? context.tone(AppTone.critical).accent
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
-          );
-          final label = [
-            Text('Free to spend', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.xxs),
-            Text(
-              detail,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ];
-          final chevron = Icon(
-            Icons.chevron_right_rounded,
-            color: theme.colorScheme.onSurfaceVariant,
-          );
-          if (BreakdownRow.stacksAt(context)) {
-            return Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ...label,
-                      const SizedBox(height: AppSpacing.xs),
-                      Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: figure,
-                      ),
-                    ],
-                  ),
-                ),
-                chevron,
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: label,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth * 0.45,
-                ),
-                child: figure,
-              ),
-              chevron,
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
+import 'target_trend.dart';
+import '../../domain/usecases/get_day_targets_usecase.dart';
+import '../../../budget/domain/entities/safe_to_spend/day_target.dart';
+import '../../../../core/di/injection.dart';
 
 /// The full working of today's amount, laid out like a receipt: the
 /// breakdown down to "Free to spend", then today's spending added back and
@@ -144,11 +36,12 @@ class _WorkingSheet extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const AppSheetHeader(
-          title: "How today's amount is worked out",
+        AppSheetHeader(
+          title:
+              'Why ${SafeToSpendCopy.safeAmount(e.dailySafeToSpend, e.currency)}?',
           subtitle:
-              'Fixed for today. Tomorrow it is worked out again from what '
-              'is left, so spending less today raises it.',
+              "Spend less than the target and tomorrow's rises; spend more "
+              'and it falls; spend exactly the target and it stays the same.',
         ),
         Flexible(
           child: SingleChildScrollView(
@@ -165,6 +58,23 @@ class _WorkingSheet extends StatelessWidget {
                   safeToSpend: e,
                   afterFreeToSpend: e.isRunning ? _TodayRows(entity: e) : null,
                 ),
+                if (e.isRunning &&
+                    getIt.isRegistered<GetDayTargetsUseCase>()) ...[
+                  // Blueprint: how the target has moved, after the sum.
+                  FutureBuilder<Map<DateTime, DayTarget>>(
+                    future: getIt<GetDayTargetsUseCase>()(
+                      e.budgetId,
+                    ).catchError((Object _) => <DateTime, DayTarget>{}),
+                    builder: (context, snapshot) {
+                      final days = snapshot.data?.values.toList() ?? const [];
+                      if (days.length < 2) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.lg),
+                        child: TargetTrend(days: days, currency: e.currency),
+                      );
+                    },
+                  ),
+                ],
                 if (tomorrow != null) ...[
                   const SizedBox(height: AppSpacing.md),
                   DecoratedBox(

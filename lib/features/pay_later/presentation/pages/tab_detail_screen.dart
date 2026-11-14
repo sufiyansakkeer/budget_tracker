@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -229,6 +231,7 @@ class _TabDetailScreenState extends State<TabDetailScreen> {
                 ),
               if (owes)
                 FilledButton.tonalIcon(
+                  style: AppTheme.tonal(context),
                   key: const Key('tabSettleAllButton'),
                   onPressed: busy
                       ? null
@@ -696,7 +699,7 @@ class _CategoryBreakdown extends StatelessWidget {
     return AppSection(
       title: 'By category',
       child: AppGroupedList(
-        dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+        dividerIndent: AppSizes.avatarSm + AppSpacing.md,
         children: [
           for (final MapEntry(key: id, value: amount) in entries)
             AppListRow(

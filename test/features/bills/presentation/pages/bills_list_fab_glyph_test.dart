@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_bloc.dart';
-import 'package:monivo/features/bills/presentation/pages/bill_widgets.dart';
 import 'package:monivo/features/bills/presentation/pages/bills_list_screen.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 
@@ -94,25 +92,14 @@ void main() {
     expect(label, findsOneWidget);
   });
 
-  testWidgets('row glyphs grow with large text, up to a normal icon '
-      '(review: 14 dp beside 2× text)', (tester) async {
+  testWidgets('with large text the row keeps its status in words, without '
+      'overflowing (blueprint: no inline glyphs)', (tester) async {
     await pump(tester, [bill('rent', 3, recurring: true)], textScale: 2);
-    final repeat = find.byIcon(Icons.repeat_rounded);
-    expect(repeat, findsOneWidget);
-    expect(tester.getSize(repeat).width, AppSizes.iconLg);
-    final status = find.descendant(
-      of: find.byType(BillCard),
-      matching: find.byIcon(BillVisuals.statusIcon(BillStatus.upcoming)),
-    );
-    expect(status, findsOneWidget);
-    expect(tester.getSize(status).width, AppSizes.iconLg);
-  });
-
-  testWidgets('at normal text the glyphs keep their size', (tester) async {
-    await pump(tester, [bill('rent', 3, recurring: true)]);
     expect(
-      tester.getSize(find.byIcon(Icons.repeat_rounded)).width,
-      AppSizes.iconXs,
+      find.textContaining('Due in 3 days', findRichText: true),
+      findsOneWidget,
     );
+    expect(find.byIcon(Icons.repeat_rounded), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
 import 'package:flutter/semantics.dart';
 
 import '../../../../core/constants/app_motion.dart';
@@ -180,13 +182,9 @@ class BillCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onMarkPaid;
 
-  /// Tooltip and accessibility action for [onMarkPaid].
+  /// The [onMarkPaid] button's text and accessibility action.
   final String markPaidLabel;
 
-  /// Icon of the [onMarkPaid] button: a check for a plain "Mark as paid",
-  /// the receipt for "Mark paid & record expense" (as on the bill's details
-  /// and its confirmation), so the two actions never look the same.
-  final IconData markPaidIcon;
   final bool showBudgetLink;
   final String? budgetName;
 
@@ -196,7 +194,6 @@ class BillCard extends StatelessWidget {
     this.onTap,
     this.onMarkPaid,
     this.markPaidLabel = 'Mark as paid',
-    this.markPaidIcon = Icons.check_circle_outline_rounded,
     this.showBudgetLink = false,
     this.budgetName,
   });
@@ -222,6 +219,12 @@ class BillCard extends StatelessWidget {
         ? ', not linked to a budget'
         : ', paid from $budgetName';
     final muted = bill.isPaid;
+    // The second part of the meta line.
+    final meta = link != null
+        ? (bill.budgetId == null ? 'not linked' : budgetName)
+        : bill.repeats
+        ? bill.recurrenceType.label.toLowerCase()
+        : null;
     final duration = AppMotion.respectReducedMotion(
       context,
       AppMotion.standard,
@@ -230,6 +233,7 @@ class BillCard extends StatelessWidget {
     final large = AppSizes.isLargeText(context);
     final titleStyle = (theme.textTheme.titleSmall ?? const TextStyle())
         .copyWith(
+          fontSize: 15,
           decoration: muted ? TextDecoration.lineThrough : TextDecoration.none,
           color: muted ? mutedColor : theme.colorScheme.onSurface,
         );
@@ -241,12 +245,6 @@ class BillCard extends StatelessWidget {
     final dueStyle = (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
       color: color,
     );
-
-    Widget scaleFade(Widget child, Animation<double> animation) =>
-        ScaleTransition(
-          scale: Tween<double>(begin: 0.7, end: 1).animate(animation),
-          child: FadeTransition(opacity: animation, child: child),
-        );
 
     return Semantics(
       button: onTap != null,
@@ -278,89 +276,66 @@ class BillCard extends StatelessWidget {
                   size: AppSizes.avatarSm,
                   animate: true,
                 ),
-                const SizedBox(width: AppSpacing.smd),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: AnimatedDefaultTextStyle(
-                              duration: duration,
-                              curve: AppMotion.standardCurve,
-                              style: titleStyle,
-                              child: Text(
-                                bill.title,
-                                maxLines: large ? 2 : 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          if (bill.repeats) ...[
-                            const SizedBox(width: AppSpacing.xs),
-                            Icon(
-                              Icons.repeat_rounded,
-                              size: AppSizes.inlineIcon(context),
-                              color: mutedColor,
-                              semanticLabel: 'Recurring',
-                            ),
-                          ],
-                        ],
+                      AnimatedDefaultTextStyle(
+                        duration: duration,
+                        curve: AppMotion.standardCurve,
+                        style: titleStyle,
+                        child: Text(
+                          bill.title,
+                          maxLines: large ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.xxs),
-                      Row(
-                        children: [
-                          AnimatedSwitcher(
-                            duration: duration,
-                            switchInCurve: AppMotion.enter,
-                            switchOutCurve: AppMotion.exit,
-                            transitionBuilder: scaleFade,
-                            child: Icon(
-                              BillVisuals.statusIcon(status),
-                              key: ValueKey(status),
-                              size: AppSizes.inlineIcon(context),
-                              color: color,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Flexible(
-                            child: AnimatedDefaultTextStyle(
-                              duration: duration,
-                              curve: AppMotion.standardCurve,
-                              style: dueStyle,
-                              child: Text(
-                                dueText,
-                                maxLines: large ? 2 : 1,
-                                overflow: TextOverflow.ellipsis,
+                      // Blueprint: one line, the status in its colour, then
+                      // the budget (or "not linked", or how it repeats).
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: dueText,
+                              style: dueStyle.copyWith(
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                        ],
+                            if (meta != null) TextSpan(text: ' · $meta'),
+                          ],
+                        ),
+                        maxLines: large ? 2 : 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: context.appColors.textTertiary,
+                        ),
                       ),
-                      if (link != null) ...[
-                        const SizedBox(height: AppSpacing.xxs),
-                        Row(
-                          children: [
-                            Icon(
-                              bill.budgetId == null
-                                  ? Icons.link_off_rounded
-                                  : Icons.account_balance_wallet_outlined,
-                              size: AppSizes.inlineIcon(context),
-                              color: mutedColor,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Flexible(
-                              child: Text(
-                                link,
-                                maxLines: large ? 2 : 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: mutedColor,
+                      if (onMarkPaid != null && !bill.isPaid) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Tooltip(
+                          message: markPaidLabel,
+                          excludeFromSemantics: true,
+                          child: FilledButton(
+                            key: const ValueKey('markPaid'),
+                            onPressed: onMarkPaid,
+                            style: AppTheme.tonal(context).merge(
+                              FilledButton.styleFrom(
+                                minimumSize: const Size(0, 36),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: AppSpacing.borderRadiusSm,
+                                ),
+                                textStyle: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
-                          ],
+                            child: Text(markPaidLabel),
+                          ),
                         ),
                       ],
                       if (large) ...[
@@ -390,28 +365,6 @@ class BillCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                AnimatedSwitcher(
-                  duration: duration,
-                  switchInCurve: AppMotion.enter,
-                  switchOutCurve: AppMotion.exit,
-                  transitionBuilder: scaleFade,
-                  child: onMarkPaid != null && !bill.isPaid
-                      ? Padding(
-                          key: const ValueKey('markPaid'),
-                          padding: const EdgeInsetsDirectional.only(
-                            start: AppSpacing.xs,
-                          ),
-                          child: IconButton(
-                            tooltip: markPaidLabel,
-                            onPressed: onMarkPaid,
-                            icon: Icon(
-                              markPaidIcon,
-                              color: context.appColors.success,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(key: ValueKey('noAction')),
-                ),
               ],
             ),
           ),

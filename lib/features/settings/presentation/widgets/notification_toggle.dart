@@ -27,7 +27,7 @@ class NotificationToggle extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       secondary: IconTile(
         icon: icon,
-        color: theme.colorScheme.primary,
+        color: theme.colorScheme.onSurfaceVariant,
         size: AppSizes.avatarSm,
       ),
       title: Text(title, style: theme.textTheme.titleSmall),

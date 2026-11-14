@@ -50,20 +50,10 @@ void main() {
     expect(taps, [3, 1]);
   });
 
-  testWidgets('selected destination shows the filled icon, others outlined', (
-    tester,
-  ) async {
-    await tester.pumpWidget(harness(selectedIndex: 2, onSelected: (_) {}));
-    await tester.pumpAndSettle();
-
-    Opacity opacityOf(IconData icon) => tester.widget<Opacity>(
-      find.ancestor(of: find.byIcon(icon), matching: find.byType(Opacity)),
-    );
-
-    expect(opacityOf(appNavDestinations[2].selectedIcon).opacity, 1);
-    expect(opacityOf(appNavDestinations[2].icon).opacity, 0);
-    expect(opacityOf(appNavDestinations[0].icon).opacity, 1);
-    expect(opacityOf(appNavDestinations[0].selectedIcon).opacity, 0);
+  test('the selected tab keeps its outlined icon (blueprint)', () {
+    for (final d in appNavDestinations) {
+      expect(d.selectedIcon, d.icon, reason: d.label);
+    }
   });
 
   testWidgets('animates the indicator when the selection changes', (
@@ -96,14 +86,15 @@ void main() {
         matching: find.byType(AnimatedContainer),
       ),
     );
-    expect(indicator(0).constraints?.maxWidth, 64);
-    expect(indicator(1).constraints?.maxWidth, 32);
+    // The blueprint's pill: 52 × 30, a dot of 30 when idle.
+    expect(indicator(0).constraints?.maxWidth, 52);
+    expect(indicator(1).constraints?.maxWidth, 30);
 
     setSelected(() => selected = 1);
     await tester.pump();
     // Mid-animation the widget already targets the new sizes…
-    expect(indicator(1).constraints?.maxWidth, 64);
-    expect(indicator(0).constraints?.maxWidth, 32);
+    expect(indicator(1).constraints?.maxWidth, 52);
+    expect(indicator(0).constraints?.maxWidth, 30);
     // …and the animation finishes.
     await tester.pumpAndSettle();
     expect(tester.hasRunningAnimations, isFalse);
@@ -124,7 +115,7 @@ void main() {
     final settings = tester.getSemantics(find.byKey(appNavDestinations[3].key));
     expect(settings.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(settings.hasFlag(SemanticsFlag.isSelected), isTrue);
-    expect(settings.label, contains('Settings'));
+    expect(settings.label, contains('More'));
 
     final home = tester.getSemantics(find.byKey(appNavDestinations[0].key));
     expect(home.hasFlag(SemanticsFlag.isSelected), isFalse);

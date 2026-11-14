@@ -38,6 +38,13 @@ import '../../domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../domain/repository/budget_repository.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
 import '../../../expenses/presentation/quick_add/quick_add_sheet.dart';
+import '../../../dashboard/presentation/widgets/free_to_spend_summary.dart';
+import '../widgets/active_budget_selector.dart';
+import '../widgets/budget_period_view.dart';
+import '../widgets/change_target_sheet.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import '../widgets/money_map.dart';
 import '../widgets/budget_list_items.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/constants/app_motion.dart';
@@ -58,7 +65,16 @@ import '../../../../core/constants/app_copy.dart';
 class BudgetDetailsScreen extends StatefulWidget {
   final String budgetId;
 
-  const BudgetDetailsScreen({super.key, required this.budgetId});
+  /// The Budget tab's root, showing the active budget: nothing to go back
+  /// to, switch and all-budgets actions, and no add button (the bar's +
+  /// adds). A delete stays on the tab, which follows the next active budget.
+  final bool asTab;
+
+  const BudgetDetailsScreen({
+    super.key,
+    required this.budgetId,
+    this.asTab = false,
+  });
 
   /// "Now" for the period and day counts; replaced in golden tests.
   @visibleForTesting
@@ -78,6 +94,9 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
   /// The engine's result for this budget, for what it sets aside; null when
   /// it couldn't be worked out.
   SafeToSpendEntity? _safeToSpend;
+
+  /// The Budget tab's other budgets, with their figures.
+  List<OtherBudget> _others = const [];
   bool _isActive = false;
   bool _loading = true;
   bool _busy = false;
@@ -132,11 +151,15 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       final safeToSpend = budget == null
           ? null
           : await _readSafeToSpend(budget.id);
+      final others = widget.asTab && budget != null
+          ? await _readOthers(budget.id)
+          : const <OtherBudget>[];
       if (!mounted) return;
       setState(() {
         _budget = budget;
         _stats = stats;
         _safeToSpend = safeToSpend;
+        _others = others;
         _isActive = budget != null && budget.id == activeId;
         _loading = false;
         _error = null;
@@ -148,6 +171,33 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
         _loading = false;
         _error = "It's still on this device. Try again in a moment.";
       });
+    }
+  }
+
+  /// Best effort: the budgets other than [activeId] that are running or
+  /// still to come, each with its figures today.
+  Future<List<OtherBudget>> _readOthers(String activeId) async {
+    try {
+      final now = BudgetDetailsScreen.clock();
+      final today = DateTime(now.year, now.month, now.day);
+      final all = await _manageBudget.getAll();
+      final others = [
+        for (final b in all)
+          if (b.id != activeId && !b.isArchived && !b.endDate.isBefore(today))
+            b,
+      ]..sort((a, b) => a.startDate.compareTo(b.startDate));
+      if (others.isEmpty) return const [];
+      final figures = getIt.isRegistered<GetSafeToSpendUseCase>()
+          ? await getIt<GetSafeToSpendUseCase>().callForBudgets(
+              others,
+              referenceDate: now,
+              allBudgets: all,
+            )
+          : const <String, SafeToSpendEntity>{};
+      return [for (final b in others) (b, figures[b.id])];
+    } catch (e) {
+      debugPrint('[error] Reading the other budgets: $e');
+      return const [];
     }
   }
 
@@ -432,7 +482,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       _notify(
         now == null ? 'Budget deleted' : 'Budget deleted. $now is now active.',
       );
-      context.pop(true);
+      if (!widget.asTab) context.pop(true);
     }, failed: "Couldn't delete the budget.");
   }
 
@@ -448,85 +498,253 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final budget = _budget;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Budget'),
-        actions: [
-          if (budget != null) ...[
-            IconButton(
-              tooltip: 'Edit budget',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: _busy
-                  ? null
-                  : () => context.pushUnique(
-                      '/app/budgets/${widget.budgetId}/edit',
-                    ),
+  /// Edit and the overflow menu (set active, archive, duplicate, delete).
+  List<Widget> _actions(BudgetEntity budget) => [
+    IconButton(
+      tooltip: 'Edit budget',
+      icon: const Icon(Icons.edit_outlined),
+      onPressed: _busy
+          ? null
+          : () => context.pushUnique('/app/budgets/${widget.budgetId}/edit'),
+    ),
+    PopupMenuButton<String>(
+      enabled: !_busy,
+      tooltip: 'More actions',
+      onSelected: (value) {
+        switch (value) {
+          case 'setActive':
+            _setActive();
+          case 'archive':
+            _archive();
+          case 'restore':
+            _restore();
+          case 'duplicate':
+            _duplicate();
+          case 'delete':
+            _delete();
+        }
+      },
+      itemBuilder: (context) => [
+        if (!_isActive && !budget.isArchived)
+          const PopupMenuItem(
+            value: 'setActive',
+            child: ListTile(
+              leading: Icon(Icons.check_circle_outline_rounded),
+              title: Text(AppTerms.makeActive),
             ),
-            PopupMenuButton<String>(
-              enabled: !_busy,
-              tooltip: 'More actions',
-              onSelected: (value) {
-                switch (value) {
-                  case 'setActive':
-                    _setActive();
-                  case 'archive':
-                    _archive();
-                  case 'restore':
-                    _restore();
-                  case 'duplicate':
-                    _duplicate();
-                  case 'delete':
-                    _delete();
-                }
-              },
-              itemBuilder: (context) => [
-                if (!_isActive && !budget.isArchived)
-                  const PopupMenuItem(
-                    value: 'setActive',
-                    child: ListTile(
-                      leading: Icon(Icons.check_circle_outline_rounded),
-                      title: Text(AppTerms.makeActive),
-                    ),
+          ),
+        PopupMenuItem(
+          value: budget.isArchived ? 'restore' : 'archive',
+          child: ListTile(
+            leading: Icon(
+              budget.isArchived
+                  ? Icons.unarchive_outlined
+                  : Icons.archive_outlined,
+            ),
+            title: Text(budget.isArchived ? 'Restore' : 'Archive'),
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'duplicate',
+          child: ListTile(
+            leading: Icon(Icons.copy_rounded),
+            title: Text('Duplicate'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(
+              Icons.delete_outline_rounded,
+              color: context.appColors.error,
+            ),
+            title: Text(
+              'Delete',
+              style: TextStyle(color: context.appColors.error),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ];
+
+  /// "Change your daily target" (blueprint): the set-asides previewed and
+  /// applied in a sheet; the end date and amount stay in the form. Without
+  /// the engine's input the form opens instead.
+  Future<void> _changeTarget(BudgetEntity budget) async {
+    final edit = '/app/budgets/${budget.id}/edit';
+    SafeToSpendInput? input;
+    if (getIt.isRegistered<GetSafeToSpendUseCase>()) {
+      try {
+        input = await getIt<GetSafeToSpendUseCase>().inputFor(
+          budgetId: budget.id,
+          referenceDate: BudgetDetailsScreen.clock(),
+        );
+      } catch (e) {
+        debugPrint('[error] Reading the target levers: $e');
+      }
+    }
+    if (!mounted) return;
+    if (input == null) {
+      await context.pushUnique(edit);
+      return;
+    }
+    final openForm = await AppBottomSheet.show<bool>(
+      context: context,
+      builder: (sheetContext) => ChangeTargetSheet(
+        input: input!,
+        onOpenForm: () => Navigator.of(sheetContext).pop(true),
+        onApply: (reserved, savings) async {
+          final error = _manageBudget.validate(
+            budget.name,
+            budget.monthlyAmount,
+            budget.startDate,
+            budget.endDate,
+            reservedAmount: reserved,
+            savingsTarget: savings,
+          );
+          if (error != null) {
+            AppSnack.show(sheetContext, error);
+            return;
+          }
+          try {
+            await _manageBudget.update(
+              budget.copyWith(
+                reservedAmount: reserved,
+                savingsTarget: savings,
+                clearReservedAmount: reserved == null,
+                clearSavingsTarget: savings == null,
+              ),
+            );
+          } catch (e) {
+            debugPrint('[error] Changing the daily target: $e');
+            if (sheetContext.mounted) {
+              AppSnack.show(sheetContext, "Couldn't change it. Try again.");
+            }
+            return;
+          }
+          RefreshBuses.budgets.notifyChanged();
+          if (sheetContext.mounted) Navigator.of(sheetContext).pop(false);
+          _notify('Daily target updated');
+        },
+      ),
+    );
+    if (openForm == true && mounted) await context.pushUnique(edit);
+  }
+
+  /// The tab's title row (blueprint): the budget's name switches the
+  /// active budget; the overflow menu keeps every budget action.
+  Widget _tabTitle(BudgetEntity budget) {
+    final theme = Theme.of(context);
+    return Padding(
+      key: const Key('budgetTabTitle'),
+      padding: const EdgeInsets.only(bottom: AppSpacing.xxs),
+      child: Row(
+        children: [
+          Flexible(
+            child: Tooltip(
+              message: 'Switch budget',
+              child: InkWell(
+                onTap: _busy ? null : () => ActiveBudgetSelector.open(context),
+                borderRadius: AppSpacing.borderRadiusSm,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: AppSizes.touchTarget,
                   ),
-                PopupMenuItem(
-                  value: budget.isArchived ? 'restore' : 'archive',
-                  child: ListTile(
-                    leading: Icon(
-                      budget.isArchived
-                          ? Icons.unarchive_outlined
-                          : Icons.archive_outlined,
-                    ),
-                    title: Text(budget.isArchived ? 'Restore' : 'Archive'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          budget.name,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Icon(
+                        Icons.unfold_more_rounded,
+                        size: 18,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ],
                   ),
                 ),
-                const PopupMenuItem(
-                  value: 'duplicate',
-                  child: ListTile(
-                    leading: Icon(Icons.copy_rounded),
-                    title: Text('Duplicate'),
-                  ),
-                ),
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.delete_outline_rounded,
-                      color: context.appColors.error,
-                    ),
-                    title: Text(
-                      'Delete',
-                      style: TextStyle(color: context.appColors.error),
-                    ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          ..._actions(budget),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabBody() {
+    final budget = _budget;
+    final e = _safeToSpend;
+    if (_loading ||
+        _error != null ||
+        budget == null ||
+        e == null ||
+        !e.isRunning) {
+      return _body(title: budget == null ? null : _tabTitle(budget));
+    }
+    return AppPageBody(
+      key: const ValueKey('period'),
+      builder: (context, padding) => ListView(
+        padding: padding,
+        children: [
+          BudgetPeriodView(
+            budget: budget,
+            e: e,
+            expenseCount: _stats.expenseCount,
+            others: _others,
+            title: _tabTitle(budget),
+            onShowWorking: () => SafeToSpendWorkingSheet.show(context, e),
+            onChangeTarget: () => _changeTarget(budget),
+            onOpenBills: () => context.pushUnique('/app/bills'),
+            onOpenSpent: () => context.go('/app/expenses'),
+            onAllBudgets: () => context.pushUnique('/app/budgets/all'),
+            onOpenOther: (other) =>
+                context.pushUnique('/app/budgets/${other.id}'),
+            footer: [
+              if (budget.notes != null && budget.notes!.trim().isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  budget.notes!.trim(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
-            ),
-          ],
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final budget = _budget;
+    if (widget.asTab) {
+      return Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: AppStateSwitcher(child: _tabBody()),
+        ),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Budget'),
+        actions: [if (budget != null) ..._actions(budget)],
       ),
       body: SafeArea(
         bottom: false,
@@ -535,7 +753,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       // Adding goes to the active budget, so only the active budget offers
       // it (review: from another budget it recorded into the active one).
       // Any other budget offers to become active instead.
-      floatingActionButton: budget == null || budget.isArchived
+      floatingActionButton: widget.asTab || budget == null || budget.isArchived
           ? null
           : _isActive
           ? AppFab(
@@ -558,7 +776,8 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
     );
   }
 
-  Widget _body() {
+  /// [title] heads the content on the tab (it has no app bar).
+  Widget _body({Widget? title}) {
     if (_loading) return const FormSkeleton(key: ValueKey('loading'), rows: 4);
     if (_error != null) {
       return ErrorState(
@@ -586,6 +805,7 @@ class _BudgetDetailsScreenState extends State<BudgetDetailsScreen> {
       budget: budget,
       stats: _stats,
       safeToSpend: _safeToSpend,
+      title: title,
       isActive: _isActive,
       busy: _busy,
       onRestore: _restore,
@@ -597,6 +817,7 @@ class _Content extends StatelessWidget {
   final BudgetEntity budget;
   final MonthlyStatisticsEntity stats;
   final SafeToSpendEntity? safeToSpend;
+  final Widget? title;
   final bool isActive;
   final bool busy;
   final VoidCallback onRestore;
@@ -606,6 +827,7 @@ class _Content extends StatelessWidget {
     required this.budget,
     required this.stats,
     required this.safeToSpend,
+    this.title,
     required this.isActive,
     required this.busy,
     required this.onRestore,
@@ -638,6 +860,7 @@ class _Content extends StatelessWidget {
       builder: (context, padding) => ListView(
         padding: padding,
         children: [
+          ?title,
           AppSurface(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.mlg,
@@ -794,11 +1017,24 @@ class _Content extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          _SetAsideGroup(
-            budget: budget,
-            safeToSpend: safeToSpend,
-            linkToHome: isActive && phase == BudgetPhase.running,
-          ),
+          // Blueprint: the whole amount as a money map when the engine's
+          // figures are in; the budget's own set-asides otherwise.
+          if (safeToSpend != null) ...[
+            MoneyMap(safeToSpend: safeToSpend!),
+            if (isActive && phase == BudgetPhase.running)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton(
+                  onPressed: () => context.go('/app/home'),
+                  child: const Text("See Today's Safe Spending on Home"),
+                ),
+              ),
+          ] else
+            _SetAsideGroup(
+              budget: budget,
+              safeToSpend: safeToSpend,
+              linkToHome: isActive && phase == BudgetPhase.running,
+            ),
           const SizedBox(height: AppSpacing.lg),
 
           // What this budget means for the rest of the app. Changes ease in

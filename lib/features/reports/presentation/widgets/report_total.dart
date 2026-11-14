@@ -56,10 +56,12 @@ class ReportTotal extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              // Blueprint: "Spent" leads, at the hero size.
               AppMoney(
                 amount: overview.totalSpending,
                 currency: currency,
-                role: MoneyRole.display,
+                role: MoneyRole.hero,
+                split: true,
               ),
               if (comparison != null) ...[
                 const SizedBox(height: AppSpacing.xxs),

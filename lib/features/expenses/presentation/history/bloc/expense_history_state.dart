@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../budget/domain/entities/safe_to_spend/day_target.dart';
+
 import '../../../../../core/domain/entities/budget_entity.dart';
+import '../../../domain/entities/activity_extra.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_history_filter.dart';
@@ -92,6 +95,15 @@ class ExpenseHistoryState extends Equatable {
   /// Map of budget ID to BudgetEntity for efficient lookup.
   final Map<String, BudgetEntity> budgetMap;
 
+  /// The active budget's target for each day of its period so far, keyed
+  /// by date, for the day headers' rings (single-budget view of a running
+  /// budget only; empty otherwise).
+  final Map<DateTime, DayTarget> dayTargets;
+
+  /// Tab payments and budget starts/ends for the budgets on screen, and
+  /// the tab each tab purchase went on.
+  final ActivityExtras extras;
+
   /// Whether [allBudgets] has been read, so "no budgets" can be told apart
   /// from "couldn't read them".
   final BudgetsLoad budgetsLoad;
@@ -118,6 +130,8 @@ class ExpenseHistoryState extends Equatable {
     this.selectedBudgetIds = const [],
     this.allBudgets = const [],
     this.budgetMap = const {},
+    this.dayTargets = const {},
+    this.extras = ActivityExtras.empty,
     this.budgetsLoad = BudgetsLoad.notLoaded,
   });
 
@@ -155,6 +169,8 @@ class ExpenseHistoryState extends Equatable {
     List<String>? selectedBudgetIds,
     List<BudgetEntity>? allBudgets,
     Map<String, BudgetEntity>? budgetMap,
+    Map<DateTime, DayTarget>? dayTargets,
+    ActivityExtras? extras,
     BudgetsLoad? budgetsLoad,
   }) {
     return ExpenseHistoryState(
@@ -181,6 +197,8 @@ class ExpenseHistoryState extends Equatable {
       selectedBudgetIds: selectedBudgetIds ?? this.selectedBudgetIds,
       allBudgets: allBudgets ?? this.allBudgets,
       budgetMap: budgetMap ?? this.budgetMap,
+      dayTargets: dayTargets ?? this.dayTargets,
+      extras: extras ?? this.extras,
       budgetsLoad: budgetsLoad ?? this.budgetsLoad,
     );
   }
@@ -245,6 +263,8 @@ class ExpenseHistoryState extends Equatable {
     selectedBudgetIds,
     allBudgets,
     budgetMap,
+    dayTargets,
+    extras,
     budgetsLoad,
   ];
 }

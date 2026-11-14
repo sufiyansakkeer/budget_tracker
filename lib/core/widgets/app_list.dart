@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import '../theme/app_colors_extension.dart';
 import 'package:flutter/rendering.dart';
 
 import '../constants/app_spacing.dart';
@@ -32,6 +34,9 @@ class AppListRow extends StatelessWidget {
   /// Colour for the title, e.g. a destructive action.
   final Color? titleColor;
 
+  /// A small mark after the title, such as an "Active" chip.
+  final Widget? titleTrailing;
+
   const AppListRow({
     super.key,
     this.leading,
@@ -44,6 +49,7 @@ class AppListRow extends StatelessWidget {
     this.semanticLabel,
     this.longPressHint,
     this.titleColor,
+    this.titleTrailing,
   });
 
   @override
@@ -56,13 +62,23 @@ class AppListRow extends StatelessWidget {
             ? null
             : Text(
                 subtitle!,
+                // Blueprint .row .m: 12/500 in the tertiary ink.
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: context.appColors.textTertiary,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ));
 
+    final titleText = Text(
+      title,
+      style: theme.textTheme.titleSmall?.copyWith(
+        fontSize: 15,
+        color: titleColor,
+      ),
+      maxLines: titleTrailing == null ? 2 : 1,
+      overflow: TextOverflow.ellipsis,
+    );
     final row = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: AppSizes.listRowHeight),
       child: Padding(
@@ -72,7 +88,8 @@ class AppListRow extends StatelessWidget {
             children: [
               if (leading != null) ...[
                 leading!,
-                const SizedBox(width: AppSpacing.smd),
+                // Blueprint row: 36 tile · 16 gap · text · amount.
+                const SizedBox(width: AppSpacing.md),
               ],
               Expanded(
                 child: Column(
@@ -80,14 +97,16 @@ class AppListRow extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: titleColor,
+                    if (titleTrailing == null)
+                      titleText
+                    else
+                      // The mark wraps under a long title or large text.
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xxs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [titleText, titleTrailing!],
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                     if (second != null) ...[
                       const SizedBox(height: AppSpacing.xxs),
                       second,

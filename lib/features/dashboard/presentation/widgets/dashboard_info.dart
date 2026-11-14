@@ -49,10 +49,9 @@ class DashboardInfo {
           'the free money before the end date; Overcommitted when bills and '
           "money set aside are more than what's left; Over budget when more "
           'than the budget amount is spent\n'
-          "• The bar under the status shows how much of today's amount you "
-          'have used. The thin bar lower down shows how much of the whole '
-          "budget is used; its tick marks today's place in the period, so a "
-          'fill past the tick means spending is ahead of time',
+          "• The ring is today's amount: the dark arc is what you have "
+          'spent so far. Going over closes the ring and starts a second, '
+          'inner ring for the extra. The middle says what is left today',
       privacyNote: 'Your financial data is stored locally on your device.',
     );
   }

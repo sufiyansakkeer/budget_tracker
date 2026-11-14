@@ -297,6 +297,36 @@ void main() {
   });
 
   group('Submit', () {
+    test('the first question is a day\'s amount (blueprint)', () {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+      expect(bloc.state.amountByDay, isTrue);
+    });
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'by the day, the budget amount is the daily target times the days',
+      build: buildBloc,
+      seed: () => OnboardingState(
+        startDate: DateTime(2026, 8, 1),
+        endDate: DateTime(2026, 8, 31),
+        budgetNameInput: 'Personal',
+        monthlyBudgetInput: '1000',
+        parsedBudget: 1000.0,
+        amountByDay: true,
+      ),
+      act: (bloc) => bloc.add(const OnboardingSubmittedEvent()),
+      verify: (bloc) {
+        expect(onboardingRepository.createdBudget!.monthlyAmount, 31000.0);
+      },
+    );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      '"In total" is one tap away',
+      build: buildBloc,
+      act: (bloc) => bloc.add(const OnboardingAmountModeChangedEvent(false)),
+      verify: (bloc) => expect(bloc.state.amountByDay, isFalse),
+    );
+
     blocTest<OnboardingBloc, OnboardingState>(
       'valid form proceeds to success and persists budget',
       build: buildBloc,

@@ -75,12 +75,23 @@ void main() {
         ),
       );
 
-      expect(find.text('Follow device theme'), findsOneWidget);
-      expect(find.text('Always use light theme'), findsOneWidget);
-      expect(find.text('Always use dark theme'), findsOneWidget);
+      // Blueprint .sg: the names only; what each does is read out.
+      expect(find.text('Follow device theme'), findsNothing);
+      expect(
+        find.bySemanticsLabel('System, Follow device theme'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Light, Always use light theme'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Dark, Always use dark theme'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('should display theme icons', (tester) async {
+    testWidgets('shows no icons, like the blueprint', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -92,9 +103,9 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.brightness_auto), findsOneWidget);
-      expect(find.byIcon(Icons.light_mode), findsOneWidget);
-      expect(find.byIcon(Icons.dark_mode), findsOneWidget);
+      expect(find.byIcon(Icons.brightness_auto), findsNothing);
+      expect(find.byIcon(Icons.light_mode), findsNothing);
+      expect(find.byIcon(Icons.dark_mode), findsNothing);
     });
   });
 }

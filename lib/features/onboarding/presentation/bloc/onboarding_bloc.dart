@@ -31,7 +31,12 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     required this.updateCurrencyUseCase,
     required this.currencyProvider,
   }) : super(
-         OnboardingState(startDate: _today(), endDate: _today().addDays(30)),
+         OnboardingState(
+           startDate: _today(),
+           endDate: _today().addDays(30),
+           // The first question is how much a day (blueprint).
+           amountByDay: true,
+         ),
        ) {
     on<OnboardingInitEvent>(_onInit);
     on<OnboardingPageChangedEvent>(_onPageChanged);
@@ -42,6 +47,9 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     on<OnboardingEndDateChangedEvent>(_onEndDateChanged);
     on<OnboardingSubmittedEvent>(_onSubmitted);
     on<OnboardingRestoredEvent>(_onRestored);
+    on<OnboardingAmountModeChangedEvent>(
+      (event, emit) => emit(state.copyWith(amountByDay: event.byDay)),
+    );
   }
 
   void _onInit(OnboardingInitEvent event, Emitter<OnboardingState> emit) {
@@ -229,8 +237,8 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       final budgetEntity = BudgetEntity(
         id: _budgetId,
         name: state.budgetNameInput.trim(),
-        monthlyAmount: state.parsedBudget!,
-        remainingAmount: state.parsedBudget!,
+        monthlyAmount: state.budgetAmount!,
+        remainingAmount: state.budgetAmount!,
         currency: state.selectedCurrency.code,
         startDate: state.startDate,
         endDate: state.endDate,

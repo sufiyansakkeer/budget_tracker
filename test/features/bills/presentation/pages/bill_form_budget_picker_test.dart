@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/widgets/app_money.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:go_router/go_router.dart';
 import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/di/injection.dart';
@@ -279,6 +282,39 @@ void main() {
     expect(saved.currency, 'OMR');
   });
 
+  testWidgets('linking a new bill shows what it does to the daily target '
+      '(blueprint)', (tester) async {
+    getIt.registerSingleton<GetSafeToSpendUseCase>(_ThirtyDays());
+    await pumpForm(tester);
+
+    await pick(tester, 'Household ·');
+    await enter(tester, 'Amount', '300');
+    await tester.pump();
+
+    // 3,000 over 30 days is 100 a day; holding 300 back leaves 90.
+    String omr(double v) => AppMoney.format(v, currency: 'OMR', floored: true);
+    expect(find.text('Daily target'), findsOneWidget);
+    expect(find.text(omr(100)), findsOneWidget);
+    expect(find.text(omr(90)), findsOneWidget);
+    expect(
+      find.text(
+        "Linking holds ${AppMoney.format(300, currency: 'OMR')} back until "
+        "it's paid.",
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a bill linked to no budget shows no effect line', (
+    tester,
+  ) async {
+    getIt.registerSingleton<GetSafeToSpendUseCase>(_ThirtyDays());
+    await pumpForm(tester);
+    await enter(tester, 'Amount', '300');
+    await tester.pump();
+    expect(find.text('Daily target'), findsNothing);
+  });
+
   testWidgets('editing keeps a link to an ended budget, labelled ended', (
     tester,
   ) async {
@@ -483,4 +519,31 @@ void main() {
       expect(find.byKey(const Key('billCurrencyPicker')), findsNothing);
     });
   });
+}
+
+/// 3,000 OMR over 30 days from today, nothing spent: 100 a day.
+class _ThirtyDays implements GetSafeToSpendUseCase {
+  @override
+  Future<SafeToSpendInput?> inputFor({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return SafeToSpendInput(
+      budgetId: budgetId,
+      budgetName: 'Household',
+      currency: 'OMR',
+      startDate: today,
+      endDate: DateTime(today.year, today.month, today.day + 29),
+      today: today,
+      budgetAmount: 3000,
+      periodSpent: 0,
+      todaySpent: 0,
+      commitments: const [],
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

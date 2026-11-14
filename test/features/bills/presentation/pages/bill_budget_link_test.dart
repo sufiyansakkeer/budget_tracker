@@ -172,7 +172,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Paid from October 2026'), findsOneWidget);
+      // Blueprint: one meta line, "Due … · October 2026".
+      expect(
+        find.textContaining('· October 2026', findRichText: true),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsLabel(RegExp(r', paid from October 2026$')),
         findsOneWidget,
@@ -186,7 +190,10 @@ void main() {
         wrap(BillCard(bill: bill('b'), showBudgetLink: true, onTap: () {})),
       );
 
-      expect(find.text('Not linked'), findsOneWidget);
+      expect(
+        find.textContaining('· not linked', findRichText: true),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsLabel(RegExp(r', not linked to a budget$')),
         findsOneWidget,

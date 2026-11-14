@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
 import 'fade_slide_in.dart';
@@ -108,6 +110,7 @@ class EmptyState extends StatelessWidget {
             index: 3,
             child: _compact
                 ? FilledButton.tonalIcon(
+                    style: AppTheme.tonal(context),
                     onPressed: onAction,
                     icon: Icon(actionIcon ?? Icons.add_rounded),
                     label: Text(actionLabel!),

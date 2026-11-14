@@ -31,9 +31,16 @@ abstract final class StartNextPeriod {
   /// days. A budget that runs one calendar month from its start day (1–31
   /// Oct, 15 Oct–14 Nov) continues to the same day a month on instead, so
   /// 1–31 Oct is followed by 1–30 Nov, not 1 Nov–1 Dec.
-  static ({DateTime start, DateTime end}) datesAfter(BudgetEntity budget) {
-    final start = budget.startDate.dateOnly;
-    final end = budget.endDate.dateOnly;
+  static ({DateTime start, DateTime end}) datesAfter(BudgetEntity budget) =>
+      datesAfterPeriod(budget.startDate, budget.endDate);
+
+  /// [datesAfter] for a period given by its dates.
+  static ({DateTime start, DateTime end}) datesAfterPeriod(
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    final start = startDate.dateOnly;
+    final end = endDate.dateOnly;
     final nextStart = end.addDays(1);
     final monthly = _monthOn(start).addDays(-1) == end;
     return (

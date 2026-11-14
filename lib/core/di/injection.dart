@@ -61,6 +61,7 @@ import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_linkable_bills_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_day_targets_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_pace_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -81,6 +82,7 @@ import '../../features/expenses/domain/usecases/filter_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/page_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/search_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/sort_expenses_usecase.dart';
+import '../../features/expenses/domain/usecases/get_activity_extras_usecase.dart';
 import '../../features/expenses/presentation/bloc/expense_bloc.dart';
 import '../../features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import '../../features/onboarding/data/datasource/onboarding_local_datasource.dart';
@@ -114,6 +116,7 @@ import '../../features/bills/presentation/bloc/bill_bloc.dart';
 import '../../features/pay_later/data/datasource/pay_later_local_datasource.dart';
 import '../../features/pay_later/data/services/tab_reminder_service.dart';
 import '../../features/pay_later/presentation/open_tab_from_notification.dart';
+import '../router/open_route_from_notification.dart';
 import '../../features/pay_later/data/datasource/pay_later_local_datasource_impl.dart';
 import '../../features/pay_later/data/repository/pay_later_repository_impl.dart';
 import '../../features/pay_later/domain/repository/pay_later_repository.dart';
@@ -295,6 +298,13 @@ Future<void> initDependencyInjection({
     () => const BillOccurrenceEnumerator(),
   );
 
+  getIt.registerLazySingleton<GetDayTargetsUseCase>(
+    () => GetDayTargetsUseCase(
+      safeToSpend: getIt<GetSafeToSpendUseCase>(),
+      repository: getIt<DashboardRepository>(),
+      calculator: getIt<SafeToSpendCalculator>(),
+    ),
+  );
   getIt.registerLazySingleton<GetSpendingPaceUseCase>(
     () => GetSpendingPaceUseCase(repository: getIt<DashboardRepository>()),
   );
@@ -449,6 +459,10 @@ Future<void> initDependencyInjection({
       calculateExpenseSummaryUseCase: getIt<CalculateExpenseSummaryUseCase>(),
       pageExpensesUseCase: getIt<PageExpensesUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
+      dayTargets: (budgetId) => getIt<GetDayTargetsUseCase>()(budgetId),
+      activityExtras: (budgets) => GetActivityExtrasUseCase(
+        getIt<PayLaterRepository>(),
+      )(budgets: budgets, today: DateTime.now()),
     ),
   );
 
@@ -515,6 +529,7 @@ Future<void> initDependencyInjection({
       // Resolved on use: TabReminderService is registered further down.
       rescheduleTabReminders: () => getIt<TabReminderService>().rescheduleAll(),
       onPayLaterTap: openTabFromNotification,
+      onEveningReviewTap: openEveningReviewFromNotification,
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());

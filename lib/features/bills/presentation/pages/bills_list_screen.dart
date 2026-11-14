@@ -286,7 +286,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
                     title: section.title,
                     subtitle: section.summary,
                     child: AppGroupedList(
-                      dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                      dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                       children: [
                         for (final bill in section.bills)
                           KeyedSubtree(
@@ -311,7 +311,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
                         state.filter == BillFilter.notLinked,
                   ),
                   child: AppGroupedList(
-                    dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                    dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                     children: [
                       for (final bill in filtered)
                         KeyedSubtree(
@@ -331,24 +331,49 @@ class _BillsListScreenState extends State<BillsListScreen> {
   /// Overdue, due soon (within [BillVisuals.dueSoonDays]), later and paid,
   /// each in due-date order. Empty sections are left out. Titled like the
   /// filter chips that show each one on its own.
+  /// The All view (blueprint): overdue first, then the unpaid bills by
+  /// whether they hold money back (linked to a budget, so set aside) or
+  /// not, then the paid ones.
   List<_BillSection> _sections(List<BillEntity> bills) {
-    final now = DateTime.now();
     List<BillEntity> sorted(Iterable<BillEntity> list) =>
         list.toList()..sort((a, b) => a.dueDate.compareTo(b.dueDate));
     final overdue = sorted(bills.where((b) => b.status == BillStatus.overdue));
-    final soon = sorted(bills.where((b) => BillState.isDueSoon(b, now)));
-    final later = sorted(bills.where((b) => BillState.isLater(b, now)));
+    final open = bills.where(
+      (b) => !b.isPaid && b.status != BillStatus.overdue,
+    );
+    final setAside = sorted(open.where((b) => b.budgetId != null));
+    final notLinked = sorted(open.where((b) => b.budgetId == null));
     final paid = bills.where((b) => b.isPaid).toList()
       ..sort(
         (a, b) => (b.paidDate ?? b.dueDate).compareTo(a.paidDate ?? a.dueDate),
       );
-    _BillSection section(BillFilter filter, List<BillEntity> list) =>
-        _BillSection(filter.label, list, BillVisuals.groupSummary(list));
+    String count(List<BillEntity> list) =>
+        '${list.length} ${list.length == 1 ? 'bill' : 'bills'}';
     return [
-      if (overdue.isNotEmpty) section(BillFilter.overdue, overdue),
-      if (soon.isNotEmpty) section(BillFilter.dueSoon, soon),
-      if (later.isNotEmpty) section(BillFilter.later, later),
-      if (paid.isNotEmpty) section(BillFilter.paid, paid),
+      if (overdue.isNotEmpty)
+        _BillSection(
+          BillFilter.overdue.label,
+          overdue,
+          BillVisuals.groupSummary(overdue),
+        ),
+      if (setAside.isNotEmpty)
+        _BillSection(
+          'Set aside',
+          setAside,
+          '${BillVisuals.groupSummary(setAside)} held back',
+        ),
+      if (notLinked.isNotEmpty)
+        _BillSection(
+          'Not linked',
+          notLinked,
+          '${count(notLinked)} · nothing held back',
+        ),
+      if (paid.isNotEmpty)
+        _BillSection(
+          BillFilter.paid.label,
+          paid,
+          BillVisuals.groupSummary(paid),
+        ),
     ];
   }
 
@@ -366,9 +391,6 @@ class _BillsListScreenState extends State<BillsListScreen> {
           ? () => BillPaymentDialogs.payWithExpense(context, bill)
           : () => BillPaymentDialogs.markPaid(context, bill),
       markPaidLabel: linked ? 'Mark paid & record expense' : 'Mark as paid',
-      markPaidIcon: linked
-          ? Icons.receipt_long_rounded
-          : Icons.check_circle_outline_rounded,
       showBudgetLink: true,
       budgetName: budget == null
           ? null

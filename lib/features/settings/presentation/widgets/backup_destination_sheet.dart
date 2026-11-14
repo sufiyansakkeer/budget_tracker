@@ -65,7 +65,7 @@ class BackupDestinationSheet extends StatelessWidget {
               AppSpacing.md,
             ),
             child: AppGroupedList(
-              dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+              dividerIndent: AppSizes.avatarSm + AppSpacing.md,
               children: [
                 for (final option in _options)
                   AppListRow(

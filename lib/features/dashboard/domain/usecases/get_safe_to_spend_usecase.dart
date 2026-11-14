@@ -96,6 +96,49 @@ class GetSafeToSpendUseCase {
     required DateTime referenceDate,
     List<BudgetEntity>? allBudgets,
   }) async {
+    final inputs = await _inputs(
+      budgets,
+      referenceDate: referenceDate,
+      allBudgets: allBudgets,
+    );
+    final results = <String, SafeToSpendEntity>{};
+    for (final MapEntry(key: id, value: input) in inputs.entries) {
+      try {
+        results[id] = _calculator.calculate(input);
+      } catch (error, stackTrace) {
+        developer.log(
+          '[SafeToSpend] Could not evaluate budget $id',
+          name: 'SafeToSpend',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    return results;
+  }
+
+  /// The engine's input for one budget, read as [call] reads it, so a form
+  /// can run [SafeToSpendCalculator.preview] on each change without
+  /// reading again. Null when the budget does not exist.
+  Future<SafeToSpendInput?> inputFor({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
+    final budget = await _budgetRepository.getBudgetById(budgetId);
+    if (budget == null) return null;
+    final inputs = await _inputs([
+      budget,
+    ], referenceDate: referenceDate ?? _clock());
+    return inputs[budget.id];
+  }
+
+  /// One read of bills and committed spending for all of [budgets], then
+  /// each budget's statistics, as engine inputs keyed by budget id.
+  Future<Map<String, SafeToSpendInput>> _inputs(
+    List<BudgetEntity> budgets, {
+    required DateTime referenceDate,
+    List<BudgetEntity>? allBudgets,
+  }) async {
     if (budgets.isEmpty) return const {};
     final today = DateTime(
       referenceDate.year,
@@ -115,36 +158,26 @@ class GetSafeToSpendUseCase {
       today: today,
     );
 
-    final results = <String, SafeToSpendEntity>{};
+    final inputs = <String, SafeToSpendInput>{};
     for (final budget in budgets) {
       final statistics = await _budgetRepository.getBudgetStatistics(
         budget.id,
         referenceDate: today,
       );
-      final paid = committed[budget.id] ?? CommittedSpending.zero;
-      try {
-        results[budget.id] = _evaluate(
-          budget,
-          statistics: statistics,
-          paid: paid,
-          bills: bills,
-          budgetsById: budgetsById,
-          today: today,
-        );
-      } catch (error, stackTrace) {
-        developer.log(
-          '[SafeToSpend] Could not evaluate budget ${budget.id}',
-          name: 'SafeToSpend',
-          error: error,
-          stackTrace: stackTrace,
-        );
-      }
+      inputs[budget.id] = _input(
+        budget,
+        statistics: statistics,
+        paid: committed[budget.id] ?? CommittedSpending.zero,
+        bills: bills,
+        budgetsById: budgetsById,
+        today: today,
+      );
     }
-    return results;
+    return inputs;
   }
 
-  /// The pure part for one budget: its bill commitments and the engine.
-  SafeToSpendEntity _evaluate(
+  /// The pure part for one budget: its bill commitments and the input.
+  SafeToSpendInput _input(
     BudgetEntity budget, {
     required MonthlyStatisticsEntity statistics,
     required CommittedSpending paid,
@@ -161,27 +194,25 @@ class GetSafeToSpendUseCase {
             today: today,
           );
 
-    return _calculator.calculate(
-      SafeToSpendInput(
-        budgetId: budget.id,
-        budgetName: budget.name,
-        currency: budget.currency,
-        startDate: budget.startDate,
-        endDate: budget.endDate,
-        today: today,
-        budgetAmount: budget.monthlyAmount,
-        periodSpent: statistics.totalSpent,
-        // The statistics' today total is not clipped to the period.
-        todaySpent: budget.isActiveOn(today) ? statistics.todaySpending : 0,
-        committedSpentInPeriod: paid.periodTotal,
-        committedSpentToday: paid.todayTotal,
-        commitments: commitments?.occurrences,
-        currencyExcluded:
-            commitments?.currencyExcluded ?? CurrencyExcludedSummary.none,
-        unlinked: commitments?.unlinked ?? UnlinkedCommitmentSummary.none,
-        reservedAmount: budget.reservedAmount,
-        savingsTarget: budget.savingsTarget,
-      ),
+    return SafeToSpendInput(
+      budgetId: budget.id,
+      budgetName: budget.name,
+      currency: budget.currency,
+      startDate: budget.startDate,
+      endDate: budget.endDate,
+      today: today,
+      budgetAmount: budget.monthlyAmount,
+      periodSpent: statistics.totalSpent,
+      // The statistics' today total is not clipped to the period.
+      todaySpent: budget.isActiveOn(today) ? statistics.todaySpending : 0,
+      committedSpentInPeriod: paid.periodTotal,
+      committedSpentToday: paid.todayTotal,
+      commitments: commitments?.occurrences,
+      currencyExcluded:
+          commitments?.currencyExcluded ?? CurrencyExcludedSummary.none,
+      unlinked: commitments?.unlinked ?? UnlinkedCommitmentSummary.none,
+      reservedAmount: budget.reservedAmount,
+      savingsTarget: budget.savingsTarget,
     );
   }
 

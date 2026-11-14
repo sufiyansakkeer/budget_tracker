@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
@@ -17,13 +19,14 @@ import '../../domain/entities/budget_error.dart';
 import '../../domain/entities/budget_list_summary_entity.dart';
 import '../../domain/usecases/get_budget_list_summary_usecase.dart';
 import '../../domain/usecases/manage_budget_usecase.dart';
+import '../../../dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
+import '../../domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../widgets/budget_list_items.dart';
 import '../widgets/budget_list_summary_card.dart';
 import '../widgets/budget_visuals.dart';
 import '../../../../core/widgets/app_fab.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/navigation/push_unique.dart';
-import '../../../../core/constants/app_copy.dart';
 
 /// Lists all budgets. The active budget leads as the one raised card (the
 /// budget Home, Expenses and Reports follow); the others are compact rows
@@ -46,6 +49,10 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       getIt<GetBudgetListSummaryUseCase>();
   List<BudgetEntity>? _budgets;
   BudgetListSummaryEntity? _summary;
+
+  /// Each running budget's figures today, for its daily target and ring;
+  /// best effort.
+  Map<String, SafeToSpendEntity> _figures = const {};
   String? _activeBudgetId;
   bool _loading = true;
   String? _error;
@@ -88,6 +95,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
       final budgets = await _manageBudget.getAll();
       final activeId = await _manageBudget.activeBudgetId();
       final summaryResult = await _getSummaryUseCase();
+      final figures = await _readFigures(budgets);
       if (!mounted) return;
 
       BudgetListSummaryEntity? summary;
@@ -103,6 +111,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
         _budgets = budgets;
         _activeBudgetId = activeId;
         _summary = summary;
+        _figures = figures;
         _loading = false;
         _error = null;
       });
@@ -116,10 +125,32 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     }
   }
 
+  Future<Map<String, SafeToSpendEntity>> _readFigures(
+    List<BudgetEntity> budgets,
+  ) async {
+    if (!getIt.isRegistered<GetSafeToSpendUseCase>()) return const {};
+    final now = BudgetListScreen.clock();
+    final running = [
+      for (final b in budgets)
+        if (b.phaseOn(now) == BudgetPhase.running) b,
+    ];
+    if (running.isEmpty) return const {};
+    try {
+      return await getIt<GetSafeToSpendUseCase>().callForBudgets(
+        running,
+        referenceDate: now,
+        allBudgets: budgets,
+      );
+    } catch (e) {
+      debugPrint('[error] Reading the budgets\' daily targets: $e');
+      return const {};
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Budgets')),
+      appBar: AppBar(title: const Text('All budgets')),
       body: SafeArea(
         bottom: false,
         child: _fabCollapse.listen(
@@ -197,10 +228,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     BudgetEntity? active;
     final groups = <BudgetPhase, List<BudgetEntity>>{};
     for (final b in budgets) {
-      if (b.id == _activeBudgetId) {
-        active = b;
-        continue;
-      }
+      if (b.id == _activeBudgetId) active = b;
       groups.putIfAbsent(b.phaseOn(now), () => []).add(b);
     }
     // What runs or is to come reads in date order; what is over, newest
@@ -212,21 +240,19 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
             ? (a, b) => b.endDate.compareTo(a.endDate)
             : (a, b) => a.startDate.compareTo(b.startDate),
       );
+      // Blueprint: no raised card; the active budget leads its group.
+      final i = list.indexWhere((b) => b.id == _activeBudgetId);
+      if (i > 0) list.insert(0, list.removeAt(i));
     }
 
-    final activeRunning = active?.phaseOn(now) == BudgetPhase.running;
     // The latest to end, which "Start next period" carries on from.
     final ended = groups[BudgetPhase.ended];
     final lastEnded = ended == null || ended.isEmpty
         ? null
         : ended.reduce((a, b) => b.endDate.isAfter(a.endDate) ? b : a);
     final order = [
-      (
-        BudgetPhase.running,
-        activeRunning ? 'Also running today' : 'Running today',
-        null,
-      ),
-      (BudgetPhase.upcoming, AppTerms.notStarted, null),
+      (BudgetPhase.running, 'Running today', null),
+      (BudgetPhase.upcoming, 'Starting later', null),
       (
         BudgetPhase.ended,
         'Ended',
@@ -247,24 +273,17 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: padding,
           children: [
-            // The active budget is the one raised surface.
-            if (active != null) ...[
+            // Blueprint: total remaining is the list's one display figure.
+            if (_summary != null && _summary!.activeBudgetCount > 0) ...[
+              BudgetListSummaryCard(summary: _summary!),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (active != null && active.phaseOn(now) == BudgetPhase.ended) ...[
               FadeSlideIn(
                 index: index++,
-                child: ActiveBudgetCard(
-                  budget: active,
-                  now: now,
-                  onTap: () => context.pushUnique('/app/budgets/${active!.id}'),
-                ),
+                child: EndedBudgetNotice(budget: active, isActive: true),
               ),
-              if (active.phaseOn(now) == BudgetPhase.ended) ...[
-                const SizedBox(height: AppSpacing.sm),
-                FadeSlideIn(
-                  index: index++,
-                  child: EndedBudgetNotice(budget: active, isActive: true),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: AppSpacing.lg),
             ],
             for (final (phase, title, subtitle) in order)
               if (groups[phase] case final list? when list.isNotEmpty) ...[
@@ -277,12 +296,14 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         AppGroupedList(
-                          dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                          dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                           children: [
                             for (final budget in _visible(phase, list))
                               BudgetRow(
                                 budget: budget,
                                 now: now,
+                                figures: _figures[budget.id],
+                                isActive: budget.id == _activeBudgetId,
                                 onTap: () => context.pushUnique(
                                   '/app/budgets/${budget.id}',
                                 ),
@@ -296,11 +317,29 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
                                 setState(() => _showAll.add(phase)),
                             child: Text('Show all ${list.length}'),
                           ),
+                        // Blueprint: a small tonal button under the rows.
                         if (phase == BudgetPhase.ended && lastEnded != null)
-                          TextButton(
-                            onPressed: () =>
-                                StartNextPeriod.open(context, lastEnded.id),
-                            child: const Text('Start next period'),
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              start: AppSizes.avatarSm + AppSpacing.md,
+                              top: AppSpacing.xs,
+                            ),
+                            child: FilledButton(
+                              onPressed: () =>
+                                  StartNextPeriod.open(context, lastEnded.id),
+                              style: AppTheme.tonal(context).merge(
+                                FilledButton.styleFrom(
+                                  minimumSize: const Size(0, 36),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: AppSpacing.borderRadiusSm,
+                                  ),
+                                ),
+                              ),
+                              child: const Text('Start next period'),
+                            ),
                           ),
                       ],
                     ),
@@ -308,9 +347,6 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
               ],
-            // Last and quiet: a reference figure, never a pooled budget.
-            if (_summary != null && _summary!.activeBudgetCount > 0)
-              BudgetListSummaryCard(summary: _summary!),
           ],
         ),
       ),

@@ -31,7 +31,7 @@ class ConfirmationStepWidget extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final isSubmitting = state.status == OnboardingStatus.loading;
-    final amount = state.parsedBudget ?? 0;
+    final amount = state.budgetAmount ?? 0;
     // The dashboard's own figure for the first day it shows the budget;
     // null while the dates are invalid.
     final today = clock().dateOnly;

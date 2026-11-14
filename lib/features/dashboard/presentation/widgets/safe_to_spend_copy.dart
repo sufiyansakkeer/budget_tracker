@@ -183,6 +183,34 @@ abstract final class SafeToSpendCopy {
     return null;
   }
 
+  /// The one sentence under the ring (blueprint): at risk, the forecast in
+  /// short ("At this pace the budget ends about ₹93,870 short.", whole
+  /// units: a forecast, not a record); otherwise [heroExplanation].
+  static String? heroLine(SafeToSpendEntity e) {
+    final explanation = heroExplanation(e);
+    for (final r in e.reasons) {
+      if (r is! AtRiskReason) continue;
+      // Only when at risk is the reason the explanation gives.
+      if (explanation !=
+          atRisk(averageDaily: r.averageDaily, deficit: r.deficit, e: e)) {
+        break;
+      }
+      final endBalance = e.forecast?.projectedEndBalance;
+      String whole(double v) => CurrencyFormatter.format(
+        v.roundToDouble(),
+        code: e.currency,
+        decimalDigits: 0,
+      );
+      if (endBalance == null || endBalance < 0) {
+        final short = endBalance == null ? r.deficit : -endBalance;
+        return 'At this pace the budget ends about ${whole(short)} short.';
+      }
+      return "At this pace you'd use about ${whole(r.deficit)} of what's set "
+          'aside.';
+    }
+    return explanation;
+  }
+
   /// Caption under the hero metrics when set-aside bills were paid today.
   static String billPaymentsToday(SafeToSpendEntity e) =>
       'Bill payments today (${amount(e.committedSpentToday, e.currency)}) are '

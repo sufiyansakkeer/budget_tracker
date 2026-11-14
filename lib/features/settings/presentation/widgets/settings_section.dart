@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_animated_size.dart';
+import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/widgets/app_list.dart';
 
 /// A labelled group of settings rows.
 ///
-/// A quiet header (title, optional description) over one filled grouped
-/// list with no border, the rows separated by hairlines that start where the
+/// A header (blueprint .sh: title 17/700, optional description) over rows
+/// that sit flat on the page, separated by hairlines that start where the
 /// row text starts. The group sets the gap after each row's leading tile, so
 /// every row inside lines up whatever widget draws it (see [SettingsTile]).
 class SettingsSection extends StatelessWidget {
@@ -20,8 +21,8 @@ class SettingsSection extends StatelessWidget {
   /// runs (an export, a restore).
   final bool busy;
 
-  /// The gap between a row's leading tile and its text.
-  static const double leadingGap = AppSpacing.smd;
+  /// The gap between a row's leading tile and its text (blueprint: 16).
+  static const double leadingGap = AppSpacing.md;
 
   /// Hairlines start under the row text, past the leading tile.
   static const double dividerIndent = AppSizes.avatarSm + leadingGap;
@@ -37,17 +38,14 @@ class SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final muted = context.appColors.textTertiary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            0,
-            AppSpacing.md,
-            AppSpacing.sm,
-          ),
+          // Blueprint .sh: the rows sit on the page, so the header lines
+          // up with them at the gutter.
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxs),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -55,7 +53,11 @@ class SettingsSection extends StatelessWidget {
                 header: true,
                 child: Text(
                   title,
-                  style: theme.textTheme.titleSmall?.copyWith(color: muted),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
               if (description != null)
@@ -84,12 +86,11 @@ class SettingsSection extends StatelessWidget {
           horizontalTitleGap: leadingGap,
           minLeadingWidth: AppSizes.avatarSm,
           child: AppGroupedList(
-            filled: true,
             dividerIndent: dividerIndent,
             children: children,
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.xl),
       ],
     );
   }

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../../../budget/domain/entities/safe_to_spend/day_target.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/constants/app_motion.dart';
@@ -12,6 +14,7 @@ import '../../../../../core/widgets/app_state_switcher.dart';
 import '../../../../../core/widgets/info_content.dart';
 import '../../../../../core/widgets/info_icon.dart';
 import '../../../../../core/widgets/loading_skeleton.dart';
+import '../../../domain/entities/activity_extra.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_group.dart';
@@ -22,6 +25,8 @@ import '../../bloc/expense_state.dart';
 import '../bloc/expense_history_bloc.dart';
 import '../bloc/expense_history_event.dart';
 import '../bloc/expense_history_state.dart';
+import '../widgets/activity_extra_row.dart';
+import '../widgets/activity_switch.dart';
 import '../widgets/active_filter_chips.dart';
 import '../widgets/budget_info_bottom_sheet.dart';
 import '../widgets/budget_selection_sheet.dart';
@@ -42,9 +47,10 @@ import '../widgets/summary_card.dart';
 import '../../quick_add/quick_add_sheet.dart';
 import '../../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../../../../core/domain/entities/budget_entity.dart';
-import '../../../../../core/widgets/app_fab.dart';
 import '../../../../../core/widgets/fade_slide_in.dart';
 import '../../../../../core/navigation/push_unique.dart';
+import '../../../../../core/dates/calendar_dates.dart';
+import '../../../../../core/router/app_router.dart';
 import '../../../../../core/widgets/app_animated_size.dart';
 import '../../../../../core/widgets/app_page_body.dart';
 import '../../../../pay_later/domain/entities/purchase_change_impact.dart';
@@ -69,10 +75,6 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       const GroupExpensesUseCase();
   final ScrollController _scrollController = ScrollController();
 
-  /// The add button shrinks to an icon while scrolling down so it never
-  /// covers the amounts, and grows back when scrolling up or at the top.
-  final AppFabCollapse _fabCollapse = AppFabCollapse();
-
   // Grouping cache so the list is not regrouped on every rebuild.
   List<ExpenseEntity>? _groupSource;
   ExpenseSortOption? _groupSort;
@@ -91,6 +93,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   /// top when they change so the user never lands mid-way through a
   /// different list.
   ExpenseHistoryFilter? _builtFilter;
+
+  /// The search field is open (blueprint: a search button in the header).
+  bool _searching = false;
+
+  void _openSearch() => setState(() => _searching = true);
   ExpenseSortOption? _builtSort;
   String? _builtQuery;
 
@@ -105,7 +112,6 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
-    _fabCollapse.dispose();
     super.dispose();
   }
 
@@ -458,6 +464,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
             prev.budgetMap != curr.budgetMap ||
             prev.budgetName != curr.budgetName ||
             prev.budgetCurrency != curr.budgetCurrency ||
+            prev.extras != curr.extras ||
+            // Tab payments and budget markers hide while searching.
+            prev.query.isEmpty != curr.query.isEmpty ||
             prev.errorMessage != curr.errorMessage,
         listenWhen: (prev, curr) =>
             curr.status == ExpenseHistoryStatus.error &&
@@ -478,7 +487,6 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         builder: (context, state) => _buildScroll(context, state),
       ),
     );
-    body = _fabCollapse.listen(child: body);
 
     if (expenseBloc != null) {
       body = BlocListener<ExpenseBloc, ExpenseState>(
@@ -529,17 +537,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       );
     }
 
-    return Scaffold(
-      body: body,
-      floatingActionButton: AppFab(
-        heroTag: 'expenses_fab',
-        onPressed: () => QuickAddSheet.show(context),
-        icon: Icons.add_rounded,
-        label: 'Add expense',
-        tooltip: 'Add expense',
-        collapse: _fabCollapse,
-      ),
-    );
+    // Adding is the bar's + (AppShell).
+    return Scaffold(body: body);
   }
 
   // ── Header ───────────────────────────────────────────────────────────────
@@ -572,18 +571,25 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      'Expenses',
-                      style: theme.textTheme.headlineSmall,
+                      'Activity',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.7,
+                      ),
                       maxLines: 1,
                     ),
                   ),
                 ),
-                _BudgetMenu(
-                  state: state,
-                  onSwitchBudget: () => ActiveBudgetSelector.open(context),
-                  onCombine: _chooseCombinedBudgets,
-                  onSingle: _exitCombined,
-                ),
+                // Blueprint: the title alone; the budgets shown are named
+                // only when several are viewed together.
+                if (state.isCombinedMode)
+                  _BudgetMenu(
+                    state: state,
+                    onSwitchBudget: () => ActiveBudgetSelector.open(context),
+                    onCombine: _chooseCombinedBudgets,
+                    onSingle: _exitCombined,
+                  ),
                 if (caption != null)
                   Text(
                     caption,
@@ -594,18 +600,70 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               ],
             ),
           ),
-          InfoIcon(content: _expenseListInfo(state)),
+          // Blueprint header: search and filter; sort, the budget and the
+          // info sheet are one tap further, in the menu.
+          IconButton(
+            key: const Key('searchButton'),
+            icon: const Icon(Icons.search_rounded),
+            tooltip: 'Search expenses',
+            onPressed: _openSearch,
+          ),
           IconButton(
             key: const Key('filterButton'),
             icon: const Icon(Icons.filter_list_rounded),
             tooltip: 'Filter expenses',
             onPressed: _openFilterSheet,
           ),
-          IconButton(
-            key: const Key('sortButton'),
-            icon: const Icon(Icons.swap_vert_rounded),
-            tooltip: 'Sort expenses',
-            onPressed: _openSortSheet,
+          PopupMenuButton<_HeaderAction>(
+            key: const Key('activityMenu'),
+            tooltip: 'More options',
+            position: PopupMenuPosition.under,
+            onSelected: (action) => switch (action) {
+              _HeaderAction.sort => _openSortSheet(),
+              _HeaderAction.switchBudget => ActiveBudgetSelector.open(context),
+              _HeaderAction.combine => _chooseCombinedBudgets(),
+              _HeaderAction.info => InfoIcon.showSheet(
+                context,
+                _expenseListInfo(state),
+              ),
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                key: Key('sortButton'),
+                value: _HeaderAction.sort,
+                child: ListTile(
+                  leading: Icon(Icons.swap_vert_rounded),
+                  title: Text('Sort'),
+                ),
+              ),
+              if (!state.isCombinedMode) ...[
+                PopupMenuItem(
+                  key: const Key('viewModeToggle'),
+                  value: _HeaderAction.switchBudget,
+                  child: ListTile(
+                    leading: const Icon(Icons.swap_horiz_rounded),
+                    title: const Text('Switch budget'),
+                    subtitle: state.budgetName == null
+                        ? null
+                        : Text('Showing ${state.budgetName}'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: _HeaderAction.combine,
+                  child: ListTile(
+                    leading: Icon(Icons.layers_outlined),
+                    title: Text('View budgets together'),
+                  ),
+                ),
+              ],
+              const PopupMenuItem(
+                value: _HeaderAction.info,
+                child: ListTile(
+                  leading: Icon(Icons.info_outline_rounded),
+                  title: Text('About this list'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -628,17 +686,35 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           slivers: [
             for (final sliver in <Widget>[
               SliverToBoxAdapter(child: _buildHeader(state)),
-              SliverToBoxAdapter(
-                child: ExpenseSearchBar(
-                  controller: _searchController,
-                  onChanged: (query) => context.read<ExpenseHistoryBloc>().add(
-                    ExpenseHistorySearchChanged(query),
+              // Blueprint: the stream and its insights, one switch apart.
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.sm,
                   ),
-                  onClear: () => context.read<ExpenseHistoryBloc>().add(
-                    const ExpenseHistorySearchChanged(''),
-                  ),
+                  child: ActivitySwitch(insights: false),
                 ),
               ),
+              if (_searching || state.query.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: ExpenseSearchBar(
+                    key: const Key('activitySearch'),
+                    autofocus: _searching && state.query.isEmpty,
+                    controller: _searchController,
+                    onChanged: (query) => context
+                        .read<ExpenseHistoryBloc>()
+                        .add(ExpenseHistorySearchChanged(query)),
+                    onClear: () {
+                      context.read<ExpenseHistoryBloc>().add(
+                        const ExpenseHistorySearchChanged(''),
+                      );
+                      setState(() => _searching = false);
+                    },
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: QuickFilterChips(
                   current: state.filter,
@@ -703,7 +779,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           const ExpenseHistoryRefresh(),
         ),
       );
-    } else if (state.isEmpty) {
+    } else if (state.isEmpty && _shownExtras(state).isEmpty) {
       child = ExpenseHistoryEmptyState(
         key: const ValueKey('empty'),
         hasAnyExpenses: state.allExpenses.isNotEmpty,
@@ -726,10 +802,78 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     return _buildList(context, state);
   }
 
+  /// The tab payments and budget markers the list shows: with no search
+  /// and no filter but the kind, as the kind allows, and while more pages
+  /// wait, only those on days already loaded (so none lands above rows
+  /// still to come).
+  static List<ActivityExtra> _shownExtras(ExpenseHistoryState state) {
+    final items = state.extras.items;
+    if (items.isEmpty || state.query.isNotEmpty) return const [];
+    if (state.filter.copyWithKind(ExpenseKind.all).isActive) return const [];
+    final kind = state.filter.kind;
+    final loaded = state.loadedExpenses;
+    final oldest = state.hasMore && loaded.isNotEmpty
+        ? loaded
+              .map((e) => e.date.dateOnly)
+              .reduce((a, b) => a.isBefore(b) ? a : b)
+        : null;
+    return [
+      for (final x in items)
+        if ((kind == ExpenseKind.all ||
+                (kind == ExpenseKind.payLater && x is TabPaymentExtra) ||
+                (kind == ExpenseKind.budgets && x is BudgetMarkerExtra)) &&
+            (oldest == null || !x.at.dateOnly.isBefore(oldest)))
+          x,
+    ];
+  }
+
+  /// The day groups with the extras of each day after its expenses
+  /// (payments, then markers), and a group for a day with extras only.
+  List<(ExpenseGroup, List<ActivityExtra>)> _sections(
+    ExpenseHistoryState state,
+  ) {
+    final groups = _groupsFor(state);
+    final shown = _shownExtras(state);
+    if (shown.isEmpty) return [for (final g in groups) (g, const [])];
+    final byDay = <DateTime, List<ActivityExtra>>{};
+    for (final x in shown) {
+      (byDay[x.at.dateOnly] ??= []).add(x);
+    }
+    for (final list in byDay.values) {
+      list.sort((a, b) {
+        if (a is TabPaymentExtra && b is TabPaymentExtra) {
+          return b.at.compareTo(a.at);
+        }
+        return a is TabPaymentExtra ? -1 : (b is TabPaymentExtra ? 1 : 0);
+      });
+    }
+    final today = DateTime.now().dateOnly;
+    final sections = [
+      for (final g in groups)
+        (g, byDay.remove(g.date) ?? const <ActivityExtra>[]),
+      for (final MapEntry(key: day, value: list) in byDay.entries)
+        (
+          ExpenseGroup(
+            type: day == today
+                ? ExpenseGroupType.today
+                : day == today.addDays(-1)
+                ? ExpenseGroupType.yesterday
+                : ExpenseGroupType.earlier,
+            date: day,
+            expenses: const [],
+          ),
+          list,
+        ),
+    ];
+    sections.sort((a, b) => b.$1.date!.compareTo(a.$1.date!));
+    return sections;
+  }
+
   List<Widget> _buildList(BuildContext context, ExpenseHistoryState state) {
     _trackEntering(state);
     _resetScrollIfCriteriaChanged(state);
-    final groups = _groupsFor(state);
+    final sections = _sections(state);
+    final groups = [for (final (g, _) in sections) g];
     final count = state.summary.totalExpenses;
     final summaryCaption = state.isCombinedMode
         ? 'Across ${state.selectedBudgetIds.length} budgets · '
@@ -757,6 +901,18 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           },
           itemBuilder: (context, index) {
             if (index == 0) {
+              // Only markers or payments shown (Budgets, Pay later with no
+              // purchases): there are no expenses to sum.
+              // Blueprint: no summary over the plain stream; it totals a
+              // search or a filter's results.
+              // A combined view keeps it: its per-currency totals are
+              // nowhere else.
+              if (state.visibleExpenses.isEmpty ||
+                  (!state.isCombinedMode &&
+                      state.query.isEmpty &&
+                      !state.filter.isActive)) {
+                return const SizedBox.shrink(key: ValueKey('summary'));
+              }
               return SummaryCard(
                 key: const ValueKey('summary'),
                 summary: state.summary,
@@ -772,7 +928,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 isLoading: state.status == ExpenseHistoryStatus.loadingMore,
               );
             }
-            return _buildGroup(context, groups[index - 1], state, index - 1);
+            final (group, extras) = sections[index - 1];
+            return _buildGroup(context, group, extras, state, index - 1);
           },
         ),
       ),
@@ -798,6 +955,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   Widget _buildGroup(
     BuildContext context,
     ExpenseGroup group,
+    List<ActivityExtra> extras,
     ExpenseHistoryState state,
     int groupIndex,
   ) {
@@ -812,19 +970,55 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           group: group,
           currency: currency,
           showTotal: showTotal,
+          dayTarget: _dayTargetFor(group, state),
+          extraCount: extras.length,
         ),
         for (var i = 0; i < group.expenses.length; i++) ...[
           if (i > 0)
             Divider(
               key: ValueKey('div_${group.expenses[i].id}'),
-              indent: AppSizes.avatarSm + AppSpacing.smd,
+              indent: AppSizes.avatarSm + AppSpacing.md,
               color: theme.colorScheme.outlineVariant,
             ),
           _buildExpenseRow(context, group.expenses[i], state),
         ],
+        for (var i = 0; i < extras.length; i++) ...[
+          if (i > 0 || group.expenses.isNotEmpty)
+            Divider(
+              indent: AppSizes.avatarSm + AppSpacing.md,
+              color: theme.colorScheme.outlineVariant,
+            ),
+          ActivityExtraRow(
+            key: ValueKey(_extraKey(extras[i])),
+            extra: extras[i],
+            onTap: switch (extras[i]) {
+              TabPaymentExtra(:final tabId) => () => context.pushUnique(
+                '${AppRouter.payLaterPath}/$tabId',
+              ),
+              BudgetMarkerExtra() => null,
+            },
+          ),
+        ],
       ],
     );
   }
+
+  /// The active budget's target for [group]'s day, in the single-budget
+  /// view (a combined view mixes budgets, so no one target applies).
+  static DayTarget? _dayTargetFor(
+    ExpenseGroup group,
+    ExpenseHistoryState state,
+  ) {
+    final date = group.date;
+    if (date == null || state.isCombinedMode) return null;
+    return state.dayTargets[DateTime(date.year, date.month, date.day)];
+  }
+
+  static String _extraKey(ActivityExtra x) => switch (x) {
+    TabPaymentExtra(:final id) => 'tabPayment_$id',
+    BudgetMarkerExtra(:final budgetId, :final started) =>
+      'budget_${budgetId}_${started ? 'start' : 'end'}',
+  };
 
   static String _groupKey(ExpenseGroup group) {
     final date = group.date;
@@ -915,6 +1109,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         expense: expense,
         category: category,
         budgetName: budget?.name,
+        tabName: state.extras.tabNameByExpense[expense.id],
         currency: currency,
         onInfoTap: state.isCombinedMode
             ? () => BudgetInfoBottomSheet.show(
@@ -999,6 +1194,8 @@ enum _BudgetMenuAction { switchBudget, combine, single }
 
 /// The budget the list follows, under the title, as a menu: switch the
 /// active budget, view several budgets together, or go back to one.
+enum _HeaderAction { sort, switchBudget, combine, info }
+
 class _BudgetMenu extends StatelessWidget {
   final ExpenseHistoryState state;
   final VoidCallback onSwitchBudget;

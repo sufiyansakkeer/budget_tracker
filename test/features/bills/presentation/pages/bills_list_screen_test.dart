@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/di/injection.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
-import 'package:monivo/core/widgets/app_section.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_bloc.dart';
@@ -97,28 +96,32 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('groups bills as overdue, due soon, later and paid, in that '
-      'order', (tester) async {
-    await pump(tester);
-
-    final overdue = find.textContaining('2 bills · ₹1,000');
-    final soon = find.text('1 bill · ₹649');
-    final later = find.text('1 bill · ₹1,850');
-    final paid = find.text('1 bill');
-    // Each title once as a section (the filter chips repeat them).
-    Finder section(String title) => find.descendant(
-      of: find.byType(AppSection),
-      matching: find.text(title),
+  testWidgets('groups bills by whether they hold money back: overdue, set '
+      'aside, not linked, paid (blueprint)', (tester) async {
+    await pump(
+      tester,
+      only: [
+        bill('rent', 1000, -3),
+        bill('power', 1850, 4, budgetId: 'oct'),
+        bill('netflix', 649, 12),
+        bill('gym', 300, -10, paid: true),
+      ],
     );
-    expect(section('Due soon'), findsOneWidget);
-    expect(section('Later'), findsOneWidget);
-    for (final f in [overdue, soon, later, paid]) {
+
+    Finder section(String title) => find.byKey(ValueKey('section_$title'));
+    final overdue = section('Overdue');
+    final setAside = section('Set aside');
+    final notLinked = section('Not linked');
+    final paid = section('Paid');
+    for (final f in [overdue, setAside, notLinked, paid]) {
       expect(f, findsOneWidget);
     }
+    expect(find.text('1 bill · ₹1,850 held back'), findsOneWidget);
+    expect(find.text('1 bill · nothing held back'), findsOneWidget);
     double y(Finder f) => tester.getTopLeft(f).dy;
-    expect(y(overdue), lessThan(y(soon)));
-    expect(y(soon), lessThan(y(later)));
-    expect(y(later), lessThan(y(paid)));
+    expect(y(overdue), lessThan(y(setAside)));
+    expect(y(setAside), lessThan(y(notLinked)));
+    expect(y(notLinked), lessThan(y(paid)));
   });
 
   testWidgets('totals stay per currency (review: OMR was added to rupees '
@@ -191,7 +194,7 @@ void main() {
         'Recurring',
         'Not linked',
       ]);
-      // Every section title on screen is a chip.
+      // The time filters; the All view groups by what is held back.
       for (final section in ['Overdue', 'Due soon', 'Later', 'Paid']) {
         expect(labels, contains(section));
       }
@@ -256,8 +259,8 @@ void main() {
       );
     });
 
-    testWidgets('paying a linked bill has the record-expense icon, a plain '
-        'one the check', (tester) async {
+    testWidgets('paying a linked bill says it records the expense, a plain '
+        'one just marks it paid', (tester) async {
       await pump(
         tester,
         only: [
@@ -266,23 +269,13 @@ void main() {
         ],
       );
 
-      IconData actionIcon(String tooltip) => tester
-          .widget<Icon>(
-            find.descendant(
-              of: find.byTooltip(tooltip),
-              matching: find.byType(Icon),
-            ),
-          )
-          .icon!;
+      // Blueprint: the action is a small tonal button named for what it
+      // does, so the two never look the same.
       expect(
-        actionIcon('Mark paid & record expense'),
-        Icons.receipt_long_rounded,
+        find.widgetWithText(FilledButton, 'Mark paid & record expense'),
+        findsOneWidget,
       );
-      expect(actionIcon('Mark as paid'), Icons.check_circle_outline_rounded);
-      expect(
-        BillVisuals.statusIcon(BillStatus.paid),
-        isNot(Icons.check_circle_outline_rounded),
-      );
+      expect(find.widgetWithText(FilledButton, 'Mark as paid'), findsOneWidget);
     });
 
     testWidgets('marking a one-time bill paid offers Undo, which puts it '

@@ -30,6 +30,9 @@ class ExpenseHistoryItem extends StatelessWidget {
   /// Currency code used to format the amount.
   final String? currency;
 
+  /// The Pay later tab it was bought on, shown as "on Cafeteria tab".
+  final String? tabName;
+
   const ExpenseHistoryItem({
     super.key,
     required this.expense,
@@ -39,6 +42,7 @@ class ExpenseHistoryItem extends StatelessWidget {
     this.budgetName,
     this.onInfoTap,
     this.currency,
+    this.tabName,
   });
 
   @override
@@ -55,12 +59,18 @@ class ExpenseHistoryItem extends StatelessWidget {
     final hasNote = note != null && note.isNotEmpty;
     final time = AppDates.time(context, expense.time);
     final amount = AppMoney.format(expense.amount, currency: currency);
+    final onTab = tabName == null ? null : 'on $tabName tab';
+    final detail = hasNote ? categoryName : null;
 
     final row = TransactionRow(
       icon: icon,
       color: color,
       title: hasNote ? note : categoryName,
-      detail: hasNote ? categoryName : null,
+      detail: onTab == null
+          ? detail
+          : detail == null
+          ? onTab
+          : '$detail · $onTab',
       when: time,
       amount: expense.amount,
       currency: currency,
@@ -78,7 +88,8 @@ class ExpenseHistoryItem extends StatelessWidget {
             ),
       semanticLabel:
           '${hasNote ? '$note, $categoryName' : categoryName}, $amount, '
-          '$time${budgetName != null ? ', budget $budgetName' : ''}'
+          '$time${onTab != null ? ', $onTab' : ''}'
+          '${budgetName != null ? ', budget $budgetName' : ''}'
           '${expense.receiptImagePath != null ? ', receipt attached' : ''}',
       onTap: onTap,
       onLongPress: onLongPress,

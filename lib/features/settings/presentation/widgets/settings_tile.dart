@@ -49,7 +49,8 @@ class SettingsTile extends StatelessWidget {
         ? scheme.onSurfaceVariant
         : destructive
         ? scheme.error
-        : scheme.primary;
+        // Blueprint: settings tiles are neutral (secondary ink at 15%).
+        : scheme.onSurfaceVariant;
     final value = this.value;
     final trailing = value == null
         ? this.trailing

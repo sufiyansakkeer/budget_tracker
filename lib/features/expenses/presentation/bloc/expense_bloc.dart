@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../budget/domain/entities/budget_error.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
 import '../../../dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import '../../../pay_later/domain/entities/purchase_change_impact.dart';
@@ -124,6 +125,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     if (budget?.isArchived ?? false) budget = null;
 
     final now = event.now ?? DateTime.now();
+    final input = budget == null ? null : await _inputFor(budget.id, now);
     final from = DateTime(now.year, now.month, now.day - event.days);
     final recent = await getExpensesUseCase(from: from, to: now);
     final expenses = switch (recent) {
@@ -137,6 +139,8 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
         quickAddLoad: failed ? QuickAddLoad.failed : QuickAddLoad.loaded,
         quickAddBudget: budget,
         clearQuickAddBudget: budget == null,
+        quickAddInput: input,
+        clearQuickAddInput: input == null,
         frequentCategories: rankCategoriesByUse(
           categories: categories,
           expenses: expenses,
@@ -184,6 +188,19 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     }
 
     return expense.copyWith(budgetId: id);
+  }
+
+  /// The engine's input for [budgetId] on [now]; null when it can't be
+  /// read, so quick add simply leaves its preview out.
+  Future<SafeToSpendInput?> _inputFor(String budgetId, DateTime now) async {
+    final useCase = safeToSpend;
+    if (useCase == null) return null;
+    try {
+      return await useCase.inputFor(budgetId: budgetId, referenceDate: now);
+    } catch (e) {
+      debugPrint('[error] Reading Safe Spending for quick add: $e');
+      return null;
+    }
   }
 
   /// Today's Safe Spending of [expense]'s budget once it is counted, when

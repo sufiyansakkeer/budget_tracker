@@ -52,7 +52,7 @@ abstract final class ExpenseUndo {
     onAction: onUndo,
   );
 
-  /// "₹250 added · ₹627 left today" after [added] was saved, with Undo.
+  /// "₹250 added · tomorrow ₹863.61" after [added] was saved, with Undo.
   /// [after] is the budget's Today's Safe Spending once it is counted
   /// (`ExpenseState.afterAdd`); without it the note gives the amount only.
   static void offerAdded(
@@ -77,6 +77,12 @@ abstract final class ExpenseUndo {
   }) {
     final amount = AppMoney.format(added.amount, currency: currency);
     if (after == null) return '$amount added';
+    // Blueprint: tomorrow's new target; on the last day, today's result.
+    final tomorrow = after.tomorrowIfNoMoreSpending;
+    if (tomorrow != null) {
+      return '$amount added · tomorrow '
+          '${AppMoney.format(tomorrow, currency: after.currency, floored: true)}';
+    }
     return after.overToday > 0
         ? '$amount added · over by '
               '${AppMoney.format(after.overToday, currency: after.currency)} '

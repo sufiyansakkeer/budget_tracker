@@ -329,7 +329,8 @@ void main() {
           verify(
             mockPlugin.zonedSchedule(
               NotificationService.morningReminderId,
-              "Today's Safe Spending",
+              // Blueprint: one budget's amount is the title.
+              argThat(startsWith('Today you can spend')),
               argThat(contains('Food')),
               any,
               any,
@@ -504,7 +505,7 @@ void main() {
         verify(
           mockPlugin.zonedSchedule(
             NotificationService.morningReminderId,
-            "Today's Safe Spending",
+            argThat(startsWith('Today')),
             any,
             any,
             any,
@@ -706,7 +707,7 @@ void main() {
           })
         >
         mornings() =>
-            scheduled.where((s) => s.title == "Today's Safe Spending").toList();
+            scheduled.where((s) => s.title.startsWith('Today')).toList();
 
         /// A running "Food" budget whose amount that day is day-of-month × 100.
         PerBudgetSpendingTargetResult foodOn(DateTime? day) {
@@ -751,8 +752,9 @@ void main() {
           await serviceAt(DateTime.utc(2026, 8, 10, 21)).scheduleAll(settings);
 
           const days = NotificationService.morningReminderDays;
+          // The morning before the first, then each morning.
           expect(fakeSpendingTargetsUseCase.perBudgetReferenceDates, [
-            for (var i = 0; i < days; i++) DateTime(2026, 8, 11 + i),
+            for (var i = -1; i < days; i++) DateTime(2026, 8, 11 + i),
           ]);
           final reminders = mornings();
           expect(reminders.map((r) => r.id), [
@@ -768,11 +770,15 @@ void main() {
               isNull,
               reason: 'one-off, never repeats',
             );
+            String inr(double v) =>
+                CurrencyFormatter.formatFloored(v, code: 'INR');
+            expect(
+              reminders[i].title,
+              'Today you can spend ${inr(day * 100.0)}',
+            );
             expect(
               reminders[i].body,
-              'Food: you can safely spend '
-              '${CurrencyFormatter.formatFloored(day * 100.0, code: 'INR')} '
-              'today.',
+              'Food · up from ${inr((day - 1) * 100.0)} yesterday.',
             );
           }
         });
@@ -783,10 +789,10 @@ void main() {
 
           await serviceAt(DateTime.utc(2026, 8, 10, 7)).scheduleAll(settings);
 
-          expect(
-            fakeSpendingTargetsUseCase.perBudgetReferenceDates.first,
+          expect(fakeSpendingTargetsUseCase.perBudgetReferenceDates.take(2), [
+            DateTime(2026, 8, 9),
             DateTime(2026, 8, 10),
-          );
+          ]);
           expect(mornings().first.at, tz.TZDateTime(tz.local, 2026, 8, 10, 8));
           expect(mornings().last.at, tz.TZDateTime(tz.local, 2026, 8, 16, 8));
         });
@@ -797,6 +803,7 @@ void main() {
           await serviceAt(DateTime.utc(2026, 8, 29, 21)).scheduleAll(settings);
 
           expect(fakeSpendingTargetsUseCase.perBudgetReferenceDates, [
+            DateTime(2026, 8, 29),
             DateTime(2026, 8, 30),
             DateTime(2026, 8, 31),
             DateTime(2026, 9, 1),
@@ -818,8 +825,9 @@ void main() {
           await serviceAt(DateTime.utc(2026, 8, 10, 21)).scheduleAll(settings);
 
           final bodies = mornings().map((r) => r.body).toList();
-          expect(bodies[0], contains('₹1,100'));
-          expect(bodies[1], contains('₹1,200'));
+          final titles = mornings().map((r) => r.title).toList();
+          expect(titles[0], contains('₹1,100'));
+          expect(titles[1], contains('₹1,200'));
           expect(
             bodies.skip(2),
             everyElement(
@@ -876,19 +884,22 @@ void main() {
 
           String amount(double value) =>
               CurrencyFormatter.formatFloored(value, code: 'INR');
-          final bodies = mornings().map((r) => r.body).toList();
-          expect(bodies, hasLength(NotificationService.morningReminderDays));
+          // Blueprint: the amount is the title.
+          final titles = mornings().map((r) => r.title).toList();
+          expect(titles, hasLength(NotificationService.morningReminderDays));
           // 2 Aug: 2,500 left over 2–30 Aug (29 days).
           expect(amount(2500 / 29), '₹86.20');
-          expect(bodies[0], 'Food: you can safely spend ₹86.20 today.');
-          expect(bodies[0], isNot(contains(amount(100))));
+          expect(titles[0], 'Today you can spend ₹86.20');
+          expect(titles[0], isNot(contains(amount(100))));
+          // Down from day 1's ₹100.
+          expect(
+            mornings().first.body,
+            'Food · down from ${amount(100)} yesterday.',
+          );
           // Nothing more recorded: each later morning spreads it over fewer
           // days (3 Aug: 28 days … 8 Aug: 23 days).
-          for (var i = 1; i < bodies.length; i++) {
-            expect(
-              bodies[i],
-              'Food: you can safely spend ${amount(2500 / (29 - i))} today.',
-            );
+          for (var i = 1; i < titles.length; i++) {
+            expect(titles[i], 'Today you can spend ${amount(2500 / (29 - i))}');
           }
         });
       },
@@ -896,6 +907,7 @@ void main() {
 
     group('pay later reminders: restore and tap routing', () {
       late List<String> opened;
+      late int reviews;
       late List<String> order;
       late NotificationService service;
 
@@ -922,11 +934,13 @@ void main() {
         rescheduleTabReminders:
             rescheduleTabReminders ?? () async => order.add('tabs'),
         onPayLaterTap: opened.add,
+        onEveningReviewTap: () => reviews++,
       );
 
       setUp(() {
         stubPluginInitialization();
         opened = [];
+        reviews = 0;
         order = [];
         handler = null;
         when(
@@ -966,7 +980,6 @@ void main() {
           null,
           '',
           'daily_spending_limit',
-          'evening_summary',
           'pay_later:',
           'pay_later',
           'bill:rent',
@@ -975,7 +988,20 @@ void main() {
         }
 
         expect(opened, isEmpty);
+        expect(reviews, 0);
       });
+
+      test(
+        'the evening summary opens the evening review (blueprint)',
+        () async {
+          await service.initialize();
+
+          handler!(tap('evening_summary'));
+
+          expect(reviews, 1);
+          expect(opened, isEmpty);
+        },
+      );
 
       test('the payload parser', () {
         expect(NotificationService.payLaterTabIdFrom('pay_later:t1'), 't1');

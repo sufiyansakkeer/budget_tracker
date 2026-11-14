@@ -8,9 +8,12 @@ import 'app_shell.dart';
 import '../../features/budget/presentation/pages/budget_details_screen.dart';
 import '../../features/budget/presentation/pages/budget_form_screen.dart';
 import '../../features/budget/presentation/pages/budget_list_screen.dart';
+import '../../features/budget/presentation/pages/budget_tab_screen.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_event.dart';
 import '../../features/dashboard/presentation/pages/dashboard_screen.dart';
+import '../../features/dashboard/presentation/pages/evening_review_screen.dart';
+import '../../features/expenses/presentation/add/add_sheet.dart';
 import '../../features/expenses/presentation/bloc/expense_bloc.dart';
 import '../../features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import '../../features/expenses/presentation/history/pages/expense_history_screen.dart';
@@ -60,6 +63,7 @@ class AppRouter {
   static const String categoriesPath = '/app/categories';
   static const String palettePath = '/app/settings/palette';
   static const String currencyConverterPath = '/app/settings/converter';
+  static const String eveningReviewPath = '/app/review';
 
   /// The root [Navigator]. Screens that must cover the bottom navigation
   /// (forms, details, pickers) are pushed here with `parentNavigatorKey`.
@@ -116,54 +120,6 @@ class AppRouter {
       // ── Standalone routes (full-screen, not bottom-nav tabs) ──────────
       // These must come before the shell route so they match first when the
       // user pushes a secondary screen on top of the current tab.
-      GoRoute(
-        path: budgetsPath,
-        name: 'budgets',
-        pageBuilder: (context, state) => AppPageTransitions.page(
-          context: context,
-          state: state,
-          transition: AppTransition.sharedAxisHorizontal,
-          child: const BudgetListScreen(),
-        ),
-        routes: [
-          GoRoute(
-            path: 'create',
-            name: 'createBudget',
-            pageBuilder: (context, state) => AppPageTransitions.page(
-              context: context,
-              state: state,
-              transition: AppTransition.fadeScale,
-              // `?next=<id>`: Start next period (StartNextPeriod.location).
-              child: BudgetFormScreen(
-                nextAfterId: state.uri.queryParameters['next'],
-              ),
-            ),
-          ),
-          GoRoute(
-            path: ':id',
-            name: 'budgetDetails',
-            pageBuilder: (context, state) => AppPageTransitions.page(
-              context: context,
-              state: state,
-              transition: AppTransition.sharedAxisHorizontal,
-              child: BudgetDetailsScreen(budgetId: state.pathParameters['id']!),
-            ),
-            routes: [
-              GoRoute(
-                path: 'edit',
-                name: 'editBudget',
-                pageBuilder: (context, state) => AppPageTransitions.page(
-                  context: context,
-                  state: state,
-                  transition: AppTransition.fadeScale,
-                  child: BudgetFormScreen(budgetId: state.pathParameters['id']),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-
       GoRoute(
         path: billsPath,
         name: 'bills',
@@ -282,6 +238,17 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: eveningReviewPath,
+        name: 'eveningReview',
+        pageBuilder: (context, state) => AppPageTransitions.page(
+          context: context,
+          state: state,
+          transition: AppTransition.fadeScale,
+          child: const EveningReviewScreen(),
+        ),
+      ),
+
+      GoRoute(
         path: categoriesPath,
         name: 'categories',
         pageBuilder: (context, state) => AppPageTransitions.page(
@@ -304,7 +271,11 @@ class AppRouter {
               context: context,
               state: state,
               transition: AppTransition.fadeThrough,
-              child: AppShell(navigationShell: navigationShell),
+              child: AppShell(
+                navigationShell: navigationShell,
+                onAdd: AddSheet.show,
+                onAddHold: QuickAddSheet.show,
+              ),
             ),
         // Branches stay mounted (like an IndexedStack) but cross-fade when
         // the user switches tabs.
@@ -339,7 +310,77 @@ class AppRouter {
               ),
             ],
           ),
-          // Expenses
+          // Budget: the active budget's period (BudgetTabScreen); the list
+          // of all budgets is '/app/budgets/all'. Forms, details and the
+          // list cover the bar.
+          StatefulShellBranch(
+            preload: true,
+            routes: [
+              GoRoute(
+                path: budgetsPath,
+                name: 'budgets',
+                builder: (context, state) => const BudgetTabScreen(),
+                routes: [
+                  // Before ':id', which would otherwise match "all".
+                  GoRoute(
+                    path: 'all',
+                    name: 'allBudgets',
+                    parentNavigatorKey: rootNavigatorKey,
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.sharedAxisHorizontal,
+                      child: const BudgetListScreen(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'create',
+                    name: 'createBudget',
+                    parentNavigatorKey: rootNavigatorKey,
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.fadeScale,
+                      // `?next=<id>`: Start next period (StartNextPeriod.location).
+                      child: BudgetFormScreen(
+                        nextAfterId: state.uri.queryParameters['next'],
+                      ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    name: 'budgetDetails',
+                    parentNavigatorKey: rootNavigatorKey,
+                    pageBuilder: (context, state) => AppPageTransitions.page(
+                      context: context,
+                      state: state,
+                      transition: AppTransition.sharedAxisHorizontal,
+                      child: BudgetDetailsScreen(
+                        budgetId: state.pathParameters['id']!,
+                      ),
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'edit',
+                        name: 'editBudget',
+                        parentNavigatorKey: rootNavigatorKey,
+                        pageBuilder: (context, state) =>
+                            AppPageTransitions.page(
+                              context: context,
+                              state: state,
+                              transition: AppTransition.fadeScale,
+                              child: BudgetFormScreen(
+                                budgetId: state.pathParameters['id'],
+                              ),
+                            ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          // Activity
           StatefulShellBranch(
             // Preloaded so the first visit fades in with data instead of a
             // skeleton; everything is local so the cost is a few queries.
@@ -422,7 +463,8 @@ class AppRouter {
               ),
             ],
           ),
-          // Reports
+          // Insights: no tab of its own; opened from Activity, which stays
+          // selected (AppShellBranch.insights).
           StatefulShellBranch(
             preload: true,
             routes: [
@@ -436,7 +478,7 @@ class AppRouter {
               ),
             ],
           ),
-          // Settings
+          // More
           StatefulShellBranch(
             preload: true,
             routes: [

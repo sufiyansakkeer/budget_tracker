@@ -75,7 +75,7 @@ class BiometricTile extends StatelessWidget {
             : IconTile(
                 key: const ValueKey('idle'),
                 icon: Icons.fingerprint,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.onSurfaceVariant,
                 size: AppSizes.avatarSm,
               ),
       ),

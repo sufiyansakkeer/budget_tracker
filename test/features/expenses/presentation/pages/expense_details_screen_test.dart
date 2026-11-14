@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/target_ring.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/day_target.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_day_targets_usecase.dart';
 import 'package:go_router/go_router.dart';
 import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/di/injection.dart';
@@ -152,6 +155,30 @@ void main() {
     final context = tester.element(find.text('Dinner'));
     expect(find.text(AppDates.time(context, dinner.time)), findsOneWidget);
     expect(find.text('#friends'), findsOneWidget);
+  });
+
+  testWidgets('says how much of that day\'s target it took (blueprint)', (
+    tester,
+  ) async {
+    getIt.registerSingleton<GetDayTargetsUseCase>(
+      _DayTargets({
+        day: DayTarget(date: day, target: 25.5, spent: 12.75, result: 12.75),
+      }),
+    );
+    await pumpDetails(tester);
+
+    expect(
+      find.text(
+        "50% of that day's ${AppMoney.format(25.5, currency: 'OMR', floored: true)} target",
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(MiniTargetRing), findsOneWidget);
+  });
+
+  testWidgets('without the day\'s target, no line', (tester) async {
+    await pumpDetails(tester);
+    expect(find.byType(MiniTargetRing), findsNothing);
   });
 
   testWidgets('a failed read offers a retry, not "not found"', (tester) async {
@@ -395,4 +422,18 @@ void main() {
     );
     handle.dispose();
   });
+}
+
+class _DayTargets implements GetDayTargetsUseCase {
+  final Map<DateTime, DayTarget> targets;
+  _DayTargets(this.targets);
+
+  @override
+  Future<Map<DateTime, DayTarget>> call(
+    String budgetId, {
+    DateTime? referenceDate,
+  }) async => targets;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

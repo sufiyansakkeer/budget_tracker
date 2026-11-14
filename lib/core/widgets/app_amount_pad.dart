@@ -45,8 +45,18 @@ class AppAmountPad extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget row(List<Widget> keys) =>
-        Row(children: [for (final k in keys) Expanded(child: k)]);
+    // Blueprint .pad: three columns of filled keys, 6 apart.
+    Widget row(List<Widget> keys) => Padding(
+      padding: const EdgeInsets.only(bottom: _gap),
+      child: Row(
+        children: [
+          for (var i = 0; i < keys.length; i++) ...[
+            if (i > 0) const SizedBox(width: _gap),
+            Expanded(child: keys[i]),
+          ],
+        ],
+      ),
+    );
     _PadButton digit(int d) => _PadButton(
       key: Key('amountPad_$d'),
       label: '$d',
@@ -83,6 +93,8 @@ class AppAmountPad extends StatelessWidget {
   }
 }
 
+const double _gap = 6;
+
 class _PadButton extends StatelessWidget {
   final String? label;
   final IconData? icon;
@@ -109,8 +121,8 @@ class _PadButton extends StatelessWidget {
         : Text(
             label!,
             style: context.appTypography.moneyTitle.copyWith(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface,
             ),
           );
@@ -120,13 +132,17 @@ class _PadButton extends StatelessWidget {
       excludeSemantics: true,
       onTap: onTap,
       onLongPress: onLongPress,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
+      child: Material(
+        color: theme.colorScheme.surfaceContainer,
         borderRadius: AppSpacing.borderRadiusMd,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: AppSizes.listRowHeight),
-          child: Center(child: content),
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: AppSpacing.borderRadiusMd,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: Center(child: content),
+          ),
         ),
       ),
     );

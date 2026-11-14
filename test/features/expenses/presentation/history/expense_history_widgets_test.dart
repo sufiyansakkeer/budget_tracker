@@ -236,8 +236,10 @@ void main() {
       );
       await tester.pumpWidget(wrap(ExpenseGroupHeader(group: group)));
 
+      // Undated, so the plain label; the count is read out, not shown.
       expect(find.text('Today'), findsOneWidget);
-      expect(find.text('2 items'), findsOneWidget);
+      expect(find.text('2 items'), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('2 items')), findsOneWidget);
     });
   });
 
@@ -385,8 +387,11 @@ void main() {
 
       expect(find.text('Groceries'), findsOneWidget);
       expect(find.text('Gas'), findsOneWidget);
-      expect(find.byType(ExpenseSearchBar), findsOneWidget);
-      expect(find.text('Summary'), findsOneWidget);
+      // Blueprint: search sits behind a header button; no summary over
+      // the plain stream.
+      expect(find.byKey(const Key('searchButton')), findsOneWidget);
+      expect(find.byType(ExpenseSearchBar), findsNothing);
+      expect(find.text('Summary'), findsNothing);
     });
   });
 }

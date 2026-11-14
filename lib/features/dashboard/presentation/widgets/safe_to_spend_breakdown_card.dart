@@ -259,7 +259,7 @@ class BreakdownRow extends StatelessWidget {
 
   /// Whether a label and its figure stack at this text size: roughly 1.5×
   /// text, past which they no longer share a line comfortably on a phone.
-  /// [FreeToSpendSummary] stacks at the same point.
+  /// The row stacks at the same point.
   static bool stacksAt(BuildContext context) =>
       MediaQuery.textScalerOf(context).scale(16) > 24;
 

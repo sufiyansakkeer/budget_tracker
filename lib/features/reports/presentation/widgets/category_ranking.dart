@@ -265,7 +265,7 @@ class _CategoryExpensesSheet extends StatelessWidget {
               ),
               itemCount: expenses.length,
               separatorBuilder: (context, _) => Divider(
-                indent: AppSizes.avatarSm + AppSpacing.smd,
+                indent: AppSizes.avatarSm + AppSpacing.md,
                 color: Theme.of(context).colorScheme.outlineVariant,
               ),
               itemBuilder: (context, i) => _ExpenseRow(

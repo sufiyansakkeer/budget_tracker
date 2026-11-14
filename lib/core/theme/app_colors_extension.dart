@@ -239,6 +239,46 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color onFill(Color accent, Color fill) =>
         Contrast.ensureContrast(accent, fill);
 
+    // Default is authored, not derived: the blueprint's neutrals and status
+    // fills (docs/design/monivo-blueprint.html, :root), exactly.
+    if (palette == ColorPalette.defaultPalette) {
+      final n = isDark ? _blueprintDark : _blueprintLight;
+      return AppColorTokens(
+        primary: primary,
+        secondary: secondary,
+        tertiary: tertiary,
+        income: income,
+        expense: expense,
+        success: success,
+        warning: warning,
+        error: error,
+        info: info,
+        background: n.page,
+        // The base surface is barely painted (cards, sheets and dialogs use
+        // the card tone); it stays the palette's, so its accents don't move.
+        surface: surface,
+        surfaceContainer: n.inset,
+        surfaceContainerHigh: n.insetHigh,
+        surfaceContainerHighest: n.track,
+        card: n.card,
+        textPrimary: scheme.onSurface,
+        textSecondary: n.ink2,
+        textTertiary: n.ink3,
+        divider: n.hairline,
+        outline: outline,
+        successContainer: n.okFill,
+        warningContainer: n.cautionFill,
+        errorContainer: n.errorFill,
+        infoContainer: n.infoFill,
+        // The blueprint's tone on its fill falls just short of AA for
+        // 12 pt chip text; only the text moves, the fill stays exact.
+        onSuccessContainer: onFill(success, n.okFill),
+        onWarningContainer: onFill(warning, n.cautionFill),
+        onErrorContainer: onFill(error, n.errorFill),
+        onInfoContainer: onFill(info, n.infoFill),
+      );
+    }
+
     return AppColorTokens(
       primary: primary,
       secondary: secondary,
@@ -409,6 +449,38 @@ class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// The most saturation a dark-theme surface keeps.
   static const double _darkSurfaceMaxSaturation = 0.3;
 
+  /// The blueprint's neutrals and status fills for the Default palette
+  /// (docs/design/monivo-blueprint.html, `:root`). [insetHigh] has no
+  /// blueprint name; it sits halfway between the inset and the track.
+  static const _blueprintLight = _Neutrals(
+    page: Color(0xFFF3F3F6),
+    card: Color(0xFFFFFFFF),
+    inset: Color(0xFFECECF1),
+    insetHigh: Color(0xFFE8E8ED),
+    track: Color(0xFFE3E3E9),
+    hairline: Color(0xFFE2E2E8),
+    ink2: Color(0xFF4E505A),
+    ink3: Color(0xFF666874),
+    okFill: Color(0xFFD7EDE1),
+    cautionFill: Color(0xFFF5E6D3),
+    errorFill: Color(0xFFEED3D4),
+    infoFill: Color(0xFFD8E6F1),
+  );
+  static const _blueprintDark = _Neutrals(
+    page: Color(0xFF101013),
+    card: Color(0xFF1B1B20),
+    inset: Color(0xFF222228),
+    insetHigh: Color(0xFF28282E),
+    track: Color(0xFF2E2E35),
+    hairline: Color(0xFF2B2B32),
+    ink2: Color(0xFFC4C5CE),
+    ink3: Color(0xFF9EA0AB),
+    okFill: Color(0xFF173A2A),
+    cautionFill: Color(0xFF45331C),
+    errorFill: Color(0xFF6E2B2E),
+    infoFill: Color(0xFF1F3546),
+  );
+
   /// The most saturation the light page and container levels keep: enough
   /// for a warm or cool cast, not enough to read as a colour.
   static const double _lightLevelMaxSaturation = 0.12;
@@ -450,4 +522,35 @@ extension AppColorTokensExtension on BuildContext {
           theme.brightness,
         );
   }
+}
+
+/// One theme's authored neutrals (see [AppColorTokens._blueprintLight]).
+class _Neutrals {
+  final Color page;
+  final Color card;
+  final Color inset;
+  final Color insetHigh;
+  final Color track;
+  final Color hairline;
+  final Color ink2;
+  final Color ink3;
+  final Color okFill;
+  final Color cautionFill;
+  final Color errorFill;
+  final Color infoFill;
+
+  const _Neutrals({
+    required this.page,
+    required this.card,
+    required this.inset,
+    required this.insetHigh,
+    required this.track,
+    required this.hairline,
+    required this.ink2,
+    required this.ink3,
+    required this.okFill,
+    required this.cautionFill,
+    required this.errorFill,
+    required this.infoFill,
+  });
 }

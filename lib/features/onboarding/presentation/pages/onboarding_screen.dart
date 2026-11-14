@@ -238,6 +238,12 @@ class _OnboardingViewState extends State<_OnboardingView> {
                             active: _settledPage == 3,
                             initialValue: state.monthlyBudgetInput,
                             currencySymbol: state.selectedCurrency.symbol,
+                            currencyCode: state.selectedCurrency.code,
+                            byDay: state.amountByDay,
+                            days: state.periodDays,
+                            onModeChanged: (byDay) => context
+                                .read<OnboardingBloc>()
+                                .add(OnboardingAmountModeChangedEvent(byDay)),
                             maxDecimals: MoneyInput.maxDecimals(
                               state.selectedCurrency.code,
                             ),

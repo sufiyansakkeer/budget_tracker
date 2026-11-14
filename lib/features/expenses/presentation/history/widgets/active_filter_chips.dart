@@ -110,6 +110,15 @@ class ActiveFilterChips extends StatelessWidget {
       );
     }
 
+    if (filter.kind != ExpenseKind.all) {
+      chips.add(
+        _chip(
+          label: '${filter.kind.label} only',
+          onDeleted: () => onChanged(filter.copyWithKind(ExpenseKind.all)),
+        ),
+      );
+    }
+
     if (filter.receiptOnly) {
       chips.add(
         _chip(
