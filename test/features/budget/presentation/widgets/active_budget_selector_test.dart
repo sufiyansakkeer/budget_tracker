@@ -6,15 +6,31 @@ import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/features/budget/presentation/widgets/active_budget_selector.dart';
 
+import '../../../../helpers/haptics_recorder.dart';
+
 /// Reads the active budget, or fails while [failing] is set.
 class _FakeManageBudget implements ManageBudgetUseCase {
   bool failing = true;
   BudgetEntity? active;
+  List<BudgetEntity> all = const [];
+  final activated = <String>[];
 
   @override
   Future<BudgetEntity?> getActive() async {
     if (failing) throw Exception('database is locked');
     return active;
+  }
+
+  @override
+  Future<List<BudgetEntity>> getAll({Object? options}) async => all;
+
+  @override
+  Future<String?> activeBudgetId() async => active?.id;
+
+  @override
+  Future<void> setActive(String id) async {
+    activated.add(id);
+    active = all.firstWhere((b) => b.id == id);
   }
 
   @override
@@ -50,6 +66,39 @@ void main() {
 
     expect(find.text("Couldn't load your budget"), findsOneWidget);
     expect(find.text('No active budget selected'), findsNothing);
+  });
+
+  BudgetEntity budget(String id, String name) => BudgetEntity(
+    id: id,
+    name: name,
+    monthlyAmount: 1000,
+    remainingAmount: 1000,
+    currency: 'USD',
+    startDate: DateTime(2026, 10, 1),
+    endDate: DateTime(2026, 10, 31),
+    createdAt: DateTime(2026, 10, 1),
+    updatedAt: DateTime(2026, 10, 1),
+  );
+
+  // UX-111: switching budget gave no haptic.
+  testWidgets('switching budget confirms with a haptic', (tester) async {
+    final personal = budget('personal', 'Personal');
+    final household = budget('household', 'Household');
+    manageBudget
+      ..failing = false
+      ..active = personal
+      ..all = [personal, household];
+    await pump(tester);
+    final haptics = recordHaptics(tester);
+
+    await tester.tap(find.text('Personal'));
+    await tester.pumpAndSettle();
+    expect(haptics, isEmpty);
+    await tester.tap(find.text('Household'));
+    await tester.pumpAndSettle();
+
+    expect(manageBudget.activated, ['household']);
+    expect(haptics, [confirmHaptic]);
   });
 
   testWidgets('tapping it reads the budget again', (tester) async {

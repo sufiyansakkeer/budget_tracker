@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:monivo/core/currency/currency_provider.dart';
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 import 'package:monivo/core/files/file_delivery_service.dart';
 import 'package:monivo/core/di/injection.dart';
+import 'package:monivo/core/notifications/notification_permission_notice.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/features/settings/domain/entities/color_palette_entity.dart';
 import 'package:monivo/features/settings/domain/entities/notification_settings.dart';
 import 'package:monivo/features/settings/domain/entities/theme_mode_entity.dart';
+import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
 import 'package:monivo/features/settings/presentation/bloc/settings_event.dart';
 import 'package:monivo/features/settings/presentation/bloc/settings_state.dart';
 import 'package:monivo/features/settings/presentation/bloc/theme/theme_event.dart';
 import 'package:monivo/features/settings/presentation/bloc/theme/theme_state.dart';
 import 'package:monivo/features/settings/presentation/pages/settings_screen.dart';
 
+import '../../../../helpers/bill_ui_fakes.dart';
+import '../../../../helpers/pay_later_fakes.dart';
+import '../../../budget/presentation/pages/budget_form_screen_test.dart'
+    show FakeSettingsRepository;
 import 'settings_test_harness.dart';
 
 void main() {
@@ -68,52 +78,67 @@ void main() {
     minute: minute,
   ).format(tester.element(find.byType(SettingsScreen)));
 
-  Finder inSummary(String text) => find.descendant(
-    of: find.byKey(const Key('settingsSummary')),
-    matching: find.text(text),
-  );
-
-  group('summary strip', () {
-    testWidgets('shows the current choices', (tester) async {
-      await pump(
-        tester,
-        state: loadedSettings.copyWith(
-          settings: loadedSettings.settings.copyWith(biometricEnabled: true),
-        ),
-        theme: const ThemeState(
-          mode: AppThemeMode.dark,
-          palette: ColorPalette.ocean,
-        ),
-      );
-
-      expect(inSummary('USD'), findsOneWidget);
-      expect(inSummary('Dark · Ocean'), findsOneWidget);
-      expect(
-        inSummary('${time(tester, 8, 0)} · ${time(tester, 21, 30)}'),
-        findsOneWidget,
-      );
-      expect(inSummary('On'), findsOneWidget);
-    });
-
-    testWidgets('reminders read Off when notifications are off', (
+  group('More tiles (blueprint)', () {
+    testWidgets('every feature beyond the daily view leads the screen', (
       tester,
     ) async {
-      await pump(
-        tester,
-        state: loadedSettings.copyWith(
-          settings: loadedSettings.settings.copyWith(
-            notifications: const NotificationSettings(
-              notificationsEnabled: false,
-            ),
-          ),
-        ),
-      );
+      await pump(tester);
 
-      expect(inSummary('Off'), findsNWidgets(2), reason: 'reminders, lock');
+      final tiles = find.byKey(const Key('moreTiles'));
+      expect(tiles, findsOneWidget);
+      for (final title in const [
+        'Bills',
+        'Pay later',
+        'Categories',
+        'Currency converter',
+        'All budgets',
+        'Your data',
+      ]) {
+        expect(
+          find.descendant(of: tiles, matching: find.text(title)),
+          findsOneWidget,
+          reason: title,
+        );
+      }
+      // The rows the tiles replace are gone.
+      expect(find.text('Budgets'), findsNothing);
+    });
+
+    testWidgets('"Your data" brings the data settings into view', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.tap(find.text('Your data'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Data').hitTestable(), findsOneWidget);
     });
   });
 
   group('notifications', () {
+    testWidgets('UX-013: blocked notifications are said under the switch', (
+      tester,
+    ) async {
+      getIt.registerSingleton<NotificationPermission>(
+        NotificationPermission(
+          isAllowed: () async => false,
+          request: () async => false,
+        ),
+      );
+      await pump(tester);
+
+      expect(find.text('Notifications are blocked for Monivo'), findsOneWidget);
+      final toggle = tester.getRect(find.text('Daily notifications'));
+      final notice = tester.getRect(
+        find.text('Notifications are blocked for Monivo'),
+      );
+      expect(notice.top, greaterThan(toggle.bottom));
+      expect(
+        notice.top,
+        lessThan(tester.getRect(find.text('Morning target')).top),
+      );
+    });
+
     testWidgets('times use the same format as the rest of Settings', (
       tester,
     ) async {
@@ -121,9 +146,9 @@ void main() {
 
       final morning = time(tester, 8, 0);
       final evening = time(tester, 21, 30);
-      // Once in the summary, once on the row.
-      expect(find.textContaining(morning), findsNWidgets(2));
-      expect(find.textContaining(evening), findsNWidgets(2));
+      // On the row (the summary strip gave way to the More tiles).
+      expect(find.textContaining(morning), findsOneWidget);
+      expect(find.textContaining(evening), findsOneWidget);
       // The 24-hour pills are gone.
       expect(find.text('08:00'), findsNothing);
       expect(find.text('21:30'), findsNothing);
@@ -145,7 +170,7 @@ void main() {
 
       final morning = tester.widget<ListTile>(
         find.ancestor(
-          of: find.text('Morning reminder'),
+          of: find.text('Morning target'),
           matching: find.byType(ListTile),
         ),
       );
@@ -251,6 +276,35 @@ void main() {
       );
     });
 
+    testWidgets('UX-019: export and shared backups anchor the share sheet '
+        'to their row (iPad)', (tester) async {
+      final (settings, _) = await pump(tester);
+      final exportRow = tester.getRect(
+        find.byKey(const Key('settingsExportTile')),
+      );
+      final backupRow = tester.getRect(
+        find.byKey(const Key('settingsBackupTile')),
+      );
+
+      await tester.tap(find.text('Export'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Spreadsheet (CSV)'));
+      await tester.pumpAndSettle();
+      expect(
+        settings.received.whereType<SettingsExportEvent>().single.shareOrigin,
+        exportRow,
+      );
+
+      await tester.tap(find.text('Back up'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect(
+        settings.received.whereType<SettingsBackupEvent>().single.shareOrigin,
+        backupRow,
+      );
+    });
+
     testWidgets('UX-003: the JSON export says it is not a backup', (
       tester,
     ) async {
@@ -346,14 +400,12 @@ void main() {
     });
   });
 
-  testWidgets('rows other flows rely on keep their keys', (tester) async {
+  testWidgets('tiles other flows rely on keep their keys', (tester) async {
     await pump(tester);
 
-    expect(find.byKey(const Key('settingsCategoriesTile')), findsOneWidget);
-    expect(
-      find.byKey(const Key('settingsCurrencyConverterTile')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('more_categories')), findsOneWidget);
+    expect(find.byKey(const Key('more_converter')), findsOneWidget);
+    expect(find.byKey(const Key('more_payLater')), findsOneWidget);
   });
 
   testWidgets('about shows the installed version', (tester) async {
@@ -382,5 +434,145 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Restore from backup'), findsOneWidget);
+  });
+
+  group('UX-099: the default currency', () {
+    testWidgets('reaches the app only once saved; row and picker agree', (
+      tester,
+    ) async {
+      final provider = CurrencyProvider(
+        loadSettingsUseCase: LoadSettingsUseCase(
+          repository: FakeSettingsRepository(),
+        ),
+      );
+      getIt.registerSingleton<CurrencyProvider>(provider);
+      final (settings, _) = await pump(tester);
+      // After its own first read, the app's currency matches Settings.
+      provider.updateCurrency('USD', r'$');
+
+      const scope = 'Default for new budgets and Pay later tabs';
+      expect(find.text(scope), findsOneWidget, reason: 'the row');
+      // The summary strip says "Currency" too: tap the row.
+      await tester.tap(find.text(scope));
+      await tester.pumpAndSettle();
+      expect(find.text(scope), findsNWidgets(2), reason: 'and the picker');
+
+      await tester.tap(find.text('OMR').last);
+      await tester.pumpAndSettle();
+      expect(
+        settings.received.whereType<SettingsUpdateCurrencyEvent>().single.code,
+        'OMR',
+      );
+      expect(provider.currencyCode, 'USD', reason: 'not saved yet');
+
+      // The save succeeded.
+      settings.emit(
+        loadedSettings.copyWith(
+          settings: loadedSettings.settings.copyWith(
+            currencyCode: 'OMR',
+            currencySymbol: 'ر.ع.',
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(provider.currencyCode, 'OMR');
+    });
+
+    testWidgets('a currency save leaves the Data rows usable', (tester) async {
+      await pump(tester);
+      for (final title in ['Export', 'Import', 'Back up']) {
+        final tile = tester.widget<ListTile>(
+          find.ancestor(of: find.text(title), matching: find.byType(ListTile)),
+        );
+        expect(tile.enabled, isTrue, reason: title);
+      }
+    });
+  });
+
+  group('UX-095: start a new period', () {
+    Future<(GoRouter, StaticSettingsBloc)> pumpRouted(
+      WidgetTester tester, {
+      required String? activeId,
+    }) async {
+      getIt.registerSingleton<ManageBudgetUseCase>(
+        ManageBudgetUseCase(
+          repository: ListBudgetRepository([
+            if (activeId != null)
+              BudgetEntity(
+                id: activeId,
+                name: 'October',
+                monthlyAmount: 30000,
+                remainingAmount: 30000,
+                currency: 'INR',
+                startDate: DateTime(2026, 10, 1),
+                endDate: DateTime(2026, 10, 31),
+                createdAt: DateTime(2026, 10, 1),
+                updatedAt: DateTime(2026, 10, 1),
+              ),
+          ], activeId),
+          reconcileTabs: FakeReconcileTabUseCase(),
+        ),
+      );
+      final settings = StaticSettingsBloc(loadedSettings);
+      final themeBloc = StaticThemeBloc(const ThemeState());
+      addTearDown(settings.close);
+      addTearDown(themeBloc.close);
+      tester.view.devicePixelRatio = 2;
+      tester.view.physicalSize = const Size(720, 18000);
+      addTearDown(tester.view.reset);
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                settingsScreen(settings: settings, theme: themeBloc),
+          ),
+          GoRoute(
+            path: '/app/budgets',
+            builder: (context, state) => const Text('Budget list'),
+            routes: [
+              GoRoute(
+                path: 'create',
+                builder: (context, state) => const Text('New budget form'),
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        MaterialApp.router(theme: AppTheme.lightTheme, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+      return (router, settings);
+    }
+
+    testWidgets('with no budget, opens Create budget instead of a 0 budget', (
+      tester,
+    ) async {
+      final (_, settings) = await pumpRouted(tester, activeId: null);
+
+      await tester.tap(find.text('Start new budget period'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start a new budget period?'), findsNothing);
+      expect(find.text('New budget form'), findsOneWidget);
+      expect(
+        settings.received,
+        isNot(contains(const SettingsResetMonthEvent())),
+      );
+    });
+
+    testWidgets('with a budget, still asks first', (tester) async {
+      final (_, settings) = await pumpRouted(tester, activeId: 'oct');
+
+      await tester.tap(find.text('Start new budget period'));
+      await tester.pumpAndSettle();
+      expect(find.text('Start a new budget period?'), findsOneWidget);
+
+      await tester.tap(find.text('Start'));
+      await tester.pumpAndSettle();
+      expect(settings.received, contains(const SettingsResetMonthEvent()));
+    });
   });
 }

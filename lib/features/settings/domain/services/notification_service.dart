@@ -94,6 +94,9 @@ class NotificationService {
   /// launched the app.
   final void Function(String tabId) onPayLaterTap;
 
+  /// Opens the evening review when the evening summary is tapped.
+  final VoidCallback? onEveningReviewTap;
+
   /// Source of "now" for scheduling. Tests inject a fixed clock.
   final DateTime Function() _clock;
   bool _initialized = false;
@@ -106,6 +109,7 @@ class NotificationService {
     this.rescheduleBillReminders,
     required this.rescheduleTabReminders,
     required this.onPayLaterTap,
+    this.onEveningReviewTap,
     DateTime Function()? clock,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
        _clock = clock ?? DateTime.now;
@@ -188,6 +192,31 @@ class NotificationService {
     }
   }
 
+  /// Whether the system lets Monivo post notifications, without asking.
+  /// False also when permission was never asked for (Android 13+, iOS).
+  Future<bool> areNotificationsEnabled() async {
+    await initialize();
+
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android != null) {
+      return await android.areNotificationsEnabled() ?? false;
+    }
+
+    final ios = _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
+    if (ios != null) {
+      final settings = await ios.checkPermissions();
+      return settings?.isEnabled ?? false;
+    }
+
+    return true;
+  }
+
   /// Schedules all daily notifications based on [settings].
   ///
   /// The morning notification is scheduled once per day for the next
@@ -217,7 +246,7 @@ class NotificationService {
     if (notifSettings.eveningSummaryEnabled) {
       await _scheduleDailyNotification(
         id: eveningSummaryId,
-        title: 'Evening Summary 🌙',
+        title: 'Evening summary 🌙',
         body: "Review today's expenses and check how each budget is doing.",
         hour: notifSettings.eveningSummaryTime.hour,
         minute: notifSettings.eveningSummaryTime.minute,
@@ -237,17 +266,33 @@ class NotificationService {
   /// never reads higher than what is safe. When nothing is free to spend,
   /// the text says why (over budget, or bills and money set aside exceed
   /// what's left) instead of "you can safely spend ₹0".
-  static String morningBody(List<BudgetDailyLimitEntity> limits) {
+  ///
+  /// With one budget and money free, the amount is the title
+  /// ([morningTitle]) and the body names the budget and how its target moved
+  /// since [yesterday] (blueprint).
+  static String morningBody(
+    List<BudgetDailyLimitEntity> limits, {
+    List<BudgetDailyLimitEntity>? yesterday,
+  }) {
     if (limits.isEmpty) {
       return 'No budget is running today. Open the app to check your budgets.';
     }
     if (limits.length == 1) {
-      // Single budget — show simple message.
       final bl = limits.first;
       if (_nothingFree(bl)) return _nothingFreeSentence(bl);
-      return '${bl.budgetName}: you can safely spend '
-          '${CurrencyFormatter.formatFloored(bl.dailyLimit, code: bl.currency)} '
-          'today.';
+      BudgetDailyLimitEntity? before;
+      for (final y in yesterday ?? const <BudgetDailyLimitEntity>[]) {
+        if (y.budgetId == bl.budgetId) before = y;
+      }
+      if (before == null) return '${bl.budgetName}.';
+      double shown(double v) =>
+          CurrencyFormatter.floorForDisplay(v, code: bl.currency).amount;
+      final now = shown(bl.dailyLimit);
+      final then = shown(before.dailyLimit);
+      if (now == then) return '${bl.budgetName} · same as yesterday.';
+      return '${bl.budgetName} · ${now < then ? 'down' : 'up'} from '
+          '${CurrencyFormatter.formatFloored(before.dailyLimit, code: bl.currency)} '
+          'yesterday.';
     }
     // Multiple budgets — one line per budget, never combined.
     final lines = limits
@@ -258,6 +303,18 @@ class NotificationService {
         )
         .join('\n');
     return "Today's Safe Spending per budget\n\n$lines";
+  }
+
+  /// The morning notification's title: the amount itself for one budget
+  /// with money free ("Today you can spend ₹867.62", blueprint), so the
+  /// number arrives before the app is opened; the general title otherwise.
+  static String morningTitle(List<BudgetDailyLimitEntity> limits) {
+    if (limits.length != 1 || _nothingFree(limits.single)) {
+      return "Today's Safe Spending";
+    }
+    final bl = limits.single;
+    return 'Today you can spend '
+        '${CurrencyFormatter.formatFloored(bl.dailyLimit, code: bl.currency)}';
   }
 
   /// Whether the daily amount shows as zero.
@@ -388,19 +445,28 @@ class NotificationService {
     required int minute,
   }) async {
     final first = _nextInstanceOf(hour, minute);
+    // The morning before the first, for "down from ₹1,016 yesterday".
+    var previous = (await _getPerBudgetSafeSpending(
+      referenceDate: DateTime(first.year, first.month, first.day - 1),
+    ))?.budgetLimits;
     for (var i = 0; i < morningReminderDays; i++) {
       // Calendar arithmetic, so a daylight-saving change keeps the time.
       final day = DateTime(first.year, first.month, first.day + i);
       final perBudget = await _getPerBudgetSafeSpending(referenceDate: day);
-      final body = perBudget == null
+      final limits = perBudget?.budgetLimits;
+      final body = limits == null
           ? morningUnavailableBody
-          : morningBody(perBudget.budgetLimits);
+          : morningBody(limits, yesterday: previous);
+      final title = limits == null
+          ? "Today's Safe Spending"
+          : morningTitle(limits);
+      previous = limits;
 
       debugPrint('[Notification] Morning notification for $day: $body');
 
       await _schedule(
         id: morningReminderIdFor(i),
-        title: "Today's Safe Spending",
+        title: title,
         body: body,
         at: tz.TZDateTime(tz.local, day.year, day.month, day.day, hour, minute),
       );
@@ -541,7 +607,8 @@ class NotificationService {
   /// The app's one notification tap handler. The plugin keeps only the
   /// handler of its latest initialize call, so every initialize in the app
   /// (this service's and the bill reminders') passes this one. A Pay later
-  /// reminder opens its tab; everything else is only logged, as before.
+  /// reminder opens its tab and the evening summary the evening review;
+  /// everything else is only logged.
   void handleNotificationResponse(NotificationResponse response) {
     final payload = response.payload;
     if (payload == null || payload.isEmpty) return;
@@ -557,8 +624,13 @@ class NotificationService {
     }
 
     switch (payload) {
-      case 'daily_spending_limit':
       case 'evening_summary':
+        try {
+          onEveningReviewTap?.call();
+        } catch (e) {
+          debugPrint('[Notification] Could not open the evening review: $e');
+        }
+      case 'daily_spending_limit':
         debugPrint('[Notifications] Received notification: $payload');
       default:
         debugPrint('[Notifications] Ignoring unknown notification payload');

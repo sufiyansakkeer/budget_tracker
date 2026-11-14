@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import '../../../../core/widgets/app_money.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../expenses/presentation/widgets/form_field_error.dart';
+import '../../../../core/widgets/app_amount_field.dart';
 import 'onboarding_step_layout.dart';
 import '../../../../core/currency/money_input.dart';
 
@@ -17,8 +18,24 @@ class BudgetStepWidget extends StatefulWidget {
   final VoidCallback onContinue;
   final VoidCallback onBack;
 
+  /// This step is the page on screen and has stopped sliding in; its
+  /// field takes focus then (UX-111). True on its own, outside a pager.
+  final bool active;
+
+  /// The amount is a day's (blueprint): the field is the daily target and
+  /// the sum under it gives the budget amount over [days].
+  final bool byDay;
+  final int? days;
+
+  /// The budget's currency, for the sum; the symbol alone when null.
+  final String? currencyCode;
+
+  /// "A day" / "In total"; no switch when null.
+  final ValueChanged<bool>? onModeChanged;
+
   const BudgetStepWidget({
     super.key,
+    this.active = true,
     required this.initialValue,
     required this.currencySymbol,
     this.maxDecimals = 2,
@@ -26,6 +43,10 @@ class BudgetStepWidget extends StatefulWidget {
     required this.onChanged,
     required this.onContinue,
     required this.onBack,
+    this.byDay = false,
+    this.days,
+    this.currencyCode,
+    this.onModeChanged,
   });
 
   @override
@@ -37,8 +58,28 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
     text: widget.initialValue,
   );
 
+  /// The field takes focus when this step becomes [BudgetStepWidget.active].
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _focusSoon();
+  }
+
+  @override
+  void didUpdateWidget(covariant BudgetStepWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _focusSoon();
+  }
+
+  void _focusSoon() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted && widget.active) _focus.requestFocus();
+  });
+
   @override
   void dispose() {
+    _focus.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -49,13 +90,26 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasError = widget.errorMessage != null;
 
+    final byDay = widget.byDay;
+    final days = widget.days;
+    final daily = double.tryParse(_controller.text.trim());
+    String money(double v) => widget.currencyCode != null
+        ? AppMoney.format(v, currency: widget.currencyCode)
+        : '${widget.currencySymbol}${NumberFormat('#,##0.###').format(v)}';
+    final sum = byDay && days != null && daily != null && daily > 0 && _isValid
+        ? '${money(daily)} a day × $days ${days == 1 ? 'day' : 'days'} = '
+              '${money(daily * days)}'
+        : null;
     return OnboardingStepLayout(
-      title: 'What is your budget amount?',
-      subtitle:
-          'The total you want to spend between the start and end dates '
-          'you choose next.',
+      title: byDay
+          ? 'How much do you want to spend each day?'
+          : 'What is your budget amount?',
+      subtitle: byDay
+          ? 'Your daily target. The budget amount follows from the dates '
+                'you choose next.'
+          : 'The total you want to spend between the start and end dates '
+                'you choose next.',
       onBack: widget.onBack,
       footer: OnboardingContinueButton(
         buttonKey: const Key('budgetStepContinueButton'),
@@ -64,85 +118,69 @@ class _BudgetStepWidgetState extends State<BudgetStepWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: AppSpacing.borderRadiusMd,
-              border: Border.all(
-                color: hasError
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.primary.withValues(alpha: 0.5),
-                width: 1.5,
+          if (widget.onModeChanged != null) ...[
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<bool>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: true, label: Text('A day')),
+                  ButtonSegment(value: false, label: Text('In total')),
+                ],
+                selected: {byDay},
+                onSelectionChanged: (v) => widget.onModeChanged!(v.single),
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: AppSizes.avatarMd,
-                  height: AppSizes.avatarMd,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: AppSpacing.borderRadiusSmd,
-                  ),
-                  child: Text(
-                    widget.currencySymbol,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.smd),
-                Expanded(
-                  child: TextField(
-                    key: const Key('monthlyBudgetTextField'),
-                    controller: _controller,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    textInputAction: TextInputAction.done,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        MoneyInput.pattern(widget.maxDecimals),
-                      ),
-                    ],
-                    autofocus: true,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                    decoration: InputDecoration(
-                      hintText: '30,000',
-                      hintStyle: theme.textTheme.headlineSmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.25,
-                        ),
-                      ),
-                      filled: false,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.sm,
-                      ),
-                      border: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                    ),
-                    onChanged: (val) {
-                      widget.onChanged(val);
-                      setState(() {});
-                    },
-                    onSubmitted: (_) {
-                      if (_isValid) widget.onContinue();
-                    },
-                  ),
-                ),
-              ],
-            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          AppAmountField(
+            key: const Key('monthlyBudgetTextField'),
+            hero: true,
+            controller: _controller,
+            focusNode: _focus,
+            currency: null,
+            symbol: widget.currencySymbol,
+            decimals: widget.maxDecimals,
+            label: byDay ? 'Daily target' : 'Budget amount',
+            hintText: byDay ? '1000' : '30000',
+            errorText: widget.errorMessage,
+            onChanged: (val) {
+              widget.onChanged(val);
+              setState(() {});
+            },
+            onSubmitted: (_) {
+              if (_isValid) widget.onContinue();
+            },
           ),
-          if (hasError) FormFieldError(message: widget.errorMessage!),
+          if (sum != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              key: const Key('onboardingByDaySum'),
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    sum,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'That becomes the budget amount.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
           Text(
             'You can change the amount any time from the budget screen.',

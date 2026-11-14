@@ -35,7 +35,9 @@ class _DismissedPrompt implements BiometricInitializer {
 
 void main() {
   testWidgets('onboarding confirmation', (tester) async {
-    // ₹2,400 from 8 to 31 Oct: 24 days, ₹100 a day.
+    // ₹2,400 from 8 to 31 Oct: 24 days, ₹100 a day, seen on 8 Oct.
+    ConfirmationStepWidget.clock = () => DateTime(2026, 10, 8, 9);
+    addTearDown(() => ConfirmationStepWidget.clock = DateTime.now);
     final draft = OnboardingState(
       budgetNameInput: 'Personal',
       monthlyBudgetInput: '2400',

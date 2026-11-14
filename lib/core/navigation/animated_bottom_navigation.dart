@@ -23,17 +23,21 @@ import '../feedback/app_haptics.dart';
 /// pulse never plays.
 ///
 /// The bar knows nothing about routing; it only reports taps through
-/// [onDestinationSelected].
+/// [onDestinationSelected]. An optional [center] widget (the add button)
+/// takes a slot of its own in the middle of the destinations; it is not a
+/// tab, so tab positions ("Tab 2 of 4") count only [destinations].
 class AnimatedBottomNavigation extends StatefulWidget {
   final List<AppNavDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final Widget? center;
 
   const AnimatedBottomNavigation({
     super.key,
     required this.destinations,
     required this.selectedIndex,
     required this.onDestinationSelected,
+    this.center,
   }) : assert(destinations.length >= 2),
        assert(selectedIndex >= 0 && selectedIndex < destinations.length);
 
@@ -111,11 +115,16 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
                 explicitChildNodes: true,
                 child: Row(
                   children: [
-                    for (var i = 0; i < widget.destinations.length; i++)
+                    for (var i = 0; i < widget.destinations.length; i++) ...[
+                      if (widget.center != null &&
+                          i == widget.destinations.length ~/ 2)
+                        Expanded(child: widget.center!),
                       Expanded(
                         child: _NavItem(
                           key: widget.destinations[i].key,
                           destination: widget.destinations[i],
+                          position: i + 1,
+                          count: widget.destinations.length,
                           selected: i == widget.selectedIndex,
                           pulseToken: _pulseTokens[i],
                           duration: duration,
@@ -128,6 +137,7 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
                           onTap: () => _onTap(i),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -141,6 +151,11 @@ class _AnimatedBottomNavigationState extends State<AnimatedBottomNavigation> {
 
 class _NavItem extends StatefulWidget {
   final AppNavDestination destination;
+
+  /// 1-based place in the bar and the number of tabs, read out as
+  /// "Tab 2 of 4".
+  final int position;
+  final int count;
   final bool selected;
   final int pulseToken;
   final Duration duration;
@@ -155,6 +170,8 @@ class _NavItem extends StatefulWidget {
   const _NavItem({
     super.key,
     required this.destination,
+    required this.position,
+    required this.count,
     required this.selected,
     required this.pulseToken,
     required this.duration,
@@ -174,21 +191,28 @@ class _NavItem extends StatefulWidget {
 class _NavItemState extends State<_NavItem> {
   bool _pressed = false;
 
-  /// Material 3 active-indicator size.
-  static const double _indicatorWidth = 64;
-  static const double _indicatorHeight = 32;
+  /// The blueprint's pill behind the selected icon.
+  static const double _indicatorWidth = 52;
+  static const double _indicatorHeight = 30;
 
   @override
   Widget build(BuildContext context) {
     final d = widget.destination;
     final selected = widget.selected;
 
+    // The tooltip is for long-press only: its text is the label, so in the
+    // semantics tree it would be read twice ("Home, Home"). The position
+    // comes after the name, as in Material's NavigationBar.
+    final position = MaterialLocalizations.of(
+      context,
+    ).tabLabel(tabIndex: widget.position, tabCount: widget.count);
     return Semantics(
       button: true,
       selected: selected,
-      label: d.label,
+      label: '${d.label}\n$position',
       child: Tooltip(
         message: d.label,
+        excludeFromSemantics: true,
         child: InkResponse(
           onTap: widget.onTap,
           onHighlightChanged: (value) => setState(() => _pressed = value),

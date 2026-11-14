@@ -1,42 +1,50 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/theme/app_colors_extension.dart';
 import '../../../../core/theme/app_tone.dart';
-import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_metric.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_surface.dart';
-import '../../../../core/widgets/app_track.dart';
-import '../../../../core/widgets/info_icon.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
+import '../../../budget/presentation/start_next_period.dart';
 import '../../domain/entities/budget_daily_limit_entity.dart';
-import 'dashboard_info.dart';
 import 'safe_to_spend_copy.dart';
 import 'spending_status.dart';
+import 'target_ring.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 
-/// The Home screen's one raised surface: Today's Safe Spending.
+/// The top of Today: Today's Safe Spending.
 ///
-/// It tells the figure's story top to bottom, all from the engine's
-/// [SafeToSpendEntity]: the amount (floored, the largest number in the app),
-/// its status as a word and an icon, today's spending against it, one line
-/// on why it is what it is, then the budget behind it: money used against a
-/// tick for today's place in the period, what is left and how many days.
-/// "How it's worked out" ([onShowWorking]) opens the full working.
+/// Today's amount as a ring ([TargetRing]): spending runs round it, and the
+/// middle says what is left today (or how much over, in caution) out of
+/// the day's amount. Under it: the status as a word and an icon, and one
+/// line on why the amount is what it is. "How it's worked out"
+/// ([onShowWorking]) opens the full working. The budget as a whole lives on
+/// the Budget tab.
 ///
 /// The widget only presents figures; it never computes money.
 class SafeSpendingHero extends StatelessWidget {
   final BudgetDailyLimitEntity limit;
 
-  /// Opens the breakdown; the action is hidden when null.
+  /// Opens the breakdown (a tap on the ring); nothing when null.
   final VoidCallback? onShowWorking;
 
-  const SafeSpendingHero({super.key, required this.limit, this.onShowWorking});
+  /// Today's expenses in order, one arc each on the ring.
+  final List<double>? segments;
+
+  const SafeSpendingHero({
+    super.key,
+    required this.limit,
+    this.onShowWorking,
+    this.segments,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +54,7 @@ class SafeSpendingHero extends StatelessWidget {
     if (safeToSpend == null) return const _HeroUnavailable();
     return _SafeToSpendHero(
       entity: safeToSpend,
-      budgetUtilization: limit.budgetUtilization,
+      segments: segments,
       onShowWorking: onShowWorking,
     );
   }
@@ -54,14 +62,12 @@ class SafeSpendingHero extends StatelessWidget {
 
 class _SafeToSpendHero extends StatelessWidget {
   final SafeToSpendEntity entity;
-
-  /// The domain's spent ÷ amount ratio for this budget.
-  final double budgetUtilization;
+  final List<double>? segments;
   final VoidCallback? onShowWorking;
 
   const _SafeToSpendHero({
     required this.entity,
-    required this.budgetUtilization,
+    this.segments,
     this.onShowWorking,
   });
 
@@ -70,286 +76,82 @@ class _SafeToSpendHero extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final e = entity;
-    final visuals = SafeToSpendStatusVisuals.of(context, e.status);
-    final tone = context.tone(visuals.tone);
     final over = e.overToday > 0;
-    // How much of today's amount is used: drawing geometry only.
-    final todayUsed = e.dailySafeToSpend > 0
-        ? e.todayDiscretionary / e.dailySafeToSpend
-        : (e.todayDiscretionary > 0 ? 1.0 : 0.0);
-    final elapsed = e.totalDays > 0 ? e.daysPassed / e.totalDays : 0.0;
-    final explanation = SafeToSpendCopy.heroExplanation(e);
+    // Over today's target is recoverable (tomorrow absorbs it), so the
+    // middle says so in caution, never the red kept for money already gone.
+    final caution = context.tone(AppTone.caution).accent;
+    final line = SafeToSpendCopy.heroLine(e);
     final spread = SafeToSpendCopy.overSpread(e);
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: colorScheme.onSurfaceVariant,
+      fontSize: 13,
     );
 
     final semantics = StringBuffer(SafeToSpendCopy.heroSemantics(e));
     if (spread != null) semantics.write(' $spread');
-    semantics.write(
-      ' ${SafeToSpendCopy.budgetLeftLine(e)}, '
-      '${SafeToSpendCopy.daysLeft(e).toLowerCase()}.',
-    );
 
-    return AppSurface(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.mlg,
-        AppSpacing.md,
-        AppSpacing.mlg,
-        AppSpacing.sm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // One node for the figures, read as a unit; the info button stays
-          // a separate, focusable child.
-          Semantics(
-            container: true,
-            label: semantics.toString(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: TargetRing(
+            spent: e.todayDiscretionary,
+            target: e.dailySafeToSpend,
+            segments: segments,
+            onTap: onShowWorking,
+            semanticsLabel: CurrencyFormatter.forSpeech(semantics.toString()),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: ExcludeSemantics(
-                        child: Text(
-                          "Today's Safe Spending",
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    InfoIcon(content: DashboardInfo.safeSpending(e.currency)),
-                  ],
-                ),
-                ExcludeSemantics(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AppMoney(
-                        amount: e.dailySafeToSpend,
-                        currency: e.currency,
-                        role: MoneyRole.hero,
-                        floored: true,
-                        split: true,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      SafeToSpendStatusChip(status: e.status, wrapLabel: true),
-                      const SizedBox(height: AppSpacing.mlg),
-                      AppTrack(value: todayUsed, color: tone.accent),
-                      const SizedBox(height: AppSpacing.smd),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: AppMetric(
-                              label: 'Spent today',
-                              value: AppMoney(
-                                amount: e.todayDiscretionary,
-                                currency: e.currency,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: over
-                                ? AppMetric(
-                                    label: 'Over by',
-                                    alignEnd: true,
-                                    value: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Flexible(
-                                          child: AppMoney(
-                                            amount: e.overToday,
-                                            currency: e.currency,
-                                            textAlign: TextAlign.end,
-                                          ),
-                                        ),
-                                        const SizedBox(width: AppSpacing.xs),
-                                        // Over today's amount is recoverable
-                                        // (tomorrow absorbs it), so it is
-                                        // caution, never the red kept for
-                                        // money already gone.
-                                        Icon(
-                                          Icons.error_rounded,
-                                          size: AppSizes.iconSm,
-                                          color: context
-                                              .tone(AppTone.caution)
-                                              .accent,
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : AppMetric(
-                                    label: 'Left today',
-                                    alignEnd: true,
-                                    value: AppMoney(
-                                      amount: e.remainingToday,
-                                      currency: e.currency,
-                                      floored: true,
-                                      textAlign: TextAlign.end,
-                                    ),
-                                  ),
-                          ),
-                        ],
-                      ),
-                      if (e.committedSpentToday > 0) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          SafeToSpendCopy.billPaymentsToday(e),
-                          style: muted,
-                        ),
-                      ],
-                      if (spread != null) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(spread, style: muted),
-                      ],
-                      if (explanation != null) ...[
-                        const SizedBox(height: AppSpacing.smd),
-                        _ExplanationLine(text: explanation, color: tone.accent),
-                      ],
-                      const SizedBox(height: AppSpacing.md),
-                      Divider(color: colorScheme.outlineVariant),
-                      const SizedBox(height: AppSpacing.smd),
-                      _BudgetLine(
-                        entity: e,
-                        utilization: budgetUtilization,
-                        elapsed: elapsed,
-                      ),
-                    ],
+                Text(
+                  over ? 'Over today' : 'Left today',
+                  // Blueprint .lab: 13/600.
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: over ? caution : colorScheme.onSurfaceVariant,
                   ),
+                ),
+                AppMoney(
+                  amount: over ? e.overToday : e.remainingToday,
+                  currency: e.currency,
+                  role: MoneyRole.hero,
+                  floored: !over,
+                  split: true,
+                  color: over ? caution : null,
+                ),
+                Text(
+                  'of ${SafeToSpendCopy.safeAmount(e.dailySafeToSpend, e.currency)} target',
+                  style: muted,
                 ),
               ],
             ),
           ),
-          if (onShowWorking != null)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton(
-                onPressed: onShowWorking,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xs,
-                  ),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(child: Text("How it's worked out")),
-                    Icon(Icons.chevron_right_rounded, size: AppSizes.iconMd),
-                  ],
-                ),
-              ),
-            )
-          else
-            const SizedBox(height: AppSpacing.sm),
-        ],
-      ),
-    );
-  }
-}
-
-/// The budget behind today's amount: money used (the fill) against today's
-/// place in the period (the tick), what is left and the days to go. A fill
-/// past the tick means spending is running ahead of time; the status chip
-/// above says whether that matters.
-class _BudgetLine extends StatelessWidget {
-  final SafeToSpendEntity entity;
-  final double utilization;
-  final double elapsed;
-
-  const _BudgetLine({
-    required this.entity,
-    required this.utilization,
-    required this.elapsed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final e = entity;
-    final muted = theme.textTheme.bodySmall?.copyWith(
-      color: colorScheme.onSurfaceVariant,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Side by side when they fit; at large text the days drop under the
-        // amount instead of squeezing it.
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.xxs,
-          children: [
-            Text(
-              SafeToSpendCopy.budgetLeftLine(e),
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontFeatures: AppTypography.tabularFigures,
-              ),
-            ),
-            Text(SafeToSpendCopy.daysLeft(e), style: muted),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        AppTrack(
-          value: utilization,
-          color: e.availableBalance < 0
-              ? context.tone(AppTone.critical).accent
-              : colorScheme.onSurfaceVariant,
-          height: AppSizes.progressThin,
-          markers: [
-            TrackMarker(position: elapsed, color: colorScheme.onSurface),
-          ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(SafeToSpendCopy.dayOfPeriod(e), style: muted),
+        // Everything below is in the ring's label already.
+        ExcludeSemantics(
+          child: Column(
+            children: [
+              SafeToSpendStatusChip(status: e.status, wrapLabel: true),
+              for (final text in [
+                if (e.committedSpentToday > 0)
+                  SafeToSpendCopy.billPaymentsToday(e),
+                ?spread,
+                ?line,
+              ]) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                  ),
+                  child: Text(text, style: muted, textAlign: TextAlign.center),
+                ),
+              ],
+            ],
+          ),
+        ),
       ],
-    );
-  }
-}
-
-/// The hero's single "why" sentence, with the status icon.
-class _ExplanationLine extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _ExplanationLine({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AnimatedSwitcher(
-      duration: AppMotion.respectReducedMotion(context, AppMotion.fast),
-      child: Row(
-        key: ValueKey(text),
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xxs),
-            child: Icon(
-              Icons.info_outline_rounded,
-              size: AppSizes.iconSm,
-              color: color,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -385,9 +187,10 @@ class OtherBudgetLimitTile extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label:
-          '${limit.budgetName}: $amountText safe today'
-          '${status == null ? '' : ', ${status.label}'}',
+      label: CurrencyFormatter.forSpeech(
+        '${limit.budgetName}: $amountText safe today'
+        '${status == null ? '' : ', ${status.label}'}',
+      ),
       onTap: open,
       excludeSemantics: true,
       child: InkWell(
@@ -457,6 +260,7 @@ class OtherBudgetLimitTile extends StatelessWidget {
 /// Shown in place of the hero when the active budget's period does not
 /// include today, from the engine's not-started / ended result: when it
 /// starts and what it sets aside, or how it ended. There is no daily figure.
+/// An ended budget leads with "Start next period".
 class SafeSpendingNotRunningCard extends StatelessWidget {
   final SafeToSpendEntity safeToSpend;
   final VoidCallback onSwitch;
@@ -467,9 +271,23 @@ class SafeSpendingNotRunningCard extends StatelessWidget {
     required this.onSwitch,
   });
 
+  /// The next period's daily target if it starts now: the same amount and
+  /// set-asides over its days, before bills (blueprint: "Start next period
+  /// at ₹1,935 a day").
+  static double nextPeriodDaily(SafeToSpendEntity e) {
+    final next = StartNextPeriod.datesAfterPeriod(e.startDate, e.endDate);
+    final days = next.end.difference(next.start).inDays + 1;
+    final free =
+        e.budgetAmount - (e.reservedAmount ?? 0) - (e.savingsTarget ?? 0);
+    return days < 1 || free <= 0 ? 0 : free / days;
+  }
+
   @override
   Widget build(BuildContext context) {
     final e = safeToSpend;
+    if (e.status == SafeToSpendStatus.periodEnded) {
+      return _EndedCard(e: e, onSwitch: onSwitch);
+    }
     final visuals = SafeToSpendStatusVisuals.of(context, e.status);
     return _HeroMessageCard(
       icon: visuals.icon,
@@ -479,12 +297,96 @@ class SafeSpendingNotRunningCard extends StatelessWidget {
       message: SafeToSpendCopy.notRunningMessage(e),
       actions: [
         FilledButton.tonal(
+          style: AppTheme.tonal(context),
           onPressed: onSwitch,
           child: const Text('Switch budget'),
         ),
         TextButton(
           onPressed: () => context.pushUnique('/app/budgets/create'),
           child: const Text('New budget'),
+        ),
+      ],
+    );
+  }
+}
+
+/// The active budget has ended (blueprint): a closed ring with the result
+/// inside, the next period at the daily target it would start at, and the
+/// other ways on.
+class _EndedCard extends StatelessWidget {
+  final SafeToSpendEntity e;
+  final VoidCallback onSwitch;
+
+  const _EndedCard({required this.e, required this.onSwitch});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final over = e.availableBalance < 0;
+    final result = over
+        ? '${SafeToSpendCopy.amount(-e.availableBalance, e.currency)} over'
+        : '${SafeToSpendCopy.amount(e.availableBalance, e.currency)} left';
+    final ended = 'Ended ${SafeToSpendCopy.date(e.endDate)}';
+    final daily = SafeSpendingNotRunningCard.nextPeriodDaily(e);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: TargetRing(
+            spent: 1,
+            target: 1,
+            diameter: 180,
+            stroke: 14,
+            semanticsLabel: '$ended, $result',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  ended,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  result,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: over ? context.tone(AppTone.critical).accent : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          onPressed: () => StartNextPeriod.open(context, e.budgetId),
+          child: Text(
+            daily > 0
+                ? 'Start next period at '
+                      '${SafeToSpendCopy.safeAmount(daily, e.currency)} a day'
+                : 'Start next period',
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onSwitch,
+                child: const Text('Switch budget'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.smd),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => context.pushUnique('/app/budgets/create'),
+                child: const Text('New budget'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -513,7 +415,11 @@ class SafeSpendingUnavailableCard extends StatelessWidget {
           "This budget's figures couldn't be calculated right now. Try "
           'again, or switch to another budget.',
       actions: [
-        FilledButton.tonal(onPressed: onRetry, child: const Text('Try again')),
+        FilledButton.tonal(
+          style: AppTheme.tonal(context),
+          onPressed: onRetry,
+          child: const Text('Try again'),
+        ),
         TextButton(onPressed: onSwitch, child: const Text('Switch budget')),
       ],
     );
@@ -545,6 +451,7 @@ class SafeSpendingArchivedCard extends StatelessWidget {
           'Switch to another budget, or restore this one from its details.',
       actions: [
         FilledButton.tonal(
+          style: AppTheme.tonal(context),
           onPressed: onSwitch,
           child: const Text('Switch budget'),
         ),

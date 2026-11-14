@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_track.dart';
 import '../../../expenses/domain/entities/expense_category.dart';
@@ -12,9 +11,11 @@ import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../../expenses/presentation/widgets/category_visuals.dart';
 import '../../../expenses/presentation/widgets/transaction_row.dart';
 import '../../domain/entities/category_analytics.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Where the money went: every category ranked by amount, each with a bar
-/// of its share in its own colour. Tapping one lists those expenses.
+/// in its own colour, scaled to the largest. Tapping one lists those
+/// expenses, and tapping an expense there opens it.
 ///
 /// The five largest show first; the rest are one tap away, so a long tail
 /// never pushes the rest of the report down.
@@ -26,12 +27,18 @@ class CategoryRanking extends StatefulWidget {
   final List<ExpenseEntity> expenses;
   final String currency;
 
+  /// Opens one expense from a category's list, after the list closes
+  /// (UX-090): its details can edit or delete it, and the list would be
+  /// stale behind them.
+  final ValueChanged<ExpenseEntity> onOpenExpense;
+
   const CategoryRanking({
     super.key,
     required this.analytics,
     required this.categories,
     required this.expenses,
     required this.currency,
+    required this.onOpenExpense,
   });
 
   static const int collapsed = 5;
@@ -50,12 +57,12 @@ class _CategoryRankingState extends State<CategoryRanking> {
     return null;
   }
 
-  void _open(CategoryAnalytics a) {
+  Future<void> _open(CategoryAnalytics a) async {
     final own = [
       for (final e in widget.expenses)
         if (e.categoryId == a.categoryId) e,
     ]..sort((x, y) => y.time.compareTo(x.time));
-    AppBottomSheet.show<void>(
+    final chosen = await AppBottomSheet.show<ExpenseEntity>(
       context: context,
       builder: (_) => _CategoryExpensesSheet(
         analytics: a,
@@ -64,6 +71,7 @@ class _CategoryRankingState extends State<CategoryRanking> {
         currency: widget.currency,
       ),
     );
+    if (chosen != null && mounted) widget.onOpenExpense(chosen);
   }
 
   @override
@@ -83,7 +91,9 @@ class _CategoryRankingState extends State<CategoryRanking> {
             analytics: a,
             category: _category(a.categoryId),
             // Bars are relative to the largest, so the ranking is easy to
-            // read even when one category dominates.
+            // read even when one category dominates. They have no track:
+            // on one a 37% category drawn full width read as a full
+            // budget (UX-088).
             fraction: largest <= 0 ? 0 : a.totalAmount / largest,
             currency: widget.currency,
             onTap: () => _open(a),
@@ -134,9 +144,10 @@ class _CategoryBar extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label:
-          '${analytics.categoryName}, $amount, $percent% of spending, '
-          '$count ${count == 1 ? 'expense' : 'expenses'}',
+      label: CurrencyFormatter.forSpeech(
+        '${analytics.categoryName}, $amount, $percent% of spending, '
+        '$count ${count == 1 ? 'expense' : 'expenses'}',
+      ),
       hint: 'Shows these expenses',
       excludeSemantics: true,
       onTap: onTap,
@@ -181,7 +192,12 @@ class _CategoryBar extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: AppSpacing.xs),
-                    AppTrack(value: fraction, color: color, height: 6),
+                    AppTrack(
+                      value: fraction,
+                      color: color,
+                      trackColor: Colors.transparent,
+                      height: 6,
+                    ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
                       '$percent% · $count ${count == 1 ? 'expense' : 'expenses'}',
@@ -236,8 +252,10 @@ class _CategoryExpensesSheet extends StatelessWidget {
                 '${AppMoney.format(analytics.totalAmount, currency: currency)}'
                 ' · $count ${count == 1 ? 'expense' : 'expenses'}',
           ),
+          // Built lazily: a busy category over a year has hundreds of
+          // rows (UX-090). Dividers as AppGroupedList draws them.
           Flexible(
-            child: ListView(
+            child: ListView.separated(
               shrinkWrap: true,
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.md,
@@ -245,21 +263,20 @@ class _CategoryExpensesSheet extends StatelessWidget {
                 AppSpacing.md,
                 AppSpacing.md,
               ),
-              children: [
-                AppGroupedList(
-                  dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
-                  children: [
-                    for (final e in expenses)
-                      _ExpenseRow(
-                        expense: e,
-                        icon: icon,
-                        color: color,
-                        categoryName: analytics.categoryName,
-                        currency: currency,
-                      ),
-                  ],
-                ),
-              ],
+              itemCount: expenses.length,
+              separatorBuilder: (context, _) => Divider(
+                indent: AppSizes.avatarSm + AppSpacing.md,
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+              itemBuilder: (context, i) => _ExpenseRow(
+                key: ValueKey('rankExpense_${expenses[i].id}'),
+                expense: expenses[i],
+                icon: icon,
+                color: color,
+                categoryName: analytics.categoryName,
+                currency: currency,
+                onTap: () => Navigator.of(context).pop(expenses[i]),
+              ),
             ),
           ),
         ],
@@ -274,8 +291,11 @@ class _ExpenseRow extends StatelessWidget {
   final Color color;
   final String categoryName;
   final String currency;
+  final VoidCallback onTap;
 
   const _ExpenseRow({
+    super.key,
+    required this.onTap,
     required this.expense,
     required this.icon,
     required this.color,
@@ -287,8 +307,8 @@ class _ExpenseRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final note = expense.note?.trim();
     final title = note == null || note.isEmpty ? categoryName : note;
-    final day = DateFormat('EEE d MMM').format(expense.date);
-    final time = DateFormat.jm().format(expense.time);
+    final day = AppDates.weekday(expense.date);
+    final time = AppDates.time(context, expense.time);
     return TransactionRow(
       icon: icon,
       color: color,
@@ -298,6 +318,7 @@ class _ExpenseRow extends StatelessWidget {
       amount: expense.amount,
       currency: currency,
       hasReceipt: expense.receiptImagePath != null,
+      onTap: onTap,
       semanticLabel:
           '$title, ${AppMoney.format(expense.amount, currency: currency)}, '
           '$day, $time',

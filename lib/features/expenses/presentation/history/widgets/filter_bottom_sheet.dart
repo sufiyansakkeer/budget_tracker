@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
@@ -9,6 +7,8 @@ import '../../../domain/entities/expense_history_filter.dart';
 import '../../../domain/entities/quick_date_preset.dart';
 import '../../widgets/category_visuals.dart';
 import '../../../../../core/currency/money_input.dart';
+import '../../../../../core/widgets/app_amount_field.dart';
+import '../../../../../core/dates/date_range_format.dart';
 
 /// Bottom sheet for applying expense filters.
 ///
@@ -162,7 +162,6 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFmt = DateFormat('d MMM yyyy');
     final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
 
     return ConstrainedBox(
@@ -232,9 +231,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           child: _DateButton(
                             label: _dateFrom == null
                                 ? 'From'
-                                : dateFmt.format(_dateFrom!),
+                                : AppDates.dayWithYear(_dateFrom!),
                             isSet: _dateFrom != null,
                             onTap: () => _pickDate(isFrom: true),
+                            clearTooltip: 'Clear start date',
                             onClear: _dateFrom == null
                                 ? null
                                 : () => setState(() => _dateFrom = null),
@@ -245,9 +245,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           child: _DateButton(
                             label: _dateTo == null
                                 ? 'To'
-                                : dateFmt.format(_dateTo!),
+                                : AppDates.dayWithYear(_dateTo!),
                             isSet: _dateTo != null,
                             onTap: () => _pickDate(isFrom: false),
+                            clearTooltip: 'Clear end date',
                             onClear: _dateTo == null
                                 ? null
                                 : () => setState(() => _dateTo = null),
@@ -261,43 +262,29 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   Row(
                     children: [
                       Expanded(
-                        child: TextField(
+                        child: AppAmountField(
                           controller: _minAmount,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              // Any budget's currency may be in view: allow
-                              // the most decimals one takes (OMR's three).
-                              MoneyInput.pattern(
-                                MoneyInput.anyCurrencyDecimals,
-                              ),
-                            ),
-                          ],
+                          // Budgets in several currencies may be in view:
+                          // no one symbol, and the most decimals one takes
+                          // (OMR's three).
+                          currency: null,
+                          decimals: MoneyInput.anyCurrencyDecimals,
+                          label: 'Min',
                           textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(labelText: 'Min'),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
-                        child: TextField(
+                        child: AppAmountField(
                           controller: _maxAmount,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              // Any budget's currency may be in view: allow
-                              // the most decimals one takes (OMR's three).
-                              MoneyInput.pattern(
-                                MoneyInput.anyCurrencyDecimals,
-                              ),
-                            ),
-                          ],
+                          // Budgets in several currencies may be in view:
+                          // no one symbol, and the most decimals one takes
+                          // (OMR's three).
+                          currency: null,
+                          decimals: MoneyInput.anyCurrencyDecimals,
+                          label: 'Max',
                           textInputAction: TextInputAction.done,
-                          decoration: const InputDecoration(labelText: 'Max'),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
@@ -389,49 +376,66 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+      // A header, so a screen reader can jump between the sections.
+      child: Semantics(
+        header: true,
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+      ),
     );
   }
 }
 
+/// A date of the range, and beside it a full-size clear button once set: a
+/// clear icon inside the date button was a 20 dp target with no label.
 class _DateButton extends StatelessWidget {
   final String label;
   final bool isSet;
   final VoidCallback onTap;
   final VoidCallback? onClear;
 
+  /// What the clear button says ("Clear start date").
+  final String clearTooltip;
+
   const _DateButton({
     required this.label,
     required this.isSet,
     required this.onTap,
+    required this.clearTooltip,
     this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(
-        isSet ? Icons.event_rounded : Icons.calendar_today_outlined,
-        size: AppSizes.iconSm + 2,
-      ),
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-          if (onClear != null) ...[
-            const SizedBox(width: AppSpacing.xs),
-            InkWell(
-              onTap: onClear,
-              borderRadius: AppSpacing.borderRadiusFull,
-              child: const Padding(
-                padding: EdgeInsets.all(AppSpacing.xxs),
-                child: Icon(Icons.close_rounded, size: AppSizes.iconSm),
-              ),
+    return Stack(
+      alignment: AlignmentDirectional.centerEnd,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onTap,
+            // Room at the end for the clear button over it.
+            style: onClear == null
+                ? null
+                : OutlinedButton.styleFrom(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: AppSpacing.md,
+                      end: AppSizes.touchTarget - AppSpacing.xs,
+                    ),
+                  ),
+            icon: Icon(
+              isSet ? Icons.event_rounded : Icons.calendar_today_outlined,
+              size: AppSizes.iconSm + 2,
             ),
-          ],
-        ],
-      ),
+            label: Text(label, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+        if (onClear != null)
+          IconButton(
+            tooltip: clearTooltip,
+            onPressed: onClear,
+            icon: const Icon(Icons.close_rounded, size: AppSizes.iconSm + 2),
+          ),
+      ],
     );
   }
 }

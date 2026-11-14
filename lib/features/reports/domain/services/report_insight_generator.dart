@@ -187,7 +187,16 @@ class ReportInsightGenerator {
     final currency = currencyByCode(
       data.currency ?? data.currentBudget?.currency,
     ).code;
-    return CurrencyFormatter.format(amount, code: currency, decimalDigits: 0);
+    // At the currency's precision, as every figure on Reports (UX-087):
+    // whole units turned 0.60 left into "1".
+    return CurrencyFormatter.format(
+      amount,
+      code: currency,
+      decimalDigits: CurrencyFormatter.exactDisplayDigits(
+        amount,
+        code: currency,
+      ),
+    );
   }
 
   List<String> _weekdayNames() {

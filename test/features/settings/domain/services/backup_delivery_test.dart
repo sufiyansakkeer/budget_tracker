@@ -90,6 +90,20 @@ void main() {
       );
     });
 
+    test('UX-019: a shared backup anchors the share sheet', () async {
+      await seed();
+      final delivery = _Delivery(FileDeliveryOutcome.shared);
+      final useCase = BackupDataUseCase(
+        backupService: _TempBackupService(database),
+        delivery: delivery,
+      );
+      const origin = Rect.fromLTWH(16, 400, 328, 72);
+
+      await useCase(destination: FileDestination.share, shareOrigin: origin);
+
+      expect(delivery.shareOrigin, origin);
+    });
+
     test('the file name says what it is and sorts by date', () {
       expect(
         BackupService.backupFileName(DateTime(2026, 10, 9, 7, 5)),
@@ -113,6 +127,20 @@ void main() {
             const MethodChannel('plugins.flutter.io/path_provider'),
             null,
           );
+    });
+
+    test('UX-019: an export anchors the share sheet', () async {
+      await seed();
+      for (final csv in [true, false]) {
+        final delivery = _Delivery(FileDeliveryOutcome.shared);
+        const origin = Rect.fromLTWH(16, 300, 328, 72);
+        await ExportDataUseCase(
+          exportService: ExportService(database: database, delivery: delivery),
+        )(csv: csv, shareOrigin: origin);
+
+        expect(delivery.shareOrigin, origin);
+        await delivery.file!.delete();
+      }
     });
 
     for (final csv in [true, false]) {
@@ -240,6 +268,7 @@ class _Delivery extends FileDeliveryService {
   String? fileName;
   String? extension;
   FileDestination? destination;
+  Rect? shareOrigin;
 
   _Delivery(this.outcome, {this.fail = false});
 
@@ -251,8 +280,10 @@ class _Delivery extends FileDeliveryService {
     required String extension,
     required FileDestination destination,
     String? shareText,
+    Rect? shareOrigin,
   }) async {
     if (fail) throw const FileSystemException('no space left');
+    this.shareOrigin = shareOrigin;
     this.file = file;
     this.fileName = fileName;
     this.extension = extension;

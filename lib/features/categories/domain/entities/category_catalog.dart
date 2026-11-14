@@ -51,13 +51,19 @@ abstract final class CategoryCatalog {
   ];
 
   /// Hex colours (`#RRGGBB`) offered by the colour picker, each with a name
-  /// so a screen reader can tell the swatches apart. Chosen to stay
-  /// distinguishable from each other after `CategoryVisuals.adaptiveColor`.
+  /// so a screen reader can tell the swatches apart. Every default category
+  /// colour is here, so editing a built-in category shows its colour
+  /// selected. Only the defaults are guaranteed distinct as drawn (see
+  /// `default_category_colours_test.dart`); the older entries are kept
+  /// because existing categories use them.
   static const Map<String, String> colorNames = {
     '#FF6B6B': 'Coral',
     '#EE5253': 'Red',
+    '#883311': 'Brick',
     '#FF9F43': 'Orange',
     '#FECA57': 'Amber',
+    '#F1C40F': 'Yellow',
+    '#8BC34A': 'Lime',
     '#10AC84': 'Green',
     '#1DD1A1': 'Mint',
     '#00D2D3': 'Turquoise',
@@ -65,9 +71,12 @@ abstract final class CategoryCatalog {
     '#54A0FF': 'Blue',
     '#5F27CD': 'Indigo',
     '#7C4DFF': 'Violet',
+    '#6F1E51': 'Plum',
     '#FF9FF3': 'Pink',
     '#F368E0': 'Magenta',
+    '#C9A0A0': 'Rose',
     '#8395A7': 'Grey',
+    '#8A8A8A': 'Ash',
     '#576574': 'Slate',
     '#795548': 'Brown',
   };

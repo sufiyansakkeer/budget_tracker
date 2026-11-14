@@ -139,8 +139,11 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         return;
       }
 
-      // Request permission if not already granted.
-      final hasPermission = await _notificationService.requestPermission();
+      // Never asks here: at launch the system prompt came over onboarding,
+      // with nothing saying what it was for. It is asked when the user turns
+      // reminders on (NotificationPermissionNotice).
+      final hasPermission = await _notificationService
+          .areNotificationsEnabled();
       if (!hasPermission) {
         debugPrint('[NotificationBloc] Notification permission denied');
         emit(state.copyWith(status: NotificationStatus.permissionDenied));

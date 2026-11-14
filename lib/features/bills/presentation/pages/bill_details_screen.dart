@@ -1,19 +1,23 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -32,7 +36,7 @@ import 'bill_widgets.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/navigation/push_unique.dart';
 import '../../../../core/widgets/app_animated_size.dart';
-import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// One bill: what it is and the amount on one surface with its facts
 /// (paid from, due, repeats, reminder), then the pay actions together right
@@ -160,16 +164,24 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
           if (state.status == BillBlocStatus.success) {
             AppHaptics.confirm();
             final wasDelete = _deleting;
-            context.read<BillBloc>().add(const BillClearMessage());
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.message ?? (wasDelete ? 'Bill deleted' : 'Updated'),
-                  ),
-                ),
-              );
+            final bloc = context.read<BillBloc>();
+            final messenger = ScaffoldMessenger.of(context);
+            final message =
+                state.message ?? (wasDelete ? 'Bill deleted' : 'Updated');
+            final undo = state.undo;
+            bloc.add(const BillClearMessage());
+            // After a delete the Undo outlives this screen (it pops below).
+            AppSnack.present(
+              messenger,
+              undo == null
+                  ? AppSnack.bar(message)
+                  : BillPaymentDialogs.undoSnackBar(
+                      message: message,
+                      bloc: bloc,
+                      undo: undo,
+                      messenger: messenger,
+                    ),
+            );
             if (wasDelete) {
               if (context.canPop()) context.pop();
             } else {
@@ -186,15 +198,10 @@ class _BillDetailsScreenState extends State<BillDetailsScreen> {
               _openFailed = openFailed;
             });
             if (!openFailed) {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      state.message ?? "Couldn't finish that. Try again.",
-                    ),
-                  ),
-                );
+              AppSnack.show(
+                context,
+                state.message ?? "Couldn't finish that. Try again.",
+              );
             }
             context.read<BillBloc>().add(const BillClearMessage());
           }
@@ -300,253 +307,253 @@ class _Details extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    return ListView(
-      padding: AppSpacing.pagePadding,
-      children: [
-        // The bill and its facts on one surface.
-        AppSurface(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.mlg,
-            AppSpacing.mlg,
-            AppSpacing.mlg,
-            AppSpacing.sm,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  IconTile(
-                    icon: BillVisuals.iconFor(bill.category),
-                    color: color,
-                    animate: true,
-                  ),
-                  const SizedBox(width: AppSpacing.smd),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          bill.title,
-                          style: theme.textTheme.titleLarge,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+    return AppPageBody(
+      builder: (context, padding) => ListView(
+        padding: padding,
+        children: [
+          // The bill and its facts on one surface.
+          AppSurface(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.mlg,
+              AppSpacing.mlg,
+              AppSpacing.mlg,
+              AppSpacing.sm,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    IconTile(
+                      icon: BillVisuals.iconFor(bill.category),
+                      color: color,
+                      animate: true,
+                    ),
+                    const SizedBox(width: AppSpacing.smd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            bill.title,
+                            style: theme.textTheme.titleLarge,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(bill.category.label, style: muted),
+                          // Under the title rather than beside it, so a long
+                          // title keeps its width at large text sizes.
+                          const SizedBox(height: AppSpacing.xs),
+                          BillVisuals.chip(context, status),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppMoney(
+                  amount: bill.amount,
+                  currency: bill.currency,
+                  role: MoneyRole.display,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    Icon(
+                      BillVisuals.statusIcon(status),
+                      size: AppSizes.iconSm,
+                      color: color,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        BillVisuals.dueText(bill),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: color,
                         ),
-                        Text(bill.category.label, style: muted),
-                        // Under the title rather than beside it, so a long
-                        // title keeps its width at large text sizes.
-                        const SizedBox(height: AppSpacing.xs),
-                        BillVisuals.chip(context, status),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Divider(color: theme.colorScheme.outlineVariant),
+                _FactRow(
+                  key: const ValueKey('paidFrom'),
+                  icon: linked
+                      ? Icons.account_balance_wallet_outlined
+                      : Icons.link_off_rounded,
+                  label: 'Paid from',
+                  value: paidFrom,
+                  trailing: TextButton(
+                    onPressed: busy ? null : onChangeBudget,
+                    child: const Text('Change'),
+                  ),
+                ),
+                _FactRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Due date',
+                  value: AppDates.fullDay(bill.dueDate),
+                ),
+                _FactRow(
+                  icon: Icons.access_time_rounded,
+                  label: 'Due time',
+                  value: bill.dueTime == null
+                      ? '${BillVisuals.defaultDueTime.format(context)} (default)'
+                      : TimeOfDay(
+                          hour: bill.dueTime!.hour,
+                          minute: bill.dueTime!.minute,
+                        ).format(context),
+                ),
+                _FactRow(
+                  icon: Icons.repeat_rounded,
+                  label: 'Repeats',
+                  value: !bill.isRecurring
+                      ? 'One-time bill'
+                      : bill.recurrenceInterval > 1
+                      ? 'Every ${bill.recurrenceInterval} '
+                            '${bill.recurrenceType.label.toLowerCase().replaceAll('ly', 's')}'
+                      : bill.recurrenceType.label,
+                ),
+                _FactRow(
+                  icon: Icons.notifications_outlined,
+                  label: 'Reminder',
+                  value: !bill.reminderEnabled
+                      ? 'Off'
+                      : bill.reminderOffsetDays == 0
+                      ? 'On the due date'
+                      : '${bill.reminderOffsetDays} '
+                            '${bill.reminderOffsetDays == 1 ? 'day' : 'days'} before',
+                ),
+                if (bill.isPaid && bill.paidDate != null)
+                  _FactRow(
+                    icon: Icons.check_circle_outline_rounded,
+                    label: 'Paid on',
+                    value: AppDates.fullDay(bill.paidDate!),
+                    valueColor: context.tone(AppTone.positive).accent,
+                  ),
+                if (bill.note != null && bill.note!.trim().isNotEmpty)
+                  _FactRow(
+                    icon: Icons.notes_rounded,
+                    label: 'Note',
+                    value: bill.note!.trim(),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Paying, all in one place right under the bill. The paid and
+          // unpaid sets cross-fade and the block resizes smoothly, so marking
+          // a bill paid feels like one change.
+          AppAnimatedSize(
+            duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
+            curve: AppMotion.standardCurve,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: AppMotion.respectReducedMotion(
+                context,
+                AppMotion.standard,
+              ),
+              switchInCurve: AppMotion.enter,
+              switchOutCurve: AppMotion.exit,
+              layoutBuilder: (current, previous) => Stack(
+                fit: StackFit.passthrough,
+                alignment: Alignment.topCenter,
+                children: [...previous, ?current],
+              ),
+              child: bill.isPaid
+                  ? OutlinedButton.icon(
+                      key: const ValueKey('paidActions'),
+                      onPressed: busy ? null : onMarkUnpaid,
+                      icon: const Icon(Icons.undo_rounded),
+                      label: const Text('Mark as unpaid'),
+                    )
+                  // A linked bill is paid from its budget by default: plain
+                  // "paid" would release the money set aside without
+                  // spending it, so it becomes the secondary action.
+                  : linked
+                  ? Column(
+                      key: const ValueKey('linkedUnpaidActions'),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: busy ? null : onMarkPaidAndExpense,
+                          icon: const Icon(Icons.receipt_long_rounded),
+                          label: const Text('Mark paid & record expense'),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        OutlinedButton.icon(
+                          onPressed: busy ? null : onMarkPaid,
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                          label: const Text('Paid outside this budget'),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      key: const ValueKey('unpaidActions'),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: busy ? null : onMarkPaid,
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                          label: const Text('Mark as paid'),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        FilledButton.tonalIcon(
+                          style: AppTheme.tonal(context),
+                          onPressed: busy ? null : onMarkPaidAndExpense,
+                          icon: const Icon(Icons.receipt_long_rounded),
+                          label: const Text('Mark paid & record expense'),
+                        ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppMoney(
-                amount: bill.amount,
-                currency: bill.currency,
-                role: MoneyRole.display,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Row(
-                children: [
-                  Icon(
-                    BillVisuals.statusIcon(status),
-                    size: AppSizes.iconSm,
-                    color: color,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      BillVisuals.dueText(bill),
-                      style: theme.textTheme.bodyMedium?.copyWith(color: color),
+            ),
+          ),
+
+          // Payment history
+          if (payments.isNotEmpty || paymentsFailed) ...[
+            const SizedBox(height: AppSpacing.xl),
+            AppSection(
+              title: 'Payment history',
+              child: paymentsFailed
+                  ? Text("Couldn't load payment history.", style: muted)
+                  : AppGroupedList(
+                      children: [
+                        for (final payment in payments)
+                          AppListRow(
+                            leading: Icon(
+                              Icons.check_circle_rounded,
+                              size: AppSizes.iconMd,
+                              color: context.tone(AppTone.positive).accent,
+                            ),
+                            title: AppDates.dayWithYear(payment.paidDate),
+                            trailing: AppMoney(
+                              amount: payment.amount,
+                              currency: payment.currency,
+                              textAlign: TextAlign.end,
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Divider(color: theme.colorScheme.outlineVariant),
-              _FactRow(
-                key: const ValueKey('paidFrom'),
-                icon: linked
-                    ? Icons.account_balance_wallet_outlined
-                    : Icons.link_off_rounded,
-                label: 'Paid from',
-                value: paidFrom,
-                trailing: TextButton(
-                  onPressed: busy ? null : onChangeBudget,
-                  child: const Text('Change'),
-                ),
-              ),
-              _FactRow(
-                icon: Icons.calendar_today_outlined,
-                label: 'Due date',
-                value: DateFormat('EEE, d MMM yyyy').format(bill.dueDate),
-              ),
-              _FactRow(
-                icon: Icons.access_time_rounded,
-                label: 'Due time',
-                value: bill.dueTime == null
-                    ? '9:00 AM (default)'
-                    : TimeOfDay(
-                        hour: bill.dueTime!.hour,
-                        minute: bill.dueTime!.minute,
-                      ).format(context),
-              ),
-              _FactRow(
-                icon: Icons.repeat_rounded,
-                label: 'Repeats',
-                value: !bill.isRecurring
-                    ? 'One-time bill'
-                    : bill.recurrenceInterval > 1
-                    ? 'Every ${bill.recurrenceInterval} '
-                          '${bill.recurrenceType.label.toLowerCase().replaceAll('ly', 's')}'
-                    : bill.recurrenceType.label,
-              ),
-              _FactRow(
-                icon: Icons.notifications_outlined,
-                label: 'Reminder',
-                value: !bill.reminderEnabled
-                    ? 'Off'
-                    : bill.reminderOffsetDays == 0
-                    ? 'On the due date'
-                    : '${bill.reminderOffsetDays} '
-                          '${bill.reminderOffsetDays == 1 ? 'day' : 'days'} before',
-              ),
-              if (bill.isPaid && bill.paidDate != null)
-                _FactRow(
-                  icon: Icons.check_circle_outline_rounded,
-                  label: 'Paid on',
-                  value: DateFormat('EEE, d MMM yyyy').format(bill.paidDate!),
-                  valueColor: context.tone(AppTone.positive).accent,
-                ),
-              if (bill.note != null && bill.note!.trim().isNotEmpty)
-                _FactRow(
-                  icon: Icons.notes_rounded,
-                  label: 'Note',
-                  value: bill.note!.trim(),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Paying, all in one place right under the bill. The paid and
-        // unpaid sets cross-fade and the block resizes smoothly, so marking
-        // a bill paid feels like one change.
-        AppAnimatedSize(
-          duration: AppMotion.respectReducedMotion(context, AppMotion.medium),
-          curve: AppMotion.standardCurve,
-          alignment: Alignment.topCenter,
-          child: AnimatedSwitcher(
-            duration: AppMotion.respectReducedMotion(
-              context,
-              AppMotion.standard,
             ),
-            switchInCurve: AppMotion.enter,
-            switchOutCurve: AppMotion.exit,
-            layoutBuilder: (current, previous) => Stack(
-              fit: StackFit.passthrough,
-              alignment: Alignment.topCenter,
-              children: [...previous, ?current],
-            ),
-            child: bill.isPaid
-                ? OutlinedButton.icon(
-                    key: const ValueKey('paidActions'),
-                    onPressed: busy ? null : onMarkUnpaid,
-                    icon: const Icon(Icons.undo_rounded),
-                    label: const Text('Mark as unpaid'),
-                  )
-                // A linked bill is paid from its budget by default: plain
-                // "paid" would release the money set aside without
-                // spending it, so it becomes the secondary action.
-                : linked
-                ? Column(
-                    key: const ValueKey('linkedUnpaidActions'),
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: busy ? null : onMarkPaidAndExpense,
-                        icon: const Icon(Icons.receipt_long_rounded),
-                        label: const Text('Mark paid & record expense'),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      OutlinedButton.icon(
-                        onPressed: busy ? null : onMarkPaid,
-                        icon: const Icon(Icons.check_circle_outline_rounded),
-                        label: const Text('Paid outside this budget'),
-                      ),
-                    ],
-                  )
-                : Column(
-                    key: const ValueKey('unpaidActions'),
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: busy ? null : onMarkPaid,
-                        icon: const Icon(Icons.check_circle_outline_rounded),
-                        label: const Text('Mark as paid'),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      FilledButton.tonalIcon(
-                        onPressed: busy ? null : onMarkPaidAndExpense,
-                        icon: const Icon(Icons.receipt_long_rounded),
-                        label: const Text('Mark paid & add expense'),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
+          ],
 
-        // Payment history
-        if (payments.isNotEmpty || paymentsFailed) ...[
-          const SizedBox(height: AppSpacing.xl),
-          AppSection(
-            title: 'Payment history',
-            child: paymentsFailed
-                ? Text("Couldn't load payment history.", style: muted)
-                : AppGroupedList(
-                    children: [
-                      for (final payment in payments)
-                        AppListRow(
-                          leading: Icon(
-                            Icons.check_circle_rounded,
-                            size: AppSizes.iconMd,
-                            color: context.tone(AppTone.positive).accent,
-                          ),
-                          title: DateFormat(
-                            'd MMM yyyy',
-                          ).format(payment.paidDate),
-                          trailing: AppMoney(
-                            amount: payment.amount,
-                            currency: payment.currency,
-                            textAlign: TextAlign.end,
-                          ),
-                        ),
-                    ],
-                  ),
+          const SizedBox(height: AppSpacing.lg),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: busy ? null : onDelete,
+              style: TextButton.styleFrom(
+                foregroundColor: context.tone(AppTone.critical).accent,
+              ),
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Delete bill'),
+            ),
           ),
+          Text('Added ${AppDates.dayWithYear(bill.createdAt)}', style: muted),
+          const SizedBox(height: AppSpacing.md),
         ],
-
-        const SizedBox(height: AppSpacing.lg),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: TextButton.icon(
-            onPressed: busy ? null : onDelete,
-            style: TextButton.styleFrom(
-              foregroundColor: context.tone(AppTone.critical).accent,
-            ),
-            icon: const Icon(Icons.delete_outline_rounded),
-            label: const Text('Delete bill'),
-          ),
-        ),
-        Text(
-          'Added ${DateFormat('d MMM yyyy').format(bill.createdAt)}',
-          style: muted,
-        ),
-        const SizedBox(height: AppSpacing.md),
-      ],
+      ),
     );
   }
 }
@@ -581,22 +588,28 @@ class _FactRow extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: AppSpacing.smd),
+          // Label and value are read as one ("Due date, 4 March 2026"); a
+          // trailing button stays its own stop.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+            child: MergeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  value,
-                  style: theme.textTheme.bodyLarge?.copyWith(color: valueColor),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    value,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: valueColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (trailing != null) ...[

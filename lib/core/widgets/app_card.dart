@@ -12,6 +12,17 @@ import 'pressable.dart';
 /// a subtle press-scale response. Colour and border changes (for example a
 /// budget becoming the active one) animate rather than snap.
 class AppCard extends StatelessWidget {
+  /// Blueprint --lift: the light card's shadow.
+  static const lift = [
+    BoxShadow(color: Color(0x0D141628), offset: Offset(0, 1), blurRadius: 2),
+    BoxShadow(
+      color: Color(0x29141628),
+      offset: Offset(0, 8),
+      blurRadius: 24,
+      spreadRadius: -10,
+    ),
+  ];
+
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
@@ -44,6 +55,7 @@ class AppCard extends StatelessWidget {
     final theme = Theme.of(context);
     final radius = borderRadius ?? AppSpacing.borderRadiusLg;
     final interactive = onTap != null || onLongPress != null;
+    final dark = theme.brightness == Brightness.dark;
 
     final content = Padding(padding: padding, child: child);
 
@@ -54,8 +66,13 @@ class AppCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? theme.cardTheme.color,
         borderRadius: radius,
-        border: showBorder
+        // Blueprint .card: lifted by a soft shadow in light, a hairline in
+        // dark. An explicit [borderColor] always draws.
+        border: showBorder && (borderColor != null || dark)
             ? Border.all(color: borderColor ?? theme.colorScheme.outlineVariant)
+            : null,
+        boxShadow: showBorder && !dark && borderColor == null
+            ? AppCard.lift
             : null,
       ),
       clipBehavior: Clip.antiAlias,
@@ -84,6 +101,18 @@ class AppCard extends StatelessWidget {
 /// change while on screen (bill paid, spending over limit); the tile then
 /// cross-fades between states instead of snapping.
 class IconTile extends StatelessWidget {
+  /// Blueprint .tile: the colour at 15% behind the icon.
+  static const double tileAlpha = 0.15;
+
+  /// Blueprint tile corners: 10 at 36, 14 at 48, 20 at 64.
+  static BorderRadius tileRadius(double size) => BorderRadius.circular(
+    size <= 40
+        ? 10
+        : size <= 56
+        ? 14
+        : 20,
+  );
+
   final IconData icon;
   final Color color;
   final double size;
@@ -108,14 +137,16 @@ class IconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedIconSize = iconSize ?? size * 0.5;
+    // Blueprint .tile: the colour at 15% in both themes.
+    const alpha = IconTile.tileAlpha;
     if (!animate) {
       return Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.14),
+          color: color.withValues(alpha: alpha),
           shape: circular ? BoxShape.circle : BoxShape.rectangle,
-          borderRadius: circular ? null : AppSpacing.borderRadiusSmd,
+          borderRadius: circular ? null : IconTile.tileRadius(size),
         ),
         alignment: Alignment.center,
         child: Icon(icon, size: resolvedIconSize, color: color),
@@ -136,9 +167,9 @@ class IconTile extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: c.withValues(alpha: 0.14),
+            color: c.withValues(alpha: alpha),
             shape: circular ? BoxShape.circle : BoxShape.rectangle,
-            borderRadius: circular ? null : AppSpacing.borderRadiusSmd,
+            borderRadius: circular ? null : IconTile.tileRadius(size),
           ),
           alignment: Alignment.center,
           child: AnimatedSwitcher(

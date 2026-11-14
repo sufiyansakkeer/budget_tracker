@@ -343,10 +343,14 @@ void main() {
         ..startListening();
       addTearDown(listener.stopListening);
 
-      RefreshBuses.bills.notifyChanged();
-      RefreshBuses.expenses.notifyChanged();
-      RefreshBuses.budgets.notifyChanged();
-      await Future<void>.delayed(Duration.zero);
+      for (final bus in [
+        RefreshBuses.bills,
+        RefreshBuses.expenses,
+        RefreshBuses.budgets,
+      ]) {
+        bus.notifyChanged();
+        await Future<void>.delayed(Duration.zero);
+      }
 
       expect(service.updates, 3);
 
@@ -355,6 +359,23 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(service.updates, 3);
     });
+
+    test(
+      'UX-065: buses notified together (an import) update it once',
+      () async {
+        final service = _CountingWidgetService();
+        final listener = WidgetRefreshListener(widgetService: service)
+          ..startListening();
+        addTearDown(listener.stopListening);
+
+        RefreshBuses.bills.notifyChanged();
+        RefreshBuses.expenses.notifyChanged();
+        RefreshBuses.budgets.notifyChanged();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(service.updates, 1);
+      },
+    );
 
     test('refreshes when the palette changes', () async {
       final service = _CountingWidgetService();

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/dashboard/domain/entities/smart_insight_entity.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
@@ -221,5 +222,29 @@ void main() {
       ),
     );
     expect(insights.any((i) => i.id == 'trend_improving'), true);
+  });
+
+  test('UX-087: amounts keep their minor units', () {
+    final insights = generator.generate(
+      buildData(
+        expenses: [expense(id: '1')],
+        budget: BudgetEntity(
+          id: '1',
+          name: 'Test',
+          monthlyAmount: 1000,
+          remainingAmount: 0,
+          currency: 'INR',
+          startDate: DateTime(2026, 8, 1),
+          endDate: DateTime(2026, 8, 31),
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+        currentMonthSpent: 1000.6,
+        currentMonthBudget: 1000,
+      ),
+    );
+    final exceeded = insights.singleWhere((i) => i.id == 'budget_exceeded');
+    // Whole units said "₹1 more".
+    expect(exceeded.message, contains(AppMoney.format(0.6, currency: 'INR')));
   });
 }

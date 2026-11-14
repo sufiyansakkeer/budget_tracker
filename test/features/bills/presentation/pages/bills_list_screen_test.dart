@@ -12,6 +12,7 @@ import 'package:monivo/features/bills/presentation/pages/bills_list_screen.dart'
 import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dart';
 
 import '../../../../helpers/bill_ui_fakes.dart';
+import '../../../../helpers/haptics_recorder.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
 
@@ -25,6 +26,8 @@ void main() {
     int dueIn, {
     String currency = 'INR',
     bool paid = false,
+    String? budgetId,
+    bool recurring = false,
   }) => BillEntity(
     id: id,
     title: 'Bill $id',
@@ -34,6 +37,9 @@ void main() {
     dueDate: day(dueIn),
     isPaid: paid,
     paidDate: paid ? day(-1) : null,
+    budgetId: budgetId,
+    isRecurring: recurring,
+    recurrenceType: recurring ? RecurrenceType.monthly : RecurrenceType.none,
     reminderEnabled: false,
     createdAt: day(-30),
     updatedAt: day(-30),
@@ -58,15 +64,19 @@ void main() {
   });
   tearDown(() => getIt.reset());
 
+  late SafeSpendFakeBillRepository repository;
+
   Future<void> pump(
     WidgetTester tester, {
     Size size = const Size(400, 1400),
     double textScale = 1,
+    List<BillEntity>? only,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final bloc = buildTestBillBloc(SafeSpendFakeBillRepository(bills));
+    repository = SafeSpendFakeBillRepository(only ?? bills);
+    final bloc = buildTestBillBloc(repository);
     addTearDown(bloc.close);
     await tester.pumpWidget(
       MaterialApp(
@@ -86,23 +96,32 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('groups bills as overdue, due soon, later and paid, in that '
-      'order', (tester) async {
-    await pump(tester);
+  testWidgets('groups bills by whether they hold money back: overdue, set '
+      'aside, not linked, paid (blueprint)', (tester) async {
+    await pump(
+      tester,
+      only: [
+        bill('rent', 1000, -3),
+        bill('power', 1850, 4, budgetId: 'oct'),
+        bill('netflix', 649, 12),
+        bill('gym', 300, -10, paid: true),
+      ],
+    );
 
-    final overdue = find.textContaining('2 bills · ₹1,000');
-    final soon = find.text('1 bill · ₹649');
-    final later = find.text('1 bill · ₹1,850');
-    final paid = find.text('1 bill');
-    expect(find.text('Due soon'), findsOneWidget);
-    expect(find.text('Later'), findsOneWidget);
-    for (final f in [overdue, soon, later, paid]) {
+    Finder section(String title) => find.byKey(ValueKey('section_$title'));
+    final overdue = section('Overdue');
+    final setAside = section('Set aside');
+    final notLinked = section('Not linked');
+    final paid = section('Paid');
+    for (final f in [overdue, setAside, notLinked, paid]) {
       expect(f, findsOneWidget);
     }
+    expect(find.text('1 bill · ₹1,850 held back'), findsOneWidget);
+    expect(find.text('1 bill · nothing held back'), findsOneWidget);
     double y(Finder f) => tester.getTopLeft(f).dy;
-    expect(y(overdue), lessThan(y(soon)));
-    expect(y(soon), lessThan(y(later)));
-    expect(y(later), lessThan(y(paid)));
+    expect(y(overdue), lessThan(y(setAside)));
+    expect(y(setAside), lessThan(y(notLinked)));
+    expect(y(notLinked), lessThan(y(paid)));
   });
 
   testWidgets('totals stay per currency (review: OMR was added to rupees '
@@ -148,4 +167,174 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('UX-100', () {
+    String chipLabel(FilterChip chip) => (chip.label as Text).data!;
+    List<FilterChip> chips(WidgetTester tester) =>
+        tester.widgetList<FilterChip>(find.byType(FilterChip)).toList();
+    Future<void> tapChip(WidgetTester tester, String label) async {
+      final chip = find.widgetWithText(FilterChip, label);
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('filter chips are named like the sections, in sentence case '
+        'and in the same order', (tester) async {
+      await pump(tester);
+
+      final labels = chips(tester).map(chipLabel).toList();
+      expect(labels, [
+        'All',
+        'Overdue',
+        'Due soon',
+        'Later',
+        'Paid',
+        'Recurring',
+        'Not linked',
+      ]);
+      // The time filters; the All view groups by what is held back.
+      for (final section in ['Overdue', 'Due soon', 'Later', 'Paid']) {
+        expect(labels, contains(section));
+      }
+      expect(find.text('Upcoming'), findsNothing);
+      expect(find.text('Due Today'), findsNothing);
+    });
+
+    testWidgets('a chip shows exactly its section, with the same summary', (
+      tester,
+    ) async {
+      await pump(tester);
+
+      await tapChip(tester, 'Due soon');
+      expect(find.byKey(const ValueKey('bill_netflix')), findsOneWidget);
+      expect(find.byType(BillCard), findsOneWidget);
+      expect(find.text('1 bill · ₹649'), findsOneWidget);
+
+      await tapChip(tester, 'Later');
+      expect(find.byKey(const ValueKey('bill_power')), findsOneWidget);
+      expect(find.byType(BillCard), findsOneWidget);
+      expect(find.text('1 bill · ₹1,850'), findsOneWidget);
+    });
+
+    testWidgets('the selected chip keeps its checkmark', (tester) async {
+      await pump(tester);
+      for (final chip in chips(tester)) {
+        expect(chip.showCheckmark, isTrue, reason: chipLabel(chip));
+      }
+    });
+
+    testWidgets('a mixed filter keeps paid and unpaid totals apart', (
+      tester,
+    ) async {
+      await pump(tester);
+
+      // None of the bills is linked, so this lists paid and unpaid ones.
+      await tapChip(tester, 'Not linked');
+
+      expect(
+        find.text(
+          '5 bills · ${AppMoney.format(3499, currency: 'INR')} unpaid · '
+          '${AppMoney.format(12.5, currency: 'OMR')} unpaid · '
+          '${AppMoney.format(300, currency: 'INR')} paid',
+        ),
+        findsOneWidget,
+      );
+      // The old subtitle added the paid gym bill to the unpaid ones.
+      expect(
+        find.textContaining(AppMoney.format(3799, currency: 'INR')),
+        findsNothing,
+      );
+    });
+
+    test('group summary: unpaid groups plain, paid groups count only', () {
+      expect(
+        BillVisuals.groupSummary([bill('a', 649, 3)]),
+        '1 bill · ${AppMoney.format(649, currency: 'INR')}',
+      );
+      expect(
+        BillVisuals.groupSummary([bill('a', 649, -3, paid: true)]),
+        '1 bill',
+      );
+    });
+
+    testWidgets('paying a linked bill says it records the expense, a plain '
+        'one just marks it paid', (tester) async {
+      await pump(
+        tester,
+        only: [
+          bill('rent', 1000, 3, budgetId: 'oct'),
+          bill('gym', 300, 4),
+        ],
+      );
+
+      // Blueprint: the action is a small tonal button named for what it
+      // does, so the two never look the same.
+      expect(
+        find.widgetWithText(FilledButton, 'Mark paid & record expense'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(FilledButton, 'Mark as paid'), findsOneWidget);
+    });
+
+    testWidgets('marking a one-time bill paid offers Undo, which puts it '
+        'back as it was', (tester) async {
+      await pump(tester, only: [bill('gym', 300, 4)]);
+      final original = repository.store['gym'];
+
+      await tester.tap(find.byTooltip('Mark as paid'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark paid'));
+      await tester.pumpAndSettle();
+      expect(repository.store['gym']!.isPaid, isTrue);
+      expect(repository.payments, hasLength(1));
+
+      expect(find.text('Bill marked as paid'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('billPaidUndoAction')));
+      await tester.pumpAndSettle();
+
+      expect(repository.store['gym'], original);
+      expect(repository.payments, isEmpty);
+      expect(find.text('Payment undone'), findsOneWidget);
+    });
+
+    // UX-111: marking paid from the list gave no haptic, unlike details.
+    testWidgets('marking paid from the list confirms with a haptic', (
+      tester,
+    ) async {
+      await pump(tester, only: [bill('gym', 300, 4)]);
+      final haptics = recordHaptics(tester);
+
+      await tester.tap(find.byTooltip('Mark as paid'));
+      await tester.pumpAndSettle();
+      expect(haptics, isEmpty);
+      await tester.tap(find.text('Mark paid'));
+      await tester.pumpAndSettle();
+      expect(repository.store['gym']!.isPaid, isTrue);
+      expect(haptics, [confirmHaptic]);
+    });
+
+    // Failed on the old code: a recurring bill offered no Undo.
+    testWidgets('a recurring bill moves to its next date, and Undo moves '
+        'it back and removes the payment', (tester) async {
+      await pump(tester, only: [bill('gym', 300, 4, recurring: true)]);
+      final original = repository.store['gym']!;
+
+      await tester.tap(find.byTooltip('Mark as paid'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark paid'));
+      await tester.pumpAndSettle();
+      expect(repository.store['gym']!.dueDate, original.nextDueDate);
+      expect(repository.payments, hasLength(1));
+
+      expect(find.text('Bill marked as paid'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('billPaidUndoAction')));
+      await tester.pumpAndSettle();
+
+      expect(repository.store['gym'], original);
+      expect(repository.payments, isEmpty);
+      expect(find.text('Payment undone'), findsOneWidget);
+    });
+  });
 }

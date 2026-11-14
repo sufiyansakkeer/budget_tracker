@@ -2,6 +2,7 @@ import '../../../../core/currency/money_input.dart';
 import '../../../../core/currency/money_math.dart';
 import '../entities/expense_entity.dart';
 import '../entities/expense_failure.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Reusable, pure validation logic for expense inputs.
 /// Kept outside the UI so it can be unit-tested independently.
@@ -16,21 +17,21 @@ class ExpenseValidator {
   /// never fewer than two (OMR 3, INR 2, JPY 2); see [MoneyInput].
   static String? validateAmount(String? input, {String? currency}) {
     if (input == null || input.trim().isEmpty) {
-      return 'Amount cannot be empty';
+      return ValidationCopy.amountEmpty;
     }
 
     final value = double.tryParse(input.trim());
     if (value == null) {
-      return 'Please enter a valid number';
+      return ValidationCopy.amountInvalid;
     }
     if (!value.isFinite) {
-      return 'Amount must be a valid finite number';
+      return ValidationCopy.amountInvalid;
     }
     if (value <= 0) {
-      return 'Amount must be greater than zero';
+      return ValidationCopy.amountNotPositive;
     }
     if (!MoneyMath.isWithinLimit(value)) {
-      return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
+      return ValidationCopy.amountTooLarge;
     }
 
     return MoneyInput.decimalsError(input, currency);
@@ -39,16 +40,16 @@ class ExpenseValidator {
   /// Validates a double amount value.
   static String? validateAmountValue(double? value) {
     if (value == null) {
-      return 'Amount cannot be empty';
+      return ValidationCopy.amountEmpty;
     }
     if (!value.isFinite) {
-      return 'Amount must be a valid finite number';
+      return ValidationCopy.amountInvalid;
     }
     if (value <= 0) {
-      return 'Amount must be greater than zero';
+      return ValidationCopy.amountNotPositive;
     }
     if (!MoneyMath.isWithinLimit(value)) {
-      return 'Amount must be less than ${MoneyMath.maxAmountLabel}';
+      return ValidationCopy.amountTooLarge;
     }
     return null;
   }
@@ -56,7 +57,7 @@ class ExpenseValidator {
   /// Validates that a category is selected.
   static String? validateCategory(String? categoryId) {
     if (categoryId == null || categoryId.isEmpty) {
-      return 'Please select a category';
+      return ValidationCopy.categoryMissing;
     }
     return null;
   }
@@ -64,13 +65,13 @@ class ExpenseValidator {
   /// Validates a date is not in the future (unless allowed).
   static String? validateDate(DateTime? date, {DateTime? now}) {
     if (date == null) {
-      return 'Please select a date';
+      return ValidationCopy.dateMissing;
     }
     final reference = now ?? DateTime.now();
     final today = DateTime(reference.year, reference.month, reference.day);
     final selected = DateTime(date.year, date.month, date.day);
     if (selected.isAfter(today)) {
-      return 'Date cannot be in the future';
+      return ValidationCopy.dateInFuture;
     }
     return null;
   }
@@ -79,7 +80,7 @@ class ExpenseValidator {
   static String? validateNote(String? note) {
     if (note == null || note.trim().isEmpty) return null;
     if (note.length > maxNoteLength) {
-      return 'Note cannot exceed $maxNoteLength characters';
+      return ValidationCopy.noteTooLong(maxNoteLength);
     }
     return null;
   }

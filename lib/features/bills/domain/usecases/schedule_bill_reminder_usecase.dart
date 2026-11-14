@@ -137,24 +137,27 @@ class BillReminderService {
 
   /// The reminder's title and text, for the day it fires: that is
   /// [BillEntity.reminderOffsetDays] before the due date, whenever it was
-  /// scheduled.
+  /// scheduled. The system draws it, so the amount goes through
+  /// [CurrencyFormatter.forSystemText].
   static (String, String) reminderText(BillEntity bill) {
-    final amount = CurrencyFormatter.format(bill.amount, code: bill.currency);
+    final amount = CurrencyFormatter.forSystemText(
+      CurrencyFormatter.format(bill.amount, code: bill.currency),
+    );
     final daysBefore = bill.reminderOffsetDays;
     if (daysBefore <= 0) {
       return (
-        'Bill Due Today',
+        'Bill due today',
         'Your ${bill.title} bill of $amount is due today.',
       );
     }
     if (daysBefore == 1) {
       return (
-        "Tomorrow's Bill",
+        'Bill due tomorrow',
         '${bill.title} bill of $amount is due tomorrow.',
       );
     }
     return (
-      'Upcoming Bill',
+      'Upcoming bill',
       '${bill.title} bill of $amount is due in $daysBefore days.',
     );
   }

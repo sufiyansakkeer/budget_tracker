@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/target_ring.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/day_target.dart';
+import 'package:monivo/core/constants/app_spacing.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
+import 'package:monivo/features/expenses/domain/entities/activity_extra.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/domain/usecases/calculate_expense_summary_usecase.dart';
 import 'package:monivo/features/expenses/domain/usecases/filter_expenses_usecase.dart';
@@ -17,6 +21,8 @@ import 'package:monivo/features/expenses/presentation/history/bloc/expense_histo
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_event.dart';
 import 'package:monivo/features/expenses/presentation/history/bloc/expense_history_state.dart';
 import 'package:monivo/features/expenses/presentation/history/pages/expense_history_screen.dart';
+import 'package:monivo/features/expenses/presentation/history/widgets/activity_switch.dart';
+import 'package:monivo/features/expenses/presentation/widgets/transaction_row.dart';
 
 import '../expense_test_fakes.dart';
 
@@ -59,7 +65,12 @@ void main() {
     }
   }
 
+  Map<DateTime, DayTarget> targets = const {};
+  ActivityExtras extras = ActivityExtras.empty;
+
   ExpenseHistoryBloc bloc() => ExpenseHistoryBloc(
+    dayTargets: (_) async => targets,
+    activityExtras: (_) async => extras,
     getExpensesUseCase: GetExpensesUseCase(repository: expenses),
     getExpensesForBudgetsUseCase: GetExpensesForBudgetsUseCase(
       repository: expenses,
@@ -167,23 +178,26 @@ void main() {
     seed([_expense('a', 120), _expense('b', 230, categoryId: 'fuel')]);
     await pump(tester);
 
+    // Blueprint .dhe: the day's result only; the count is read out.
     expect(find.text('Spent ₹350'), findsOneWidget);
-    expect(find.text('2 items'), findsOneWidget);
-    // The summary is type, not a card: the total and the count on one line.
-    expect(find.text('Summary'), findsOneWidget);
-    expect(find.text('2 expenses · avg ₹175'), findsOneWidget);
+    expect(find.text('2 items'), findsNothing);
+    // No summary over the plain stream; it totals a search or a filter.
+    expect(find.text('Summary'), findsNothing);
   });
 
-  testWidgets('the budget menu replaces the mode switch', (tester) async {
+  testWidgets('the budget actions are in the header menu (blueprint)', (
+    tester,
+  ) async {
     seed([_expense('a', 120)]);
     await pump(tester);
 
     expect(find.byType(SegmentedButton<ExpenseViewMode>), findsNothing);
-    expect(find.text('Personal'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('viewModeToggle')));
+    await tester.tap(find.byKey(const Key('activityMenu')));
     await tester.pumpAndSettle();
     expect(find.text('Switch budget'), findsOneWidget);
+    expect(find.text('Showing Personal'), findsOneWidget);
     expect(find.text('View budgets together'), findsOneWidget);
+    expect(find.text('Sort'), findsOneWidget);
   });
 
   test('sorted by amount, the first page is the newest days, so loading more '
@@ -265,7 +279,8 @@ void main() {
   });
 
   Future<void> chooseViewTogether(WidgetTester tester) async {
-    await tester.tap(find.byKey(const Key('viewModeToggle')));
+    // Blueprint: the budget actions are in the header's menu.
+    await tester.tap(find.byKey(const Key('activityMenu')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('View budgets together'));
     // Well under the 3 s the screen used to wait before answering.
@@ -307,11 +322,11 @@ void main() {
       for (var i = 0; i < 30; i++) _expense('e$i', 10.0 + i, day: 1 + i % 20),
     ]);
     await pump(tester);
-    expect(find.text('Expenses').hitTestable(), findsOneWidget);
+    expect(find.text('Activity').hitTestable(), findsOneWidget);
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
     await tester.pumpAndSettle();
-    expect(find.text('Expenses').hitTestable(), findsNothing);
+    expect(find.text('Activity').hitTestable(), findsNothing);
   });
 
   testWidgets('a combined view of two currencies totals each one '
@@ -386,6 +401,8 @@ void main() {
       },
     );
 
+    await tester.tap(find.byKey(const Key('searchButton')));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'karak');
     await tester.pump(ExpenseHistoryBloc.searchDebounce);
     await tester.pumpAndSettle();
@@ -407,4 +424,127 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('on a tablet the list is centred at the content width, like '
+      'Home (UX-062)', (tester) async {
+    seed([_expense('a', 120, note: 'Lunch'), _expense('b', 40, day: 4)]);
+    await pump(tester, size: const Size(1024, 800));
+
+    for (final finder in [
+      find.byType(ActivitySwitch),
+      find.byType(TransactionRow).first,
+    ]) {
+      final rect = tester.getRect(finder);
+      expect(rect.width, lessThanOrEqualTo(AppSizes.contentMaxWidth));
+      expect(rect.center.dx, closeTo(512, 1));
+    }
+  });
+
+  testWidgets('each day of the active budget shows its result (blueprint)', (
+    tester,
+  ) async {
+    seed([_expense('a', 1200, day: 5)]);
+    targets = {
+      DateTime(2026, 8, 5): DayTarget(
+        date: DateTime(2026, 8, 5),
+        target: 1000,
+        spent: 1200,
+        result: -200,
+      ),
+    };
+    addTearDown(() => targets = const {});
+    await pump(tester);
+
+    expect(find.text('+₹200 over'), findsOneWidget);
+    expect(find.byType(MiniTargetRing), findsOneWidget);
+  });
+
+  group('tab payments and budget dates in the stream (blueprint)', () {
+    final payment = TabPaymentExtra(
+      id: 'p1',
+      tabId: 't1',
+      tabName: 'Cafeteria',
+      amount: 600,
+      currency: 'INR',
+      at: DateTime(2026, 8, 7, 19),
+    );
+    final started = BudgetMarkerExtra(
+      budgetId: 'personal',
+      name: 'Personal',
+      amount: 30000,
+      currency: 'INR',
+      started: true,
+      days: 31,
+      at: DateTime(2026, 8, 1),
+    );
+
+    setUp(() {
+      extras = ActivityExtras(
+        tabNameByExpense: const {'a': 'Cafeteria'},
+        items: [payment, started],
+      );
+    });
+    tearDown(() => extras = ActivityExtras.empty);
+
+    testWidgets('a tab payment is not spending; a tab purchase names its '
+        'tab; a budget start is a marker', (tester) async {
+      seed([_expense('a', 390, note: 'Lunch'), _expense('b', 120, day: 6)]);
+      await pump(tester, size: const Size(400, 1400));
+
+      expect(find.text('Paid Cafeteria'), findsOneWidget);
+      expect(find.text('not spending'), findsOneWidget);
+      expect(find.textContaining('on Cafeteria tab'), findsOneWidget);
+      expect(find.text('Personal started'), findsOneWidget);
+      expect(find.text('₹30,000 · 31 days'), findsOneWidget);
+      // A payment isn't spending: the day totals count the expenses only.
+      expect(find.text('Spent ₹510'), findsNothing);
+    });
+
+    testWidgets('Pay later shows tab purchases and payments only', (
+      tester,
+    ) async {
+      seed([
+        _expense('a', 390, note: 'Lunch'),
+        _expense('b', 120, note: 'Taxi'),
+      ]);
+      await pump(tester, size: const Size(400, 1400));
+
+      await tester.ensureVisible(find.byKey(const Key('kindFilter_Pay later')));
+      await tester.tap(find.byKey(const Key('kindFilter_Pay later')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lunch'), findsOneWidget);
+      expect(find.text('Taxi'), findsNothing);
+      expect(find.text('Paid Cafeteria'), findsOneWidget);
+      expect(find.text('Personal started'), findsNothing);
+    });
+
+    testWidgets('Budgets shows the starts and ends only', (tester) async {
+      seed([_expense('a', 390, note: 'Lunch')]);
+      await pump(tester, size: const Size(400, 1400));
+
+      await tester.ensureVisible(find.byKey(const Key('kindFilter_Budgets')));
+      await tester.tap(find.byKey(const Key('kindFilter_Budgets')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Personal started'), findsOneWidget);
+      expect(find.text('Lunch'), findsNothing);
+      expect(find.text('Paid Cafeteria'), findsNothing);
+    });
+
+    testWidgets('a search shows expenses only', (tester) async {
+      seed([_expense('a', 390, note: 'Lunch')]);
+      await pump(tester, size: const Size(400, 1400));
+
+      await tester.tap(find.byKey(const Key('searchButton')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Lunch');
+      await tester.pump(ExpenseHistoryBloc.searchDebounce);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lunch'), findsWidgets);
+      expect(find.text('Paid Cafeteria'), findsNothing);
+      expect(find.text('Personal started'), findsNothing);
+    });
+  });
 }

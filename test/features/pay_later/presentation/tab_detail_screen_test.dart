@@ -520,10 +520,21 @@ void main() {
     await pump(tester);
 
     expect(find.text('Set your next settle-up date'), findsOneWidget);
+    // The list is lazy: a period below the fold is built once scrolled to.
+    await tester.scrollUntilVisible(
+      find.text('Earlier'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Earlier'), findsOneWidget);
     await tester.ensureVisible(find.text('No settle-up date yet'));
     expect(find.text('No settle-up date yet'), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.text('Set date'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tapVisible(tester, find.text('Set date'));
     expect(find.text('Edit tab t1'), findsOneWidget);
   });
@@ -558,6 +569,11 @@ void main() {
     await pump(tester);
 
     expect(find.text('Earlier'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Not scheduled yet'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Not scheduled yet'), findsOneWidget);
     expect(find.text('No settle-up date yet'), findsOneWidget);
   });

@@ -1,9 +1,12 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/currency/money_math.dart';
+
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
 import '../../../budget/domain/services/budget_calculation_service.dart';
 import '../../../budget/domain/services/safe_to_spend_calculator.dart';
+import '../../../../core/dates/calendar_dates.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
 
 enum OnboardingStatus { initial, loading, success, failure }
@@ -22,6 +25,11 @@ class OnboardingState extends Equatable {
   final OnboardingStatus status;
   final String? errorMessage;
 
+  /// The amount asked first is a day's (blueprint): [parsedBudget] is the
+  /// daily target and the budget amount follows ([budgetAmount]). False:
+  /// it is the total.
+  final bool amountByDay;
+
   const OnboardingState({
     this.currentPageIndex = 0,
     this.budgetNameInput = '',
@@ -39,7 +47,21 @@ class OnboardingState extends Equatable {
     required this.endDate,
     this.status = OnboardingStatus.initial,
     this.errorMessage,
+    this.amountByDay = false,
   });
+
+  /// Days in the period, both ends counted.
+  int get periodDays => calendarDaysBetween(startDate, endDate) + 1;
+
+  /// The budget amount to save: the daily target over the days, or the
+  /// total as typed.
+  double? get budgetAmount {
+    final typed = parsedBudget;
+    if (typed == null) return null;
+    if (!amountByDay) return typed;
+    final money = MoneyMath.forCurrency(selectedCurrency.code);
+    return money.toAmount(money.toUnits(typed) * periodDays);
+  }
 
   bool get isBudgetValid =>
       parsedBudget != null &&
@@ -58,11 +80,14 @@ class OnboardingState extends Equatable {
     BudgetCalculationService(),
   );
 
-  /// The draft budget on its first day, before anything is spent, from the
-  /// same engine the dashboard uses: the preview's daily amount and day
-  /// count are the dashboard's own. Null while the dates are invalid.
-  SafeToSpendEntity? get firstDaySafeToSpend {
+  /// The draft budget before anything is spent, on the first day the
+  /// dashboard will show it: [today], or the start if that is later. From
+  /// the same engine the dashboard uses, so the preview's daily amount and
+  /// day counts are the dashboard's own. Null while the dates are invalid.
+  SafeToSpendEntity? safeToSpendPreview(DateTime today) {
     if (!isDateRangeValid) return null;
+    final start = startDate.dateOnly;
+    final day = today.dateOnly.isAfter(start) ? today.dateOnly : start;
     return _safeToSpend.calculate(
       SafeToSpendInput(
         budgetId: '',
@@ -70,8 +95,8 @@ class OnboardingState extends Equatable {
         currency: selectedCurrency.code,
         startDate: startDate,
         endDate: endDate,
-        today: startDate,
-        budgetAmount: isBudgetValid ? parsedBudget! : 0,
+        today: day,
+        budgetAmount: isBudgetValid ? budgetAmount! : 0,
         periodSpent: 0,
         todaySpent: 0,
         // A new budget has no bills linked to it yet.
@@ -97,6 +122,7 @@ class OnboardingState extends Equatable {
     DateTime? endDate,
     OnboardingStatus? status,
     String? errorMessage,
+    bool? amountByDay,
     bool clearErrorMessage = false,
   }) {
     return OnboardingState(
@@ -119,6 +145,7 @@ class OnboardingState extends Equatable {
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       status: status ?? this.status,
+      amountByDay: amountByDay ?? this.amountByDay,
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
@@ -139,5 +166,6 @@ class OnboardingState extends Equatable {
     endDate,
     status,
     errorMessage,
+    amountByDay,
   ];
 }

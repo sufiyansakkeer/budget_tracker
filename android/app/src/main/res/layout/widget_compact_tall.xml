@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Narrow, tall slots: the amount and its status, today's spending
-     against it, what is left today, and Add expense. -->
+<!-- Narrow, tall slots: the amount and its status, today's ring with what
+     is left today in the middle, and Add expense. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
@@ -84,51 +84,68 @@
             android:textColor="@color/widget_ink"
             android:textSize="@dimen/widget_text_caption" />
 
-        <ProgressBar
-            android:id="@+id/widget_today_progress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/widget_track"
-            android:layout_marginTop="@dimen/widget_gap_lg"
-            android:importantForAccessibility="no"
-            android:indeterminate="false"
-            android:max="1000"
-            android:maxHeight="@dimen/widget_track"
-            android:minHeight="@dimen/widget_track"
-            android:progressDrawable="@drawable/widget_progress" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/widget_gap_md"
-            android:orientation="vertical">
+        <FrameLayout
+            android:layout_width="@dimen/widget_ring_compact"
+            android:layout_height="@dimen/widget_ring_compact"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/widget_gap_lg">
 
-            <TextView
-                android:textDirection="ltr"
-                android:id="@+id/widget_rest_label"
+            <ProgressBar
+                android:id="@+id/widget_today_progress"
+                style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="sans-serif"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textColor="@color/widget_muted"
-                android:textSize="@dimen/widget_text_caption" />
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:indeterminate="false"
+                android:max="1000"
+                android:progressDrawable="@drawable/widget_ring" />
 
-            <TextView
-                android:textDirection="ltr"
-                android:id="@+id/widget_rest"
+            <!-- What is left today (or how far over), in the middle, set
+                 smaller rather than cut when it is long. -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/widget_gap_xs"
-                android:ellipsize="end"
-                android:fontFamily="sans-serif-medium"
-                android:fontFeatureSettings="tnum"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textColor="@color/widget_ink"
-                android:textSize="@dimen/widget_text_value" />
-        </LinearLayout>
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="@dimen/widget_ring_inset">
+
+                <TextView
+                    android:textDirection="ltr"
+                    android:id="@+id/widget_rest"
+                    android:layout_width="match_parent"
+                    android:layout_height="20dp"
+                    android:autoSizeMaxTextSize="@dimen/widget_text_value"
+                    android:autoSizeMinTextSize="@dimen/widget_text_last_resort"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:fontFamily="sans-serif-medium"
+                    android:fontFeatureSettings="tnum"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_ink"
+                    android:textSize="@dimen/widget_text_value"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:textDirection="ltr"
+                    android:id="@+id/widget_rest_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="14dp"
+                    android:layout_marginTop="@dimen/widget_gap_xs"
+                    android:autoSizeMaxTextSize="@dimen/widget_text_caption"
+                    android:autoSizeMinTextSize="@dimen/widget_text_last_resort"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:fontFamily="sans-serif"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="@dimen/widget_text_caption" />
+            </LinearLayout>
+        </FrameLayout>
 
         <FrameLayout
             android:layout_width="match_parent"

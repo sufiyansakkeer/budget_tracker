@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
+import '../../../settings/presentation/widgets/currency_selector.dart';
 import 'onboarding_step_layout.dart';
 
 class CurrencyStepWidget extends StatefulWidget {
@@ -96,43 +97,10 @@ class _CurrencyStepWidgetState extends State<CurrencyStepWidget> {
                     itemCount: _filtered.length,
                     itemBuilder: (context, index) {
                       final currency = _filtered[index];
-                      final isSelected =
-                          currency.code == widget.selectedCurrency.code;
-                      return ListTile(
+                      return CurrencyListTile(
+                        currency: currency,
+                        selected: currency.code == widget.selectedCurrency.code,
                         onTap: () => widget.onSelected(currency),
-                        selected: isSelected,
-                        selectedTileColor: theme.colorScheme.primaryContainer
-                            .withValues(alpha: 0.5),
-                        leading: Container(
-                          width: AppSizes.avatarMd,
-                          height: AppSizes.avatarMd,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.surfaceContainer,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            currency.symbol,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: isSelected
-                                  ? theme.colorScheme.onPrimary
-                                  : theme.colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          currency.name,
-                          style: theme.textTheme.titleSmall,
-                        ),
-                        subtitle: Text(currency.code),
-                        trailing: isSelected
-                            ? Icon(
-                                Icons.check_circle_rounded,
-                                color: theme.colorScheme.primary,
-                              )
-                            : null,
                       );
                     },
                   ),

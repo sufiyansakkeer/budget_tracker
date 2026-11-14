@@ -11,6 +11,7 @@ import 'package:monivo/features/bills/domain/usecases/mark_bill_paid_usecase.dar
 import 'package:monivo/features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/pay_bill_usecase.dart';
+import 'package:monivo/features/bills/domain/usecases/restore_bill_snapshot_usecase.dart';
 import 'package:monivo/features/bills/domain/usecases/update_bill_usecase.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_bloc.dart';
 import 'package:monivo/features/bills/presentation/bloc/bill_event.dart';
@@ -19,6 +20,7 @@ import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/core/events/refresh_bus.dart';
 import 'package:monivo/features/bills/domain/entities/bill_failure.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
+import 'package:monivo/features/expenses/domain/usecases/delete_expense_usecase.dart';
 
 import '../../../../helpers/bill_payment_fakes.dart';
 
@@ -32,8 +34,12 @@ class FakeBillRepository implements BillRepository {
   @override
   Future<void> updateBill(BillEntity bill) async => store[bill.id] = bill;
 
+  /// As the data source: the bill's payment rows go with it.
   @override
-  Future<void> deleteBill(String id) async => store.remove(id);
+  Future<void> deleteBill(String id) async {
+    store.remove(id);
+    payments.removeWhere((p) => p.billId == id);
+  }
 
   @override
   Future<BillEntity?> getBillById(String id) async => store[id];
@@ -123,10 +129,21 @@ BillEntity validBill({String id = 'bill-1', bool isPaid = false}) {
   );
 }
 
+RestoreBillSnapshotUseCase restoreUseCase(
+  FakeBillRepository repository, [
+  InMemoryExpenseRepository? expenses,
+]) => RestoreBillSnapshotUseCase(
+  repository: repository,
+  deleteExpense: DeleteExpenseUseCase(
+    repository: expenses ?? InMemoryExpenseRepository(),
+  ),
+);
+
 BillBloc buildBloc(
   FakeBillRepository repository, {
   PayBillUseCase? payBill,
   FakeBillReminderService? reminders,
+  InMemoryExpenseRepository? expenses,
 }) {
   final reminderService = reminders ?? FakeBillReminderService();
   return BillBloc(
@@ -141,6 +158,7 @@ BillBloc buildBloc(
       expenseRepository: InMemoryExpenseRepository(),
     ),
     payBillUseCase: payBill ?? FakePayBillUseCase(_unusedPayment),
+    restoreBillSnapshotUseCase: restoreUseCase(repository, expenses),
     reminderService: reminderService,
   );
 }
@@ -213,7 +231,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(states.any((s) => s.status == BillBlocStatus.success), isTrue);
-    expect(states.any((s) => s.message == 'Bill updated successfully'), isTrue);
+    expect(states.any((s) => s.message == 'Bill updated'), isTrue);
     await sub.cancel();
     await bloc.close();
   });
@@ -263,6 +281,7 @@ void main() {
         expenseRepository: InMemoryExpenseRepository(),
       ),
       payBillUseCase: FakePayBillUseCase(_unusedPayment),
+      restoreBillSnapshotUseCase: restoreUseCase(repository),
       reminderService: reminders,
     );
     addTearDown(bloc.close);
@@ -396,6 +415,226 @@ void main() {
       expect(reminders.cancelledBillIds, isEmpty);
       expect(reminders.scheduledBillIds, isEmpty);
       await bloc.close();
+    });
+  });
+
+  group('Undo (UX-100)', () {
+    final budget = BudgetEntity(
+      id: 'budget-1',
+      name: 'August',
+      monthlyAmount: 30000,
+      remainingAmount: 30000,
+      currency: 'INR',
+      startDate: DateTime(2026, 8, 1),
+      endDate: DateTime(2026, 8, 31),
+      createdAt: DateTime(2026, 8, 1),
+      updatedAt: DateTime(2026, 8, 1),
+    );
+    final earlier = DateTime(2026, 7, 12, 9);
+    final oldPayment = BillPaymentRecord(
+      id: 'payment-0',
+      billId: 'bill-1',
+      amount: 1000,
+      currency: 'INR',
+      paidDate: earlier,
+      createdAt: earlier,
+    );
+
+    BillEntity recurring() => validBill().copyWith(
+      isRecurring: true,
+      recurrenceType: RecurrenceType.monthly,
+      reminderEnabled: true,
+      reminderOffsetDays: 1,
+    );
+
+    ExpenseEntity recordedExpense({required bool setAside}) {
+      final at = DateTime.now();
+      return ExpenseEntity(
+        id: 'expense-1',
+        budgetId: budget.id,
+        amount: 1000,
+        categoryId: 'bills',
+        date: at,
+        time: at,
+        createdAt: at,
+        updatedAt: at,
+        billId: setAside ? 'bill-1' : null,
+      );
+    }
+
+    Future<BillState> settled(BillBloc bloc, BillEvent event) {
+      final done = bloc.stream.firstWhere(
+        (s) =>
+            s.status == BillBlocStatus.success ||
+            s.status == BillBlocStatus.error,
+      );
+      bloc.add(event);
+      return done;
+    }
+
+    test('a one-time bill marked paid offers Undo, which puts it back as '
+        'it was', () async {
+      final original = validBill();
+      await repository.createBill(original);
+      final bloc = buildBloc(repository);
+      addTearDown(bloc.close);
+
+      final done = await settled(bloc, const BillMarkPaid('bill-1'));
+      expect(done.undo!.before.bill, original);
+      expect(repository.store['bill-1']!.isPaid, isTrue);
+
+      final undone = await settled(bloc, BillUndoRequested(done.undo!));
+      expect(undone.status, BillBlocStatus.success);
+      expect(undone.message, 'Payment undone');
+      expect(undone.undo, isNull);
+      expect(repository.store['bill-1'], original);
+      expect(repository.payments, isEmpty);
+    });
+
+    // Failed on the old code: a recurring bill advanced with no Undo.
+    test('a recurring bill marked paid offers Undo, which restores its due '
+        'date, removes the payment and moves the reminder back', () async {
+      final original = recurring();
+      await repository.createBill(original);
+      repository.payments.add(oldPayment);
+      final reminders = FakeBillReminderService();
+      final bloc = buildBloc(repository, reminders: reminders);
+      addTearDown(bloc.close);
+
+      final done = await settled(bloc, const BillMarkPaid('bill-1'));
+      expect(done.undo, isNotNull);
+      expect(repository.store['bill-1']!.dueDate, original.nextDueDate);
+      expect(repository.payments, hasLength(2));
+      reminders.cancelledBillIds.clear();
+      reminders.scheduledBillIds.clear();
+
+      await settled(bloc, BillUndoRequested(done.undo!));
+
+      expect(repository.store['bill-1'], original);
+      expect(repository.payments, [oldPayment]);
+      expect(reminders.cancelledBillIds, ['bill-1']);
+      expect(reminders.scheduledBillIds, ['bill-1']);
+    });
+
+    // Failed on the old code: plain spending offered no Undo.
+    test('pay & record as plain spending offers Undo, which deletes that '
+        'expense and restores the bill', () async {
+      final original = validBill();
+      await repository.createBill(original);
+      final expenses = InMemoryExpenseRepository();
+      final paid = original.copyWith(isPaid: true, paidDate: DateTime.now());
+      final expense = recordedExpense(setAside: false);
+      final bloc = buildBloc(
+        repository,
+        expenses: expenses,
+        payBill: FakePayBillUseCase(
+          BillSuccess(
+            BillPaymentOutcome(bill: paid, expense: expense, budget: budget),
+          ),
+        ),
+      );
+      addTearDown(bloc.close);
+
+      final done = await settled(bloc, const BillPayWithExpense('bill-1'));
+      expect(done.undo!.before.bill, original);
+      expect(done.undo!.recordedExpenseId, 'expense-1');
+
+      // What the real payment writes (the fake only reports it).
+      await repository.updateBill(paid);
+      repository.payments.add(
+        BillPaymentRecord(
+          id: 'payment-1',
+          billId: 'bill-1',
+          amount: 1000,
+          currency: 'INR',
+          paidDate: paid.paidDate!,
+          createdAt: paid.paidDate!,
+        ),
+      );
+      await expenses.createExpense(expense);
+      var expenseChanges = 0;
+      final sub = RefreshBuses.expenses.changes.listen((_) => expenseChanges++);
+      addTearDown(sub.cancel);
+
+      await settled(bloc, BillUndoRequested(done.undo!));
+
+      expect(expenses.deletedIds, ['expense-1']);
+      expect(expenses.store, isEmpty);
+      expect(repository.store['bill-1'], original);
+      expect(repository.payments, isEmpty);
+      expect(expenseChanges, 1);
+    });
+
+    // Failed on the old code: delete offered no Undo.
+    test('delete offers Undo, which brings the bill back with its payment '
+        'history and reminder', () async {
+      final original = recurring();
+      await repository.createBill(original);
+      repository.payments.add(oldPayment);
+      final reminders = FakeBillReminderService();
+      final bloc = buildBloc(repository, reminders: reminders);
+      addTearDown(bloc.close);
+
+      final done = await settled(bloc, const BillDelete('bill-1'));
+      expect(done.message, 'Bill deleted');
+      expect(done.undo!.deleted, isTrue);
+      expect(repository.store, isEmpty);
+      expect(repository.payments, isEmpty);
+      reminders.scheduledBillIds.clear();
+
+      final undone = await settled(bloc, BillUndoRequested(done.undo!));
+
+      expect(undone.message, 'Bill restored');
+      expect(repository.store['bill-1'], original);
+      expect(repository.payments, [oldPayment]);
+      expect(reminders.scheduledBillIds, ['bill-1']);
+    });
+
+    test('a bill restored as paid gets no reminder', () async {
+      final paid = validBill(
+        isPaid: true,
+      ).copyWith(paidDate: DateTime(2026, 8, 1), reminderEnabled: true);
+      await repository.createBill(paid);
+      final reminders = FakeBillReminderService();
+      final bloc = buildBloc(repository, reminders: reminders);
+      addTearDown(bloc.close);
+
+      final done = await settled(bloc, const BillDelete('bill-1'));
+      await settled(bloc, BillUndoRequested(done.undo!));
+
+      expect(repository.store['bill-1'], paid);
+      expect(reminders.scheduledBillIds, isEmpty);
+    });
+
+    test('a failed undo says so and changes nothing', () async {
+      await repository.createBill(validBill());
+      final bloc = buildBloc(repository);
+      addTearDown(bloc.close);
+      final done = await settled(bloc, const BillMarkPaid('bill-1'));
+      final paid = repository.store['bill-1'];
+
+      final failed = await settled(
+        bloc,
+        BillUndoRequested(
+          BillUndo(before: done.undo!.before, recordedExpenseId: ''),
+        ),
+      );
+
+      expect(failed.status, BillBlocStatus.error);
+      expect(failed.message, "Couldn't undo that. Try again.");
+      expect(repository.store['bill-1'], paid);
+    });
+
+    test('the undo does not outlive the message', () async {
+      await repository.createBill(validBill());
+      final bloc = buildBloc(repository);
+      addTearDown(bloc.close);
+
+      await settled(bloc, const BillMarkPaid('bill-1'));
+      bloc.add(const BillClearMessage());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.undo, isNull);
     });
   });
 

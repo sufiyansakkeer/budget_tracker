@@ -2,7 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../budget/domain/entities/budget_error.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
 import '../../../budget/domain/repository/budget_repository.dart';
+import '../../../dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../../pay_later/domain/usecases/tab_purchase_usecase.dart';
 import '../expense_failure_copy.dart';
@@ -37,6 +41,10 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
   /// expenses keep their exact path.
   final TabPurchaseUseCase tabPurchases;
 
+  /// Today's Safe Spending, read after an add so the confirmation can say
+  /// what is left today; without it the confirmation gives the amount only.
+  final GetSafeToSpendUseCase? safeToSpend;
+
   ExpenseBloc({
     required this.createExpenseUseCase,
     required this.updateExpenseUseCase,
@@ -46,6 +54,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     required this.getCategoriesUseCase,
     required this.budgetRepository,
     required this.tabPurchases,
+    this.safeToSpend,
     this.rankCategoriesByUse = const RankCategoriesByUseUseCase(),
   }) : super(const ExpenseState()) {
     on<ExpenseLoadCategories>(_onLoadCategories);
@@ -64,17 +73,18 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     Emitter<ExpenseState> emit,
   ) async {
     if (state.categories.isNotEmpty) return;
+    // A retry shows the placeholders again while it reads.
+    if (state.categoriesFailed) emit(state.copyWith(categoriesFailed: false));
 
     final result = await getCategoriesUseCase();
     switch (result) {
       case ExpenseSuccess(:final data):
-        emit(state.copyWith(categories: data));
+        emit(state.copyWith(categories: data, categoriesFailed: false));
       case ExpenseError(:final failure):
-        emit(
-          state.copyWith(
-            message: failure.shown("Couldn't load your categories. Try again."),
-          ),
-        );
+        // Said where the categories go (with Retry), not as a message no
+        // screen shows.
+        debugPrint('[error] Loading categories: ${failure.message}');
+        emit(state.copyWith(categoriesFailed: true));
     }
   }
 
@@ -115,6 +125,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     if (budget?.isArchived ?? false) budget = null;
 
     final now = event.now ?? DateTime.now();
+    final input = budget == null ? null : await _inputFor(budget.id, now);
     final from = DateTime(now.year, now.month, now.day - event.days);
     final recent = await getExpensesUseCase(from: from, to: now);
     final expenses = switch (recent) {
@@ -128,6 +139,8 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
         quickAddLoad: failed ? QuickAddLoad.failed : QuickAddLoad.loaded,
         quickAddBudget: budget,
         clearQuickAddBudget: budget == null,
+        quickAddInput: input,
+        clearQuickAddInput: input == null,
         frequentCategories: rankCategoriesByUse(
           categories: categories,
           expenses: expenses,
@@ -177,6 +190,41 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
     return expense.copyWith(budgetId: id);
   }
 
+  /// The engine's input for [budgetId] on [now]; null when it can't be
+  /// read, so quick add simply leaves its preview out.
+  Future<SafeToSpendInput?> _inputFor(String budgetId, DateTime now) async {
+    final useCase = safeToSpend;
+    if (useCase == null) return null;
+    try {
+      return await useCase.inputFor(budgetId: budgetId, referenceDate: now);
+    } catch (e) {
+      debugPrint('[error] Reading Safe Spending for quick add: $e');
+      return null;
+    }
+  }
+
+  /// Today's Safe Spending of [expense]'s budget once it is counted, when
+  /// it was spent today in a running period; null otherwise. A figure that
+  /// can't be read is left out rather than failing the add.
+  Future<SafeToSpendEntity?> _todayAfterAdd(ExpenseEntity expense) async {
+    final useCase = safeToSpend;
+    if (useCase == null) return null;
+    try {
+      final result = await useCase(budgetId: expense.budgetId);
+      if (result case BudgetSuccess(
+        :final data,
+      ) when data.isRunning && _sameDay(data.today, expense.date)) {
+        return data;
+      }
+    } catch (e) {
+      debugPrint('[error] Reading Safe Spending after an add: $e');
+    }
+    return null;
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   Future<void> _onLoadById(
     ExpenseLoadById event,
     Emitter<ExpenseState> emit,
@@ -208,7 +256,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
       emit(
         state.copyWith(
           status: ExpenseBlocStatus.error,
-          message: 'No active budget selected. Please select a budget first.',
+          message: 'Choose a budget for this expense first.',
         ),
       );
       return;
@@ -222,13 +270,16 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
       case ExpenseSuccess():
         RefreshBuses.expenses.notifyChanged();
         if (tabId != null) RefreshBuses.payLater.notifyChanged();
+        final after = await _todayAfterAdd(expense);
         emit(
           state.copyWith(
             status: ExpenseBlocStatus.success,
             expense: event.expense,
-            message: 'Expense added successfully',
+            message: 'Expense added',
             lastAction: ExpenseAction.created,
             clearLastDeleted: true,
+            afterAdd: after,
+            clearAfterAdd: after == null,
           ),
         );
       case ExpenseError(:final failure):
@@ -259,7 +310,7 @@ class ExpenseBloc extends Bloc<ExpenseEvent, ExpenseState> {
           state.copyWith(
             status: ExpenseBlocStatus.success,
             expense: event.expense,
-            message: 'Expense updated successfully',
+            message: 'Expense updated',
             lastAction: ExpenseAction.updated,
             clearLastDeleted: true,
           ),

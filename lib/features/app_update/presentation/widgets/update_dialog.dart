@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../domain/entities/app_update_result.dart';
 import '../../../../core/widgets/app_dialog.dart';
+import 'update_prompt_policy.dart';
 
 /// Shows a Material 3 update dialog when a new release is available.
 class UpdateDialog extends StatelessWidget {
@@ -33,7 +37,8 @@ class UpdateDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Padding(
+      // Scrolls at large text sizes and in landscape instead of overflowing.
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -115,7 +120,10 @@ class UpdateDialog extends StatelessWidget {
             ],
 
             // Buttons
-            _UpdateButtons(releaseUrl: result.releaseUrl),
+            _UpdateButtons(
+              releaseUrl: result.releaseUrl,
+              version: result.latestVersion,
+            ),
           ],
         ),
       ),
@@ -138,7 +146,10 @@ class UpdateDialog extends StatelessWidget {
 class _UpdateButtons extends StatefulWidget {
   final String releaseUrl;
 
-  const _UpdateButtons({required this.releaseUrl});
+  /// The offered release, for "Skip this version".
+  final String version;
+
+  const _UpdateButtons({required this.releaseUrl, required this.version});
 
   @override
   State<_UpdateButtons> createState() => _UpdateButtonsState();
@@ -153,24 +164,14 @@ class _UpdateButtonsState extends State<_UpdateButtons> {
     final url = widget.releaseUrl.trim();
     if (url.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No update URL available.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnack.show(context, 'This update has no release page.');
       return;
     }
 
     final uri = Uri.tryParse(url);
     if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid update URL.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnack.show(context, "This update's link isn't valid.");
       return;
     }
 
@@ -189,22 +190,15 @@ class _UpdateButtonsState extends State<_UpdateButtons> {
       if (launched) {
         navigator.pop();
       } else {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Unable to open the release page.'),
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppSnack.showOn(
+          messenger,
+          "Couldn't open the release page. Try again.",
         );
       }
     } catch (e) {
       debugPrint('[error] Opening the release page: $e');
       if (!mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open the release page.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnack.showOn(messenger, "Couldn't open the release page. Try again.");
     } finally {
       if (mounted) {
         setState(() => _isLaunching = false);
@@ -214,28 +208,43 @@ class _UpdateButtonsState extends State<_UpdateButtons> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Later'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  unawaited(UpdatePromptPolicy.later());
+                },
+                child: const Text('Later'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: FilledButton(
+                onPressed: _isLaunching
+                    ? null
+                    : () => _launchReleaseUrl(context),
+                child: _isLaunching
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Update'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: FilledButton(
-            onPressed: _isLaunching ? null : () => _launchReleaseUrl(context),
-            child: _isLaunching
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Update'),
-          ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            unawaited(UpdatePromptPolicy.skip(widget.version));
+          },
+          child: const Text('Skip this version'),
         ),
       ],
     );
@@ -251,22 +260,25 @@ class _VersionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+    // Read as one stop: "Current version, 1.0.0".
+    return MergeSemantics(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-        ),
-        Text(
-          version,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+          Text(
+            version,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

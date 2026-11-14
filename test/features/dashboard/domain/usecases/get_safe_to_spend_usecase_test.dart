@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/budget/domain/services/budget_calculation_service.dart';
+import 'package:monivo/features/budget/domain/services/safe_to_spend_calculator.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
@@ -394,6 +396,31 @@ void main() {
       final s = (result as BudgetSuccess<SafeToSpendEntity>).data;
       expect(s.today, DateTime(2026, 8, 31));
       expect(s.remainingDays, 1);
+    });
+  });
+
+  group('inputFor (a form previews before it saves)', () {
+    test('the same input call() evaluates, so preview(0) == call()', () async {
+      budgets.budgets = [budget()];
+      bills.store['rent'] = bill(due: DateTime(2026, 8, 20));
+      budgets.statisticsByBudget = {'aug': stats(3000, today: 300)};
+
+      final input = await useCase.inputFor(
+        budgetId: 'aug',
+        referenceDate: today,
+      );
+      final calculator = SafeToSpendCalculator(BudgetCalculationService());
+      expect(calculator.calculate(input!), await evaluate('aug'));
+      expect(input.todaySpent, 300);
+      expect(input.commitments, hasLength(1));
+    });
+
+    test('null for a budget that does not exist', () async {
+      budgets.budgets = [budget()];
+      expect(
+        await useCase.inputFor(budgetId: 'gone', referenceDate: today),
+        isNull,
+      );
     });
   });
 }

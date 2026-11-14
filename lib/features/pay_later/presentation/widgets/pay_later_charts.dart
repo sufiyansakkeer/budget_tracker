@@ -12,6 +12,7 @@ import '../../../../core/widgets/chart_reveal.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../reports/presentation/widgets/chart_card.dart';
 import '../../domain/entities/pay_later_overview.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// The overview's two charts for one currency (spec §7): what was added to
 /// tabs and paid each month, and what was owed at each month's end.
@@ -36,7 +37,7 @@ class PayLaterCharts extends StatelessWidget {
   }
 }
 
-String _monthLabel(DateTime month) => DateFormat('MMM').format(month);
+String _monthLabel(DateTime month) => AppDates.month(month);
 
 /// A value axis with round ticks: an interval of 1, 2, 2.5 or 5 times a
 /// power of ten giving about [targetTicks] steps, and a top that is the

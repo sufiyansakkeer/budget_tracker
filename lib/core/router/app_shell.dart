@@ -1,62 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/app_spacing.dart';
 import '../navigation/animated_bottom_navigation.dart';
 import '../navigation/app_nav_destinations.dart';
+import '../navigation/nav_add_button.dart';
 
 /// The main application shell: hosts the [AnimatedBottomNavigation] and
 /// preserves each tab's navigation stack via [StatefulShellRoute].
 ///
-/// Tabs (see [appNavDestinations]):
-///   0. Home  (Dashboard)
-///   1. Expenses
-///   2. Reports
-///   3. Settings
+/// Tabs (see [appNavDestinations]): Today, Budget, [+], Activity, More.
+/// Branches are [AppShellBranch]: Insights is a branch without a tab and
+/// shows Activity selected.
 ///
 /// The shell is only responsible for navigation. Animation state lives in
 /// the bar; re-selecting the current tab pops that branch back to its root.
+/// What the add button opens comes from the router ([onAdd], [onAddHold]).
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
-  const AppShell({super.key, required this.navigationShell});
+  /// Tap on +: add anything.
+  final ValueChanged<BuildContext> onAdd;
+
+  /// Press and hold on +: straight to an expense.
+  final ValueChanged<BuildContext> onAddHold;
+
+  const AppShell({
+    super.key,
+    required this.navigationShell,
+    required this.onAdd,
+    required this.onAddHold,
+  });
 
   void _onDestinationSelected(int index) {
+    final branch = AppShellBranch.ofTab[index];
     navigationShell.goBranch(
-      index,
+      branch,
       // Re-selecting the current tab pops it back to its root.
-      initialLocation: index == navigationShell.currentIndex,
+      initialLocation: branch == navigationShell.currentIndex,
     );
   }
 
-  /// How far the shell's snackbars float above the navigation bar: clear
-  /// of a tab's add button (56 dp, 16 dp from the bar) with a small gap.
-  static const double _snackBarLift =
-      kFloatingActionButtonMargin + 56 + AppSpacing.sm;
-
   @override
   Widget build(BuildContext context) {
-    // Every snackbar on a tab, and every one shown by a screen that has
-    // just closed over the tabs, is drawn by this scaffold, not the tab's,
-    // so it knows nothing of the tab's add button. Lifting them here keeps
-    // the button visible and tappable.
-    final theme = Theme.of(context);
-    final inset =
-        theme.snackBarTheme.insetPadding?.resolve(TextDirection.ltr) ??
-        const EdgeInsets.all(AppSpacing.md);
-    return Theme(
-      data: theme.copyWith(
-        snackBarTheme: theme.snackBarTheme.copyWith(
-          insetPadding: inset.copyWith(bottom: inset.bottom + _snackBarLift),
+    // The + is this scaffold's docked button, raised over the bar's middle
+    // slot; floating snackbars rise above it on their own.
+    return Scaffold(
+      body: navigationShell,
+      floatingActionButton: Builder(
+        builder: (context) => NavAddButton(
+          onPressed: () => onAdd(context),
+          onLongPress: () => onAddHold(context),
         ),
       ),
-      child: Scaffold(
-        body: navigationShell,
-        bottomNavigationBar: AnimatedBottomNavigation(
-          destinations: appNavDestinations,
-          selectedIndex: navigationShell.currentIndex,
-          onDestinationSelected: _onDestinationSelected,
-        ),
+      floatingActionButtonLocation: NavAddButton.location,
+      bottomNavigationBar: AnimatedBottomNavigation(
+        destinations: appNavDestinations,
+        selectedIndex: AppShellBranch.tabOf(navigationShell.currentIndex),
+        onDestinationSelected: _onDestinationSelected,
+        // The + is docked over this slot.
+        center: const SizedBox.shrink(),
       ),
     );
   }

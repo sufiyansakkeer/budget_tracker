@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -65,14 +67,16 @@ class ConversionResult extends StatelessWidget {
       switchInCurve: AppMotion.enter,
       switchOutCurve: AppMotion.exit,
       layoutBuilder: (current, previous) => Stack(
-        alignment: Alignment.topLeft,
+        alignment: AlignmentDirectional.topStart,
         children: [...previous, if (current != null) current],
       ),
       transitionBuilder: (child, animation) => FadeTransition(
         opacity: animation,
         child: ScaleTransition(
           scale: Tween<double>(begin: 0.98, end: 1).animate(animation),
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart.resolve(
+            Directionality.of(context),
+          ),
           child: child,
         ),
       ),
@@ -131,8 +135,8 @@ class _Result extends StatelessWidget {
         children: [
           Text(
             '$sourceText ${source.code} is about',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            // Wraps instead of cutting the amount short: at large text on a
+            // narrow phone a long amount needs three lines.
             style: theme.textTheme.bodyMedium?.copyWith(color: muted),
           ),
           const SizedBox(height: AppSpacing.xxs),
@@ -158,19 +162,17 @@ class _Loading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Loading exchange rate',
-      child: const Shimmer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SkeletonBox(width: 120, height: 14),
-            SizedBox(height: AppSpacing.smd),
-            SkeletonBox(width: 200, height: 36),
-            SizedBox(height: AppSpacing.smd),
-            SkeletonBox(width: 140, height: 14),
-          ],
-        ),
+    return const Shimmer(
+      semanticsLabel: 'Loading exchange rate',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SkeletonBox(width: 120, height: 14),
+          SizedBox(height: AppSpacing.smd),
+          SkeletonBox(width: 200, height: 36),
+          SizedBox(height: AppSpacing.smd),
+          SkeletonBox(width: 140, height: 14),
+        ],
       ),
     );
   }
@@ -224,6 +226,7 @@ class _Failure extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         FilledButton.tonalIcon(
+          style: AppTheme.tonal(context),
           key: const Key('converterRetryButton'),
           onPressed: onRetry,
           icon: const Icon(Icons.refresh_rounded),

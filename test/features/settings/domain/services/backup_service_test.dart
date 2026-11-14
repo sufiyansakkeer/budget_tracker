@@ -237,6 +237,43 @@ void main() {
       )..where((c) => c.id.equals('food'))).getSingle();
       expect(food.isArchived, isTrue);
     });
+
+    test('a schema-9 backup restores with the colours it stored', () async {
+      // v10 recoloured six built-in categories in the database (UX-088).
+      // A v9 backup is still accepted, and its colours are the user's data:
+      // a restore never remaps them.
+      final file = File('${tempDir.path}/v9.json');
+      await file.writeAsString(
+        jsonEncode({
+          'type': 'monivo_backup',
+          'metadata': {'schemaVersion': 9, 'appVersion': '1.0.0'},
+          'data': {
+            'budgets': <Object?>[],
+            'categories': [
+              {
+                'id': 'bills',
+                'name': 'Bills',
+                'icon': 'receipt_long',
+                'colorHex': '#EE5253',
+                'isSystem': true,
+                'isArchived': false,
+              },
+            ],
+            'expenses': <Object?>[],
+            'settings': <String, Object?>{},
+          },
+        }),
+      );
+
+      expect(database.schemaVersion, greaterThan(9));
+      expect(await backupService.validateBackup(file.path), isEmpty);
+      await backupService.restore(file.path);
+
+      final bills = await (database.select(
+        database.categories,
+      )..where((c) => c.id.equals('bills'))).getSingle();
+      expect(bills.colorHex, '#EE5253');
+    });
   });
 
   group('BackupService schema v8 fields', () {

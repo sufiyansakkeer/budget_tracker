@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../domain/entities/expense_category.dart';
 import 'category_visuals.dart';
@@ -9,11 +10,17 @@ import '../../../../core/constants/app_motion.dart';
 
 /// Visual category selector: icon + name chips. The icon carries the
 /// category's colour; the selected chip uses the theme's neutral selection.
+/// With [onManage], a last chip opens category management. When the
+/// categories couldn't be read ([failed]) it says so, with [onRetry],
+/// instead of placeholders that never fill.
 class CategoryPicker extends StatelessWidget {
   final List<ExpenseCategory> categories;
   final String? selectedCategoryId;
   final ValueChanged<String> onSelected;
   final String? errorText;
+  final VoidCallback? onManage;
+  final bool failed;
+  final VoidCallback? onRetry;
 
   const CategoryPicker({
     super.key,
@@ -21,6 +28,9 @@ class CategoryPicker extends StatelessWidget {
     required this.selectedCategoryId,
     required this.onSelected,
     this.errorText,
+    this.onManage,
+    this.failed = false,
+    this.onRetry,
   });
 
   @override
@@ -30,67 +40,85 @@ class CategoryPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Category', style: theme.textTheme.titleSmall),
+        Semantics(
+          header: true,
+          child: Text('Category', style: theme.textTheme.titleSmall),
+        ),
         const SizedBox(height: AppSpacing.sm),
-        if (categories.isEmpty)
+        if (categories.isEmpty && failed)
+          StatusCard(
+            key: const Key('categoriesFailed'),
+            color: theme.colorScheme.error,
+            icon: Icons.error_outline_rounded,
+            message: "Couldn't load categories.",
+            trailing: onRetry == null
+                ? null
+                : TextButton(onPressed: onRetry, child: const Text('Retry')),
+          )
+        else if (categories.isEmpty)
           // Chip-shaped placeholders, announced once; no spinner.
-          Semantics(
-            label: 'Loading categories',
-            excludeSemantics: true,
-            child: Shimmer(
-              child: Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  for (final w in [88.0, 104.0, 72.0, 96.0, 80.0])
-                    SkeletonBox(
-                      width: w,
-                      height: 32,
-                      radius: AppSpacing.radiusSm,
-                    ),
-                ],
-              ),
+          Shimmer(
+            semanticsLabel: 'Loading categories',
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final w in [88.0, 104.0, 72.0, 96.0, 80.0])
+                  SkeletonBox(
+                    width: w,
+                    height: 32,
+                    radius: AppSpacing.radiusSm,
+                  ),
+              ],
             ),
           )
         else
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
-            children: categories
-                .where((c) => !c.isArchived || c.id == selectedCategoryId)
-                .map((category) {
-                  final isSelected = category.id == selectedCategoryId;
-                  final color = CategoryVisuals.adaptiveColor(
-                    context,
-                    category.colorHex,
-                  );
-                  // The chosen chip lifts slightly so the selection reads at a
-                  // glance; the chip itself animates its colours.
-                  return AnimatedScale(
-                    scale: isSelected ? 1.04 : 1,
-                    duration: AppMotion.respectReducedMotion(
+            children: [
+              ...categories
+                  .where((c) => !c.isArchived || c.id == selectedCategoryId)
+                  .map((category) {
+                    final isSelected = category.id == selectedCategoryId;
+                    final color = CategoryVisuals.adaptiveColor(
                       context,
-                      AppMotion.fast,
-                    ),
-                    curve: AppMotion.standardCurve,
-                    // Selection is neutral (the theme's selected chip), so a
-                    // red or amber category never reads as a warning; the
-                    // icon keeps the category's colour.
-                    child: ChoiceChip(
-                      key: Key('category_${category.id}'),
-                      selected: isSelected,
-                      showCheckmark: false,
-                      onSelected: (_) => onSelected(category.id),
-                      avatar: Icon(
-                        CategoryVisuals.iconFor(category.icon),
-                        size: AppSizes.iconSm + 2,
-                        color: color,
+                      category.colorHex,
+                    );
+                    // The chosen chip lifts slightly so the selection reads at a
+                    // glance; the chip itself animates its colours.
+                    return AnimatedScale(
+                      scale: isSelected ? 1.04 : 1,
+                      duration: AppMotion.respectReducedMotion(
+                        context,
+                        AppMotion.fast,
                       ),
-                      label: Text(category.name),
-                    ),
-                  );
-                })
-                .toList(),
+                      curve: AppMotion.standardCurve,
+                      // Selection is neutral (the theme's selected chip), so a
+                      // red or amber category never reads as a warning; the
+                      // icon keeps the category's colour.
+                      child: ChoiceChip(
+                        key: Key('category_${category.id}'),
+                        selected: isSelected,
+                        showCheckmark: false,
+                        onSelected: (_) => onSelected(category.id),
+                        avatar: Icon(
+                          CategoryVisuals.iconFor(category.icon),
+                          size: AppSizes.iconSm + 2,
+                          color: color,
+                        ),
+                        label: Text(category.name),
+                      ),
+                    );
+                  }),
+              if (onManage != null)
+                ActionChip(
+                  key: const Key('category_manage'),
+                  avatar: const Icon(Icons.tune_rounded, size: AppSizes.iconSm),
+                  label: const Text('Manage categories'),
+                  onPressed: onManage,
+                ),
+            ],
           ),
         if (errorText != null) FormFieldError(message: errorText!),
       ],

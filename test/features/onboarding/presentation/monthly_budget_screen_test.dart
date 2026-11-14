@@ -41,8 +41,11 @@ void main() {
         ),
       );
 
+      // The field takes focus once shown, and shows the symbol as the
+      // app's amount field's prefix (UX-110).
+      await tester.pump();
       expect(find.text('What is your budget amount?'), findsOneWidget);
-      expect(find.text('₹'), findsOneWidget);
+      expect(find.text('₹ '), findsOneWidget);
       expect(find.text('Monthly budget cannot be empty'), findsOneWidget);
     },
   );
@@ -70,7 +73,7 @@ void main() {
       );
       expect(continueButtonFinder, findsOneWidget);
 
-      final button = tester.widget<ElevatedButton>(continueButtonFinder);
+      final button = tester.widget<FilledButton>(continueButtonFinder);
       expect(button.enabled, isTrue);
 
       await tester.tap(continueButtonFinder);
@@ -97,8 +100,40 @@ void main() {
       final continueButtonFinder = find.byKey(
         const Key('budgetStepContinueButton'),
       );
-      final button = tester.widget<ElevatedButton>(continueButtonFinder);
+      final button = tester.widget<FilledButton>(continueButtonFinder);
       expect(button.enabled, isFalse);
     },
   );
+
+  testWidgets('by the day: the daily target, with the sum (blueprint)', (
+    tester,
+  ) async {
+    final modes = <bool>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BudgetStepWidget(
+            initialValue: '2000',
+            currencySymbol: '₹',
+            byDay: true,
+            days: 31,
+            onModeChanged: modes.add,
+            onChanged: (_) {},
+            onContinue: () {},
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('How much do you want to spend each day?'),
+      findsOneWidget,
+    );
+    expect(find.text('Daily target'), findsOneWidget);
+    expect(find.text('₹2,000 a day × 31 days = ₹62,000'), findsOneWidget);
+    await tester.tap(find.text('In total'));
+    expect(modes, [false]);
+  });
 }

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/entities/bill_failure.dart';
+import '../../domain/entities/bill_snapshot.dart';
 import '../../domain/usecases/create_bill_usecase.dart';
 import '../../domain/usecases/delete_bill_usecase.dart';
 import '../../domain/usecases/get_bill_by_id_usecase.dart';
@@ -11,6 +12,7 @@ import '../../domain/usecases/get_bills_usecase.dart';
 import '../../domain/usecases/mark_bill_paid_usecase.dart';
 import '../../domain/usecases/mark_bill_unpaid_usecase.dart';
 import '../../domain/usecases/pay_bill_usecase.dart';
+import '../../domain/usecases/restore_bill_snapshot_usecase.dart';
 import '../../domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../domain/usecases/update_bill_usecase.dart';
 import '../../../../core/events/refresh_bus.dart';
@@ -30,6 +32,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
   final MarkBillPaidUseCase markBillPaidUseCase;
   final MarkBillUnpaidUseCase markBillUnpaidUseCase;
   final PayBillUseCase payBillUseCase;
+  final RestoreBillSnapshotUseCase restoreBillSnapshotUseCase;
   final BillReminderService reminderService;
 
   BillBloc({
@@ -41,6 +44,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     required this.markBillPaidUseCase,
     required this.markBillUnpaidUseCase,
     required this.payBillUseCase,
+    required this.restoreBillSnapshotUseCase,
     required this.reminderService,
   }) : super(const BillState()) {
     on<BillLoadAll>(_onLoadAll);
@@ -51,6 +55,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
     on<BillMarkPaid>(_onMarkPaid);
     on<BillPayWithExpense>(_onPayWithExpense);
     on<BillMarkUnpaid>(_onMarkUnpaid);
+    on<BillUndoRequested>(_onUndo);
     on<BillFilterChanged>(_onFilterChanged);
     on<BillSearchChanged>(_onSearchChanged);
     on<BillRefresh>(_onRefresh);
@@ -118,10 +123,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         }
         RefreshBuses.bills.notifyChanged();
         emit(
-          state.copyWith(
-            status: BillBlocStatus.success,
-            message: 'Bill added successfully',
-          ),
+          state.copyWith(status: BillBlocStatus.success, message: 'Bill added'),
         );
       case BillError(:final failure):
         emit(
@@ -148,7 +150,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
-            message: 'Bill updated successfully',
+            message: 'Bill updated',
           ),
         );
       case BillError(:final failure):
@@ -164,11 +166,10 @@ class BillBloc extends Bloc<BillEvent, BillState> {
   Future<void> _onDelete(BillDelete event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.deleting));
 
-    // Cancel any pending notification for this bill before deleting.
-    final bill = await getBillByIdUseCase(event.id);
-    if (bill case BillSuccess(:final data)) {
-      await reminderService.cancelReminder(data);
-    }
+    // Cancel any pending notification for this bill before deleting. The
+    // snapshot (bill and payment rows) is what Undo puts back.
+    final (before, bill) = await _before(event.id);
+    if (bill != null) await reminderService.cancelReminder(bill);
 
     final result = await deleteBillUseCase(event.id);
     switch (result) {
@@ -177,7 +178,10 @@ class BillBloc extends Bloc<BillEvent, BillState> {
         emit(
           state.copyWith(
             status: BillBlocStatus.success,
-            message: 'Bill deleted successfully',
+            message: 'Bill deleted',
+            undo: before == null
+                ? null
+                : BillUndo(before: before, deleted: true),
           ),
         );
       case BillError(:final failure):
@@ -193,8 +197,8 @@ class BillBloc extends Bloc<BillEvent, BillState> {
   Future<void> _onMarkPaid(BillMarkPaid event, Emitter<BillState> emit) async {
     emit(state.copyWith(status: BillBlocStatus.updating));
 
-    final before = await getBillByIdUseCase(event.billId);
-    final previous = before is BillSuccess<BillEntity> ? before.data : null;
+    // What Undo puts back: due date, paid state and payment history.
+    final (before, previous) = await _before(event.billId);
 
     final result = await markBillPaidUseCase(event.billId);
     switch (result) {
@@ -210,6 +214,7 @@ class BillBloc extends Bloc<BillEvent, BillState> {
           state.copyWith(
             status: BillBlocStatus.success,
             message: 'Bill marked as paid',
+            undo: before == null ? null : BillUndo(before: before),
           ),
         );
       case BillError(:final failure):
@@ -230,11 +235,8 @@ class BillBloc extends Bloc<BillEvent, BillState> {
   ) async {
     emit(state.copyWith(status: BillBlocStatus.updating));
 
-    final billResult = await getBillByIdUseCase(event.billId);
-    final previous = switch (billResult) {
-      BillSuccess(:final data) => data,
-      BillError() => null,
-    };
+    // What Undo puts back; it also deletes the expense recorded below.
+    final (before, previous) = await _before(event.billId);
 
     final result = await payBillUseCase(event.billId);
     switch (result) {
@@ -252,6 +254,11 @@ class BillBloc extends Bloc<BillEvent, BillState> {
           state.copyWith(
             status: BillBlocStatus.success,
             message: 'Marked paid. Expense added to ${data.budget.name}.',
+            // The expense is deleted by id, so plain spending (no bill id)
+            // goes as surely as a settled set-aside.
+            undo: before == null
+                ? null
+                : BillUndo(before: before, recordedExpenseId: data.expense.id),
           ),
         );
       case BillError(:final failure):
@@ -296,6 +303,54 @@ class BillBloc extends Bloc<BillEvent, BillState> {
           ),
         );
     }
+  }
+
+  Future<void> _onUndo(BillUndoRequested event, Emitter<BillState> emit) async {
+    emit(state.copyWith(status: BillBlocStatus.updating));
+
+    final undo = event.undo;
+    final result = await restoreBillSnapshotUseCase(
+      undo.before,
+      recordedExpenseId: undo.recordedExpenseId,
+    );
+    switch (result) {
+      case BillSuccess(:final data):
+        // The reminder follows the restored bill: the next occurrence's is
+        // replaced by the restored one's, a deleted bill's comes back, and
+        // a bill restored as paid has none.
+        await reminderService.cancelReminder(data);
+        if (data.reminderEnabled && !data.isPaid) {
+          await reminderService.scheduleReminder(data);
+        }
+        RefreshBuses.bills.notifyChanged();
+        if (undo.recordedExpenseId != null) {
+          RefreshBuses.expenses.notifyChanged();
+        }
+        emit(
+          state.copyWith(
+            status: BillBlocStatus.success,
+            message: undo.deleted ? 'Bill restored' : 'Payment undone',
+            selectedBill: state.selectedBill?.id == data.id ? data : null,
+          ),
+        );
+      case BillError(:final failure):
+        emit(
+          state.copyWith(
+            status: BillBlocStatus.error,
+            message: failure.shown("Couldn't undo that. Try again."),
+          ),
+        );
+    }
+  }
+
+  /// The bill and its payments as stored before a change, for Undo, and
+  /// the bill itself, for its reminder. Without a snapshot the change still
+  /// goes ahead, with no Undo.
+  Future<(BillSnapshot?, BillEntity?)> _before(String billId) async {
+    final result = await restoreBillSnapshotUseCase.capture(billId);
+    if (result case BillSuccess(:final data)) return (data, data.bill);
+    final bill = await getBillByIdUseCase(billId);
+    return (null, bill is BillSuccess<BillEntity> ? bill.data : null);
   }
 
   void _onFilterChanged(BillFilterChanged event, Emitter<BillState> emit) {

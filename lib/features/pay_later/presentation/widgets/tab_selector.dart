@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
@@ -59,18 +61,15 @@ class TabSelector extends StatelessWidget {
         trailing: TextButton(onPressed: onRetry, child: const Text('Retry')),
       );
     } else if (all == null) {
-      body = Semantics(
-        label: 'Loading tabs',
-        excludeSemantics: true,
-        child: Shimmer(
-          child: Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final w in [112.0, 96.0])
-                SkeletonBox(width: w, height: 32, radius: AppSpacing.radiusSm),
-            ],
-          ),
+      body = Shimmer(
+        semanticsLabel: 'Loading tabs',
+        child: Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final w in [112.0, 96.0])
+              SkeletonBox(width: w, height: 32, radius: AppSpacing.radiusSm),
+          ],
         ),
       );
     } else {
@@ -89,6 +88,7 @@ class TabSelector extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 FilledButton.tonalIcon(
+                  style: AppTheme.tonal(context),
                   key: const Key('createFirstTabButton'),
                   onPressed: onCreateTab,
                   icon: const Icon(Icons.add_rounded),

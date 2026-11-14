@@ -56,7 +56,7 @@ class SpendingPaceSection extends StatelessWidget {
       title: 'Spending pace',
       child: Semantics(
         container: true,
-        label: _semantics(pace),
+        label: CurrencyFormatter.forSpeech(_semantics(pace)),
         child: ExcludeSemantics(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

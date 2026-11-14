@@ -10,14 +10,19 @@ import '../../../../core/currency/money_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/widgets/app_amount_field.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_form_action_bar.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/dates/date_range_format.dart';
+import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/widgets/primary_button.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
 import '../../../pay_later/domain/entities/pay_later_failure.dart';
@@ -33,13 +38,15 @@ import '../../domain/validators/expense_validator.dart';
 import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
+import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../../../budget/domain/services/safe_to_spend_calculator.dart';
+import '../widgets/today_impact.dart';
 import '../widgets/category_picker.dart';
-import '../widgets/expense_amount_field.dart';
 import '../widgets/expense_date_picker.dart';
 import '../widgets/expense_date_rules.dart';
-import '../widgets/expense_form_actions.dart';
 import '../widgets/expense_note_field.dart';
 import '../widgets/expense_time_picker.dart';
+import '../widgets/expense_undo.dart';
 import '../widgets/form_field_error.dart';
 import '../widgets/receipt_picker.dart';
 import '../widgets/tag_input_field.dart';
@@ -57,12 +64,17 @@ class ExpensePrefill {
   /// later is chosen with this tab, and the tab's default category.
   final String? tabId;
 
+  /// "On a tab" from the add sheet: Pay later is chosen, the tab still to
+  /// pick.
+  final bool payLater;
+
   const ExpensePrefill({
     this.amount,
     this.categoryId,
     this.date,
     this.budgetId,
     this.tabId,
+    this.payLater = false,
   });
 
   /// From `?amount=250&category=food&date=2026-10-08&budget=…&tab=…`;
@@ -78,6 +90,7 @@ class ExpensePrefill {
       date: date == null ? null : DateTime(date.year, date.month, date.day),
       budgetId: query['budget'],
       tabId: query['tab'],
+      payLater: query['payLater'] == '1',
     );
   }
 
@@ -86,7 +99,8 @@ class ExpensePrefill {
       categoryId == null &&
       date == null &&
       budgetId == null &&
-      tabId == null;
+      tabId == null &&
+      !payLater;
 }
 
 /// Add/Edit expense form. Pass [expenseId] to edit an existing expense, or
@@ -99,10 +113,12 @@ class ExpensePrefill {
 /// short confirmation.
 ///
 /// Priority order on screen: amount → paid (now or pay later) → category →
-/// date & time → optional details (budget, note, tags, receipt). Date and time are pre-filled by the
-/// BLoC for new expenses and stay editable. The budget picker defaults to the
-/// active budget, drives the currency symbol, and the expense date must fall
-/// inside the selected budget's period.
+/// date & time → budget, then the optional details (note, tags, receipt).
+/// Date and time are pre-filled by the BLoC for new expenses and stay
+/// editable. The budget picker defaults to the active budget (a duplicate
+/// keeps its source's unless that one doesn't cover today), drives the
+/// currency symbol, and the expense date must fall inside the selected
+/// budget's period; the date picker offers only that period's days.
 ///
 /// "Paid: Now" (the default) saves exactly as before Pay later existed.
 /// "Pay later" puts the purchase on a tab in the budget's currency; an edit
@@ -139,6 +155,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final _budgetKey = GlobalKey();
   final _paidKey = GlobalKey();
 
+  /// The tag field, so a save adds the tag still being typed. Replaced
+  /// when an edit or a duplicate fills the form, so the field starts over
+  /// with those tags.
+  var _tagsKey = GlobalKey<TagInputFieldState>();
+
   List<String> _tags = [];
   String? _selectedCategoryId;
   String? _amountError;
@@ -156,6 +177,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   /// changes what its amount means.
   String? _originalBudgetId;
   String? _budgetError;
+
+  /// The active budget, which a new expense starts in.
+  String? _activeBudgetId;
+
+  /// A duplicate's budget has been checked against today (see
+  /// [_settleDuplicateBudget]).
+  bool _duplicateBudgetSettled = false;
   bool _loadingBudgets = true;
   bool _budgetsFailed = false;
   bool _populated = false;
@@ -201,8 +229,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   String? _pendingTabCategoryId;
 
   /// What an edit or a duplicate started from, to tell whether anything
-  /// changed; null for a new expense, which compares against blank fields.
+  /// changed; null for a new expense, which compares against blank fields
+  /// and the date, time and budget it started with.
   String? _baseline;
+  DateTime? _startDate;
+  TimeOfDay? _startTime;
+  String? _startBudgetId;
 
   final FocusNode _amountFocus = FocusNode();
 
@@ -219,7 +251,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final bloc = context.read<ExpenseBloc>();
     bloc.add(const ExpenseLoadCategories());
     // Default date/time are captured once by the BLoC and kept in state.
-    if (!_isEditing) bloc.add(const ExpenseInitialize());
+    if (!_isEditing) {
+      bloc.add(const ExpenseInitialize());
+      // The engine's input for the active budget, for [_todayImpact].
+      bloc.add(const ExpenseLoadQuickAdd(days: 0));
+    }
     _loadBudgets();
     if (_isEditing) {
       bloc.add(ExpenseLoadById(widget.expenseId!));
@@ -237,11 +273,16 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       if (prefill.amount != null) _amountController.text = prefill.amount!;
       _selectedCategoryId = prefill.categoryId;
       _date = prefill.date;
+      _startDate = prefill.date;
       _selectedBudgetId = prefill.budgetId;
+      _startBudgetId = prefill.budgetId;
       if (prefill.tabId != null) {
         _payLater = true;
         _tabId = prefill.tabId;
         _applyTabDefaults = true;
+        _loadTabs();
+      } else if (prefill.payLater) {
+        _payLater = true;
         _loadTabs();
       }
     }
@@ -277,10 +318,17 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         _selectedCategoryId != null ||
         _noteController.text.trim().isNotEmpty ||
         _tags.isNotEmpty ||
-        _receiptPath != null;
+        _receiptPath != null ||
+        (_startDate != null && _date != _startDate) ||
+        (_startTime != null && _time != _startTime) ||
+        (_startBudgetId != null && _selectedBudgetId != _startBudgetId);
   }
 
+  /// A save is running: leaving now would not stop it.
+  bool get _isBusy => context.read<ExpenseBloc>().state.isBusy;
+
   Future<void> _requestClose() async {
+    if (_isBusy) return;
     if (!_isDirty) return _close();
     FocusManager.instance.primaryFocus?.unfocus();
     final discard = await ConfirmationDialog.show(
@@ -484,9 +532,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppSnack.show(context, message);
   }
 
   /// Before an edit of a purchase on a tab: says where payment money on it
@@ -522,10 +568,16 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       if (!mounted) return;
       setState(() {
         _allBudgets = budgets;
+        _activeBudgetId = activeId;
         _selectedBudgetId ??= activeId;
+        if (!_isEditing && !_isDuplicating) {
+          _startBudgetId ??= _selectedBudgetId;
+        }
         _loadingBudgets = false;
       });
+      _settleDuplicateBudget();
       _applySourceTab();
+      _captureBaseline();
     } catch (e) {
       debugPrint('[error] Loading budgets for the expense form: $e');
       if (!mounted) return;
@@ -533,8 +585,37 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         _loadingBudgets = false;
         _budgetsFailed = true;
       });
+      _settleDuplicateBudget();
       _applySourceTab();
+      _captureBaseline();
     }
+  }
+
+  /// A duplicate is dated today, so it starts in the active budget when
+  /// its source's budget doesn't cover today (it ended, or was archived)
+  /// and the active one does, rather than failing on save. Runs once both
+  /// the copy and the budgets are known, before the baseline is taken.
+  void _settleDuplicateBudget() {
+    if (!_isDuplicating || _duplicateBudgetSettled) return;
+    if (!_populated || _loadingBudgets) return;
+    _duplicateBudgetSettled = true;
+    final now = DateTime.now();
+    final day = _date ?? DateTime(now.year, now.month, now.day);
+    final source = _selectedBudget;
+    if (source != null && ExpenseDateRules.outsideBudget(day, source) == null) {
+      return;
+    }
+    BudgetEntity? active;
+    for (final b in _budgets) {
+      if (b.id == _activeBudgetId) active = b;
+    }
+    if (active == null || active.id == source?.id) return;
+    // A source that is still there stays unless the active budget is a
+    // better fit for today.
+    if (source != null && ExpenseDateRules.outsideBudget(day, active) != null) {
+      return;
+    }
+    setState(() => _selectedBudgetId = active!.id);
   }
 
   /// Budgets an expense can go to: those not archived, plus the one it is
@@ -545,15 +626,35 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       if (!b.isArchived || b.id == _originalBudgetId) b,
   ];
 
+  static final _calculator = SafeToSpendCalculator(BudgetCalculationService());
+
+  /// What a new expense today in the active budget does to today, before
+  /// it is saved; null for anything else (an edit, a tab purchase, another
+  /// day or budget), where the preview would not be today's story.
+  Widget? _todayImpact(ExpenseState state) {
+    final input = state.quickAddInput;
+    if (input == null || _isEditing || _payLater) return null;
+    if (_selectedBudget?.id != input.budgetId) return null;
+    final date = _date ?? state.initialDate;
+    if (date == null || !DateUtils.isSameDay(date, input.today)) return null;
+    final before = _calculator.preview(input, draftToday: 0);
+    if (!before.isRunning) return null;
+    final after = _calculator.preview(
+      input,
+      draftToday: double.tryParse(_amountController.text.trim()) ?? 0,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: TodayImpact(before: before, after: after),
+    );
+  }
+
   BudgetEntity? get _selectedBudget {
     for (final b in _budgets) {
       if (b.id == _selectedBudgetId) return b;
     }
     return null;
   }
-
-  String get _currencySymbol =>
-      CurrencyFormatter.symbolFor(_selectedBudget?.currency);
 
   /// Pre-fills a *new* expense from [source]: what was bought and for which
   /// budget, but dated now and without the receipt file.
@@ -563,9 +664,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _noteController.text = source.note ?? '';
       _selectedCategoryId = source.categoryId;
       _tags = List.of(source.tags);
+      _tagsKey = GlobalKey<TagInputFieldState>();
       _selectedBudgetId = source.budgetId;
       _populated = true;
     });
+    _settleDuplicateBudget();
     _applySourceTab();
   }
 
@@ -578,6 +681,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       _time = TimeOfDay(hour: expense.time.hour, minute: expense.time.minute);
       _receiptPath = expense.receiptImagePath;
       _tags = List.of(expense.tags);
+      _tagsKey = GlobalKey<TagInputFieldState>();
       _selectedBudgetId = expense.budgetId;
       _originalBudgetId = expense.budgetId;
       _isBillPayment = expense.billId != null;
@@ -640,6 +744,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   Future<void> _save() async {
     FocusManager.instance.primaryFocus?.unfocus();
 
+    // A tag typed but not yet added with + is added now, not dropped.
+    final tagError = _tagsKey.currentState?.commitPending();
+
     final amountError = ExpenseValidator.validateAmount(
       _amountController.text,
       currency: _selectedBudget?.currency,
@@ -671,6 +778,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (dateError != null) return _scrollTo(_dateKey);
     if (budgetError != null) return _scrollTo(_budgetKey);
     if (_tabCurrencyError != null) return _scrollTo(_budgetKey);
+    if (tagError != null) return _scrollTo(_tagsKey);
 
     // A duplicate is still deciding whether it starts on its source's tab
     // (a moment after opening); saving now could drop it from the tab.
@@ -742,6 +850,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         _baseline == null &&
         _date != null &&
         _time != null &&
+        (!_isDuplicating || _duplicateBudgetSettled) &&
         (_tabLinkKnown || _tabLinkReadFailed)) {
       _baseline = _signature();
     }
@@ -757,30 +866,38 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   }
 
   /// Quiet success: a light tap, the form closes, and a short note says it
-  /// worked. Nothing holds the screen.
-  void _onSaved() {
+  /// worked; after an add it says what is left today and offers Undo.
+  /// Nothing holds the screen.
+  void _onSaved(ExpenseState state) {
     AppHaptics.confirm();
     setState(() => _justSaved = true);
     final messenger = ScaffoldMessenger.of(context);
+    final currency = _selectedBudget?.currency;
     _close();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(_isEditing ? 'Changes saved' : 'Expense added'),
-          duration: const Duration(seconds: 3),
-        ),
+    if (!_isEditing && state.expense != null) {
+      ExpenseUndo.offerAdded(
+        messenger,
+        state.expense!,
+        currency: currency,
+        after: state.afterAdd,
       );
+      return;
+    }
+    AppSnack.showOn(messenger, 'Changes saved');
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: !_isDirty,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _requestClose();
-      },
-      child: _buildScaffold(context),
+    // While a save runs, Back does nothing: leaving would not stop it.
+    return BlocSelector<ExpenseBloc, ExpenseState, bool>(
+      selector: (state) => state.isBusy,
+      builder: (context, busy) => PopScope(
+        canPop: !busy && !_isDirty,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _requestClose();
+        },
+        child: _buildScaffold(context),
+      ),
     );
   }
 
@@ -804,31 +921,24 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         listener: (context, state) {
           if (state.status == ExpenseBlocStatus.success && !_justSaved) {
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
-            _onSaved();
+            _onSaved(state);
           } else if (state.status == ExpenseBlocStatus.error) {
             // Before the form is filled the failure was the load, so Retry
             // loads again; afterwards it was the save.
             final sourceId = widget.expenseId ?? widget.copyFromId;
             final loadFailed = sourceId != null && !_populated;
             final bloc = context.read<ExpenseBloc>();
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.message ??
-                        (loadFailed
-                            ? "Couldn't open this expense. Try again."
-                            : "Couldn't save the expense. Try again."),
-                  ),
-                  action: SnackBarAction(
-                    label: 'Retry',
-                    onPressed: loadFailed
-                        ? () => bloc.add(ExpenseLoadById(sourceId))
-                        : _save,
-                  ),
-                ),
-              );
+            AppSnack.show(
+              context,
+              state.message ??
+                  (loadFailed
+                      ? "Couldn't open this expense. Try again."
+                      : "Couldn't save the expense. Try again."),
+              actionLabel: 'Retry',
+              onAction: loadFailed
+                  ? () => bloc.add(ExpenseLoadById(sourceId))
+                  : _save,
+            );
             context.read<ExpenseBloc>().add(const ExpenseClearMessage());
           }
 
@@ -852,6 +962,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                   minute: state.initialTime!.minute,
                 );
               }
+              if (!_isDuplicating) {
+                _startDate ??= _date;
+                _startTime ??= _time;
+              }
             });
           }
 
@@ -871,93 +985,128 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             absorbing: isSaving || _justSaved,
             child: Form(
               key: _formKey,
-              child: ListView(
-                padding: AppSpacing.pagePadding,
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                children: [
-                  // 1. Amount
-                  KeyedSubtree(
-                    key: _amountKey,
-                    child: ExpenseAmountField(
-                      controller: _amountController,
-                      focusNode: _amountFocus,
-                      currencySymbol: _currencySymbol,
-                      maxDecimals: MoneyInput.maxDecimals(
-                        _selectedBudget?.currency,
+              child: AppPageBody(
+                builder: (context, padding) => ListView(
+                  padding: padding,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  children: [
+                    // 1. Amount
+                    KeyedSubtree(
+                      key: _amountKey,
+                      // No symbol until the budget is known, so no
+                      // stand-in (₹) shows first for another currency.
+                      child: AppAmountField(
+                        hero: true,
+                        controller: _amountController,
+                        focusNode: _amountFocus,
+                        currency: _selectedBudget?.currency,
+                        errorText: _amountError,
+                        // Checked on save; typing only clears the message.
+                        onChanged: (_) => setState(() => _amountError = null),
                       ),
-                      errorText: _amountError,
-                      // Checked on save; typing only clears the message.
-                      onChanged: (_) => setState(() => _amountError = null),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
+                    ?_todayImpact(state),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // Paid: now or pay later.
-                  KeyedSubtree(key: _paidKey, child: _buildPaidChoice()),
-                  const SizedBox(height: AppSpacing.lg),
+                    // Paid: now or pay later.
+                    KeyedSubtree(key: _paidKey, child: _buildPaidChoice()),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // 2. Category
-                  KeyedSubtree(
-                    key: _categoryKey,
-                    child: CategoryPicker(
-                      categories: state.categories,
-                      selectedCategoryId: _selectedCategoryId,
-                      errorText: _categoryError,
-                      onSelected: (id) => setState(() {
-                        _selectedCategoryId = id;
-                        _categoryError = null;
-                      }),
+                    // 2. Category
+                    KeyedSubtree(
+                      key: _categoryKey,
+                      child: CategoryPicker(
+                        categories: state.categories,
+                        failed: state.categoriesFailed,
+                        onRetry: () => context.read<ExpenseBloc>().add(
+                          const ExpenseLoadCategories(),
+                        ),
+                        selectedCategoryId: _selectedCategoryId,
+                        errorText: _categoryError,
+                        onSelected: (id) {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          setState(() {
+                            _selectedCategoryId = id;
+                            _categoryError = null;
+                          });
+                        },
+                        // Back from managing, the chips show any new or
+                        // renamed category.
+                        onManage: () async {
+                          final bloc = context.read<ExpenseBloc>();
+                          await context.pushUnique(AppRouter.categoriesPath);
+                          bloc.add(const ExpenseLoadCategories());
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // 3. Date & time
-                  KeyedSubtree(key: _dateKey, child: _buildDateTimeRow()),
-                  const SizedBox(height: AppSpacing.lg),
+                    // 3. Date & time, and the budget they must fall in.
+                    KeyedSubtree(key: _dateKey, child: _buildDateTimeRow()),
+                    const SizedBox(height: AppSpacing.md),
+                    KeyedSubtree(key: _budgetKey, child: _buildBudgetPicker()),
+                    const SizedBox(height: AppSpacing.lg),
 
-                  // 4. Details
-                  Text(
-                    'Details',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  KeyedSubtree(key: _budgetKey, child: _buildBudgetPicker()),
-                  const SizedBox(height: AppSpacing.md),
-                  ExpenseNoteField(controller: _noteController),
-                  const SizedBox(height: AppSpacing.md),
-                  TagInputField(
-                    key: ValueKey('tags_$_populated'),
-                    initialTags: _tags,
-                    onTagsChanged: (tags) => setState(() => _tags = tags),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  ReceiptPicker(
-                    receiptPath: _receiptPath,
-                    onChanged: (path) => setState(() => _receiptPath = path),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
+                    // 4. Optional details
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        'Details',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    ExpenseNoteField(controller: _noteController),
+                    const SizedBox(height: AppSpacing.md),
+                    TagInputField(
+                      key: _tagsKey,
+                      initialTags: _tags,
+                      onTagsChanged: (tags) => setState(() => _tags = tags),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    ReceiptPicker(
+                      receiptPath: _receiptPath,
+                      onChanged: (path) => setState(() => _receiptPath = path),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                ),
               ),
             ),
           );
         },
       ),
-      // Sticky action bar: always visible, sits above the keyboard.
+      // Sticky action bar, lifted above the keyboard while it is open.
       bottomNavigationBar: BlocBuilder<ExpenseBloc, ExpenseState>(
         buildWhen: (a, b) => a.isBusy != b.isBusy,
-        builder: (context, state) => SafeArea(
-          minimum: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.sm,
-            AppSpacing.md,
-            AppSpacing.md,
-          ),
-          child: ExpenseFormActions(
-            isSaving: state.isBusy,
-            isSaved: _justSaved,
-            isEditing: _isEditing,
-            onSave: _save,
+        builder: (context, state) => AppFormActionBar(
+          // Blueprint: Cancel (outlined) beside the filled save, 1 : 2.
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  key: const Key('cancelExpenseButton'),
+                  onPressed: state.isBusy
+                      ? null
+                      : () => Navigator.of(context).maybePop(),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.smd),
+              Expanded(
+                flex: 2,
+                // A spinner while saving and a brief check mark once
+                // saved, so the confirmation shows without a dialog.
+                child: PrimaryButton(
+                  buttonKey: const Key('saveExpenseButton'),
+                  onPressed: _save,
+                  isLoading: state.isBusy,
+                  isDone: _justSaved,
+                  label: _isEditing ? 'Save changes' : 'Add expense',
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -968,6 +1117,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final theme = Theme.of(context);
     if (_loadingBudgets) {
       return const Shimmer(
+        semanticsLabel: 'Loading budgets',
         child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
       );
     }
@@ -1014,7 +1164,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           DropdownMenuItem(
             value: b.id,
             child: Text(
-              '${b.name} · ${formatShortDateRange(b.startDate, b.endDate)}'
+              '${b.name} · ${AppDates.span(b.startDate, b.endDate)}'
               '${showCurrency ? ' · ${b.currency}' : ''}',
               overflow: TextOverflow.ellipsis,
             ),
@@ -1060,10 +1210,18 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Blueprint: the label above a full-width segmented control.
+        Text(
+          'Paid',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            Text('Paid', style: theme.textTheme.titleSmall),
-            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: SegmentedButton<bool>(
                 showSelectedIcon: false,
@@ -1129,6 +1287,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   Widget _buildDateTimeRow() {
     final datePicker = ExpenseDatePicker(
       date: _date,
+      budget: _selectedBudget,
       errorText: _dateError,
       onChanged: (date) => setState(() {
         _date = date;

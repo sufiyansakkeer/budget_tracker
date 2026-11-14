@@ -45,4 +45,25 @@ void main() {
     },
     timeout: const Timeout(Duration(seconds: 10)),
   );
+
+  test(
+    'UX-101: a failed launch check reads as not checked, not as an error',
+    () async {
+      final bloc = AppUpdateBloc(
+        checkForAppUpdateUseCase: CheckForAppUpdateUseCase(
+          repository: _ReleaseRepository(),
+        ),
+      );
+      addTearDown(bloc.close);
+
+      final states = expectLater(
+        bloc.stream,
+        emitsInOrder([const AppUpdateChecking(), const AppUpdateInitial()]),
+      );
+      bloc.add(const AppUpdateCheckOnLaunch());
+
+      await states;
+    },
+    timeout: const Timeout(Duration(seconds: 10)),
+  );
 }

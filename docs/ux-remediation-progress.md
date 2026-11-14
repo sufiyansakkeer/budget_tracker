@@ -5,9 +5,9 @@ Tracks the fixes for the issues in [`docs/design/ux-audit-2026-10-10.md`](design
 - **Branch:** `fix/monivo-ux-p0-critical`, from `main` at `c8fa6e1b`. P0 is committed in `3aa6ce2e`.
 - **Release:** the P0 fixes shipped in **1.0.0**, published on 2026-10-11 from the merge of PR #11 (`8237fc11`). They are listed in `CHANGELOG.md` and `RELEASE_NOTES.md`.
 - **Device checks:** done on 2026-10-11 on the Android 17 emulator (Pixel 9 Pro); see [Device checks](#device-checks-2026-10-11). iOS was not run on a device.
-- **Phase:** P0 (UX-001 to UX-012) is implemented. P1 has not started and waits for review.
+- **Phase:** all four phases are implemented. P0 (UX-001 to UX-012) shipped in 1.0.0. P1 (UX-013 to UX-036) and P2 (UX-037 to UX-070) are committed on branch `fix/ui-ux` in `ca02f2a2`. P3 (UX-071 to UX-113) is on the same branch, uncommitted, and waits for review. See [P1 summary](#p1-summary), [P2 summary](#p2-summary) and [P3 summary](#p3-summary).
 - **Done in the code-quality refactor** (branch `refactor/code-quality`, 2026-10-18):
-  - The dead-code part of UX-110: `SectionHeader`, the `AppHeader` widget (its date-range helpers moved to `core/dates/date_range_format.dart`), `AppCardTile`, `StatusChipStyles`, `AnimatedPercent`/`AnimatedNumber`, `CurrencyProvider.formatAmount`, `BudgetBloc` and `DashboardBloc._deriveSpendingTarget`. The consolidation part of UX-110 (amount fields, save buttons, snackbars) is still open.
+  - The dead-code part of UX-110: `SectionHeader`, the `AppHeader` widget (its date-range helpers moved to `core/dates/date_range_format.dart`), `AppCardTile`, `StatusChipStyles`, `AnimatedPercent`/`AnimatedNumber`, `CurrencyProvider.formatAmount`, `BudgetBloc` and `DashboardBloc._deriveSpendingTarget`. P3 did the snackbar and swatch consolidation; see [P3 summary](#p3-summary) for what is still open.
   - UX-009 fixed tags in Import only; Restore had the same cast and failed on any backup with a tagged expense. Restore now reads tags through `ImportService.normalizeTags`.
 - **Pulled forward from P1:** only the workflow part of UX-026. `release.yml` no longer publishes a literal `\n` in the release text (it uses `RELEASE_NOTES.md` when its heading names the version). The rest of UX-026 (launch-time modal, persisted "skip", Privacy copy) is still open.
 
@@ -38,6 +38,216 @@ Tracks the fixes for the issues in [`docs/design/ux-audit-2026-10-10.md`](design
 | UX-012 | Fixed and verified on device | The lock never opens unless the user is confirmed; a PIN-only phone can use it; failures explain how to recover |
 
 The brief's app-lock guidance asked not to re-lock while the app's own file picker or share sheet is open. That is part of audit item **UX-018 (P1)**, and the guard needed for it is in this batch (see UX-002/UX-012 below). The rest of UX-018 (auto-prompt on resume, a grace period for ordinary backgrounding) is still open for P1.
+
+## P1 summary
+
+Done on 2026-11-03. Every issue was re-checked against the current code first (all 24 were still present; UX-033 was half fixed by the code-quality refactor). Each fix has a regression test that failed on the old code. Full suite: **2,513 tests pass**, in the default time zone and with `TZ=America/New_York`; `flutter analyze` is clean. No domain-entity, data-source or schema changes.
+
+| ID | Status | Fix in one line |
+|---|---|---|
+| UX-013 | Fixed; device check needed | No permission prompt at launch; a one-time Home card ("Get Today's Safe Spending each morning" · Allow notifications / Not now); asked when reminders are turned on; a "Notifications are blocked" notice under Settings › Daily notifications and the bill form's "Remind me" |
+| UX-014 | Fixed; device check needed | `AppFormActionBar` keeps Save above the keyboard on the expense, budget and bill forms; tapping outside the amount or a category closes the keyboard |
+| UX-015 | Fixed and verified | A new budget becomes active only if it runs today or nothing running is active; otherwise "Make active" on the toast |
+| UX-016 | Fixed and verified | Onboarding saves the chosen currency as the app default |
+| UX-017 | Fixed and verified | Reports say "Only expenses in {budget}"; a range outside the active budget offers "Switch budget" instead of "Add expense" (scope unchanged) |
+| UX-018 | Fixed; device check needed | The lock engages on `hidden`/`paused` after 30 s away, never on `inactive`; it prompts by itself on return; a cover hides figures in the app switcher |
+| UX-019 | Fixed; device check needed | Every share passes `sharePositionOrigin` from the tapped control (iPad) |
+| UX-020 | Fixed and verified | Quick add on an ended budget offers "Start next budget" and "Add to {name}"; on a not-started one Add is disabled with the reason |
+| UX-021 | Fixed and verified | The active budget shows its phase ("Active · Ended"), "Running today" heading, and an ended notice with "Start next period" |
+| UX-022 | Fixed and verified | "Start next period" (`StartNextPeriod`) on ended budgets, Home's ended card and quick add: prefilled, same length or same day next month; Duplicate shows its dates and opens the copy |
+| UX-023 | Fixed; device check needed | Quick add asks "Discard this expense?" on Back, scrim tap or swipe once something is entered |
+| UX-024 | Fixed and verified | Budget form, bill form and category sheet ask before discarding changes |
+| UX-025 | Fixed and verified | The add toast says "₹250 added · ₹627 left today" (or "over by") and has Undo |
+| UX-026 | Fixed and verified | Update dialog: "Skip this version" and "Later" (24 h) are remembered; only on Home, never from the widget; body scrolls; Privacy copy corrected |
+| UX-027 | Fixed and verified | Each average says what it is: Home "not counting bill payments or today", Reports "9 days, incl. today", Expenses "avg each" |
+| UX-028 | Fixed and verified | Budget details label reads "Spent today, incl. bills" (calculation unchanged) |
+| UX-029 | Fixed and verified | Budget details has a read-only "Set aside" group and, for the running active budget, a link to Home |
+| UX-030 | Fixed and verified | Onboarding's preview uses today (or the future start date) and words each case |
+| UX-031 | Fixed and verified | Pay dialog: "Pay & record", says whether Today's Safe Spending changes; "record expense" everywhere |
+| UX-032 | Fixed and verified | The bill form says "This reminder time has passed, so it won't be sent." |
+| UX-033 | Fixed and verified | Reminder amounts use `CurrencyFormatter.forSystemText`; sentence-case titles |
+| UX-034 | Fixed and verified | Settings › "Change active budget amount" opens the budget's edit form (the hand-rolled dialog is gone) |
+| UX-035 | Fixed and verified | Archiving the active budget always asks, offers "Archive and switch to {name}" and Undo; delete names the next active budget |
+| UX-036 | Fixed; device check needed | The widget's "Add expense" opens quick add (`/app/home?quickAdd=1`); one sheet at most |
+
+### P1 decisions taken as safe defaults
+
+| ID | Decision | Not taken |
+|---|---|---|
+| UX-013 | Reminders still default to on. A one-time Home card (`NotificationPrimingCard`, user approved 2026-11-03) asks while reminders are on and notifications aren't allowed; either answer hides it for good (`notification_priming_answered` in SharedPreferences), after which Settings' notice still offers "Allow notifications". | Keep the launch prompt (the audit's complaint). |
+| UX-017 | Presentation only: scope line and "Switch budget" empty state. | Presets spanning every budget of one currency. |
+| UX-020 | "Start next budget" closes the sheet without asking (the notice shows before any input). | Ask first. |
+| UX-022 | Duplicate keeps the source's dates and says so; renewal is "Start next period". Settings' 31-day reset unchanged. | Duplicate shifting dates. |
+| UX-025 | The toast drops the "Expense added" prefix: "₹250 added". | Keep the prefix. |
+| UX-028 | Relabel only. | Exclude bills from the details figure. |
+| UX-031 | No editable amount or date in the pay dialog (that changes pay logic). | Editable fields. |
+| UX-032 | A helper line, not a changed default offset ("On the day" also passes after 9:00). | Default offset 0. |
+| UX-034 | Route to the edit form instead of fixing the dialog. `SettingsResetBudgetEvent` and `resetBudgetAmount` are now unused by the UI but kept (pinned by `settings_bloc_test`). | A second amount editor. |
+| UX-036 | A warm widget tap opens quick add over the current screen rather than switching to Home, so an open form keeps its input. | `go('/app/home')`. |
+
+### P1 known limits
+
+- At 200% text the budget-details metric label truncates to "Spent today, …" (`AppMetric` caps labels at 2 lines; screen readers get the full label).
+- The Settings summary still reads "Reminders 9:00 AM · 8:00 PM" when notifications are blocked; the notice can't tell "never asked" from "blocked".
+- `settings_bloc_test.mocks.dart` was edited by hand for the new `shareOrigin` parameter (as build_runner would generate it).
+
+### P1 device checks still to run
+
+- iOS and Android: Save above the keyboard on all three forms; tapping outside closes the decimal pad (UX-014).
+- Fresh install on Android 13+ and iOS: no prompt during onboarding; the Home card appears once and its "Allow notifications" shows the system prompt; the notice and the prompt from Settings and the bill form; allowing in system settings clears the notice (UX-013).
+- Lock on: share sheet and file picker don't re-lock; back after 30 s prompts by itself; app-switcher cover (UX-018).
+- iPad simulator: Settings Export and Back up › Share, Reports CSV and PDF (UX-019).
+- Quick add swipe-down with input; category sheet swipe and predictive back (UX-023, UX-024).
+- Home-screen widget cold and warm taps, with the lock on (UX-036).
+
+## P2 summary
+
+Done on 2026-11-03, in the same uncommitted tree as P1. Every issue was re-checked against the current code first; five were already fixed by the code-quality refactor or P0. Each new fix has a regression test that failed on the old code. Full suite: **2,640 tests pass**, in the default time zone and with `TZ=America/New_York`; `flutter analyze` is clean. No entity, data-source or schema changes (two read-only helpers are noted below).
+
+| ID | Status | Fix in one line |
+|---|---|---|
+| UX-037 | Fixed and verified | Contextual entries: Home "See all" whenever any bill exists, "Manage categories" at the end of the category picker, "Change amount" on budget details (no fifth tab) |
+| UX-038 | Fixed and verified | Budget edit warns inline when new dates leave expenses outside, or stop the active budget running today |
+| UX-039 | Fixed and verified | Clearing notes, icon or colour now saves (the form built the edit with `copyWith`, where null meant "unchanged") |
+| UX-040 | Already fixed | Code-quality B4: a restore reloads settings, theme, currency and lock (`onSettingsRestored`) |
+| UX-041 | Fixed; device check needed | Restore asks with the backup's date and counts ("Backup from 3 Oct 2026 · 3 budgets · 412 expenses · 2 bills"); a wrong or damaged file is refused first. Read-only `BackupService.readSummary` |
+| UX-042 | Fixed; device check needed | Welcome offers "Restore from backup"; a successful restore finishes onboarding and opens Home |
+| UX-043 | Already fixed | Onboarding checks `MoneyMath.isWithinLimit`, and again on a currency change |
+| UX-044 | Fixed and verified | Moving onboarding's start keeps the period's length |
+| UX-045 | Fixed; device check needed | Home header and every `AppSection` are their own screen-reader nodes |
+| UX-046 | Fixed; device check needed | Spoken money keeps the currency (OMR) through `AppMoney.spoken` / `CurrencyFormatter.forSpeech` in rows, cards, tracks, Home, bills and Reports |
+| UX-047 | Fixed and verified | Beside "Day 10 of 31", the count reads "22 days left, incl. today" |
+| UX-048 | Already fixed | `ReportsBloc._loadToken` drops stale loads; one more pin added |
+| UX-049 | Fixed; device check needed | Daily chart: tap anywhere in a column, screen-reader stepping; week/month chart speaks every bar's dates and amount |
+| UX-050 | Fixed and verified | Copy only: "Most spent on Saturdays in this period"; the weekend share shows only for whole weeks (calculations unchanged) |
+| UX-051 | Fixed and verified | Planned vs actual draws "today" only while the budget runs; an ended one says "Final: N% of the plan used." |
+| UX-052 | Fixed and verified | Week labels name the days inside the range, months carry the year when needed, sparse axis labels, over 24 months shown as years |
+| UX-053 | Fixed and verified | Reports show removable filter chips; exports carry a "Filtered: …" line; the plan explains why it hides under a filter |
+| UX-054 | Fixed and verified | `AppMetricRow` stacks three-up figures at large text (Reports, budget details); fixes P1's "Spent today, …" truncation |
+| UX-055 | Fixed and verified | Filter chips show amounts in the view's currency (rounding was fixed by code-quality B9) |
+| UX-056 | Already fixed | A failed swipe-delete reloads the list and the row comes back |
+| UX-057 | Already fixed | Camera and gallery failures each have a message (code-quality refactor) |
+| UX-058 | Fixed; device check needed | `MoneyInputFormatter` on every money field: pasted "1,250.00" keeps its thousands; a lone comma follows the phone's region (see decisions) |
+| UX-059 | Fixed and verified | Expense details show "Paid bill: Rent"; the move and delete hints say what happens to the bill (whether delete un-pays it is unchanged) |
+| UX-060 | Fixed and verified | Move sheet lists out-of-period budgets disabled with the reason, shows each currency, and offers Undo |
+| UX-061 | Fixed and verified | 48 dp targets: filter sheet date "Clear" buttons, Reports period button |
+| UX-062 | Fixed; device check needed | `AppPageBody` caps 17 screens at `contentMaxWidth` and centres them; `AppListRow` caps the amount from the row's width; Expenses tablet golden |
+| UX-063 | Fixed; device check needed | `AppPageBody` adds side and bottom safe-area insets to root detail screens, never twice |
+| UX-064 | Fixed; device check needed | Receipts decode at display size, no sync file IO in build, labelled "Receipt photo"; picks capped at 2000 px |
+| UX-065 | Fixed and verified | `RefreshCoalescer` turns buses notified together into one reload (Dashboard, widget, Reports) |
+| UX-066 | Fixed and verified | Categories show "Used by N expenses"; deleting one in use offers Archive instead; icons have human labels. Read-only `DeleteCategoryUseCase.usage` |
+| UX-067 | Fixed and verified | Bill form: "Repeat every … months" label, Clear as a screen-reader action, a currency picker for unlinked bills |
+| UX-068 | Fixed and verified | A reminder setting that saved but couldn't be scheduled keeps its new value and says so |
+| UX-069 | Fixed; device check needed | Lock screen keeps "Unlock to continue" and announces lockout copy; the lock tile keeps its description |
+| UX-070 | Fixed and verified | Non-lead chart bars use `onSurfaceVariant` (≥ 3:1, guarded in `theme_contrast_test`) |
+
+### P2 decisions taken as safe defaults
+
+| ID | Decision | Not taken |
+|---|---|---|
+| UX-058 | A lone comma groups thousands where the phone's region writes decimals with a point (English, India, Oman), so "1,250" typed key by key is 1250, never 1.25. Where the region uses a decimal comma, it is the point (that region's iOS decimal pad offers only ","). With both marks, the last is the point. | Comma always the decimal point (the first draft; a silent ×1000 error for INR users). |
+| UX-050 | Copy and visibility only; Saturday–Sunday weekend and Monday week start unchanged. | A week-start or weekend setting. |
+| UX-059 | Show the bill; deleting the payment still leaves the bill paid. A moved bill payment gets no Undo (moving back can't restore the link). | Un-pay on delete. |
+| UX-054 | Stack all three figures below an 80 pt column (about 1.2× text on a 360 dp phone). | A 2 + 1 layout. |
+| UX-062 | No NavigationRail. Dashboard and Reports keep their own width caps; skeletons and error states stay full width. Amount cap 46% of the row (pixel-identical on phones). | A rail from 840 dp. |
+| UX-041 | No "Back up current data first" offer before a restore. | Offer it. |
+| UX-067 | Currency picker only while a bill isn't linked to a budget. | Always. |
+
+### P2 device checks still to run
+
+- TalkBack and VoiceOver: Home reading order, OMR spoken amounts, stepping through the daily chart (UX-045, 046, 049).
+- Fresh install › Restore from backup, and Settings › Restore: summary dialog, export and damaged files refused (UX-041, 042).
+- Gboard comma key and the iOS decimal pad in a comma-decimal region; paste "1,250.00" into each money field (UX-058).
+- Tablet or wide emulator, landscape with a notch, gesture and 3-button navigation (UX-062, 063).
+- A 12 MP receipt on a low-end phone (UX-064). Lock lockout copy after 5 failures (UX-069).
+
+## P3 summary
+
+Done on 2026-11-05 on `fix/ui-ux`, on top of `ca02f2a2`, uncommitted. It was done in two waves: five area groups in parallel, then two app-wide groups. Every issue was re-checked against the current code first. New tests were shown to fail on the old code, by reverting the fix or running against `git archive HEAD`. The exceptions are tests of new APIs, which can't compile against the old code, and a few copy pins; both are noted in the agents' reports. `flutter analyze` is clean. All golden images were regenerated and reviewed. The full-suite results are under [Commands and results](#commands-and-results). The first pass made no entity, data-source or schema changes. The deferred items the user approved afterwards add schema v10 (a colour-only data step), `BillSnapshot` and `RestoreBillSnapshotUseCase`.
+
+| ID | Status | Fix in one line |
+|---|---|---|
+| UX-071 | Fixed and verified | The hero's top bar is captioned "65% of today's amount used" (rounded down); no bar when today's amount is 0; the info sheet explains both bars and the tick |
+| UX-072 | Fixed and verified | From about 1.5× text, Free to spend puts the figure under the label (shared `BreakdownRow.stacksAt`) |
+| UX-073 | Fixed; device check needed | `AppFabCollapse` (`app_fab.dart`) on Home, Bills, Budgets, budget details, Expenses, Categories and Pay later; the label returns when a scroll ends at the top; a guard test fails on any `AppFab` without `collapse:` |
+| UX-074 | Fixed and verified | Copy matches what is counted: "Ready in 2 more days." / "Ready tomorrow." / "Needs your first expense and 2 more days." (calculation unchanged; `CALCULATION_RULES.md` updated) |
+| UX-075 | Fixed and verified | Home Recent and the Expenses row no longer repeat the category when there is no note, on screen or spoken |
+| UX-076 | Fixed and verified | Undo from expense details reports "Expense restored" or the failure |
+| UX-077 | Fixed and verified | Save adds a tag still being typed (over 10 blocks and scrolls to it); a changed date, time or budget counts as unsaved |
+| UX-078 | Fixed and verified | The form's date picker offers the selected budget's start up to the earlier of its end and today; the save-time check stays |
+| UX-079 | Fixed and verified | Form: "Couldn't load categories." with Retry. Quick add was already fixed |
+| UX-080 | Fixed and verified | Back and Close do nothing while a save runs. The reload half was already fixed (`ExpenseBloc` no longer listens to refresh buses) |
+| UX-081 | Fixed; device check needed | The date error is read with its label; combined rows offer "Expense and budget details" as a screen-reader action; form and details section titles are headings; budget selection disables Apply with an inline reason |
+| UX-082 | Fixed and verified | No currency symbol until the budget is known (quick add, form); details wait for budgets |
+| UX-083 | Fixed and verified | "Expense not found" is said once (empty state only) |
+| UX-084 | Fixed and verified | Budget sits under Date and Time; Note, Tags and Receipt say "(optional)"; a duplicate whose budget doesn't cover today starts in the active budget |
+| UX-085 | Fixed; device check needed | The selected period chip scrolls into view; the custom picker says it leaves This budget; re-applying the budget's own dates keeps This budget |
+| UX-086 | Fixed and verified | No This budget chip without an active budget; a vanished budget shows "No active budget" with choices; a failed switch drops the old report |
+| UX-087 | Fixed and verified | Reports and the budget picker use `AppMoney` precision ("left" floored); "Same" means zero at the currency's minor units |
+| UX-088 | Fixed and verified | Ranking bars lose the grey track (still scaled to the largest category). Six default colours changed (Shopping yellow, EMI lime, Bills brick, Education plum, Salary adjustment rose, Others ash): every pair is at least CIEDE2000 16.7 apart as drawn on all 16 palette surfaces, and AA. Schema 9 → 10 recolours a built-in category only while it still has its v9 colour. A deleted category draws in the Others colour (`fallbackCategoryColorHex`) |
+| UX-089 | Fixed and verified | Export copy matches the delivery outcome; spinner while exporting; disabled items say why; CSV has Budget and Currency rows and an `Amount (OMR)` header; PDF names the budget; files are named by date range |
+| UX-090 | Fixed; device check needed | Category sheet rows open the expense; the list is lazy |
+| UX-091 | Fixed and verified | The half-split already excluded an unfinished today; the daily chart now drops its selection when the range changes |
+| UX-092 | Fixed and verified | `AppTerms` and `ValidationCopy` (`core/constants/app_copy.dart`): one instruction-style validation voice, sentence case in presentation (domain labels mapped, not changed), "Remaining budget" for the budget figure, snackbar copy in the same voice |
+| UX-093 | Fixed; device check needed | `AppDates` (`core/dates/date_range_format.dart`): one day-first order, the year outside the current year, times through `TimeOfDay.format` (24-hour setting honoured), including bills' default due time and the converter |
+| UX-094 | Fixed and verified | Onboarding's end picker starts at start + 1, and Back is ignored while creating or restoring. The form half was already fixed |
+| UX-095 | Fixed and verified | With no budget, "Start new budget period" opens Create budget (`ResetBudgetUseCase` untouched) |
+| UX-096 | Fixed and verified | Ended and Archived are newest first, 5 rows, then "Show all N" |
+| UX-097 | Fixed and verified | Save scrolls to the first invalid field; save failures show in a snackbar |
+| UX-098 | Fixed; device check needed | The track speaks the real share ("125%"); archived rows use muted text, not 75% opacity; onboarding date cards say "Start date" / "End date"; the currency box has a minimum height |
+| UX-099 | Fixed and verified | Currency and reminder saves no longer set the Data group busy |
+| UX-100 | Fixed; device check needed | Bill filters = sections (All, Overdue, Due soon, Later, Paid, Recurring, Not linked); mixed filters show "unpaid · paid" per currency; the linked quick action has the receipt icon. Undo on the list and on details after mark paid (one-time and recurring), pay & record (including plain spending) and delete: `RestoreBillSnapshotUseCase` puts the bill and its payment rows back in one transaction, deletes the recorded expense, and reschedules the reminder |
+| UX-101 | Fixed and verified | Update errors show the check's own reason; a failed launch check returns to "not checked" |
+| UX-102 | Fixed and verified | The integrity sheet no longer recommends a backup; budget and bill issues say where to fix them |
+| UX-103 | Fixed and verified | The converter's lead line wraps without a line cap |
+| UX-104 | Fixed and verified | Onboarding jumps pages under reduced motion |
+| UX-105 | Fixed; device check needed | Home-widget startup calls run together; Home's stagger is 4 steps (about 470 ms, from 590). Not profiled |
+| UX-106 | Fixed; device check needed | `Shimmer(semanticsLabel:)`: one live "Loading …" region per skeleton, after its 300 ms delay |
+| UX-107 | Fixed; device check needed | Badge, date-range picker, ListTile titles (`titleSmall`, as `AppListRow`) and `IconTile` tint (0.22 in dark) themed; swatch check marks reach 3:1 (Green showed a white check at 2.78:1) |
+| UX-108 | Fixed and verified | `AppSizes.inlineIcon(context)` scales status glyphs with text (cap 24) |
+| UX-109 | Fixed; device check needed | `JsonOffMain`: JSON encode/decode on `Isolate.run`; restore decodes once (was three times); Settings › Restore shows a modal progress |
+| UX-110 | Fixed; device check needed | `AppSnack` replaces all 45 raw snackbars (4 s, 6 s with an action; guard test); `AppColorSwatch`; `AppSizes.isLargeText` at 4 sites; `MergeSemantics` detail rows; `animated_amount.dart` deleted. One `AppAmountField` (9 fields), `PrimaryButton` for every form and sheet Save (primary while busy, spinner, icon first), one `BudgetPickerSheet` (switcher and move sheet), one `CurrencySelector.show()` sheet (settings, converter, tab, budget and bill forms, onboarding rows). Guard tests fail if a raw money field, hand-built currency list or `ElevatedButton` returns |
+| UX-111 | Fixed; device check needed | Quick add announces the amount once after typing stops; the nav bar reads "Home, Tab 1 of 4" once; filter sheet headers; merged fact rows; onboarding focuses after the slide; haptics on mark paid, budget switch, archive, make active |
+| UX-112 | Fixed and verified | Reports and the budget form already used calendar days; DST tests added (New York); the bar chart's month/week detection now uses calendar days too |
+| UX-113 | Fixed and verified (code readiness only) | Directional insets and alignments throughout; `AppTrack` mirrors under RTL (LTR pixel-identical); no locales added |
+
+### P3 decisions taken as safe defaults
+
+| ID | Decision | Not taken |
+|---|---|---|
+| UX-071 | Percentage caption, rounded down; hidden when today's amount is 0 | A fixed caption; removing the bar |
+| UX-091 | Leave out today only when the range ends today (already the code) | Always leave it out |
+| UX-095 | No budget → Create budget | Disable the row; change the use case's ₹0/INR defaults |
+| UX-096 | Cap of 5 for Ended and Archived | An `AppDisclosure` |
+| UX-097 | Save failures only in a snackbar | Keep the inline card too |
+| UX-100 | Filters follow the sections; the status filters "Upcoming" and "Due today" are gone (the bill's status chip still says them). Undo only when un-paying fully reverses | Rename sections; Undo always |
+| UX-092 | "Remaining budget" for the budget figure; "Today's Safe Spending", bill status "Upcoming", domain and data strings unchanged | Renaming the product figure or domain strings |
+| UX-093 | Two range styles: `AppDates.range` "1 Oct – 31 Oct 2026" (captions, period line, always with year) and `AppDates.span` "22 – 30 Sep" (lists, chips, Reports; year only outside this year) | One style everywhere |
+| UX-107 | ListTile titles are 14 pt (`titleSmall`) app-wide, matching `AppListRow` | Keep 16 pt |
+| UX-110 | Snackbar durations unified (Retry 4→6 s, "Changes saved" 3→4 s); category errors lose their close icon | Per-site durations |
+| UX-111 | The quick-add amount is announced only with a screen reader on, 700 ms after the last key | A debounced live region |
+
+### P3 deferred items, done after review
+
+On 2026-11-05 the user asked for the three deferred items too, approving data and domain changes for them.
+
+| Item | Decision | Not taken |
+|---|---|---|
+| UX-088 | Change the fewest defaults (6, a vertex cover of the clashing pairs). Migrate only rows matching id, `is_system = 1` and the exact v9 colour. Old backups restore with their stored colours. Known limit: a user who deliberately picked a built-in's exact v9 colour gets recoloured | Recolour every default; remap colours on restore |
+| UX-100 | Undo always offered when the bill can be captured first; a recorded expense already gone is skipped, any other failure rolls the whole undo back; a deleted bill whose budget was deleted since can't be restored ("Couldn't undo that. Try again."). Copy: "Payment undone", "Bill restored" | Re-insert unlinked; partial undo |
+| UX-110 | The converter accepts the source currency's decimals (min 2) instead of 8; loading shows a spinner instead of "Saving…"; onboarding Continue is 48 dp like every Save; picker rows use a radio mark with "span · currency" | Per-site looks |
+
+Still left on purpose: trailing-width fractions and the two other large-text thresholds (they differ on purpose under non-linear scaling); quick add's number pad; the history filter's multi-select budget sheet; budget dropdowns inside forms.
+
+### P3 device checks still to run
+
+- TalkBack and VoiceOver: nav bar, skeleton announcements, quick-add amount, combined-row action, form headings and date error, merged fact rows, Recent rows, overspent track "125%", onboarding date cards (UX-081, 098, 106, 111, 075).
+- 24-hour phone setting: expense time, details "Added …", history, Home Recent, bill default due time, restore and integrity sheets, converter "Fetched …" (UX-093).
+- FAB folding on every list; Bills filter-chip row must not fold it (UX-073).
+- Large backup restore and export without freezing; the restore modal (UX-109). Cold start from a widget tap on both platforms, and a profile of first frame (UX-105).
+- Bills: every Undo within 6 s, including delete from details then Undo on the list; the reminder returns after undoing a recurring payment or a delete; Home and the budget return to their earlier figures (UX-100).
+- Upgrade a real v9 install: untouched defaults get the new colours, a recoloured one keeps it (UX-088).
+- Amount fields: converter comma/paste in a comma-decimal region, onboarding amount focus, currency sheet at large text, filter Min → Max (UX-110). Reports: chip scroll at 360 dp, export outcome in the share sheet, category sheet → expense → back (UX-085, 089, 090).
 
 ## Product decisions taken as safe defaults
 
@@ -278,6 +488,16 @@ None of these changes stored data on its own; each is reversible.
 | Failing-on-old-code checks for UX-001, UX-007 and UX-009 (temporarily reverting the fix) | Each test failed without the fix and passed with it |
 | `dart run build_runner build --build-filter=…` for the two mock files | Regenerated; four mocks deleted by the tool were restored from `HEAD` |
 | `flutter test --update-goldens test/goldens/settings_golden_test.dart --plain-name settings` | Only the inspected settings golden was rewritten |
+| P3, after wave 1: `flutter test` | 2,813 passed; 11 golden images failed (expected, regenerated at the end) |
+| P3, final: `flutter analyze` | No issues |
+| P3, final: `flutter test --update-goldens test/goldens` | 53 images rewritten; Home, Bills, Budgets and Expenses reviewed by eye |
+| P3, final: `flutter test` (default time zone) | 2,867 passed |
+| P3, final: `TZ=America/New_York flutter test` | 2,867 passed |
+| P3, final: `TZ=Pacific/Kiritimati flutter test test/goldens` | 20 passed (goldens don't depend on the real date) |
+| P3 deferred items: `flutter analyze` | No issues |
+| P3 deferred items: `flutter test` (default time zone) | 2,910 passed |
+| P3 deferred items: `TZ=America/New_York flutter test` | 2,910 passed |
+| P3 deferred items: `TZ=Pacific/Kiritimati flutter test test/goldens` | 20 passed; quick add, converter, categories, reports, expenses and onboarding images reviewed |
 
 ## Final verification
 

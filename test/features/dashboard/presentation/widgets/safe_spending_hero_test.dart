@@ -3,10 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_colors_extension.dart';
 import 'package:monivo/core/theme/app_theme.dart';
 import 'package:monivo/core/widgets/app_money.dart';
+import 'package:monivo/core/widgets/app_track.dart';
 import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import 'package:monivo/features/dashboard/domain/entities/budget_daily_limit_entity.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/dashboard_info.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_spending_hero.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/safe_to_spend_copy.dart';
+import 'package:monivo/features/dashboard/presentation/widgets/target_ring.dart';
 
 import 'safe_to_spend_fixtures.dart';
 
@@ -45,30 +48,32 @@ void main() {
       expect(labels, contains("Over today's amount"));
     });
 
-    testWidgets('shows the daily amount, spent and left, without the week '
-        'line', (tester) async {
+    testWidgets('the ring: left today in the middle, of today\'s amount', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         harness(limitFor(safeToSpend(periodSpent: 250, todaySpent: 250))),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text("Today's Safe Spending"), findsOneWidget);
-      expect(find.text('₹1,000'), findsOneWidget);
-      expect(find.text('₹250'), findsOneWidget);
+      // Blueprint: no title row; the ring and its centre say it all.
+      expect(find.text("Today's Safe Spending"), findsNothing);
+      expect(find.text('Left today'), findsOneWidget);
       expect(find.text('₹750'), findsOneWidget);
-      // The budget behind the figure: what is left, the days to go and
-      // today's place in the period (calendar days, today included).
-      expect(find.text('₹21,750 left of ₹22,000'), findsOneWidget);
-      expect(find.text('22 days left'), findsOneWidget);
-      expect(find.text('Day 10 of 31'), findsOneWidget);
-      // The budget's name is the screen title now, not repeated here.
-      expect(find.text('Groceries · until 31 Aug'), findsNothing);
-      // weeklyTarget is set on the entry, but the week line is gone.
+      expect(find.text('of ₹1,000 target'), findsOneWidget);
+      final ring = tester.widget<TargetRing>(find.byType(TargetRing));
+      expect((ring.spent, ring.target), (250.0, 1000.0));
+      // The large number is what is left; the target labels the circle.
+      expect(
+        tester.getTopLeft(find.text('₹750')).dy,
+        lessThan(tester.getTopLeft(find.text('of ₹1,000 target')).dy),
+      );
+      // The budget as a whole moved to the Budget tab (blueprint).
+      expect(find.text('₹21,750 left of ₹22,000'), findsNothing);
       expect(find.text('This week'), findsNothing);
-      expect(find.text('₹3,000 of ₹7,000'), findsNothing);
     });
 
-    testWidgets('"Over by" uses the caution colour, never the critical red', (
+    testWidgets('over today: the middle says so in caution, never red', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -76,15 +81,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Over by'), findsOneWidget);
+      expect(find.text('Over today'), findsOneWidget);
       expect(find.text('Left today'), findsNothing);
-      expect(find.text('₹400'), findsWidgets);
+      expect(find.text('₹400'), findsOneWidget);
       // Going over today's amount is recoverable, so it is caution (amber);
       // red is reserved for money already gone.
-      final icon = tester.widget<Icon>(find.byIcon(Icons.error_rounded).last);
+      final label = tester.widget<Text>(find.text('Over today'));
       final tokens = AppTheme.lightTheme.extension<AppColorTokens>()!;
-      expect(icon.color, tokens.warning);
-      expect(icon.color, isNot(AppTheme.lightTheme.colorScheme.error));
+      expect(label.style?.color, tokens.warning);
+      expect(label.style?.color, isNot(AppTheme.lightTheme.colorScheme.error));
     });
 
     testWidgets('an overspend says how much less each later day gets', (
@@ -126,11 +131,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text("How it's worked out"));
+      // Tapping the ring opens the working (blueprint).
+      await tester.tap(find.byType(TargetRing));
       expect(opened, 1);
-
-      await tester.pumpWidget(harness(limitFor(safeToSpend())));
-      await tester.pumpAndSettle();
       expect(find.text("How it's worked out"), findsNothing);
     });
 
@@ -162,7 +165,8 @@ void main() {
       await tester.pumpWidget(harness(limitFor(entity)));
       await tester.pumpAndSettle();
 
-      expect(find.text('₹333.33'), findsNWidgets(2)); // amount + left today
+      expect(find.text('₹333.33'), findsOneWidget); // left today
+      expect(find.text('of ₹333.33 target'), findsOneWidget);
     });
 
     testWidgets('bill payments today get a caption and are not spent today', (
@@ -186,8 +190,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('₹0'), findsOneWidget); // Spent today
-      expect(find.text('₹1,000'), findsNWidgets(2)); // amount + left today
+      // Nothing of today's amount is used: the whole of it is left.
+      expect(find.text('₹1,000'), findsOneWidget);
+      expect(find.text('of ₹1,000 target'), findsOneWidget);
+      expect(tester.widget<TargetRing>(find.byType(TargetRing)).spent, 0);
     });
 
     testWidgets('shows one explanation line for the top reason', (
@@ -215,6 +221,21 @@ void main() {
       expect(find.textContaining('lower because of bills'), findsNothing);
     });
 
+    testWidgets('at risk: one short sentence under the chip (blueprint)', (
+      tester,
+    ) async {
+      final entity = runningStatusFixtures['budgetAtRisk']!();
+      await tester.pumpWidget(harness(limitFor(entity)));
+      await tester.pumpAndSettle();
+
+      final line = find.textContaining('At this pace the budget ends about ');
+      expect(line, findsOneWidget);
+      expect(tester.widget<Text>(line).data, endsWith(' short.'));
+      // Whole rupees: a forecast, not a record.
+      expect(tester.widget<Text>(line).data, isNot(contains('.0')));
+      expect(find.textContaining('At your average so far'), findsNothing);
+    });
+
     testWidgets('reads the figures as one merged label', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -231,8 +252,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      // The info button stays separately reachable.
-      expect(find.byTooltip("About Today's Safe Spending"), findsOneWidget);
       handle.dispose();
     });
   });
@@ -267,15 +286,30 @@ void main() {
           await tester.pumpAndSettle();
 
           expect(tester.takeException(), isNull);
-          // The status label is shown whole, and the info button keeps its
-          // full tap target.
+          // The status label is shown whole.
           final label = SafeToSpendCopy.statusLabel(entry.value().status);
           expect(find.text(label), findsOneWidget);
-          final info = find.byType(IconButton);
-          expect(info, findsOneWidget);
-          expect(tester.getSize(info).width, greaterThanOrEqualTo(48));
         });
       }
     }
+  });
+
+  group('the ring says what it measures (UX-071)', () {
+    testWidgets('with no amount today the ring is all track', (tester) async {
+      final entity = runningStatusFixtures['overcommitted']!();
+      expect(entity.dailySafeToSpend, 0);
+      await tester.pumpWidget(harness(limitFor(entity)));
+      await tester.pumpAndSettle();
+
+      final ring = tester.widget<TargetRing>(find.byType(TargetRing));
+      expect((ring.spent, ring.target), (0.0, 0.0));
+      expect(find.byType(AppTrack), findsNothing);
+    });
+
+    test('the info sheet explains the ring', () {
+      final notes = DashboardInfo.safeSpending('INR').additionalNotes!;
+      expect(notes, contains("The ring is today's amount"));
+      expect(notes, contains('inner ring for the extra'));
+    });
   });
 }

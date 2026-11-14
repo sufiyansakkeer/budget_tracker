@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/theme/app_theme.dart';
+import 'package:monivo/core/widgets/app_money.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
 import 'package:monivo/features/reports/domain/entities/category_comparison.dart';
 import 'package:monivo/features/reports/domain/entities/report_period.dart';
 import 'package:monivo/features/reports/presentation/widgets/category_comparison_card.dart';
+import 'package:monivo/features/reports/presentation/widgets/report_copy.dart';
 
 void main() {
   final range = ReportRange(
@@ -59,7 +61,13 @@ void main() {
   testWidgets('shows the compared window in the caption', (tester) async {
     await tester.pumpWidget(harness(const [up]));
     await tester.pumpAndSettle();
-    expect(find.textContaining('1 Sep – 7 Sep'), findsOneWidget);
+    // UX-093: the shared compact span, one style with the other ranges.
+    expect(
+      find.textContaining(
+        'Compared with ${ReportCopy.span(DateTime(2026, 9, 1), DateTime(2026, 9, 7))} ',
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('7 days'), findsOneWidget);
   });
 
@@ -105,5 +113,62 @@ void main() {
     );
     expect(node.label, contains('Fuel'));
     expect(node.label, contains('down'));
+  });
+
+  group('UX-087: figures at the currency precision', () {
+    Widget omr(List<CategoryComparison> comparison) => MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: CategoryComparisonCard(
+            comparison: comparison,
+            categories: defaultCategories,
+            range: range,
+            currency: 'OMR',
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('400 fils of change is a change, not "Same"', (tester) async {
+      await tester.pumpWidget(
+        omr(const [
+          CategoryComparison(
+            categoryId: 'food',
+            categoryName: 'Food',
+            colorHex: '#FF6B6B',
+            currentAmount: 10.65,
+            previousAmount: 10.25,
+          ),
+        ]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Same'), findsNothing);
+      expect(
+        find.textContaining('+${AppMoney.format(0.4, currency: 'OMR')}'),
+        findsOneWidget,
+      );
+      // Exact, not rounded to 11.
+      expect(
+        find.text(AppMoney.format(10.65, currency: 'OMR')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a change below one fils is "Same"', (tester) async {
+      await tester.pumpWidget(
+        omr(const [
+          CategoryComparison(
+            categoryId: 'food',
+            categoryName: 'Food',
+            colorHex: '#FF6B6B',
+            currentAmount: 10.2501,
+            previousAmount: 10.25,
+          ),
+        ]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Same'), findsOneWidget);
+    });
   });
 }

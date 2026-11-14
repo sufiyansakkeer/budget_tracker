@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 
@@ -26,11 +25,7 @@ class ExpenseTimePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final display = time == null
-        ? 'Select time'
-        : DateFormat(
-            'h:mm a',
-          ).format(DateTime(2000, 1, 1, time!.hour, time!.minute));
+    final display = time == null ? 'Select time' : time!.format(context);
 
     return Semantics(
       button: true,

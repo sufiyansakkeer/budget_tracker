@@ -94,6 +94,40 @@ void main() {
       );
     });
 
+    testWidgets(
+      'a message is a separate, announced line; the description stays '
+      '(UX-069)',
+      (tester) async {
+        const note = "Not confirmed, so the app lock is still off.";
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: BiometricTile(
+                enabled: false,
+                message: note,
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.textContaining('Locks again when you leave the app'),
+          findsOneWidget,
+        );
+        expect(find.text(note), findsOneWidget);
+        expect(
+          find.ancestor(
+            of: find.text(note),
+            matching: find.byWidgetPredicate(
+              (w) => w is Semantics && w.properties.liveRegion == true,
+            ),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
     testWidgets('shows default subtitle when no message', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

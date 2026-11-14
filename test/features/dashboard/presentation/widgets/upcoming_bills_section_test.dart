@@ -5,6 +5,8 @@ import 'package:monivo/features/bills/domain/entities/bill_entity.dart';
 import 'package:monivo/features/bills/domain/entities/bill_enums.dart';
 import 'package:monivo/features/dashboard/presentation/widgets/upcoming_bills_section.dart';
 
+import 'safe_to_spend_fixtures.dart';
+
 void main() {
   final today = DateTime.now();
   BillEntity bill(String id, {String? budgetId}) => BillEntity(
@@ -76,9 +78,9 @@ void main() {
     // safe amount does not count it, so neither does the row.
     await pump(tester, [bill('a', budgetId: 'personal')], setAside: const {});
 
-    expect(find.textContaining('Set aside', findRichText: true), findsNothing);
+    expect(find.textContaining('set aside', findRichText: true), findsNothing);
     expect(
-      find.textContaining('Paid from Personal', findRichText: true),
+      find.textContaining('paid from Personal', findRichText: true),
       findsOne,
     );
   });
@@ -95,17 +97,30 @@ void main() {
       bill('d'),
     ]);
 
-    expect(find.text('Set aside', findRichText: true), findsNothing);
-    expect(find.textContaining('Set aside', findRichText: true), findsOne);
     expect(
-      find.textContaining('Paid from Household', findRichText: true),
+      find.textContaining('already set aside', findRichText: true),
       findsOne,
     );
     expect(
-      find.textContaining('Paid from another budget', findRichText: true),
+      find.textContaining('paid from Household', findRichText: true),
       findsOne,
     );
-    expect(find.textContaining('Not linked', findRichText: true), findsOne);
+    expect(
+      find.textContaining('paid from another budget', findRichText: true),
+      findsOne,
+    );
+    expect(find.textContaining('not linked', findRichText: true), findsOne);
+  });
+
+  testWidgets('each row says what it does to the daily target (blueprint)', (
+    tester,
+  ) async {
+    await pump(tester, [bill('a', budgetId: 'personal')]);
+
+    expect(find.text('By what each does to your daily target'), findsOne);
+    // Already set aside: no change, and no amount competing with it.
+    expect(find.text('No change'), findsOneWidget);
+    expect(find.text('₹500'), findsNothing);
   });
 
   testWidgets('UX-006: an overdue bill says so in words, and the section '
@@ -137,9 +152,84 @@ void main() {
     await pump(tester, [bill('b', budgetId: 'household')]);
 
     expect(
-      find.bySemanticsLabel(RegExp(r'^Bill b, .*, paid from household, ₹500')),
+      find.bySemanticsLabel(RegExp(r'^Bill b, .*, paid from Household, ₹500')),
       findsOneWidget,
     );
     handle.dispose();
+  });
+
+  testWidgets('UX-037: with bills but none coming up it offers "See all"', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: UpcomingBillsSection(bills: [], hasBills: true)),
+      ),
+    );
+
+    expect(find.widgetWithText(TextButton, 'See all'), findsOneWidget);
+    expect(find.text('Add bill'), findsNothing);
+  });
+
+  group('what a bill not linked would do to today\'s amount (blueprint)', () {
+    // Fixture budget: 1–31 Aug, seen on 10 Aug, 22 days left (incl. today).
+    final e = safeToSpend();
+    BillEntity unlinked({
+      double amount = 616,
+      String currency = 'INR',
+      DateTime? due,
+    }) => BillEntity(
+      id: 'n',
+      title: 'Netflix',
+      amount: amount,
+      currency: currency,
+      category: BillCategory.subscription,
+      dueDate: due ?? DateTime(2026, 8, 20),
+      createdAt: DateTime(2026, 8, 1),
+      updatedAt: DateTime(2026, 8, 1),
+    );
+
+    test('its amount spread over the days left', () {
+      expect(UpcomingBillsSection.dailyEffect(unlinked(), e), 28);
+    });
+
+    test('none when it could not be set aside by this budget', () {
+      // Another currency, due after the budget ends, or already linked.
+      expect(
+        UpcomingBillsSection.dailyEffect(unlinked(currency: 'USD'), e),
+        isNull,
+      );
+      expect(
+        UpcomingBillsSection.dailyEffect(
+          unlinked(due: DateTime(2026, 9, 2)),
+          e,
+        ),
+        isNull,
+      );
+      expect(
+        UpcomingBillsSection.dailyEffect(bill('x', budgetId: 'p'), e),
+        isNull,
+      );
+      expect(UpcomingBillsSection.dailyEffect(unlinked(), null), isNull);
+    });
+
+    testWidgets('the row says it under the amount', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: UpcomingBillsSection(
+                bills: [unlinked()],
+                activeSafeToSpend: e,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('\u2212₹28 a day'), findsOneWidget);
+      expect(find.text('if paid from this budget'), findsOneWidget);
+    });
   });
 }

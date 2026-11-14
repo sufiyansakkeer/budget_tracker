@@ -8,27 +8,39 @@ import 'package:monivo/core/router/app_shell.dart';
 
 void main() {
   group('AppShell Bottom Navigation', () {
-    Widget buildShell() {
-      final branches = [
-        for (final path in ['home', 'expenses', 'reports', 'settings'])
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: '/app/$path', builder: (_, __) => _FakePage(path)),
-            ],
-          ),
-      ];
+    late GoRouter router;
+    late int adds;
+    late int holds;
 
-      final router = GoRouter(
+    // Branch order as in app_router.dart.
+    const paths = ['home', 'budgets', 'expenses', 'reports', 'settings'];
+
+    Widget buildShell() {
+      adds = 0;
+      holds = 0;
+      router = GoRouter(
         initialLocation: '/app/home',
         routes: [
           StatefulShellRoute.indexedStack(
-            builder: (context, state, navigationShell) =>
-                AppShell(navigationShell: navigationShell),
-            branches: branches,
+            builder: (context, state, navigationShell) => AppShell(
+              navigationShell: navigationShell,
+              onAdd: (_) => adds++,
+              onAddHold: (_) => holds++,
+            ),
+            branches: [
+              for (final path in paths)
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(
+                      path: '/app/$path',
+                      builder: (_, _) => _FakePage(path),
+                    ),
+                  ],
+                ),
+            ],
           ),
         ],
       );
-
       return MaterialApp.router(routerConfig: router);
     }
 
@@ -37,40 +49,48 @@ void main() {
           find.byType(AnimatedBottomNavigation),
         );
 
-    testWidgets('renders exactly one bar with 4 destinations', (tester) async {
+    testWidgets('one bar: Today, Budget, Activity, More', (tester) async {
       await tester.pumpWidget(buildShell());
       await tester.pump();
 
       expect(find.byType(AnimatedBottomNavigation), findsOneWidget);
-      expect(bar(tester).destinations.length, 4);
+      final labels = bar(tester).destinations.map((d) => d.label).toList();
+      expect(labels, ['Today', 'Budget', 'Activity', 'More']);
       for (final d in appNavDestinations) {
         expect(find.byKey(d.key), findsOneWidget);
+        expect(find.text(d.label), findsOneWidget);
       }
     });
 
-    testWidgets('displays Home, Expenses, Reports, Settings labels in order', (
+    testWidgets('the add button sits between Budget and Activity', (
       tester,
     ) async {
       await tester.pumpWidget(buildShell());
       await tester.pump();
 
-      final labels = bar(tester).destinations.map((d) => d.label).toList();
-      expect(labels, ['Home', 'Expenses', 'Reports', 'Settings']);
-      for (final label in labels) {
-        expect(find.text(label), findsAtLeastNWidgets(1));
-      }
+      final add = tester.getCenter(find.byKey(const Key('nav_add')));
+      final budget = tester.getCenter(find.byKey(appNavDestinations[1].key));
+      final activity = tester.getCenter(find.byKey(appNavDestinations[2].key));
+      expect(add.dx, greaterThan(budget.dx));
+      expect(add.dx, lessThan(activity.dx));
     });
 
-    testWidgets('does NOT expose Budget or Bills as tabs', (tester) async {
+    testWidgets('the + is raised: it rises above the bar (blueprint)', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildShell());
       await tester.pump();
 
-      final labels = bar(tester).destinations.map((d) => d.label).toList();
-      expect(labels, isNot(contains('Budget')));
-      expect(labels, isNot(contains('Bills')));
+      final add = tester.getRect(find.byKey(const Key('nav_add')));
+      final bar = tester.getRect(find.byType(AnimatedBottomNavigation));
+      expect(add.top, lessThan(bar.top));
+      expect(add.bottom, greaterThan(bar.top));
+      // A 56dp square inside a ring of the bar's colour.
+      expect(add.width, 64);
+      expect(add.height, 64);
     });
 
-    testWidgets('starts on Home tab (index 0)', (tester) async {
+    testWidgets('starts on Today', (tester) async {
       await tester.pumpWidget(buildShell());
       await tester.pump();
 
@@ -78,28 +98,62 @@ void main() {
       expect(find.text('home'), findsOneWidget);
     });
 
-    for (final (index, label) in const [
-      (1, 'Expenses'),
-      (2, 'Reports'),
-      (3, 'Settings'),
+    for (final (tab, page) in const [
+      (1, 'budgets'),
+      (2, 'expenses'),
+      (3, 'settings'),
     ]) {
-      testWidgets('navigates to $label tab on tap', (tester) async {
+      testWidgets('tab $tab opens $page', (tester) async {
         await tester.pumpWidget(buildShell());
         await tester.pump();
 
-        await tester.tap(find.byKey(appNavDestinations[index].key));
+        await tester.tap(find.byKey(appNavDestinations[tab].key));
         await tester.pumpAndSettle();
 
-        expect(bar(tester).selectedIndex, index);
-        expect(find.text(label.toLowerCase()), findsOneWidget);
+        expect(bar(tester).selectedIndex, tab);
+        expect(find.text(page), findsOneWidget);
       });
     }
 
-    testWidgets('can cycle through all 4 tabs and settles', (tester) async {
+    testWidgets('Insights shows Activity selected; Activity goes back', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildShell());
       await tester.pump();
 
-      for (final id in ['expenses', 'reports', 'settings', 'home']) {
+      router.go('/app/reports');
+      await tester.pumpAndSettle();
+      expect(find.text('reports'), findsOneWidget);
+      expect(bar(tester).selectedIndex, 2);
+
+      await tester.tap(find.byKey(appNavDestinations[2].key));
+      await tester.pumpAndSettle();
+      expect(find.text('expenses'), findsOneWidget);
+      expect(bar(tester).selectedIndex, 2);
+    });
+
+    testWidgets('tapping + adds; holding + goes straight to an expense', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('nav_add')));
+      await tester.pump();
+      expect((adds, holds), (1, 0));
+
+      await tester.longPress(find.byKey(const Key('nav_add')));
+      await tester.pump();
+      expect((adds, holds), (1, 1));
+      // Neither changes the tab.
+      expect(bar(tester).selectedIndex, 0);
+    });
+
+    testWidgets('can cycle through all tabs and settles', (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      for (final id in ['budget', 'activity', 'more', 'today']) {
         await tester.tap(find.byKey(Key('nav_$id')));
         await tester.pumpAndSettle();
       }
@@ -118,21 +172,29 @@ void main() {
       expect(find.text('home'), findsOneWidget);
     });
 
-    testWidgets('exposes selected state to assistive technology', (
+    testWidgets('exposes selected state and the add button\'s name', (
       tester,
     ) async {
+      final handle = tester.ensureSemantics();
       await tester.pumpWidget(buildShell());
       await tester.pump();
 
-      final home = tester.getSemantics(find.byKey(appNavDestinations[0].key));
-      expect(home.hasFlag(SemanticsFlag.isSelected), isTrue);
-      expect(home.hasFlag(SemanticsFlag.isButton), isTrue);
-      expect(home.label, contains('Home'));
+      final today = tester.getSemantics(find.byKey(appNavDestinations[0].key));
+      expect(today.hasFlag(SemanticsFlag.isSelected), isTrue);
+      expect(today.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(today.label, contains('Today'));
 
-      final reports = tester.getSemantics(
+      final activity = tester.getSemantics(
         find.byKey(appNavDestinations[2].key),
       );
-      expect(reports.hasFlag(SemanticsFlag.isSelected), isFalse);
+      expect(activity.hasFlag(SemanticsFlag.isSelected), isFalse);
+
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Add$')),
+        findsOneWidget,
+        reason: 'the + is announced as "Add"',
+      );
+      handle.dispose();
     });
   });
 }

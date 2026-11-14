@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../domain/entities/theme_mode_entity.dart';
 import '../../../../core/feedback/app_haptics.dart';
 
-/// The theme mode as one segmented control: System, Light and Dark side by
-/// side, each with its icon, name and what it does. The selected segment
-/// sits on a thumb that slides between them.
+/// The theme mode as one segmented control (blueprint .sg): System, Light
+/// and Dark on the inset tone, the chosen one raised to the card tone. What
+/// each does is read out, not shown.
 class ThemeSelector extends StatelessWidget {
   final AppThemeMode selectedMode;
   final ValueChanged<AppThemeMode> onChanged;
@@ -24,12 +25,13 @@ class ThemeSelector extends StatelessWidget {
     final selected = themeOptions.indexWhere((o) => o.mode == selectedMode);
     final last = themeOptions.length - 1;
     // The track is a Material so the segments' ink shows on it.
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: scheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusMd),
+      color: scheme.surfaceContainer,
+      shape: RoundedRectangleBorder(borderRadius: AppSpacing.borderRadiusSmd),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xs),
+        padding: const EdgeInsets.all(3),
         child: IntrinsicHeight(
           child: Stack(
             children: [
@@ -50,8 +52,12 @@ class ThemeSelector extends StatelessWidget {
                       heightFactor: 1,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: scheme.secondaryContainer,
+                          color: Theme.of(context).cardTheme.color,
                           borderRadius: AppSpacing.borderRadiusSm,
+                          boxShadow: dark ? null : AppCard.lift,
+                          border: dark
+                              ? Border.all(color: scheme.outlineVariant)
+                              : null,
                         ),
                       ),
                     ),
@@ -97,10 +103,7 @@ class _Segment extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final duration = AppMotion.respectReducedMotion(context, AppMotion.fast);
-    final strong = selected ? scheme.onSecondaryContainer : scheme.onSurface;
-    final muted = selected
-        ? scheme.onSecondaryContainer
-        : scheme.onSurfaceVariant;
+    final strong = selected ? scheme.onSurface : scheme.onSurfaceVariant;
     return Semantics(
       button: true,
       selected: selected,
@@ -114,21 +117,15 @@ class _Segment extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.xs,
-            vertical: AppSpacing.smd,
+            vertical: AppSpacing.sm,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TweenAnimationBuilder<Color?>(
-                tween: ColorTween(end: muted),
+          // A 48 dp target; the label sits centred in it.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 32),
+            child: Center(
+              child: AnimatedDefaultTextStyle(
                 duration: duration,
-                builder: (context, color, _) =>
-                    Icon(option.icon, size: AppSizes.iconMd, color: color),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              AnimatedDefaultTextStyle(
-                duration: duration,
-                style: theme.textTheme.titleSmall!.copyWith(color: strong),
+                style: theme.textTheme.labelLarge!.copyWith(color: strong),
                 textAlign: TextAlign.center,
                 // One word: shrinks to fit at large text sizes rather than
                 // losing letters.
@@ -137,17 +134,7 @@ class _Segment extends StatelessWidget {
                   child: Text(option.label, maxLines: 1),
                 ),
               ),
-              const SizedBox(height: AppSpacing.xxs),
-              AnimatedDefaultTextStyle(
-                duration: duration,
-                style: theme.textTheme.labelSmall!.copyWith(
-                  color: muted,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-                child: Text(option.description),
-              ),
-            ],
+            ),
           ),
         ),
       ),

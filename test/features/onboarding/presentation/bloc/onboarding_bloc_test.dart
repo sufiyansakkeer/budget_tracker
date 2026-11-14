@@ -1,4 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:monivo/core/currency/currency_provider.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
 import 'package:monivo/features/budget/domain/entities/monthly_statistics_entity.dart';
@@ -10,7 +11,12 @@ import 'package:monivo/features/onboarding/domain/usecases/create_budget_usecase
 import 'package:monivo/features/onboarding/presentation/bloc/onboarding_bloc.dart';
 import 'package:monivo/features/onboarding/presentation/bloc/onboarding_event.dart';
 import 'package:monivo/features/onboarding/presentation/bloc/onboarding_state.dart';
+import 'package:monivo/features/settings/domain/entities/app_settings.dart';
+import 'package:monivo/features/settings/domain/repository/settings_repository.dart';
+import 'package:monivo/features/settings/domain/usecases/load_settings_usecase.dart';
+import 'package:monivo/features/settings/domain/usecases/update_currency_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 class FakeOnboardingRepository implements OnboardingRepository {
   bool isFirstLaunch = true;
@@ -121,20 +127,44 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async => 0.0;
 }
 
+class FakeSettingsRepository extends Fake implements SettingsRepository {
+  String? savedCode;
+  String? savedSymbol;
+
+  @override
+  Future<AppSettings> loadSettings() async => const AppSettings();
+
+  @override
+  Future<void> setCurrency(String code, String symbol) async {
+    savedCode = code;
+    savedSymbol = symbol;
+  }
+}
+
 void main() {
   late FakeOnboardingRepository onboardingRepository;
   late FakeBudgetRepository budgetRepository;
+  late FakeSettingsRepository settingsRepository;
   late CreateBudgetUseCase createBudgetUseCase;
+  late CurrencyProvider currencyProvider;
 
   setUp(() {
     onboardingRepository = FakeOnboardingRepository();
     budgetRepository = FakeBudgetRepository();
+    settingsRepository = FakeSettingsRepository();
     createBudgetUseCase = CreateBudgetUseCase(onboardingRepository);
+    currencyProvider = CurrencyProvider(
+      loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepository),
+    );
   });
 
   OnboardingBloc buildBloc() => OnboardingBloc(
     createBudgetUseCase: createBudgetUseCase,
     budgetRepository: budgetRepository,
+    updateCurrencyUseCase: UpdateCurrencyUseCase(
+      repository: settingsRepository,
+    ),
+    currencyProvider: currencyProvider,
   );
 
   group('Budget input INVALID -> VALID transition', () {
@@ -267,6 +297,36 @@ void main() {
   });
 
   group('Submit', () {
+    test('the first question is a day\'s amount (blueprint)', () {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+      expect(bloc.state.amountByDay, isTrue);
+    });
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'by the day, the budget amount is the daily target times the days',
+      build: buildBloc,
+      seed: () => OnboardingState(
+        startDate: DateTime(2026, 8, 1),
+        endDate: DateTime(2026, 8, 31),
+        budgetNameInput: 'Personal',
+        monthlyBudgetInput: '1000',
+        parsedBudget: 1000.0,
+        amountByDay: true,
+      ),
+      act: (bloc) => bloc.add(const OnboardingSubmittedEvent()),
+      verify: (bloc) {
+        expect(onboardingRepository.createdBudget!.monthlyAmount, 31000.0);
+      },
+    );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      '"In total" is one tap away',
+      build: buildBloc,
+      act: (bloc) => bloc.add(const OnboardingAmountModeChangedEvent(false)),
+      verify: (bloc) => expect(bloc.state.amountByDay, isFalse),
+    );
+
     blocTest<OnboardingBloc, OnboardingState>(
       'valid form proceeds to success and persists budget',
       build: buildBloc,
@@ -323,6 +383,29 @@ void main() {
       expect(onboardingRepository.createdIds, hasLength(1));
       expect(budgetRepository.activeId, onboardingRepository.createdIds.single);
       expect(onboardingRepository.isFirstLaunch, isFalse);
+      await bloc.close();
+    });
+
+    test('the chosen currency becomes the app default (UX-016)', () async {
+      // Let the provider's first settings read land before the submit.
+      await Future<void>.delayed(Duration.zero);
+      final bloc = buildBloc()
+        ..emit(
+          OnboardingState(
+            startDate: DateTime(2026, 8, 1),
+            endDate: DateTime(2026, 8, 31),
+            budgetNameInput: 'Personal',
+            monthlyBudgetInput: '30',
+            parsedBudget: 30.0,
+          ),
+        )
+        ..add(const OnboardingCurrencySelectedEvent(code: 'OMR', symbol: 'OMR'))
+        ..add(const OnboardingSubmittedEvent());
+      await bloc.stream.firstWhere((s) => s.status == OnboardingStatus.success);
+
+      expect(onboardingRepository.createdBudget!.currency, 'OMR');
+      expect(settingsRepository.savedCode, 'OMR');
+      expect(currencyProvider.currencyCode, 'OMR');
       await bloc.close();
     });
 
@@ -387,7 +470,7 @@ void main() {
     );
 
     blocTest<OnboardingBloc, OnboardingState>(
-      'a start after the end moves the end to the next calendar day',
+      'a start after the end keeps the period length (UX-044)',
       build: buildBloc,
       seed: () => OnboardingState(
         startDate: DateTime(2026, 3, 1),
@@ -398,9 +481,62 @@ void main() {
       expect: () => [
         isA<OnboardingState>()
             .having((s) => s.startDate, 'startDate', DateTime(2026, 3, 7))
-            .having((s) => s.endDate, 'endDate', DateTime(2026, 3, 8)),
+            .having((s) => s.endDate, 'endDate', DateTime(2026, 3, 11)),
       ],
     );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'moving the start later keeps the period length, not the end '
+      '(UX-044)',
+      // The audit's repro: 10 Oct to 9 Nov, start moved to 1 Nov, gave a
+      // 9-day budget.
+      build: buildBloc,
+      seed: () => OnboardingState(
+        startDate: DateTime(2026, 10, 10),
+        endDate: DateTime(2026, 11, 9),
+      ),
+      act: (bloc) =>
+          bloc.add(OnboardingStartDateChangedEvent(DateTime(2026, 11, 1))),
+      expect: () => [
+        isA<OnboardingState>()
+            .having((s) => s.startDate, 'startDate', DateTime(2026, 11, 1))
+            .having((s) => s.endDate, 'endDate', DateTime(2026, 12, 1)),
+      ],
+    );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'a start moved after an invalid end gives a one-day-long period',
+      build: buildBloc,
+      seed: () => OnboardingState(
+        startDate: DateTime(2026, 3, 5),
+        endDate: DateTime(2026, 3, 2),
+        dateValidationError: 'End date must be after start date',
+      ),
+      act: (bloc) =>
+          bloc.add(OnboardingStartDateChangedEvent(DateTime(2026, 3, 6))),
+      expect: () => [
+        isA<OnboardingState>()
+            .having((s) => s.endDate, 'endDate', DateTime(2026, 3, 7))
+            .having((s) => s.dateValidationError, 'error', isNull),
+      ],
+    );
+  });
+
+  group('UX-042: a backup restored on Welcome finishes onboarding', () {
+    test('onboarding is marked done and leaves for Home, with no budget '
+        'made', () async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+
+      bloc.add(const OnboardingRestoredEvent());
+      final done = await bloc.stream.firstWhere(
+        (s) => s.status == OnboardingStatus.success,
+      );
+
+      expect(done.status, OnboardingStatus.success);
+      expect(onboardingRepository.isFirstLaunch, isFalse);
+      expect(onboardingRepository.createdBudget, isNull);
+    });
   });
 
   group('the amount follows the budget rules', () {
@@ -434,5 +570,46 @@ void main() {
       expect(bloc.state.parsedBudget, isNull);
       expect(bloc.state.budgetValidationError, isNotNull);
     });
+  });
+
+  group('UX-092: the same words as the other forms', () {
+    blocTest<OnboardingBloc, OnboardingState>(
+      'an empty, a zero and a too-large amount',
+      build: buildBloc,
+      act: (bloc) => bloc
+        ..add(const OnboardingBudgetInputChangedEvent(''))
+        ..add(const OnboardingBudgetInputChangedEvent('0'))
+        ..add(const OnboardingBudgetInputChangedEvent('1000000000000')),
+      expect: () => [
+        isA<OnboardingState>().having(
+          (s) => s.budgetValidationError,
+          'error',
+          ValidationCopy.amountEmpty,
+        ),
+        isA<OnboardingState>().having(
+          (s) => s.budgetValidationError,
+          'error',
+          ValidationCopy.amountNotPositive,
+        ),
+        isA<OnboardingState>().having(
+          (s) => s.budgetValidationError,
+          'error',
+          ValidationCopy.amountTooLarge,
+        ),
+      ],
+    );
+
+    blocTest<OnboardingBloc, OnboardingState>(
+      'an empty name',
+      build: buildBloc,
+      act: (bloc) => bloc.add(const OnboardingBudgetNameChangedEvent(' ')),
+      expect: () => [
+        isA<OnboardingState>().having(
+          (s) => s.nameValidationError,
+          'error',
+          ValidationCopy.budgetNameEmpty,
+        ),
+      ],
+    );
   });
 }

@@ -1,16 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+
+import '../../../../budget/domain/entities/safe_to_spend/day_target.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/constants/app_motion.dart';
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/feedback/app_haptics.dart';
 import '../../../../../core/theme/app_colors_extension.dart';
+import '../../../../../core/widgets/app_snack.dart';
 import '../../../../../core/widgets/app_state_switcher.dart';
 import '../../../../../core/widgets/info_content.dart';
 import '../../../../../core/widgets/info_icon.dart';
 import '../../../../../core/widgets/loading_skeleton.dart';
+import '../../../domain/entities/activity_extra.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_group.dart';
@@ -21,6 +25,8 @@ import '../../bloc/expense_state.dart';
 import '../bloc/expense_history_bloc.dart';
 import '../bloc/expense_history_event.dart';
 import '../bloc/expense_history_state.dart';
+import '../widgets/activity_extra_row.dart';
+import '../widgets/activity_switch.dart';
 import '../widgets/active_filter_chips.dart';
 import '../widgets/budget_info_bottom_sheet.dart';
 import '../widgets/budget_selection_sheet.dart';
@@ -36,15 +42,17 @@ import '../widgets/sort_bottom_sheet.dart';
 import '../../widgets/expense_actions_sheet.dart';
 import '../../widgets/expense_undo.dart';
 import '../../widgets/move_expense_sheet.dart';
+import '../../widgets/paid_bill.dart';
 import '../widgets/summary_card.dart';
 import '../../quick_add/quick_add_sheet.dart';
 import '../../../../budget/presentation/widgets/active_budget_selector.dart';
 import '../../../../../core/domain/entities/budget_entity.dart';
-import '../../../../../core/widgets/app_fab.dart';
 import '../../../../../core/widgets/fade_slide_in.dart';
 import '../../../../../core/navigation/push_unique.dart';
+import '../../../../../core/dates/calendar_dates.dart';
+import '../../../../../core/router/app_router.dart';
 import '../../../../../core/widgets/app_animated_size.dart';
-import '../../../../../core/feedback/app_haptics.dart';
+import '../../../../../core/widgets/app_page_body.dart';
 import '../../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
 
@@ -67,20 +75,6 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       const GroupExpensesUseCase();
   final ScrollController _scrollController = ScrollController();
 
-  /// The add button shrinks to an icon while scrolling down so it never
-  /// covers the amounts, and grows back when scrolling up.
-  bool _fabExtended = true;
-
-  bool _onUserScroll(UserScrollNotification notification) {
-    final extended = switch (notification.direction) {
-      ScrollDirection.reverse => false,
-      ScrollDirection.forward => true,
-      ScrollDirection.idle => _fabExtended,
-    };
-    if (extended != _fabExtended) setState(() => _fabExtended = extended);
-    return false;
-  }
-
   // Grouping cache so the list is not regrouped on every rebuild.
   List<ExpenseEntity>? _groupSource;
   ExpenseSortOption? _groupSort;
@@ -99,6 +93,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   /// top when they change so the user never lands mid-way through a
   /// different list.
   ExpenseHistoryFilter? _builtFilter;
+
+  /// The search field is open (blueprint: a search button in the header).
+  bool _searching = false;
+
+  void _openSearch() => setState(() => _searching = true);
   ExpenseSortOption? _builtSort;
   String? _builtQuery;
 
@@ -206,6 +205,17 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     }
   }
 
+  /// The currency the amount filter is in: the budget's, or the one every
+  /// selected budget shares. Null when the selection mixes currencies: the
+  /// bounds then apply to each amount in its own currency.
+  String? _filterCurrency(ExpenseHistoryState state) {
+    if (!state.isCombinedMode) return state.budgetCurrency;
+    final codes = {
+      for (final id in state.selectedBudgetIds) state.budgetMap[id]?.currency,
+    };
+    return codes.length == 1 ? codes.single : null;
+  }
+
   Future<void> _openSortSheet() async {
     final bloc = context.read<ExpenseHistoryBloc>();
     final result = await showSortBottomSheet(context, current: bloc.state.sort);
@@ -238,6 +248,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     );
     expenseBloc.add(ExpenseDelete(expense.id, undoable: undoable));
   }
+
+  /// The budget a move from the actions is heading to and the expense as
+  /// it was, for "Moved to … · Undo".
+  ({String name, ExpenseEntity original})? _moving;
 
   /// Expenses whose delete is being checked or confirmed right now.
   final Set<String> _deleteChecks = {};
@@ -274,13 +288,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     } catch (e) {
       debugPrint('[error] Checking payments before deleting an expense: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text(PurchaseImpactDialog.deleteCheckFailed),
-            ),
-          );
+        AppSnack.show(context, PurchaseImpactDialog.deleteCheckFailed);
       }
       return null;
     }
@@ -313,6 +321,13 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     BudgetEntity? budget,
   ) async {
     AppHaptics.selection();
+    // Whether there is anywhere to move it, and the bill a payment paid.
+    // Either may be unreadable; the sheet still opens.
+    final (budgets, billTitle) = await (
+      MoveExpenseSheet.loadBudgets(),
+      PaidBill.titleOf(expense),
+    ).wait;
+    if (!mounted) return;
     final action = await ExpenseActionsSheet.show(
       context,
       expense: expense,
@@ -320,6 +335,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       currency:
           budget?.currency ??
           context.read<ExpenseHistoryBloc>().state.budgetCurrency,
+      canMove: budgets == null || MoveExpenseSheet.hasTarget(budgets, expense),
+      billTitle: billTitle,
     );
     if (action == null || !mounted) return;
     switch (action) {
@@ -329,8 +346,14 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         context.pushUnique('/app/expenses/add?copy=${expense.id}');
       case ExpenseRowAction.move:
         final expenseBloc = context.read<ExpenseBloc?>();
-        final target = await MoveExpenseSheet.show(context, expense: expense);
+        final target = await MoveExpenseSheet.show(
+          context,
+          expense: expense,
+          budgets: budgets,
+          billTitle: billTitle,
+        );
         if (target == null || !mounted || expenseBloc == null) return;
+        _moving = (name: target.name, original: expense);
         expenseBloc.add(
           ExpenseUpdate(
             expense.copyWith(budgetId: target.id, updatedAt: DateTime.now()),
@@ -371,17 +394,12 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       if (!mounted) return;
       if (load == BudgetsLoad.failed || bloc.state.allBudgets.isEmpty) {
         bloc.add(const ExpenseHistoryExitCombinedView());
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                load == BudgetsLoad.failed
-                    ? "Couldn't load your budgets. Try again."
-                    : 'You need at least one budget to combine.',
-              ),
-            ),
-          );
+        AppSnack.show(
+          context,
+          load == BudgetsLoad.failed
+              ? "Couldn't load your budgets. Try again."
+              : 'You need at least one budget to combine.',
+        );
         return;
       }
     }
@@ -446,6 +464,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
             prev.budgetMap != curr.budgetMap ||
             prev.budgetName != curr.budgetName ||
             prev.budgetCurrency != curr.budgetCurrency ||
+            prev.extras != curr.extras ||
+            // Tab payments and budget markers hide while searching.
+            prev.query.isEmpty != curr.query.isEmpty ||
             prev.errorMessage != curr.errorMessage,
         listenWhen: (prev, curr) =>
             curr.status == ExpenseHistoryStatus.error &&
@@ -454,27 +475,17 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           // The full error view handles the empty case; otherwise surface
           // the failure without hiding the data on screen.
           if (state.allExpenses.isNotEmpty) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.errorMessage == null ||
-                            state.errorMessage ==
-                                ExpenseHistoryBloc.loadFailedMessage
-                        ? "Couldn't refresh expenses. Try again in a moment."
-                        : state.errorMessage!,
-                  ),
-                ),
-              );
+            AppSnack.show(
+              context,
+              state.errorMessage == null ||
+                      state.errorMessage == ExpenseHistoryBloc.loadFailedMessage
+                  ? "Couldn't refresh expenses. Try again in a moment."
+                  : state.errorMessage!,
+            );
           }
         },
         builder: (context, state) => _buildScroll(context, state),
       ),
-    );
-    body = NotificationListener<UserScrollNotification>(
-      onNotification: _onUserScroll,
-      child: body,
     );
 
     if (expenseBloc != null) {
@@ -486,6 +497,19 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 curr.status == ExpenseBlocStatus.error) &&
             curr.message != null,
         listener: (context, state) {
+          final moving = _moving;
+          _moving = null;
+          if (moving != null &&
+              state.status == ExpenseBlocStatus.success &&
+              state.lastAction == ExpenseAction.updated) {
+            ExpenseUndo.offerMoved(
+              ScaffoldMessenger.of(context),
+              moving.original,
+              to: moving.name,
+            );
+            expenseBloc.add(const ExpenseClearMessage());
+            return;
+          }
           // A swiped row leaves the list before its delete runs; when the
           // delete fails, read the list again so the row comes back.
           if (state.status == ExpenseBlocStatus.error) {
@@ -497,34 +521,24 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               ? state.lastDeleted
               : null;
           final link = state.lastDeletedLink;
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              deleted != null
-                  ? ExpenseUndo.snackBar(
-                      message: _quietMessage(state),
-                      onUndo: () =>
-                          expenseBloc.add(ExpenseRestore(deleted, link: link)),
-                    )
-                  : SnackBar(content: Text(_quietMessage(state))),
-            );
+          AppSnack.present(
+            ScaffoldMessenger.of(context),
+            deleted != null
+                ? ExpenseUndo.snackBar(
+                    message: _quietMessage(state),
+                    onUndo: () =>
+                        expenseBloc.add(ExpenseRestore(deleted, link: link)),
+                  )
+                : AppSnack.bar(_quietMessage(state)),
+          );
           expenseBloc.add(const ExpenseClearMessage());
         },
         child: body,
       );
     }
 
-    return Scaffold(
-      body: body,
-      floatingActionButton: AppFab(
-        heroTag: 'expenses_fab',
-        onPressed: () => QuickAddSheet.show(context),
-        icon: Icons.add_rounded,
-        label: 'Add expense',
-        tooltip: 'Add expense',
-        extended: _fabExtended,
-      ),
-    );
+    // Adding is the bar's + (AppShell).
+    return Scaffold(body: body);
   }
 
   // ── Header ───────────────────────────────────────────────────────────────
@@ -536,7 +550,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         ? 'Each expense keeps its own budget'
         : null;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.md,
         AppSpacing.md,
         AppSpacing.xs,
@@ -557,18 +571,25 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      'Expenses',
-                      style: theme.textTheme.headlineSmall,
+                      'Activity',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.7,
+                      ),
                       maxLines: 1,
                     ),
                   ),
                 ),
-                _BudgetMenu(
-                  state: state,
-                  onSwitchBudget: () => ActiveBudgetSelector.open(context),
-                  onCombine: _chooseCombinedBudgets,
-                  onSingle: _exitCombined,
-                ),
+                // Blueprint: the title alone; the budgets shown are named
+                // only when several are viewed together.
+                if (state.isCombinedMode)
+                  _BudgetMenu(
+                    state: state,
+                    onSwitchBudget: () => ActiveBudgetSelector.open(context),
+                    onCombine: _chooseCombinedBudgets,
+                    onSingle: _exitCombined,
+                  ),
                 if (caption != null)
                   Text(
                     caption,
@@ -579,18 +600,70 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               ],
             ),
           ),
-          InfoIcon(content: _expenseListInfo(state)),
+          // Blueprint header: search and filter; sort, the budget and the
+          // info sheet are one tap further, in the menu.
+          IconButton(
+            key: const Key('searchButton'),
+            icon: const Icon(Icons.search_rounded),
+            tooltip: 'Search expenses',
+            onPressed: _openSearch,
+          ),
           IconButton(
             key: const Key('filterButton'),
             icon: const Icon(Icons.filter_list_rounded),
             tooltip: 'Filter expenses',
             onPressed: _openFilterSheet,
           ),
-          IconButton(
-            key: const Key('sortButton'),
-            icon: const Icon(Icons.swap_vert_rounded),
-            tooltip: 'Sort expenses',
-            onPressed: _openSortSheet,
+          PopupMenuButton<_HeaderAction>(
+            key: const Key('activityMenu'),
+            tooltip: 'More options',
+            position: PopupMenuPosition.under,
+            onSelected: (action) => switch (action) {
+              _HeaderAction.sort => _openSortSheet(),
+              _HeaderAction.switchBudget => ActiveBudgetSelector.open(context),
+              _HeaderAction.combine => _chooseCombinedBudgets(),
+              _HeaderAction.info => InfoIcon.showSheet(
+                context,
+                _expenseListInfo(state),
+              ),
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                key: Key('sortButton'),
+                value: _HeaderAction.sort,
+                child: ListTile(
+                  leading: Icon(Icons.swap_vert_rounded),
+                  title: Text('Sort'),
+                ),
+              ),
+              if (!state.isCombinedMode) ...[
+                PopupMenuItem(
+                  key: const Key('viewModeToggle'),
+                  value: _HeaderAction.switchBudget,
+                  child: ListTile(
+                    leading: const Icon(Icons.swap_horiz_rounded),
+                    title: const Text('Switch budget'),
+                    subtitle: state.budgetName == null
+                        ? null
+                        : Text('Showing ${state.budgetName}'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: _HeaderAction.combine,
+                  child: ListTile(
+                    leading: Icon(Icons.layers_outlined),
+                    title: Text('View budgets together'),
+                  ),
+                ),
+              ],
+              const PopupMenuItem(
+                value: _HeaderAction.info,
+                child: ListTile(
+                  leading: Icon(Icons.info_outline_rounded),
+                  title: Text('About this list'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -602,51 +675,84 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   Widget _buildScroll(BuildContext context, ExpenseHistoryState state) {
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: CustomScrollView(
-        key: const ValueKey('loaded'),
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: _buildHeader(state)),
-          SliverToBoxAdapter(
-            child: ExpenseSearchBar(
-              controller: _searchController,
-              onChanged: (query) => context.read<ExpenseHistoryBloc>().add(
-                ExpenseHistorySearchChanged(query),
-              ),
-              onClear: () => context.read<ExpenseHistoryBloc>().add(
-                const ExpenseHistorySearchChanged(''),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: QuickFilterChips(
-              current: state.filter,
-              categories: state.categories,
-              onSelected: (filter) => context.read<ExpenseHistoryBloc>().add(
-                ExpenseHistoryFilterChanged(filter),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: AppAnimatedSize(
-              duration: AppMotion.respectReducedMotion(
-                context,
-                AppMotion.standard,
-              ),
-              curve: AppMotion.standardCurve,
-              alignment: Alignment.topCenter,
-              child: ActiveFilterChips(
-                filter: state.filter,
-                categories: state.categories,
-                onChanged: (filter) => context.read<ExpenseHistoryBloc>().add(
-                  ExpenseHistoryFilterChanged(filter),
+      // Each sliver keeps its own padding; the body only adds the gutters
+      // that centre it on a tablet (the shell's bar clears the bottom).
+      child: AppPageBody(
+        padding: EdgeInsets.zero,
+        builder: (context, padding) => CustomScrollView(
+          key: const ValueKey('loaded'),
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            for (final sliver in <Widget>[
+              SliverToBoxAdapter(child: _buildHeader(state)),
+              // Blueprint: the stream and its insights, one switch apart.
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: ActivitySwitch(insights: false),
                 ),
               ),
-            ),
-          ),
-          ..._buildResults(context, state),
-        ],
+              if (_searching || state.query.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: ExpenseSearchBar(
+                    key: const Key('activitySearch'),
+                    autofocus: _searching && state.query.isEmpty,
+                    controller: _searchController,
+                    onChanged: (query) => context
+                        .read<ExpenseHistoryBloc>()
+                        .add(ExpenseHistorySearchChanged(query)),
+                    onClear: () {
+                      context.read<ExpenseHistoryBloc>().add(
+                        const ExpenseHistorySearchChanged(''),
+                      );
+                      setState(() => _searching = false);
+                    },
+                  ),
+                ),
+              SliverToBoxAdapter(
+                child: QuickFilterChips(
+                  current: state.filter,
+                  categories: state.categories,
+                  onSelected: (filter) => context
+                      .read<ExpenseHistoryBloc>()
+                      .add(ExpenseHistoryFilterChanged(filter)),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: AppAnimatedSize(
+                  duration: AppMotion.respectReducedMotion(
+                    context,
+                    AppMotion.standard,
+                  ),
+                  curve: AppMotion.standardCurve,
+                  alignment: Alignment.topCenter,
+                  child: ActiveFilterChips(
+                    filter: state.filter,
+                    categories: state.categories,
+                    currency: _filterCurrency(state),
+                    onChanged: (filter) => context
+                        .read<ExpenseHistoryBloc>()
+                        .add(ExpenseHistoryFilterChanged(filter)),
+                  ),
+                ),
+              ),
+              ..._buildResults(context, state),
+            ])
+              SliverPadding(
+                padding: EdgeInsets.only(
+                  left: padding.left,
+                  right: padding.right,
+                ),
+                sliver: sliver,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -673,7 +779,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           const ExpenseHistoryRefresh(),
         ),
       );
-    } else if (state.isEmpty) {
+    } else if (state.isEmpty && _shownExtras(state).isEmpty) {
       child = ExpenseHistoryEmptyState(
         key: const ValueKey('empty'),
         hasAnyExpenses: state.allExpenses.isNotEmpty,
@@ -696,10 +802,78 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     return _buildList(context, state);
   }
 
+  /// The tab payments and budget markers the list shows: with no search
+  /// and no filter but the kind, as the kind allows, and while more pages
+  /// wait, only those on days already loaded (so none lands above rows
+  /// still to come).
+  static List<ActivityExtra> _shownExtras(ExpenseHistoryState state) {
+    final items = state.extras.items;
+    if (items.isEmpty || state.query.isNotEmpty) return const [];
+    if (state.filter.copyWithKind(ExpenseKind.all).isActive) return const [];
+    final kind = state.filter.kind;
+    final loaded = state.loadedExpenses;
+    final oldest = state.hasMore && loaded.isNotEmpty
+        ? loaded
+              .map((e) => e.date.dateOnly)
+              .reduce((a, b) => a.isBefore(b) ? a : b)
+        : null;
+    return [
+      for (final x in items)
+        if ((kind == ExpenseKind.all ||
+                (kind == ExpenseKind.payLater && x is TabPaymentExtra) ||
+                (kind == ExpenseKind.budgets && x is BudgetMarkerExtra)) &&
+            (oldest == null || !x.at.dateOnly.isBefore(oldest)))
+          x,
+    ];
+  }
+
+  /// The day groups with the extras of each day after its expenses
+  /// (payments, then markers), and a group for a day with extras only.
+  List<(ExpenseGroup, List<ActivityExtra>)> _sections(
+    ExpenseHistoryState state,
+  ) {
+    final groups = _groupsFor(state);
+    final shown = _shownExtras(state);
+    if (shown.isEmpty) return [for (final g in groups) (g, const [])];
+    final byDay = <DateTime, List<ActivityExtra>>{};
+    for (final x in shown) {
+      (byDay[x.at.dateOnly] ??= []).add(x);
+    }
+    for (final list in byDay.values) {
+      list.sort((a, b) {
+        if (a is TabPaymentExtra && b is TabPaymentExtra) {
+          return b.at.compareTo(a.at);
+        }
+        return a is TabPaymentExtra ? -1 : (b is TabPaymentExtra ? 1 : 0);
+      });
+    }
+    final today = DateTime.now().dateOnly;
+    final sections = [
+      for (final g in groups)
+        (g, byDay.remove(g.date) ?? const <ActivityExtra>[]),
+      for (final MapEntry(key: day, value: list) in byDay.entries)
+        (
+          ExpenseGroup(
+            type: day == today
+                ? ExpenseGroupType.today
+                : day == today.addDays(-1)
+                ? ExpenseGroupType.yesterday
+                : ExpenseGroupType.earlier,
+            date: day,
+            expenses: const [],
+          ),
+          list,
+        ),
+    ];
+    sections.sort((a, b) => b.$1.date!.compareTo(a.$1.date!));
+    return sections;
+  }
+
   List<Widget> _buildList(BuildContext context, ExpenseHistoryState state) {
     _trackEntering(state);
     _resetScrollIfCriteriaChanged(state);
-    final groups = _groupsFor(state);
+    final sections = _sections(state);
+    final groups = [for (final (g, _) in sections) g];
     final count = state.summary.totalExpenses;
     final summaryCaption = state.isCombinedMode
         ? 'Across ${state.selectedBudgetIds.length} budgets · '
@@ -727,6 +901,18 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           },
           itemBuilder: (context, index) {
             if (index == 0) {
+              // Only markers or payments shown (Budgets, Pay later with no
+              // purchases): there are no expenses to sum.
+              // Blueprint: no summary over the plain stream; it totals a
+              // search or a filter's results.
+              // A combined view keeps it: its per-currency totals are
+              // nowhere else.
+              if (state.visibleExpenses.isEmpty ||
+                  (!state.isCombinedMode &&
+                      state.query.isEmpty &&
+                      !state.filter.isActive)) {
+                return const SizedBox.shrink(key: ValueKey('summary'));
+              }
               return SummaryCard(
                 key: const ValueKey('summary'),
                 summary: state.summary,
@@ -742,7 +928,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 isLoading: state.status == ExpenseHistoryStatus.loadingMore,
               );
             }
-            return _buildGroup(context, groups[index - 1], state, index - 1);
+            final (group, extras) = sections[index - 1];
+            return _buildGroup(context, group, extras, state, index - 1);
           },
         ),
       ),
@@ -768,6 +955,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   Widget _buildGroup(
     BuildContext context,
     ExpenseGroup group,
+    List<ActivityExtra> extras,
     ExpenseHistoryState state,
     int groupIndex,
   ) {
@@ -782,19 +970,55 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           group: group,
           currency: currency,
           showTotal: showTotal,
+          dayTarget: _dayTargetFor(group, state),
+          extraCount: extras.length,
         ),
         for (var i = 0; i < group.expenses.length; i++) ...[
           if (i > 0)
             Divider(
               key: ValueKey('div_${group.expenses[i].id}'),
-              indent: AppSizes.avatarSm + AppSpacing.smd,
+              indent: AppSizes.avatarSm + AppSpacing.md,
               color: theme.colorScheme.outlineVariant,
             ),
           _buildExpenseRow(context, group.expenses[i], state),
         ],
+        for (var i = 0; i < extras.length; i++) ...[
+          if (i > 0 || group.expenses.isNotEmpty)
+            Divider(
+              indent: AppSizes.avatarSm + AppSpacing.md,
+              color: theme.colorScheme.outlineVariant,
+            ),
+          ActivityExtraRow(
+            key: ValueKey(_extraKey(extras[i])),
+            extra: extras[i],
+            onTap: switch (extras[i]) {
+              TabPaymentExtra(:final tabId) => () => context.pushUnique(
+                '${AppRouter.payLaterPath}/$tabId',
+              ),
+              BudgetMarkerExtra() => null,
+            },
+          ),
+        ],
       ],
     );
   }
+
+  /// The active budget's target for [group]'s day, in the single-budget
+  /// view (a combined view mixes budgets, so no one target applies).
+  static DayTarget? _dayTargetFor(
+    ExpenseGroup group,
+    ExpenseHistoryState state,
+  ) {
+    final date = group.date;
+    if (date == null || state.isCombinedMode) return null;
+    return state.dayTargets[DateTime(date.year, date.month, date.day)];
+  }
+
+  static String _extraKey(ActivityExtra x) => switch (x) {
+    TabPaymentExtra(:final id) => 'tabPayment_$id',
+    BudgetMarkerExtra(:final budgetId, :final started) =>
+      'budget_${budgetId}_${started ? 'start' : 'end'}',
+  };
 
   static String _groupKey(ExpenseGroup group) {
     final date = group.date;
@@ -858,8 +1082,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         undoable: !_confirmedDeletes.remove(expense.id),
       ),
       background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: AppSpacing.lg),
+        alignment: AlignmentDirectional.centerEnd,
+        padding: const EdgeInsetsDirectional.only(end: AppSpacing.lg),
         decoration: BoxDecoration(
           color: context.appColors.error,
           borderRadius: AppSpacing.borderRadiusSm,
@@ -885,6 +1109,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         expense: expense,
         category: category,
         budgetName: budget?.name,
+        tabName: state.extras.tabNameByExpense[expense.id],
         currency: currency,
         onInfoTap: state.isCombinedMode
             ? () => BudgetInfoBottomSheet.show(
@@ -917,7 +1142,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   InfoContent _expenseListInfo(ExpenseHistoryState state) {
     if (state.isCombinedMode) {
       return const InfoContent(
-        title: 'Combined Expenses',
+        title: 'Combined expenses',
         whatIsThis:
             'One list showing the expenses of every budget you selected, '
             'so you can compare or review them together. Your budgets '
@@ -969,6 +1194,8 @@ enum _BudgetMenuAction { switchBudget, combine, single }
 
 /// The budget the list follows, under the title, as a menu: switch the
 /// active budget, view several budgets together, or go back to one.
+enum _HeaderAction { sort, switchBudget, combine, info }
+
 class _BudgetMenu extends StatelessWidget {
   final ExpenseHistoryState state;
   final VoidCallback onSwitchBudget;

@@ -1,25 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/currency/currency_formatter.dart';
+import '../../../../core/widgets/app_money.dart';
+import '../../../dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
+import '../../../budget/domain/services/safe_to_spend_calculator.dart';
+import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import '../../../budget/domain/entities/safe_to_spend/commitment_occurrence.dart';
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/feedback/app_haptics.dart';
+import '../../../../core/widgets/app_amount_field.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_form_action_bar.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_notice.dart';
 import '../../../../core/dates/date_range_format.dart';
+import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/focus_after_transition.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../budget/domain/usecases/manage_budget_usecase.dart';
+import '../../../settings/domain/entities/currency_entity.dart';
+import '../../../settings/presentation/widgets/currency_selector.dart';
 import '../../../settings/domain/entities/settings_failure.dart';
 import '../../../settings/domain/usecases/load_settings_usecase.dart';
 import '../../domain/entities/bill_entity.dart';
@@ -34,8 +49,9 @@ import 'bill_widgets.dart';
 import '../../../../core/widgets/app_animated_size.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/currency/money_input.dart';
-import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../../../../core/notifications/notification_permission_notice.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// Add/Edit bill form screen.
 ///
@@ -47,8 +63,8 @@ import '../../../../core/dates/calendar_dates.dart';
 /// another currency switches the bill to it: silently on create (with a
 /// helper saying so), after a confirmation on edit, where the amount was
 /// entered in the old currency.
-/// The save button is pinned to the bottom so it is never hidden behind
-/// the keyboard.
+/// The save button is pinned to the bottom, above the keyboard. Closing
+/// with unsaved input asks first.
 class BillFormScreen extends StatefulWidget {
   final String? billId;
 
@@ -81,13 +97,169 @@ class _BillFormScreenState extends State<BillFormScreen> {
   BillEntity? _original;
   bool _populated = false;
 
+  /// [_signature] when the form was filled in, to tell an edit apart.
+  String? _baseline;
+  bool _lastDirty = false;
+  bool _justSaved = false;
+
   List<BudgetEntity> _budgets = const [];
   bool _loadingBudgets = true;
   bool _budgetsFailed = false;
   String? _budgetId;
 
+  /// The engine's input for the picked budget, for the effect line under
+  /// it (blueprint); a new bill only.
+  SafeToSpendInput? _linkInput;
+  static final _calculator = SafeToSpendCalculator(BudgetCalculationService());
+
+  Future<void> _loadLinkInput(String? budgetId) async {
+    if (_isEditing || budgetId == null) {
+      setState(() => _linkInput = null);
+      return;
+    }
+    if (!getIt.isRegistered<GetSafeToSpendUseCase>()) return;
+    try {
+      final input = await getIt<GetSafeToSpendUseCase>().inputFor(
+        budgetId: budgetId,
+      );
+      if (mounted && _budgetId == budgetId) {
+        setState(() => _linkInput = input);
+      }
+    } catch (e) {
+      debugPrint('[error] Reading the daily target for a bill: $e');
+    }
+  }
+
+  /// "Daily target ₹880.57 → ₹862.31": what linking this new bill does to
+  /// the picked budget today; null when it would not be set aside there.
+  Widget? _linkEffect(ThemeData theme) {
+    final input = _linkInput;
+    final due = _dueDate;
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    if (_isEditing ||
+        input == null ||
+        input.budgetId != _budgetId ||
+        input.currency != _currency ||
+        due == null ||
+        amount <= 0) {
+      return null;
+    }
+    final day = DateTime(due.year, due.month, due.day);
+    if (day.isAfter(input.endDate)) return null;
+    final before = _calculator.calculate(input);
+    if (!before.isRunning) return null;
+    final after = _calculator.calculate(
+      SafeToSpendInput(
+        budgetId: input.budgetId,
+        budgetName: input.budgetName,
+        currency: input.currency,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        today: input.today,
+        budgetAmount: input.budgetAmount,
+        periodSpent: input.periodSpent,
+        todaySpent: input.todaySpent,
+        committedSpentInPeriod: input.committedSpentInPeriod,
+        committedSpentToday: input.committedSpentToday,
+        commitments: [
+          ...?input.commitments,
+          CommitmentOccurrence(
+            billId: '_new',
+            title: _titleController.text.trim(),
+            amount: amount,
+            dueDate: day,
+            isOverdue: day.isBefore(input.today),
+          ),
+        ],
+        currencyExcluded: input.currencyExcluded,
+        unlinked: input.unlinked,
+        reservedAmount: input.reservedAmount,
+        savingsTarget: input.savingsTarget,
+        thresholds: input.thresholds,
+      ),
+    );
+    final scheme = theme.colorScheme;
+    final figure = theme.textTheme.titleSmall?.copyWith(
+      fontSize: 15,
+      fontWeight: FontWeight.w800,
+    );
+    final from = AppMoney.format(
+      before.dailySafeToSpend,
+      currency: _currency,
+      floored: true,
+    );
+    final to = AppMoney.format(
+      after.dailySafeToSpend,
+      currency: _currency,
+      floored: true,
+    );
+    final holds = AppMoney.format(amount, currency: _currency);
+    return Semantics(
+      container: true,
+      label: CurrencyFormatter.forSpeech(
+        'Daily target, $from, becomes $to. Linking holds $holds back until '
+        "it's paid.",
+      ),
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Daily target',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Text(from, style: figure),
+                const SizedBox(width: AppSpacing.sm),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  to,
+                  style: figure?.copyWith(
+                    color: context.tone(AppTone.caution).accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 0, 0),
+            child: Text(
+              "Linking holds $holds back until it's paid.",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Set when picking a budget switched the bill's currency.
   String? _currencyNote;
+
+  /// The currency was chosen by hand (a bill not linked to a budget), so the
+  /// settings currency no longer replaces it.
+  bool _currencyChosen = false;
 
   /// Bumped to rebuild the picker when a currency change is cancelled, so
   /// it shows the budget that is still selected.
@@ -108,9 +280,66 @@ class _BillFormScreenState extends State<BillFormScreen> {
       // New bills default to being due today so the form saves in one tap.
       final now = DateTime.now();
       _dueDate = DateTime(now.year, now.month, now.day);
+      _baseline = _signature();
       // Keyboard after the page has settled, not during the transition.
       requestFocusAfterTransition(context, _titleFocus);
     }
+    for (final c in [
+      _titleController,
+      _amountController,
+      _noteController,
+      _intervalController,
+    ]) {
+      c.addListener(_onTextChanged);
+    }
+  }
+
+  void _onTextChanged() {
+    final dirty = _isDirty;
+    if (dirty != _lastDirty && mounted) setState(() => _lastDirty = dirty);
+  }
+
+  // The currency counts only when chosen by hand: otherwise it follows the
+  // settings or the budget picked.
+  String _signature() => [
+    if (_currencyChosen) _currency,
+    _titleController.text.trim(),
+    _amountController.text.trim(),
+    _noteController.text.trim(),
+    _intervalController.text.trim(),
+    _dueDate?.toIso8601String(),
+    _dueTime == null ? null : '${_dueTime!.hour}:${_dueTime!.minute}',
+    _selectedCategory.name,
+    _isRecurring,
+    _recurrenceType.name,
+    _reminderEnabled,
+    _reminderOffsetDays,
+    _budgetId,
+  ].join('|');
+
+  /// Whether leaving now would lose something the person entered. An edit
+  /// still loading has nothing to lose.
+  bool get _isDirty {
+    if (_justSaved) return false;
+    final baseline = _baseline;
+    return baseline != null && _signature() != baseline;
+  }
+
+  Future<void> _requestClose() async {
+    if (!_isDirty) return _close();
+    FocusManager.instance.primaryFocus?.unfocus();
+    final discard = await ConfirmationDialog.show(
+      context: context,
+      title: _isEditing ? 'Discard changes?' : 'Discard this bill?',
+      message: _isEditing
+          ? "Your changes haven't been saved."
+          : "What you entered hasn't been saved.",
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      icon: Icons.edit_off_outlined,
+      isDestructive: true,
+    );
+    if (discard && mounted) _close();
   }
 
   Future<void> _loadCurrency() async {
@@ -118,7 +347,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
       final result = await getIt<LoadSettingsUseCase>()();
       if (result case SettingsSuccess(:final data)) {
         // A budget picked meanwhile already set the currency.
-        if (mounted && !_populated && _budgetId == null) {
+        if (mounted && !_populated && _budgetId == null && !_currencyChosen) {
           setState(() => _currency = data.currencyCode);
         }
       }
@@ -161,6 +390,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   }
 
   Future<void> _onBudgetPicked(String? id) async {
+    unawaited(_loadLinkInput(id));
     if (id == null) {
       setState(() {
         _budgetId = null;
@@ -247,26 +477,27 @@ class _BillFormScreenState extends State<BillFormScreen> {
       _reminderOffsetDays = bill.reminderOffsetDays;
       _currency = bill.currency;
       _budgetId = bill.budgetId;
+      _baseline = _signature();
     });
   }
 
   String? _validateTitle() {
     final title = _titleController.text.trim();
-    if (title.isEmpty) return 'Give the bill a name.';
+    if (title.isEmpty) return ValidationCopy.billNameEmpty;
     if (title.length > BillValidator.maxTitleLength) {
-      return 'Keep the name under ${BillValidator.maxTitleLength} characters.';
+      return ValidationCopy.nameTooLong(BillValidator.maxTitleLength);
     }
     return null;
   }
 
   String? _validateAmount() {
     final text = _amountController.text.trim();
-    if (text.isEmpty) return 'Enter the amount due.';
+    if (text.isEmpty) return ValidationCopy.amountEmpty;
     final value = double.tryParse(text);
-    if (value == null) return 'Enter a valid number.';
-    if (value <= 0) return 'The amount must be greater than zero.';
+    if (value == null) return ValidationCopy.amountInvalid;
+    if (value <= 0) return ValidationCopy.amountNotPositive;
     if (!MoneyMath.isWithinLimit(value)) {
-      return 'The amount must be less than ${MoneyMath.maxAmountLabel}.';
+      return ValidationCopy.amountTooLarge;
     }
     // The currency's minor units, never fewer than two (OMR three).
     return MoneyInput.decimalsError(text, _currency);
@@ -371,7 +602,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
   Future<void> _pickDueTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: _dueTime ?? const TimeOfDay(hour: 9, minute: 0),
+      initialTime: _dueTime ?? BillVisuals.defaultDueTime,
       helpText: 'Due time',
     );
     if (picked != null && mounted) setState(() => _dueTime = picked);
@@ -381,6 +612,16 @@ class _BillFormScreenState extends State<BillFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
@@ -388,7 +629,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
         leading: IconButton(
           tooltip: 'Close',
           icon: const Icon(Icons.close_rounded),
-          onPressed: _close,
+          onPressed: _requestClose,
         ),
       ),
       body: BlocConsumer<BillBloc, BillState>(
@@ -396,20 +637,17 @@ class _BillFormScreenState extends State<BillFormScreen> {
           if (state.isBusy) return;
           if (state.status == BillBlocStatus.success) {
             AppHaptics.confirm();
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.message ?? 'Saved')));
+            AppSnack.show(context, state.message ?? 'Saved');
             context.read<BillBloc>().add(const BillClearMessage());
+            _justSaved = true;
             _close();
           } else if (state.status == BillBlocStatus.error) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(state.message ?? "Couldn't save the bill"),
-                  action: SnackBarAction(label: 'Retry', onPressed: _save),
-                ),
-              );
+            AppSnack.show(
+              context,
+              state.message ?? "Couldn't save the bill. Try again.",
+              actionLabel: 'Retry',
+              onAction: _save,
+            );
             context.read<BillBloc>().add(const BillClearMessage());
           }
           if (_isEditing && !_populated && state.selectedBill != null) {
@@ -439,230 +677,245 @@ class _BillFormScreenState extends State<BillFormScreen> {
 
           return AbsorbPointer(
             absorbing: state.isBusy,
-            child: ListView(
-              padding: AppSpacing.pagePadding,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              children: [
-                // What
-                TextFormField(
-                  controller: _titleController,
-                  focusNode: _titleFocus,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: 'Bill name',
-                    hintText: 'e.g. Rent, Electricity, Netflix',
-                    prefixIcon: const Icon(Icons.receipt_long_outlined),
-                    errorText: _titleError,
-                  ),
-                  onChanged: (_) {
-                    if (_titleError != null) setState(() => _titleError = null);
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // How much
-                TextFormField(
-                  controller: _amountController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  textInputAction: TextInputAction.done,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                      MoneyInput.pattern(MoneyInput.maxDecimals(_currency)),
+            child: AppPageBody(
+              builder: (context, padding) => ListView(
+                padding: padding,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                children: [
+                  // What
+                  TextFormField(
+                    controller: _titleController,
+                    focusNode: _titleFocus,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'Bill name',
+                      hintText: 'e.g. Rent, Electricity, Netflix',
+                      prefixIcon: const Icon(Icons.receipt_long_outlined),
+                      errorText: _titleError,
                     ),
-                  ],
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                    onChanged: (_) {
+                      if (_titleError != null) {
+                        setState(() => _titleError = null);
+                      }
+                    },
                   ),
-                  decoration: InputDecoration(
-                    labelText: 'Amount',
-                    hintText: '0.00',
-                    prefixText: '${CurrencyFormatter.symbolFor(_currency)} ',
-                    prefixStyle: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                    errorText: _amountError,
-                  ),
-                  onChanged: (_) {
-                    if (_amountError != null) {
-                      setState(() => _amountError = null);
-                    }
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
+                  const SizedBox(height: AppSpacing.md),
 
-                // Which budget pays it
-                _buildBudgetPicker(theme),
-                const SizedBox(height: AppSpacing.md),
-
-                // When
-                Text('Due', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.sm),
-                KeyedSubtree(
-                  key: _dueDateKey,
-                  child: Row(
+                  // How much, and in which currency while not linked: a
+                  // linked bill is in its budget's currency.
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        flex: 3,
-                        child: _PickerField(
-                          label: 'Date',
-                          icon: Icons.calendar_today_outlined,
-                          value: _dueDate == null
-                              ? 'Select date'
-                              : _dueLabel(_dueDate!),
-                          errorText: _dueDateError,
-                          onTap: _pickDueDate,
+                        child: AppAmountField(
+                          controller: _amountController,
+                          currency: _currency,
+                          errorText: _amountError,
+                          onChanged: (_) {
+                            if (_amountError != null) {
+                              setState(() => _amountError = null);
+                            }
+                          },
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.smd),
-                      Expanded(
-                        flex: 2,
-                        child: _PickerField(
-                          label: 'Time',
-                          icon: Icons.access_time_rounded,
-                          value: _dueTime == null
-                              ? '9:00 AM'
-                              : _dueTime!.format(context),
-                          hint: _dueTime == null ? 'Default' : null,
-                          onTap: _pickDueTime,
-                          onClear: _dueTime == null
-                              ? null
-                              : () => setState(() => _dueTime = null),
+                      if (_budgetId == null) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        CurrencyPickerField(
+                          key: const Key('billCurrencyPicker'),
+                          value:
+                              availableCurrencies.any(
+                                (c) => c.code == _currency,
+                              )
+                              ? _currency
+                              : null,
+                          sheetSubtitle: 'The currency of this bill',
+                          onChanged: (code) => setState(() {
+                            _currency = code;
+                            _currencyChosen = true;
+                            _amountError = null;
+                          }),
                         ),
-                      ),
+                      ],
                     ],
                   ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.md),
 
-                // Category, repeat, reminder and note: folded on a new
-                // bill, open when editing one.
-                AppDisclosure(
-                  key: const ValueKey('billMoreOptions'),
-                  title: 'More options',
-                  summary: _moreOptionsSummary(),
-                  initiallyExpanded: _isEditing,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Category
-                      DropdownButtonFormField<BillCategory>(
-                        value: _selectedCategory,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          labelText: 'Category',
-                          prefixIcon: Icon(
-                            BillVisuals.iconFor(_selectedCategory),
+                  // Which budget pays it, and what linking does today.
+                  _buildBudgetPicker(theme),
+                  ?_linkEffect(theme),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // When
+                  Text('Due', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: AppSpacing.sm),
+                  KeyedSubtree(
+                    key: _dueDateKey,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: _PickerField(
+                            label: 'Date',
+                            icon: Icons.calendar_today_outlined,
+                            value: _dueDate == null
+                                ? 'Select date'
+                                : _dueLabel(_dueDate!),
+                            errorText: _dueDateError,
+                            onTap: _pickDueDate,
                           ),
                         ),
-                        items: [
-                          for (final cat in BillCategory.values)
-                            DropdownMenuItem(
-                              value: cat,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    BillVisuals.iconFor(cat),
-                                    size: AppSizes.iconMd,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: AppSpacing.smd),
-                                  Text(cat.label),
-                                ],
-                              ),
-                            ),
-                        ],
-                        selectedItemBuilder: (context) => [
-                          for (final cat in BillCategory.values)
-                            Text(cat.label),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => _selectedCategory = value);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-
-                      _ToggleSection(
-                        icon: Icons.repeat_rounded,
-                        title: 'Repeat this bill',
-                        subtitle: _isRecurring
-                            ? _recurrenceSummary()
-                            : 'One-time bill',
-                        value: _isRecurring,
-                        onChanged: (value) =>
-                            setState(() => _isRecurring = value),
-                        child: _RepeatOptions(
-                          type: _recurrenceType,
-                          onTypeChanged: (type) =>
-                              setState(() => _recurrenceType = type),
-                          intervalController: _intervalController,
-                          onIntervalChanged: (value) {
-                            final n = int.tryParse(value);
-                            setState(() {
-                              if (n != null && n >= 1) {
-                                _recurrenceInterval = n;
-                              }
-                              _intervalError = null;
-                            });
-                          },
-                          unitLabel: _unitLabel(),
-                          intervalError: _intervalError,
+                        const SizedBox(width: AppSpacing.smd),
+                        Expanded(
+                          flex: 2,
+                          child: _PickerField(
+                            label: 'Time',
+                            icon: Icons.access_time_rounded,
+                            value: _dueTime == null
+                                ? BillVisuals.defaultDueTime.format(context)
+                                : _dueTime!.format(context),
+                            hint: _dueTime == null ? 'Default' : null,
+                            onTap: _pickDueTime,
+                            onClear: _dueTime == null
+                                ? null
+                                : () => setState(() => _dueTime = null),
+                          ),
                         ),
-                      ),
-                      _ToggleSection(
-                        icon: Icons.notifications_outlined,
-                        title: 'Remind me',
-                        subtitle: _reminderEnabled
-                            ? _reminderSummary()
-                            : 'No reminder',
-                        value: _reminderEnabled,
-                        onChanged: (value) =>
-                            setState(() => _reminderEnabled = value),
-                        child: _ReminderOffsets(
-                          selected: _reminderOffsetDays,
-                          onSelected: (days) =>
-                              setState(() => _reminderOffsetDays = days),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Note
-                      TextFormField(
-                        controller: _noteController,
-                        maxLines: 3,
-                        minLines: 1,
-                        keyboardType: TextInputType.multiline,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(
-                          labelText: 'Note',
-                          hintText: 'Account number, provider, anything useful',
-                          alignLabelWithHint: true,
-                          prefixIcon: Icon(Icons.notes_rounded),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Category, repeat, reminder and note: folded on a new
+                  // bill, open when editing one.
+                  AppDisclosure(
+                    key: const ValueKey('billMoreOptions'),
+                    title: 'More options',
+                    summary: _moreOptionsSummary(),
+                    initiallyExpanded: _isEditing,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Category
+                        DropdownButtonFormField<BillCategory>(
+                          value: _selectedCategory,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: 'Category',
+                            prefixIcon: Icon(
+                              BillVisuals.iconFor(_selectedCategory),
+                            ),
+                          ),
+                          items: [
+                            for (final cat in BillCategory.values)
+                              DropdownMenuItem(
+                                value: cat,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      BillVisuals.iconFor(cat),
+                                      size: AppSizes.iconMd,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: AppSpacing.smd),
+                                    Text(cat.label),
+                                  ],
+                                ),
+                              ),
+                          ],
+                          selectedItemBuilder: (context) => [
+                            for (final cat in BillCategory.values)
+                              Text(cat.label),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedCategory = value);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+
+                        _ToggleSection(
+                          icon: Icons.repeat_rounded,
+                          title: 'Repeat this bill',
+                          subtitle: _isRecurring
+                              ? _recurrenceSummary()
+                              : 'One-time bill',
+                          value: _isRecurring,
+                          onChanged: (value) =>
+                              setState(() => _isRecurring = value),
+                          child: _RepeatOptions(
+                            type: _recurrenceType,
+                            onTypeChanged: (type) =>
+                                setState(() => _recurrenceType = type),
+                            intervalController: _intervalController,
+                            onIntervalChanged: (value) {
+                              final n = int.tryParse(value);
+                              setState(() {
+                                if (n != null && n >= 1) {
+                                  _recurrenceInterval = n;
+                                }
+                                // 0 is wrong as typed; empty waits for save.
+                                _intervalError = n != null && n < 1
+                                    ? 'Enter how often it repeats, 1 or more.'
+                                    : null;
+                              });
+                            },
+                            unitLabel: _unitLabel(),
+                            intervalError: _intervalError,
+                          ),
+                        ),
+                        _ToggleSection(
+                          icon: Icons.notifications_outlined,
+                          title: 'Remind me',
+                          subtitle: _reminderEnabled
+                              ? _reminderSummary()
+                              : 'No reminder',
+                          value: _reminderEnabled,
+                          onChanged: (value) =>
+                              setState(() => _reminderEnabled = value),
+                          child: _ReminderOffsets(
+                            selected: _reminderOffsetDays,
+                            hasPassed: _reminderHasPassed,
+                            onSelected: (days) =>
+                                setState(() => _reminderOffsetDays = days),
+                          ),
+                        ),
+                        NotificationPermissionNotice(
+                          remindersOn: _reminderEnabled,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+
+                        // Note
+                        TextFormField(
+                          controller: _noteController,
+                          maxLines: 3,
+                          minLines: 1,
+                          keyboardType: TextInputType.multiline,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(
+                            labelText: 'Note',
+                            hintText:
+                                'Account number, provider, anything useful',
+                            alignLabelWithHint: true,
+                            prefixIcon: Icon(Icons.notes_rounded),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+              ),
             ),
           );
         },
       ),
       bottomNavigationBar: BlocBuilder<BillBloc, BillState>(
         buildWhen: (a, b) => a.isBusy != b.isBusy,
-        builder: (context, state) => SafeArea(
-          minimum: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.sm,
-            AppSpacing.md,
-            AppSpacing.md,
-          ),
+        builder: (context, state) => AppFormActionBar(
           child: PrimaryButton(
             onPressed: state.isBusy ? null : _save,
             isLoading: state.isBusy,
@@ -678,12 +931,34 @@ class _BillFormScreenState extends State<BillFormScreen> {
   String _moreOptionsSummary() => [
     _selectedCategory.label,
     _isRecurring ? _recurrenceSummary() : 'One-time',
-    _reminderEnabled ? _reminderSummary() : 'No reminder',
+    !_reminderEnabled
+        ? 'No reminder'
+        : _reminderHasPassed
+        ? 'Reminder time passed'
+        : _reminderSummary(),
   ].join(' · ');
+
+  /// Whether the reminder as set falls before now, so it is never sent (the
+  /// scheduler skips past times). Same time as [BillEntity.reminderDateTime]:
+  /// the due time, else 9:00, that many days before the due date.
+  bool get _reminderHasPassed {
+    final due = _dueDate;
+    if (!_reminderEnabled || due == null) return false;
+    final day = due.addDays(-_reminderOffsetDays);
+    final time = _dueTime ?? BillVisuals.defaultDueTime;
+    return DateTime(
+      day.year,
+      day.month,
+      day.day,
+      time.hour,
+      time.minute,
+    ).isBefore(DateTime.now());
+  }
 
   Widget _buildBudgetPicker(ThemeData theme) {
     if (_loadingBudgets) {
       return const Shimmer(
+        semanticsLabel: 'Loading budgets',
         child: SkeletonBox(height: 56, radius: AppSpacing.radiusMd),
       );
     }
@@ -751,7 +1026,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
             value: b.id,
             child: Text(
               '${BillBudgetLink.budgetLabel(b, today)} · '
-              '${formatShortDateRange(b.startDate, b.endDate)} · ${b.currency}',
+              '${AppDates.span(b.startDate, b.endDate)} · ${b.currency}',
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -774,7 +1049,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
     final d = DateTime(date.year, date.month, date.day);
     if (d == today) return 'Today';
     if (d == today.addDays(1)) return 'Tomorrow';
-    return DateFormat('EEE, d MMM yyyy').format(date);
+    return AppDates.fullDay(date);
   }
 
   String _unitLabel() {
@@ -890,30 +1165,48 @@ class _RepeatOptions extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            Text('Every', style: theme.textTheme.bodyMedium),
+            // The field is labelled as a whole, so "Every" and the unit
+            // are not read again around it.
+            ExcludeSemantics(
+              child: Text('Every', style: theme.textTheme.bodyMedium),
+            ),
             const SizedBox(width: AppSpacing.sm),
-            SizedBox(
-              width: 64,
-              child: TextField(
-                controller: intervalController,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
-                ],
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.smd,
+            // At least 64 dp, wider when large text needs it.
+            ConstrainedBox(
+              key: const Key('billIntervalField'),
+              constraints: const BoxConstraints(minWidth: 64),
+              child: IntrinsicWidth(
+                child: Semantics(
+                  label: 'Repeat every … $unitLabel',
+                  child: TextField(
+                    controller: intervalController,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(2),
+                    ],
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.smd,
+                      ),
+                      enabledBorder: intervalError == null
+                          ? null
+                          : theme.inputDecorationTheme.errorBorder,
+                    ),
+                    onChanged: onIntervalChanged,
                   ),
                 ),
-                onChanged: onIntervalChanged,
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            Flexible(child: Text(unitLabel, style: theme.textTheme.bodyMedium)),
+            Flexible(
+              child: ExcludeSemantics(
+                child: Text(unitLabel, style: theme.textTheme.bodyMedium),
+              ),
+            ),
           ],
         ),
         if (intervalError != null) FormFieldError(message: intervalError!),
@@ -922,30 +1215,52 @@ class _RepeatOptions extends StatelessWidget {
   }
 }
 
-/// When the reminder comes, in days before the due date.
+/// When the reminder comes, in days before the due date, and a note when
+/// that time [hasPassed].
 class _ReminderOffsets extends StatelessWidget {
   final int selected;
+  final bool hasPassed;
   final ValueChanged<int> onSelected;
 
-  const _ReminderOffsets({required this.selected, required this.onSelected});
+  const _ReminderOffsets({
+    required this.selected,
+    required this.hasPassed,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final (days, label) in const [
-          (0, 'On the day'),
-          (1, '1 day before'),
-          (2, '2 days before'),
-          (3, '3 days before'),
-          (7, '1 week before'),
-        ])
-          ChoiceChip(
-            label: Text(label),
-            selected: selected == days,
-            onSelected: (_) => onSelected(days),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final (days, label) in const [
+              (0, 'On the day'),
+              (1, '1 day before'),
+              (2, '2 days before'),
+              (3, '3 days before'),
+              (7, '1 week before'),
+            ])
+              ChoiceChip(
+                label: Text(label),
+                selected: selected == days,
+                onSelected: (_) => onSelected(days),
+              ),
+          ],
+        ),
+        if (hasPassed)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Text(
+              "This reminder time has passed, so it won't be sent.",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
       ],
     );
@@ -974,10 +1289,15 @@ class _PickerField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // One node: the error is part of its label, and Clear, otherwise hidden
+    // inside it, is a custom action.
     return Semantics(
       button: true,
-      label: '$label, $value',
+      label: [label, value, ?errorText].join(', '),
       onTap: onTap,
+      customSemanticsActions: onClear == null
+          ? null
+          : {const CustomSemanticsAction(label: 'Clear'): onClear!},
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,

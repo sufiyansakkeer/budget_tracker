@@ -293,7 +293,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final tile = find.byKey(const Key('settingsPayLaterTile'));
+    final tile = find.byKey(const Key('more_payLater'));
     await tester.scrollUntilVisible(
       tile,
       300,

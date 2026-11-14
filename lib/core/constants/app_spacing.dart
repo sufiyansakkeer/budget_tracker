@@ -105,6 +105,17 @@ class AppSizes {
   static const double iconXl = 32.0;
   static const double iconHero = 48.0;
 
+  /// Size of a glyph that sits in a line of text (a status, repeat or
+  /// receipt mark): [base] at normal text, growing with the text scale up
+  /// to [iconLg], so large text never pairs with a tiny glyph.
+  static double inlineIcon(BuildContext context, [double base = iconXs]) =>
+      MediaQuery.textScalerOf(context).scale(base).clamp(base, iconLg);
+
+  /// Text is scaled past about 143% (14 sp body text reads above 20 dp):
+  /// side-by-side label and value rows stack from here on.
+  static bool isLargeText(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(14) > 20;
+
   // Leading icon containers (avatars / tiles)
   static const double avatarSm = 36.0;
   static const double avatarMd = 44.0;

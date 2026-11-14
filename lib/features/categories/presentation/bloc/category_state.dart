@@ -16,11 +16,16 @@ class CategoryState extends Equatable {
   /// One-shot failure feedback.
   final String? errorMessage;
 
+  /// How many expenses use each custom category, by id; missing when it
+  /// couldn't be read. Built-in ones are never deleted, so never counted.
+  final Map<String, int> usage;
+
   const CategoryState({
     this.status = CategoryBlocStatus.initial,
     this.categories = const [],
     this.message,
     this.errorMessage,
+    this.usage = const {},
   });
 
   List<ExpenseCategory> get active =>
@@ -38,6 +43,7 @@ class CategoryState extends Equatable {
     List<ExpenseCategory>? categories,
     String? message,
     String? errorMessage,
+    Map<String, int>? usage,
     bool clearMessages = false,
   }) {
     return CategoryState(
@@ -45,9 +51,10 @@ class CategoryState extends Equatable {
       categories: categories ?? this.categories,
       message: clearMessages ? null : (message ?? this.message),
       errorMessage: clearMessages ? null : (errorMessage ?? this.errorMessage),
+      usage: usage ?? this.usage,
     );
   }
 
   @override
-  List<Object?> get props => [status, categories, message, errorMessage];
+  List<Object?> get props => [status, categories, message, errorMessage, usage];
 }

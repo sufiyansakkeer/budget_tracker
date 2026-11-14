@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -8,18 +7,25 @@ import '../../../../core/widgets/app_card.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import 'category_visuals.dart';
+import 'paid_bill.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Contextual actions for one expense (opened by press-and-hold on a row).
 enum ExpenseRowAction { edit, duplicate, move, delete }
 
 /// Bottom sheet listing what can be done with an expense without opening
 /// its details. Returns the chosen action or null.
+///
+/// [canMove] false leaves Move out (there is no other budget). [billTitle]
+/// is the bill the expense paid, named in the move and delete hints.
 abstract final class ExpenseActionsSheet {
   static Future<ExpenseRowAction?> show(
     BuildContext context, {
     required ExpenseEntity expense,
     ExpenseCategory? category,
     String? currency,
+    bool canMove = true,
+    String? billTitle,
   }) {
     return AppBottomSheet.show<ExpenseRowAction>(
       context: context,
@@ -27,6 +33,8 @@ abstract final class ExpenseActionsSheet {
         expense: expense,
         category: category,
         currency: currency,
+        canMove: canMove,
+        billTitle: billTitle,
       ),
     );
   }
@@ -36,11 +44,15 @@ class _ExpenseActionsBody extends StatelessWidget {
   final ExpenseEntity expense;
   final ExpenseCategory? category;
   final String? currency;
+  final bool canMove;
+  final String? billTitle;
 
   const _ExpenseActionsBody({
     required this.expense,
     required this.category,
     required this.currency,
+    required this.canMove,
+    required this.billTitle,
   });
 
   @override
@@ -55,7 +67,7 @@ class _ExpenseActionsBody extends StatelessWidget {
     final subtitle =
         '${CurrencyFormatter.format(expense.amount, code: currency)} · '
         '${category?.name ?? 'Uncategorised'} · '
-        '${DateFormat('d MMM').format(expense.date)}';
+        '${AppDates.day(expense.date)}';
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -116,19 +128,23 @@ class _ExpenseActionsBody extends StatelessWidget {
           hint: 'Start a new expense with the same details',
           action: ExpenseRowAction.duplicate,
         ),
-        _action(
-          context,
-          key: const Key('expenseAction_move'),
-          icon: Icons.drive_file_move_outlined,
-          label: 'Move to another budget',
-          action: ExpenseRowAction.move,
-        ),
+        if (canMove)
+          _action(
+            context,
+            key: const Key('expenseAction_move'),
+            icon: Icons.drive_file_move_outlined,
+            label: 'Move to another budget',
+            hint: billTitle == null ? null : PaidBill.moveHint(billTitle!),
+            action: ExpenseRowAction.move,
+          ),
         _action(
           context,
           key: const Key('expenseAction_delete'),
           icon: Icons.delete_outline_rounded,
           label: 'Delete',
-          hint: 'You can undo for a few seconds',
+          hint: billTitle == null
+              ? 'You can undo for a few seconds'
+              : PaidBill.deleteHint(billTitle!),
           action: ExpenseRowAction.delete,
           destructive: true,
         ),

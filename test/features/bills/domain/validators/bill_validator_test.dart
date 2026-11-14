@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/features/bills/domain/validators/bill_validator.dart';
+import 'package:monivo/core/constants/app_copy.dart';
 
 void main() {
   group('BillValidator.validateTitle', () {
@@ -32,12 +33,12 @@ void main() {
     test('rejects amounts at or above the 1e12 limit (review: overflow)', () {
       expect(
         BillValidator.validateAmount('100000000000000000'),
-        'Amount must be less than 1,000,000,000,000',
+        ValidationCopy.amountTooLarge,
       );
       expect(BillValidator.validateAmount('999999999999.99'), isNull);
       expect(
         BillValidator.validateAmountValue(1e12),
-        'Amount must be less than 1,000,000,000,000',
+        ValidationCopy.amountTooLarge,
       );
     });
 
@@ -77,7 +78,7 @@ void main() {
       expect(BillValidator.validateAmount('12.125', currency: 'OMR'), isNull);
       expect(
         BillValidator.validateAmount('12.1255', currency: 'OMR'),
-        'Amount cannot have more than 3 decimal places',
+        ValidationCopy.tooManyDecimals(3),
       );
       expect(
         BillValidator.validateAmount('12.125', currency: 'INR'),

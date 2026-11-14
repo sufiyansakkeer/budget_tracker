@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../../../../core/currency/money_math.dart';
 import '../entities/safe_to_spend/commitment_occurrence.dart';
+import '../entities/safe_to_spend/day_target.dart';
 import '../entities/safe_to_spend/safe_to_spend_entity.dart';
 import '../entities/safe_to_spend/safe_to_spend_forecast.dart';
 import '../entities/safe_to_spend/safe_to_spend_input.dart';
@@ -355,6 +356,119 @@ class SafeToSpendCalculator {
       currencyExcluded: input.currencyExcluded,
       commitmentsAvailable: commitmentsAvailable,
     );
+  }
+
+  /// [calculate] as if [draftToday] more had been spent today: the figures a
+  /// form shows before it saves (today's target stays, what is left today and
+  /// tomorrow's target move). [draftToday] is the change in today's
+  /// spending, so editing an expense down passes a negative value. Outside
+  /// the period an expense today is not this budget's, so nothing moves.
+  SafeToSpendEntity preview(
+    SafeToSpendInput input, {
+    required double draftToday,
+  }) {
+    final day = DateTime(input.today.year, input.today.month, input.today.day);
+    final running =
+        BudgetCalculationService.calendarDaysBetween(day, input.startDate) <=
+            0 &&
+        BudgetCalculationService.calendarDaysBetween(input.endDate, day) <= 0;
+    if (!running || draftToday == 0) return calculate(input);
+
+    final money = MoneyMath.forCurrency(input.currency);
+    double plusDraft(double amount) =>
+        money.toAmount(money.toUnits(amount) + money.toUnits(draftToday));
+
+    return calculate(
+      SafeToSpendInput(
+        budgetId: input.budgetId,
+        budgetName: input.budgetName,
+        currency: input.currency,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        today: input.today,
+        budgetAmount: input.budgetAmount,
+        periodSpent: plusDraft(input.periodSpent),
+        todaySpent: plusDraft(input.todaySpent),
+        committedSpentInPeriod: input.committedSpentInPeriod,
+        committedSpentToday: input.committedSpentToday,
+        commitments: input.commitments,
+        currencyExcluded: input.currencyExcluded,
+        unlinked: input.unlinked,
+        reservedAmount: input.reservedAmount,
+        savingsTarget: input.savingsTarget,
+        thresholds: input.thresholds,
+      ),
+    );
+  }
+
+  /// Each day's target from the start of the period to today, for a
+  /// running budget ([today] from [calculate]); empty otherwise.
+  ///
+  /// [spentByDay] is spending without set-aside bill payments, keyed by date
+  /// (a time of day is ignored; a missing day spent nothing). Today's entry
+  /// uses [SafeToSpendEntity.todayDiscretionary] instead of the map.
+  ///
+  /// Past days assume today's set-asides: a day's target is (free to spend
+  /// now + spending from that day to today) ÷ the days left that day, the
+  /// same single division as today's target. So today's entry equals
+  /// [SafeToSpendEntity.dailySafeToSpend] exactly.
+  List<DayTarget> targetSeries(
+    SafeToSpendEntity today,
+    Map<DateTime, double> spentByDay,
+  ) {
+    if (today.status == SafeToSpendStatus.notStarted ||
+        today.status == SafeToSpendStatus.periodEnded) {
+      return const [];
+    }
+    final money = MoneyMath.forCurrency(today.currency);
+    double amt(num units) => money.toAmount(units);
+
+    final spentU = <String, int>{};
+    String key(DateTime d) => '${d.year}-${d.month}-${d.day}';
+    spentByDay.forEach((d, amount) {
+      spentU.update(
+        key(d),
+        (u) => u + money.toUnits(amount),
+        ifAbsent: () => money.toUnits(amount),
+      );
+    });
+    spentU[key(today.today)] = money.toUnits(today.todayDiscretionary);
+
+    final start = DateTime(
+      today.startDate.year,
+      today.startDate.month,
+      today.startDate.day,
+    );
+    final count =
+        BudgetCalculationService.calendarDaysBetween(start, today.today) + 1;
+    final series = List<DayTarget?>.filled(count, null);
+    // From today back: the money spendable after each day grows by that
+    // day's spending.
+    var afterDayU = money.toUnits(today.rawSpendable);
+    for (var i = count - 1; i >= 0; i--) {
+      final date = _addDays(start, i);
+      final dayU = spentU[key(date)] ?? 0;
+      final targetU = math.max(
+        0.0,
+        _calculationService.calculateTodaySafeSpending(
+          remainingBudget: afterDayU.toDouble(),
+          todaySpending: dayU.toDouble(),
+          remainingDays: _calculationService.calculateRemainingDays(
+            referenceDate: date,
+            startDate: today.startDate,
+            endDate: today.endDate,
+          ),
+        ),
+      );
+      series[i] = DayTarget(
+        date: date,
+        target: amt(targetU),
+        spent: amt(dayU),
+        result: amt(targetU - dayU),
+      );
+      afterDayU += dayU;
+    }
+    return List.unmodifiable(series.cast<DayTarget>());
   }
 
   /// Whether today's discretionary spending is above today's safe amount,

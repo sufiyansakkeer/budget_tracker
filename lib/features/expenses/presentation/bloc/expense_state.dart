@@ -1,6 +1,8 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
 import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -26,6 +28,9 @@ enum QuickAddLoad { idle, loading, loaded, failed }
 class ExpenseState extends Equatable {
   final ExpenseBlocStatus status;
   final List<ExpenseCategory> categories;
+
+  /// The latest [ExpenseLoadCategories] couldn't read the categories.
+  final bool categoriesFailed;
   final ExpenseEntity? expense;
   final String? message;
 
@@ -41,6 +46,11 @@ class ExpenseState extends Equatable {
   /// null when it was on no tab.
   final TabLinkSnapshot? lastDeletedLink;
 
+  /// After an add dated today in a running period: that budget's Today's
+  /// Safe Spending with the expense counted, for "₹627 left today". Null
+  /// otherwise, or when it couldn't be read.
+  final SafeToSpendEntity? afterAdd;
+
   /// Default date captured once when the Add Expense form is initialized.
   final DateTime? initialDate;
 
@@ -54,21 +64,29 @@ class ExpenseState extends Equatable {
   /// none, or it could not be read).
   final BudgetEntity? quickAddBudget;
 
+  /// Quick add: the engine's input for that budget today, so the sheet can
+  /// show what the amount does to today before saving
+  /// (`SafeToSpendCalculator.preview`). Null when it couldn't be read.
+  final SafeToSpendInput? quickAddInput;
+
   /// Quick add: the category shortcuts, most used first.
   final List<ExpenseCategory> frequentCategories;
 
   const ExpenseState({
     this.status = ExpenseBlocStatus.initial,
     this.categories = const [],
+    this.categoriesFailed = false,
     this.expense,
     this.message,
     this.lastAction = ExpenseAction.none,
     this.lastDeleted,
     this.lastDeletedLink,
+    this.afterAdd,
     this.initialDate,
     this.initialTime,
     this.quickAddLoad = QuickAddLoad.idle,
     this.quickAddBudget,
+    this.quickAddInput,
     this.frequentCategories = const [],
   });
 
@@ -80,6 +98,7 @@ class ExpenseState extends Equatable {
   ExpenseState copyWith({
     ExpenseBlocStatus? status,
     List<ExpenseCategory>? categories,
+    bool? categoriesFailed,
     ExpenseEntity? expense,
     bool clearExpense = false,
     String? message,
@@ -91,16 +110,21 @@ class ExpenseState extends Equatable {
     /// Clears [lastDeleted] and [lastDeletedLink] together.
     bool clearLastDeleted = false,
     bool clearLastDeletedLink = false,
+    SafeToSpendEntity? afterAdd,
+    bool clearAfterAdd = false,
     DateTime? initialDate,
     DateTime? initialTime,
     QuickAddLoad? quickAddLoad,
     BudgetEntity? quickAddBudget,
     bool clearQuickAddBudget = false,
+    SafeToSpendInput? quickAddInput,
+    bool clearQuickAddInput = false,
     List<ExpenseCategory>? frequentCategories,
   }) {
     return ExpenseState(
       status: status ?? this.status,
       categories: categories ?? this.categories,
+      categoriesFailed: categoriesFailed ?? this.categoriesFailed,
       expense: clearExpense ? null : (expense ?? this.expense),
       message: clearMessage ? null : (message ?? this.message),
       lastAction: lastAction ?? this.lastAction,
@@ -108,12 +132,16 @@ class ExpenseState extends Equatable {
       lastDeletedLink: clearLastDeleted || clearLastDeletedLink
           ? null
           : (lastDeletedLink ?? this.lastDeletedLink),
+      afterAdd: clearAfterAdd ? null : (afterAdd ?? this.afterAdd),
       initialDate: initialDate ?? this.initialDate,
       initialTime: initialTime ?? this.initialTime,
       quickAddLoad: quickAddLoad ?? this.quickAddLoad,
       quickAddBudget: clearQuickAddBudget
           ? null
           : (quickAddBudget ?? this.quickAddBudget),
+      quickAddInput: clearQuickAddInput
+          ? null
+          : (quickAddInput ?? this.quickAddInput),
       frequentCategories: frequentCategories ?? this.frequentCategories,
     );
   }
@@ -122,15 +150,18 @@ class ExpenseState extends Equatable {
   List<Object?> get props => [
     status,
     categories,
+    categoriesFailed,
     expense,
     message,
     lastAction,
     lastDeleted,
     lastDeletedLink,
+    afterAdd,
     initialDate,
     initialTime,
     quickAddLoad,
     quickAddBudget,
+    quickAddInput,
     frequentCategories,
   ];
 }

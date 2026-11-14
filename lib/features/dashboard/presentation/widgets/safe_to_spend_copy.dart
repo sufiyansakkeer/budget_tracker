@@ -1,5 +1,3 @@
-import 'package:intl/intl.dart';
-
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../budget/domain/entities/safe_to_spend/commitment_occurrence.dart';
 import '../../../budget/domain/entities/safe_to_spend/currency_excluded_summary.dart';
@@ -8,6 +6,7 @@ import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_forecast.dar
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_reason.dart';
 import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_status.dart';
 import '../../../budget/domain/entities/safe_to_spend/unlinked_commitment_summary.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Every user-facing string about Today's Safe Spending, built from the
 /// engine's [SafeToSpendEntity]. Pure presentation: it formats figures the
@@ -18,16 +17,13 @@ import '../../../budget/domain/entities/safe_to_spend/unlinked_commitment_summar
 /// other figure is shown to the currency's minor unit when it has a fraction
 /// ([amount]), so OMR 7.600 never reads "8".
 abstract final class SafeToSpendCopy {
-  static final DateFormat _short = DateFormat('d MMM');
-  static final DateFormat _long = DateFormat('d MMMM');
-
   // ── Formatting ───────────────────────────────────────────────────────────
 
-  /// "31 Oct".
-  static String date(DateTime d) => _short.format(d);
+  /// "31 Oct" ("31 Oct 2025" outside the current year).
+  static String date(DateTime d) => AppDates.day(d);
 
   /// "31 October", for screen readers.
-  static String spokenDate(DateTime d) => _long.format(d);
+  static String spokenDate(DateTime d) => AppDates.spokenDay(d);
 
   /// An exact figure: the currency's decimals when it has a fraction at that
   /// precision, otherwise none. Negative values get a leading "−".
@@ -131,7 +127,10 @@ abstract final class SafeToSpendCopy {
     required SafeToSpendEntity e,
   }) {
     final cur = e.currency;
-    final pace = 'At your average so far (${amount(averageDaily, cur)} a day)';
+    // The forecast's average: completed days, bill payments left out.
+    final pace =
+        'At your average so far (${amount(averageDaily, cur)} a day, not '
+        'counting bill payments or today)';
     final endBalance = e.forecast?.projectedEndBalance;
     if (endBalance == null || endBalance < 0) {
       final short = endBalance == null ? deficit : -endBalance;
@@ -184,6 +183,34 @@ abstract final class SafeToSpendCopy {
     return null;
   }
 
+  /// The one sentence under the ring (blueprint): at risk, the forecast in
+  /// short ("At this pace the budget ends about ₹93,870 short.", whole
+  /// units: a forecast, not a record); otherwise [heroExplanation].
+  static String? heroLine(SafeToSpendEntity e) {
+    final explanation = heroExplanation(e);
+    for (final r in e.reasons) {
+      if (r is! AtRiskReason) continue;
+      // Only when at risk is the reason the explanation gives.
+      if (explanation !=
+          atRisk(averageDaily: r.averageDaily, deficit: r.deficit, e: e)) {
+        break;
+      }
+      final endBalance = e.forecast?.projectedEndBalance;
+      String whole(double v) => CurrencyFormatter.format(
+        v.roundToDouble(),
+        code: e.currency,
+        decimalDigits: 0,
+      );
+      if (endBalance == null || endBalance < 0) {
+        final short = endBalance == null ? r.deficit : -endBalance;
+        return 'At this pace the budget ends about ${whole(short)} short.';
+      }
+      return "At this pace you'd use about ${whole(r.deficit)} of what's set "
+          'aside.';
+    }
+    return explanation;
+  }
+
   /// Caption under the hero metrics when set-aside bills were paid today.
   static String billPaymentsToday(SafeToSpendEntity e) =>
       'Bill payments today (${amount(e.committedSpentToday, e.currency)}) are '
@@ -231,13 +258,30 @@ abstract final class SafeToSpendCopy {
     return buffer.toString();
   }
 
+  /// The caption under the hero's top bar: "40% of today's amount used".
+  /// Rounded down, so it never reads 100% while something is left today.
+  /// Null when today's amount is 0 (there is nothing to use up; the hero
+  /// then draws no bar).
+  static String? todayUsedCaption(SafeToSpendEntity e) {
+    if (e.dailySafeToSpend <= 0) return null;
+    final percent = (e.todayDiscretionary / e.dailySafeToSpend * 100)
+        .floor()
+        .clamp(0, 999);
+    return "$percent% of today's amount used";
+  }
+
   /// "Day 8 of 31".
   static String dayOfPeriod(SafeToSpendEntity e) =>
       'Day ${e.daysPassed} of ${e.totalDays}';
 
-  /// "24 days left" / "Last day".
-  static String daysLeft(SafeToSpendEntity e) =>
-      e.remainingDays <= 1 ? 'Last day' : '${e.remainingDays} days left';
+  /// "24 days left" / "Last day". [withToday] says that today is one of
+  /// them, for beside [dayOfPeriod], which counts today too: "Day 8 of 31"
+  /// and "24 days left, incl. today" add up to 32 on purpose. A no-break space
+  /// keeps "incl. today" on one line.
+  static String daysLeft(SafeToSpendEntity e, {bool withToday = false}) =>
+      e.remainingDays <= 1
+      ? 'Last day'
+      : '${e.remainingDays} days left${withToday ? ', incl.\u00A0today' : ''}';
 
   /// "₹25,103 left of ₹60,000" / "₹1,200 over ₹60,000".
   static String budgetLeftLine(SafeToSpendEntity e) {
@@ -347,11 +391,20 @@ abstract final class SafeToSpendCopy {
 
   // ── Forecast ─────────────────────────────────────────────────────────────
 
-  /// Shown under the "Forecast" heading: "Ready after 2 more days of
-  /// spending" / "Ready after your first expense in this budget."
-  static String forecastInsufficient(SafeToSpendForecast f) => f.daysNeeded > 0
-      ? 'Ready after ${_count(f.daysNeeded, 'more day')} of spending'
-      : 'Ready after your first expense in this budget.';
+  /// Shown under the "Forecast" heading. [SafeToSpendForecast.daysNeeded]
+  /// counts calendar days still to pass (not days with spending), and the
+  /// forecast also needs spending before today, so with no expense yet both
+  /// are named: "Ready in 2 more days." / "Ready tomorrow." / "Needs your
+  /// first expense and 2 more days." / "Ready after your first expense in
+  /// this budget."
+  static String forecastInsufficient(SafeToSpendForecast f) {
+    final n = f.daysNeeded;
+    if (n <= 0) return 'Ready after your first expense in this budget.';
+    if (!f.hasAnyExpense) {
+      return 'Needs your first expense and ${_count(n, 'more day')}.';
+    }
+    return n == 1 ? 'Ready tomorrow.' : 'Ready in ${_count(n, 'more day')}.';
+  }
 
   /// "Free money runs out around 24 Oct".
   static String exhaustion(DateTime d) =>

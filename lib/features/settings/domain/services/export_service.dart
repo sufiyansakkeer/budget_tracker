@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Rect;
 
 import 'package:csv/csv.dart';
 import 'package:drift/drift.dart' show OrderingTerm;
@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/files/file_delivery_service.dart';
 import 'data_codec.dart';
+import 'json_off_main.dart';
 
 /// Represents a generated export file.
 class ExportResult {
@@ -99,8 +100,8 @@ class ExportService {
   }
 
   /// Exports expenses + categories + budget to a CSV file and opens the share
-  /// sheet.
-  Future<ExportResult> exportCsv() async {
+  /// sheet, anchored at [shareOrigin] on iPad.
+  Future<ExportResult> exportCsv({Rect? shareOrigin}) async {
     final rows = await collectCsvRows();
     const converter = ListToCsvConverter();
     final csv = converter.convert(rows);
@@ -111,7 +112,14 @@ class ExportService {
     final file = File('${directory.path}/$fileName');
     await file.writeAsString(csv);
 
-    return _share(file, fileName, 'text/csv', 'csv', done: 'CSV exported.');
+    return _share(
+      file,
+      fileName,
+      'text/csv',
+      'csv',
+      done: 'CSV exported.',
+      shareOrigin: shareOrigin,
+    );
   }
 
   /// Exports budgets, categories, expenses and settings as a data file and
@@ -120,7 +128,7 @@ class ExportService {
   /// This is an export, not a backup: it leaves out bills and is meant for
   /// other apps or Import. It used to be named and shared as "Monivo
   /// Backup", which Restore then rejected as damaged.
-  Future<ExportResult> exportJson() async {
+  Future<ExportResult> exportJson({Rect? shareOrigin}) async {
     final data = await collectJsonData();
 
     final directory = await getTemporaryDirectory();
@@ -128,8 +136,7 @@ class ExportService {
     final fileName = 'monivo_export_$timestamp.json';
     final file = File('${directory.path}/$fileName');
 
-    const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(encoder.convert(data));
+    await JsonOffMain.writeIndented(file, data);
 
     return _share(
       file,
@@ -137,6 +144,7 @@ class ExportService {
       'application/json',
       'json',
       done: 'Data file exported.',
+      shareOrigin: shareOrigin,
     );
   }
 
@@ -147,6 +155,7 @@ class ExportService {
     String mimeType,
     String extension, {
     required String done,
+    Rect? shareOrigin,
   }) async {
     final outcome = await _delivery.deliver(
       file: file,
@@ -155,6 +164,7 @@ class ExportService {
       extension: extension,
       destination: FileDestination.share,
       shareText: 'Monivo export',
+      shareOrigin: shareOrigin,
     );
     return ExportResult(
       filePath: file.path,

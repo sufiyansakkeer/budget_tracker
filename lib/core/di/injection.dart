@@ -29,6 +29,8 @@ import '../../features/settings/presentation/bloc/theme/theme_bloc.dart';
 import '../database/app_database.dart';
 import '../currency/currency_provider.dart';
 import '../notifications/notification_bloc.dart';
+import '../notifications/notification_event.dart';
+import '../notifications/notification_permission_notice.dart';
 import '../biometric/biometric_initializer.dart';
 import '../biometric/app_lock_bloc.dart';
 import '../biometric/app_lock_event.dart';
@@ -59,6 +61,7 @@ import '../../features/categories/presentation/bloc/category_bloc.dart';
 import '../../features/dashboard/domain/usecases/get_recent_expenses_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_linkable_bills_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
+import '../../features/dashboard/domain/usecases/get_day_targets_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_pace_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_smart_insights_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_spending_targets_usecase.dart';
@@ -79,6 +82,7 @@ import '../../features/expenses/domain/usecases/filter_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/page_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/search_expenses_usecase.dart';
 import '../../features/expenses/domain/usecases/sort_expenses_usecase.dart';
+import '../../features/expenses/domain/usecases/get_activity_extras_usecase.dart';
 import '../../features/expenses/presentation/bloc/expense_bloc.dart';
 import '../../features/expenses/presentation/history/bloc/expense_history_bloc.dart';
 import '../../features/onboarding/data/datasource/onboarding_local_datasource.dart';
@@ -105,12 +109,14 @@ import '../../features/bills/domain/usecases/link_bills_to_budget_usecase.dart';
 import '../../features/bills/domain/usecases/mark_bill_paid_usecase.dart';
 import '../../features/bills/domain/usecases/mark_bill_unpaid_usecase.dart';
 import '../../features/bills/domain/usecases/pay_bill_usecase.dart';
+import '../../features/bills/domain/usecases/restore_bill_snapshot_usecase.dart';
 import '../../features/bills/domain/usecases/schedule_bill_reminder_usecase.dart';
 import '../../features/bills/domain/usecases/update_bill_usecase.dart';
 import '../../features/bills/presentation/bloc/bill_bloc.dart';
 import '../../features/pay_later/data/datasource/pay_later_local_datasource.dart';
 import '../../features/pay_later/data/services/tab_reminder_service.dart';
 import '../../features/pay_later/presentation/open_tab_from_notification.dart';
+import '../router/open_route_from_notification.dart';
 import '../../features/pay_later/data/datasource/pay_later_local_datasource_impl.dart';
 import '../../features/pay_later/data/repository/pay_later_repository_impl.dart';
 import '../../features/pay_later/domain/repository/pay_later_repository.dart';
@@ -262,6 +268,8 @@ Future<void> initDependencyInjection({
     () => OnboardingBloc(
       createBudgetUseCase: getIt<CreateBudgetUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
+      updateCurrencyUseCase: getIt<UpdateCurrencyUseCase>(),
+      currencyProvider: getIt<CurrencyProvider>(),
     ),
   );
 
@@ -290,6 +298,13 @@ Future<void> initDependencyInjection({
     () => const BillOccurrenceEnumerator(),
   );
 
+  getIt.registerLazySingleton<GetDayTargetsUseCase>(
+    () => GetDayTargetsUseCase(
+      safeToSpend: getIt<GetSafeToSpendUseCase>(),
+      repository: getIt<DashboardRepository>(),
+      calculator: getIt<SafeToSpendCalculator>(),
+    ),
+  );
   getIt.registerLazySingleton<GetSpendingPaceUseCase>(
     () => GetSpendingPaceUseCase(repository: getIt<DashboardRepository>()),
   );
@@ -411,6 +426,7 @@ Future<void> initDependencyInjection({
       getCategoriesUseCase: getIt<GetCategoriesUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
       tabPurchases: getIt<TabPurchaseUseCase>(),
+      safeToSpend: getIt<GetSafeToSpendUseCase>(),
     ),
   );
 
@@ -443,6 +459,10 @@ Future<void> initDependencyInjection({
       calculateExpenseSummaryUseCase: getIt<CalculateExpenseSummaryUseCase>(),
       pageExpensesUseCase: getIt<PageExpensesUseCase>(),
       budgetRepository: getIt<BudgetRepository>(),
+      dayTargets: (budgetId) => getIt<GetDayTargetsUseCase>()(budgetId),
+      activityExtras: (budgets) => GetActivityExtrasUseCase(
+        getIt<PayLaterRepository>(),
+      )(budgets: budgets, today: DateTime.now()),
     ),
   );
 
@@ -509,6 +529,7 @@ Future<void> initDependencyInjection({
       // Resolved on use: TabReminderService is registered further down.
       rescheduleTabReminders: () => getIt<TabReminderService>().rescheduleAll(),
       onPayLaterTap: openTabFromNotification,
+      onEveningReviewTap: openEveningReviewFromNotification,
     ),
   );
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
@@ -573,6 +594,20 @@ Future<void> initDependencyInjection({
     () => NotificationBloc(
       notificationService: getIt<NotificationService>(),
       loadSettingsUseCase: getIt<LoadSettingsUseCase>(),
+    ),
+  );
+  // Asked for when reminders are turned on (Settings, a bill's "Remind me").
+  getIt.registerLazySingleton<NotificationPermission>(
+    () => NotificationPermission(
+      isAllowed: () => getIt<NotificationService>().areNotificationsEnabled(),
+      request: () async {
+        final allowed = await getIt<NotificationService>().requestPermission();
+        // The daily reminders skipped while blocked are scheduled now.
+        if (allowed) {
+          getIt<NotificationBloc>().add(const NotificationRefreshSchedule());
+        }
+        return allowed;
+      },
     ),
   );
   // Settings Feature – BLoC
@@ -752,6 +787,12 @@ Future<void> initDependencyInjection({
       expenseRepository: getIt<ExpenseRepository>(),
     ),
   );
+  getIt.registerLazySingleton<RestoreBillSnapshotUseCase>(
+    () => RestoreBillSnapshotUseCase(
+      repository: getIt<BillRepository>(),
+      deleteExpense: getIt<DeleteExpenseUseCase>(),
+    ),
+  );
   getIt.registerLazySingleton<LinkBillsToBudgetUseCase>(
     () => LinkBillsToBudgetUseCase(
       billRepository: getIt<BillRepository>(),
@@ -770,6 +811,7 @@ Future<void> initDependencyInjection({
       markBillPaidUseCase: getIt<MarkBillPaidUseCase>(),
       markBillUnpaidUseCase: getIt<MarkBillUnpaidUseCase>(),
       payBillUseCase: getIt<PayBillUseCase>(),
+      restoreBillSnapshotUseCase: getIt<RestoreBillSnapshotUseCase>(),
       reminderService: getIt<BillReminderService>(),
     ),
   );

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/router/open_route_from_notification.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:monivo/core/database/app_database.dart';
@@ -168,6 +169,14 @@ void main() {
     expect(recorder.rescheduleAllCalls, 1);
     expect(
       identical(notifications.onPayLaterTap, openTabFromNotification),
+      isTrue,
+    );
+    // The evening summary opens the evening review (blueprint).
+    expect(
+      identical(
+        notifications.onEveningReviewTap,
+        openEveningReviewFromNotification,
+      ),
       isTrue,
     );
   });

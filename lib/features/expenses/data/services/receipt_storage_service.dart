@@ -16,6 +16,10 @@ class ReceiptStorageService {
 
   final ImagePicker _picker = ImagePicker();
 
+  /// Widest a stored receipt is kept: plenty to read it, and a fraction of
+  /// a full-size photo's file and memory.
+  static const double _maxWidth = 2000;
+
   /// Directory where receipts are stored locally.
   Future<Directory> _receiptsDir() async {
     final appDir = await getApplicationDocumentsDirectory();
@@ -30,7 +34,11 @@ class ReceiptStorageService {
   Future<String?> captureReceipt() async {
     // The camera takes the foreground; keep the app lock from re-locking.
     final file = await SystemUiSession.run(
-      () => _picker.pickImage(source: ImageSource.camera, imageQuality: 70),
+      () => _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70,
+        maxWidth: _maxWidth,
+      ),
     );
     if (file == null) return null;
     return _copyToLocal(file);
@@ -39,7 +47,11 @@ class ReceiptStorageService {
   /// Picks a receipt from the gallery.
   Future<String?> pickReceiptFromGallery() async {
     final file = await SystemUiSession.run(
-      () => _picker.pickImage(source: ImageSource.gallery, imageQuality: 70),
+      () => _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+        maxWidth: _maxWidth,
+      ),
     );
     if (file == null) return null;
     return _copyToLocal(file);

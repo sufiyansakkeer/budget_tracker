@@ -2,19 +2,25 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../budget/domain/repository/budget_repository.dart';
+import '../../../../core/currency/currency_provider.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../domain/usecases/create_budget_usecase.dart';
 import 'onboarding_event.dart';
 import '../../../settings/domain/entities/currency_entity.dart';
+import '../../../settings/domain/entities/settings_failure.dart';
+import '../../../settings/domain/usecases/update_currency_usecase.dart';
 import 'onboarding_state.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/errors/user_facing_error.dart';
+import '../../../../core/constants/app_copy.dart';
 
 class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   final CreateBudgetUseCase createBudgetUseCase;
   final BudgetRepository budgetRepository;
+  final UpdateCurrencyUseCase updateCurrencyUseCase;
+  final CurrencyProvider currencyProvider;
 
   /// One id for every submit, so a retry rewrites the same budget.
   final String _budgetId = const Uuid().v4();
@@ -22,8 +28,15 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   OnboardingBloc({
     required this.createBudgetUseCase,
     required this.budgetRepository,
+    required this.updateCurrencyUseCase,
+    required this.currencyProvider,
   }) : super(
-         OnboardingState(startDate: _today(), endDate: _today().addDays(30)),
+         OnboardingState(
+           startDate: _today(),
+           endDate: _today().addDays(30),
+           // The first question is how much a day (blueprint).
+           amountByDay: true,
+         ),
        ) {
     on<OnboardingInitEvent>(_onInit);
     on<OnboardingPageChangedEvent>(_onPageChanged);
@@ -33,6 +46,10 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     on<OnboardingStartDateChangedEvent>(_onStartDateChanged);
     on<OnboardingEndDateChangedEvent>(_onEndDateChanged);
     on<OnboardingSubmittedEvent>(_onSubmitted);
+    on<OnboardingRestoredEvent>(_onRestored);
+    on<OnboardingAmountModeChangedEvent>(
+      (event, emit) => emit(state.copyWith(amountByDay: event.byDay)),
+    );
   }
 
   void _onInit(OnboardingInitEvent event, Emitter<OnboardingState> emit) {
@@ -86,7 +103,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           budgetNameInput: event.name,
-          nameValidationError: 'Budget name cannot be empty',
+          nameValidationError: ValidationCopy.budgetNameEmpty,
         ),
       );
       return;
@@ -113,18 +130,14 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     final input = rawInput.trim();
     final value = double.tryParse(input);
     final error = input.isEmpty
-        ? 'Budget amount cannot be empty'
+        ? ValidationCopy.amountEmpty
         : value == null
-        ? 'Please enter a valid number'
+        ? ValidationCopy.amountInvalid
         : value <= 0
-        ? 'Budget must be greater than zero'
+        ? ValidationCopy.amountNotPositive
         : !MoneyMath.isWithinLimit(value)
-        ? 'Budget amount must be less than ${MoneyMath.maxAmountLabel}.'
-        : MoneyInput.decimalsError(
-            input,
-            state.selectedCurrency.code,
-            subject: 'Budget',
-          );
+        ? ValidationCopy.amountTooLarge
+        : MoneyInput.decimalsError(input, state.selectedCurrency.code);
     if (error != null) {
       emit(
         state.copyWith(
@@ -167,9 +180,10 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     Emitter<OnboardingState> emit,
   ) {
     final newStart = event.date.dateOnly;
-    final newEnd = state.endDate.isAfter(newStart)
-        ? state.endDate
-        : newStart.addDays(1);
+    // Keep the same number of days when the start moves, as the budget
+    // form does: keeping the end shortened the period without saying so.
+    final length = calendarDaysBetween(state.startDate, state.endDate);
+    final newEnd = newStart.addDays(length < 1 ? 1 : length);
     emit(
       state.copyWith(
         startDate: newStart,
@@ -188,7 +202,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       emit(
         state.copyWith(
           endDate: newEnd,
-          dateValidationError: 'End date must be after start date',
+          dateValidationError: ValidationCopy.endBeforeStart,
         ),
       );
       return;
@@ -223,8 +237,8 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
       final budgetEntity = BudgetEntity(
         id: _budgetId,
         name: state.budgetNameInput.trim(),
-        monthlyAmount: state.parsedBudget!,
-        remainingAmount: state.parsedBudget!,
+        monthlyAmount: state.budgetAmount!,
+        remainingAmount: state.budgetAmount!,
         currency: state.selectedCurrency.code,
         startDate: state.startDate,
         endDate: state.endDate,
@@ -232,12 +246,18 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
         updatedAt: now,
       );
 
-      // Budget, then active budget, then "onboarding done": the app leaves
-      // onboarding only once the budget is in place. Preferences and the
-      // database can't share a transaction, so a failed step is retried
-      // from the start, and the fixed id keeps that to one budget.
+      // Budget, then active budget, then default currency, then
+      // "onboarding done": the app leaves onboarding only once the budget is
+      // in place. Preferences and the database can't share a transaction,
+      // so a failed step is retried from the start, and the fixed id keeps
+      // that to one budget.
+      final currency = state.selectedCurrency;
       await createBudgetUseCase(budgetEntity);
       await budgetRepository.setActiveBudgetId(budgetEntity.id);
+      // The chosen currency is also the default for later budgets.
+      final saved = await updateCurrencyUseCase(currency.code, currency.symbol);
+      if (saved case SettingsError(:final failure)) throw failure.message;
+      currencyProvider.updateCurrency(currency.code, currency.symbol);
       await createBudgetUseCase.finishOnboarding();
 
       emit(state.copyWith(status: OnboardingStatus.success));
@@ -249,6 +269,32 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
             '$e',
             forPeople: false,
             fallback: "Couldn't create your budget. Try again.",
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onRestored(
+    OnboardingRestoredEvent event,
+    Emitter<OnboardingState> emit,
+  ) async {
+    emit(
+      state.copyWith(status: OnboardingStatus.loading, clearErrorMessage: true),
+    );
+    try {
+      await createBudgetUseCase.finishOnboarding();
+      emit(state.copyWith(status: OnboardingStatus.success));
+    } catch (e) {
+      emit(
+        state.copyWith(
+          status: OnboardingStatus.failure,
+          errorMessage: userFacingError(
+            '$e',
+            forPeople: false,
+            fallback:
+                "Backup restored, but couldn't finish setting up. Try "
+                'again.',
           ),
         ),
       );

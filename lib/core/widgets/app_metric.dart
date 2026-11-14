@@ -62,3 +62,57 @@ class AppMetric extends StatelessWidget {
     );
   }
 }
+
+/// Two or three [AppMetric]s side by side with gutters: "Spent / Spent
+/// today / Expenses".
+///
+/// When the text is too large for each metric to get a readable column,
+/// they stack instead, so a label never breaks mid-word and two figures
+/// never run together into one.
+class AppMetricRow extends StatelessWidget {
+  final List<AppMetric> metrics;
+
+  const AppMetricRow({super.key, required this.metrics});
+
+  /// The narrowest column, before text scaling, that a metric keeps before
+  /// the row stacks: "Daily average" in the eyebrow style at 100%.
+  static const double minColumnWidth = 80;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final n = metrics.length;
+        final column = (constraints.maxWidth - AppSpacing.md * (n - 1)) / n;
+        if (column >= scaler.scale(minColumnWidth)) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < n; i++) ...[
+                if (i > 0) const SizedBox(width: AppSpacing.md),
+                Expanded(child: metrics[i]),
+              ],
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < n; i++) ...[
+              if (i > 0) const SizedBox(height: AppSpacing.sm),
+              // Stacked, every metric starts at the same edge.
+              AppMetric(
+                key: metrics[i].key,
+                label: metrics[i].label,
+                value: metrics[i].value,
+                help: metrics[i].help,
+                labelColor: metrics[i].labelColor,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}

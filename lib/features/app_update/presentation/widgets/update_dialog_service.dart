@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/entities/app_update_result.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/app_dialog.dart';
 import 'update_dialog.dart';
+import 'update_prompt_policy.dart';
 
 /// Centralised service that shows the app-update dialog via the root
 /// Navigator key, avoiding the stale/Below-Navigator BuildContext problem.
@@ -39,6 +43,34 @@ class UpdateDialogService {
     ).whenComplete(() {
       _isShowing = false;
     });
+  }
+
+  /// Shows the dialog after the launch-time check, but only when the user
+  /// is on Home with nothing else to do first. Never during onboarding, on
+  /// a screen a widget or notification opened, or over a widget launch;
+  /// never again for a version the user skipped, or within a day of
+  /// "Later".
+  static Future<void> showOnLaunch(
+    AppUpdateResult result, {
+    @visibleForTesting Future<bool> Function()? openedFromWidget,
+  }) async {
+    if (!await UpdatePromptPolicy.allows(result.latestVersion)) return;
+    if (await (openedFromWidget ?? _openedFromWidget)()) return;
+    final context = rootNavigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    // Plain test apps have no router; the app always has one.
+    final location = GoRouter.maybeOf(context)?.state.uri.path;
+    if (location != null && location != AppRouter.homePath) return;
+    show(result);
+  }
+
+  static Future<bool> _openedFromWidget() async {
+    try {
+      return await HomeWidget.initiallyLaunchedFromHomeWidget() != null;
+    } catch (e) {
+      debugPrint('[error] Reading the widget launch: $e');
+      return false;
+    }
   }
 
   /// Launch the GitHub release URL in an external browser.

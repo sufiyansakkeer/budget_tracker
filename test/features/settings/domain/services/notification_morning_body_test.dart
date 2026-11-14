@@ -56,12 +56,42 @@ void main() {
     );
   });
 
-  test('a normal day names the amount (unchanged wording)', () {
+  test('a normal day: the amount is the title (blueprint)', () {
     // 22000 over 22 days.
-    final body = NotificationService.morningBody([
-      limit(engine(amount: 22000, spentBefore: 0)),
-    ]);
-    expect(body, 'Food: you can safely spend ₹1,000 today.');
+    final limits = [limit(engine(amount: 22000, spentBefore: 0))];
+    expect(
+      NotificationService.morningTitle(limits),
+      'Today you can spend ₹1,000',
+    );
+    expect(NotificationService.morningBody(limits), 'Food.');
+  });
+
+  test('the body says how it moved since yesterday', () {
+    final today = [limit(engine(amount: 22000, spentBefore: 0))];
+    final higher = [limit(engine(amount: 33000, spentBefore: 0))];
+    final lower = [limit(engine(amount: 11000, spentBefore: 0))];
+    expect(
+      NotificationService.morningBody(today, yesterday: higher),
+      'Food · down from ₹1,500 yesterday.',
+    );
+    expect(
+      NotificationService.morningBody(today, yesterday: lower),
+      'Food · up from ₹500 yesterday.',
+    );
+    expect(
+      NotificationService.morningBody(today, yesterday: today),
+      'Food · same as yesterday.',
+    );
+  });
+
+  test('nothing free, or several budgets, keep the general title', () {
+    expect(NotificationService.morningTitle(const []), "Today's Safe Spending");
+    expect(
+      NotificationService.morningTitle([
+        limit(engine(amount: 22000, spentBefore: 23000)),
+      ]),
+      "Today's Safe Spending",
+    );
   });
 
   test('the amount never reads higher than what is safe', () {
@@ -69,7 +99,13 @@ void main() {
     final body = NotificationService.morningBody([
       limit(engine(amount: 22015, spentBefore: 0)),
     ]);
-    expect(body, 'Food: you can safely spend ₹1,000.68 today.');
+    expect(
+      NotificationService.morningTitle([
+        limit(engine(amount: 22015, spentBefore: 0)),
+      ]),
+      'Today you can spend ₹1,000.68',
+    );
+    expect(body, 'Food.');
   });
 
   test('overcommitted explains the shortfall instead of "₹0"', () {

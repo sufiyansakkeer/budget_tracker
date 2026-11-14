@@ -58,14 +58,14 @@ class BackupDestinationSheet extends StatelessWidget {
                 'settings. Keep it somewhere safe.',
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(
+            padding: const EdgeInsetsDirectional.fromSTEB(
               AppSpacing.lg,
               0,
               AppSpacing.md,
               AppSpacing.md,
             ),
             child: AppGroupedList(
-              dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+              dividerIndent: AppSizes.avatarSm + AppSpacing.md,
               children: [
                 for (final option in _options)
                   AppListRow(

@@ -28,7 +28,7 @@ void main() {
     final (title, body) = BillReminderService.reminderText(
       bill(remindDaysBefore: 1),
     );
-    expect(title, "Tomorrow's Bill");
+    expect(title, 'Bill due tomorrow');
     expect(body, contains('due tomorrow'));
   });
 
@@ -36,14 +36,15 @@ void main() {
     final (title, body) = BillReminderService.reminderText(
       bill(remindDaysBefore: 0),
     );
-    expect(title, 'Bill Due Today');
+    expect(title, 'Bill due today');
     expect(body, contains('due today'));
   });
 
   test('a reminder 3 days before says in 3 days', () {
-    final (_, body) = BillReminderService.reminderText(
+    final (title, body) = BillReminderService.reminderText(
       bill(remindDaysBefore: 3),
     );
+    expect(title, 'Upcoming bill');
     expect(body, contains('due in 3 days'));
   });
 
@@ -51,7 +52,24 @@ void main() {
     final (_, body) = BillReminderService.reminderText(
       bill(remindDaysBefore: 1, currency: 'OMR'),
     );
-    expect(body, contains(CurrencyFormatter.format(1850.5, code: 'OMR')));
+    expect(
+      body,
+      contains(
+        CurrencyFormatter.forSystemText(
+          CurrencyFormatter.format(1850.5, code: 'OMR'),
+        ),
+      ),
+    );
     expect(body, isNot(contains('OMR1851')));
+  });
+
+  // The system draws notifications with its own fonts, which can't draw the
+  // Omani rial sign yet.
+  test('the amount uses the system-text fallback for the rial sign', () {
+    final (_, body) = BillReminderService.reminderText(
+      bill(remindDaysBefore: 1, currency: 'OMR'),
+    );
+    expect(body, isNot(contains(CurrencyFormatter.omaniRialSign)));
+    expect(body, contains(CurrencyFormatter.omaniRialFallback));
   });
 }

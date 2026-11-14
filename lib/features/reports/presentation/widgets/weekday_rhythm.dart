@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../domain/entities/time_analytics.dart';
 import 'report_copy.dart';
 
 /// Spending by day of the week: seven columns, Monday to Sunday, with the
-/// heaviest day in the accent colour, then which day leads and how much of
-/// the spending fell on weekends.
+/// heaviest day in the accent colour, then which day leads and, over whole
+/// weeks, how much of the spending fell on weekends.
 class WeekdayRhythm extends StatelessWidget {
   final TimeAnalytics analytics;
   final String currency;
+
+  /// Whether the range is a whole number of weeks. Otherwise some weekdays
+  /// occur more often than others, so the weekend share is left out.
+  final bool wholeWeeks;
 
   const WeekdayRhythm({
     super.key,
     required this.analytics,
     required this.currency,
+    required this.wholeWeeks,
   });
 
   /// Whether there is a rhythm to show: spending on at least two weekdays.
@@ -41,19 +47,23 @@ class WeekdayRhythm extends StatelessWidget {
     final weekendShare = total <= 0
         ? 0
         : (analytics.weekendSpending / total * 100).round();
+    // The largest total per weekday in this range, not a habit: a 10-day
+    // range has three weekdays twice.
     final leadLine = lead == null
         ? null
-        : 'Most on ${ReportCopy.weekdays[lead - 1]}s';
+        : 'Most spent on ${ReportCopy.weekdays[lead - 1]}s in this period';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Semantics(
-          label: [
-            for (var day = 1; day <= 7; day++)
-              '${ReportCopy.weekdays[day - 1]} '
-                  '${AppMoney.format(byDay[day]?.amount ?? 0, currency: currency)}',
-          ].join(', '),
+          label: CurrencyFormatter.forSpeech(
+            [
+              for (var day = 1; day <= 7; day++)
+                '${ReportCopy.weekdays[day - 1]} '
+                    '${AppMoney.format(byDay[day]?.amount ?? 0, currency: currency)}',
+            ].join(', '),
+          ),
           excludeSemantics: true,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -66,25 +76,37 @@ class WeekdayRhythm extends StatelessWidget {
                         height: _barArea,
                         child: Align(
                           alignment: Alignment.bottomCenter,
-                          child: FractionallySizedBox(
-                            widthFactor: 0.56,
-                            heightFactor: max <= 0
-                                ? 0
-                                : ((byDay[day]?.amount ?? 0) / max).clamp(
-                                    0.02,
-                                    1.0,
+                          child: (byDay[day]?.amount ?? 0) <= 0 || max <= 0
+                              // A baseline tick, so a day with nothing
+                              // reads as zero rather than missing.
+                              ? FractionallySizedBox(
+                                  key: ValueKey('rhythmZero_$day'),
+                                  widthFactor: 0.56,
+                                  child: SizedBox(
+                                    height: AppSpacing.xxs,
+                                    child: ColoredBox(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
                                   ),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: day == lead
-                                    ? scheme.primary
-                                    : scheme.primary.withValues(alpha: 0.3),
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(AppSpacing.xs),
+                                )
+                              : FractionallySizedBox(
+                                  widthFactor: 0.56,
+                                  heightFactor: (byDay[day]!.amount / max)
+                                      .clamp(0.04, 1.0),
+                                  child: DecoratedBox(
+                                    // Every bar meets the 3:1 non-text
+                                    // floor; the lead is told apart by
+                                    // hue and its bold label (UX-070).
+                                    decoration: BoxDecoration(
+                                      color: day == lead
+                                          ? scheme.primary
+                                          : scheme.onSurfaceVariant,
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(AppSpacing.xs),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -106,7 +128,10 @@ class WeekdayRhythm extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          [?leadLine, 'weekends are $weekendShare% of spending'].join(' · '),
+          [
+            ?leadLine,
+            if (wholeWeeks) 'weekends are $weekendShare% of spending',
+          ].join(' · '),
           style: muted,
         ),
       ],

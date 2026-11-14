@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/day_target.dart';
 import 'package:monivo/core/domain/entities/budget_entity.dart';
 import 'package:monivo/features/budget/domain/entities/budget_filter.dart';
 import 'package:monivo/features/budget/domain/entities/budget_error.dart';
@@ -156,8 +157,12 @@ class FakeBudgetRepository implements BudgetRepository {
   }) async => 0.0;
 }
 
-ExpenseHistoryBloc buildBloc(FakeHistoryRepository repository) {
+ExpenseHistoryBloc buildBloc(
+  FakeHistoryRepository repository, {
+  Future<Map<DateTime, DayTarget>> Function(String budgetId)? dayTargets,
+}) {
   return ExpenseHistoryBloc(
+    dayTargets: dayTargets,
     getExpensesUseCase: GetExpensesUseCase(repository: repository),
     getExpensesForBudgetsUseCase: GetExpensesForBudgetsUseCase(
       repository: repository,
@@ -347,5 +352,40 @@ void main() {
       reason:
           'Overspent expense must appear in list (not filtered out by amount)',
     );
+  });
+
+  group('day targets (blueprint: a ring on each day)', () {
+    final aug5 = DateTime(2026, 8, 5);
+    final target = DayTarget(date: aug5, target: 1000, spent: 600, result: 400);
+
+    test('the active budget\'s, keyed by date, after a load', () async {
+      final asked = <String>[];
+      final withTargets = buildBloc(
+        repository,
+        dayTargets: (id) async {
+          asked.add(id);
+          return {aug5: target};
+        },
+      );
+      addTearDown(withTargets.close);
+
+      withTargets.add(const ExpenseHistoryLoad());
+      await Future<void>.delayed(Duration.zero);
+      expect(asked, ['budget-1']);
+      expect(withTargets.state.dayTargets, {aug5: target});
+    });
+
+    test('none when they cannot be read; the list still loads', () async {
+      final failing = buildBloc(
+        repository,
+        dayTargets: (_) async => throw Exception('disk busy'),
+      );
+      addTearDown(failing.close);
+
+      failing.add(const ExpenseHistoryLoad());
+      await Future<void>.delayed(Duration.zero);
+      expect(failing.state.status, ExpenseHistoryStatus.loaded);
+      expect(failing.state.dayTargets, isEmpty);
+    });
   });
 }

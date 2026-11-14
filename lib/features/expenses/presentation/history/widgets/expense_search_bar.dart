@@ -11,11 +11,15 @@ class ExpenseSearchBar extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
 
+  /// Focus the field when it appears (opened from the search button).
+  final bool autofocus;
+
   const ExpenseSearchBar({
     super.key,
     required this.controller,
     required this.onChanged,
     required this.onClear,
+    this.autofocus = false,
   });
 
   @override
@@ -26,6 +30,7 @@ class ExpenseSearchBar extends StatelessWidget {
         vertical: AppSpacing.xs,
       ),
       child: TextField(
+        autofocus: autofocus,
         key: const Key('expenseSearchBar'),
         controller: controller,
         onChanged: onChanged,

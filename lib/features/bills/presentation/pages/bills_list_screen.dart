@@ -7,9 +7,11 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/widgets/app_list.dart';
-import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_page_body.dart';
 import '../../../../core/widgets/app_section.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/fade_slide_in.dart';
@@ -42,6 +44,9 @@ class BillsListScreen extends StatefulWidget {
 class _BillsListScreenState extends State<BillsListScreen> {
   final TextEditingController _searchController = TextEditingController();
 
+  /// Folds the add button to its icon while the list scrolls down.
+  final AppFabCollapse _fabCollapse = AppFabCollapse();
+
   static const _info = InfoContent(
     title: 'Bills & reminders',
     whatIsThis:
@@ -49,18 +54,22 @@ class _BillsListScreenState extends State<BillsListScreen> {
         'subscriptions. Link a bill to a budget and its amount is set aside '
         "from that budget until it's paid.",
     howIsItCalculated:
-        "A bill's status comes from its due date and whether it is paid:\n"
-        'Upcoming: unpaid and due after today.\n'
-        'Due today: unpaid and due today.\n'
+        'Bills are grouped by their due date and whether they are paid, and '
+        'the filters use the same groups:\n'
         'Overdue: unpaid and due before today.\n'
+        'Due soon: unpaid and due today or in the next 6 days.\n'
+        'Later: unpaid and due after that.\n'
         'Paid: marked as paid.\n\n'
-        'Overdue, Due soon (the next 7 days) and Later each show the unpaid '
-        'total per currency.',
+        'Overdue, Due soon and Later each show the unpaid total per '
+        'currency. Where paid and unpaid bills are listed together '
+        '(Recurring, Not linked), each total says which it is.',
     additionalNotes:
         '• A bill due today is not overdue; it becomes overdue from the next '
         'day\n'
         '• Marking a one-time bill as paid moves it to Paid. Marking a '
         'recurring bill as paid moves its due date to the next occurrence\n'
+        '• Right after a bill is marked paid or deleted, Undo puts it back '
+        'as it was, and removes an expense the payment recorded\n'
         '• Bills linked to a budget are set aside from it until paid, so '
         "Today's Safe Spending already leaves room for them. "
         '"Mark paid & record expense" records the payment in that budget\n'
@@ -88,6 +97,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
   void dispose() {
     _budgetSubscription?.cancel();
     _searchController.dispose();
+    _fabCollapse.dispose();
     super.dispose();
   }
 
@@ -136,10 +146,24 @@ class _BillsListScreenState extends State<BillsListScreen> {
           if (state.status == BillBlocStatus.error && state.allBills.isEmpty) {
             return;
           }
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(state.message!)));
-          context.read<BillBloc>().add(const BillClearMessage());
+          // A payment (or any change) from the list lands as it does in the
+          // bill's details.
+          if (state.status == BillBlocStatus.success) AppHaptics.confirm();
+          final bloc = context.read<BillBloc>();
+          final messenger = ScaffoldMessenger.of(context);
+          final undo = state.undo;
+          AppSnack.present(
+            messenger,
+            undo == null
+                ? AppSnack.bar(state.message!)
+                : BillPaymentDialogs.undoSnackBar(
+                    message: state.message!,
+                    bloc: bloc,
+                    undo: undo,
+                    messenger: messenger,
+                  ),
+          );
+          bloc.add(const BillClearMessage());
         },
         builder: (context, state) {
           final Widget child;
@@ -171,7 +195,8 @@ class _BillsListScreenState extends State<BillsListScreen> {
           } else {
             child = _buildContent(context, state);
           }
-          return AppStateSwitcher(child: child);
+          // The list's scrolling folds the add button.
+          return _fabCollapse.listen(child: AppStateSwitcher(child: child));
         },
       ),
       floatingActionButton: AppFab(
@@ -180,6 +205,7 @@ class _BillsListScreenState extends State<BillsListScreen> {
         icon: Icons.add_rounded,
         label: 'Add bill',
         tooltip: 'Add a new bill',
+        collapse: _fabCollapse,
       ),
     );
   }
@@ -191,72 +217,103 @@ class _BillsListScreenState extends State<BillsListScreen> {
     return RefreshIndicator(
       key: const ValueKey('content'),
       onRefresh: _refresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
+      child: AppPageBody(
         padding: AppSpacing.pagePaddingWithFab,
-        children: [
-          TextField(
-            controller: _searchController,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Search bills',
-              prefixIcon: const Icon(Icons.search_rounded),
-              isDense: true,
-              suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _searchController,
-                builder: (context, value, _) => value.text.isEmpty
-                    ? const SizedBox.shrink()
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () {
-                          _searchController.clear();
-                          context.read<BillBloc>().add(
-                            const BillSearchChanged(''),
-                          );
-                        },
-                      ),
+        builder: (context, padding) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: padding,
+          children: [
+            TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search bills',
+                prefixIcon: const Icon(Icons.search_rounded),
+                isDense: true,
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchController,
+                  builder: (context, value, _) => value.text.isEmpty
+                      ? const SizedBox.shrink()
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () {
+                            _searchController.clear();
+                            context.read<BillBloc>().add(
+                              const BillSearchChanged(''),
+                            );
+                          },
+                        ),
+                ),
               ),
+              onChanged: (query) =>
+                  context.read<BillBloc>().add(BillSearchChanged(query)),
             ),
-            onChanged: (query) =>
-                context.read<BillBloc>().add(BillSearchChanged(query)),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final filter in BillFilter.values)
-                  Padding(
-                    padding: const EdgeInsets.only(right: AppSpacing.sm),
-                    child: FilterChip(
-                      label: Text(filter.label),
-                      selected: state.filter == filter,
-                      showCheckmark: false,
-                      onSelected: (_) => context.read<BillBloc>().add(
-                        BillFilterChanged(filter),
+            const SizedBox(height: AppSpacing.sm),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final filter in BillFilter.values)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        end: AppSpacing.sm,
+                      ),
+                      child: FilterChip(
+                        label: Text(filter.label),
+                        selected: state.filter == filter,
+                        // The theme hides checkmarks; here the tick says
+                        // which filter is on without relying on colour.
+                        showCheckmark: true,
+                        onSelected: (_) => context.read<BillBloc>().add(
+                          BillFilterChanged(filter),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.md),
 
-          if (filtered.isEmpty)
-            _buildEmptyFilter(context, state)
-          else if (state.filter == BillFilter.all)
-            for (final section in _sections(filtered)) ...[
+            if (filtered.isEmpty)
+              _buildEmptyFilter(context, state)
+            else if (state.filter == BillFilter.all)
+              for (final section in _sections(filtered)) ...[
+                FadeSlideIn(
+                  key: ValueKey('section_${section.title}'),
+                  index: index++,
+                  child: AppSection(
+                    title: section.title,
+                    subtitle: section.summary,
+                    child: AppGroupedList(
+                      dividerIndent: AppSizes.avatarSm + AppSpacing.md,
+                      children: [
+                        for (final bill in section.bills)
+                          KeyedSubtree(
+                            key: ValueKey('bill_${bill.id}'),
+                            child: _card(context, bill),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ]
+            else
               FadeSlideIn(
-                key: ValueKey('section_${section.title}'),
                 index: index++,
                 child: AppSection(
-                  title: section.title,
-                  subtitle: section.summary,
+                  title: state.filter.label,
+                  subtitle: BillVisuals.groupSummary(
+                    filtered,
+                    labelled:
+                        state.filter == BillFilter.recurring ||
+                        state.filter == BillFilter.notLinked,
+                  ),
                   child: AppGroupedList(
-                    dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                    dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                     children: [
-                      for (final bill in section.bills)
+                      for (final bill in filtered)
                         KeyedSubtree(
                           key: ValueKey('bill_${bill.id}'),
                           child: _card(context, bill),
@@ -265,72 +322,59 @@ class _BillsListScreenState extends State<BillsListScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
-            ]
-          else
-            FadeSlideIn(
-              index: index++,
-              child: AppSection(
-                title: state.filter.label,
-                subtitle: _summary(filtered, unpaidOnly: false),
-                child: AppGroupedList(
-                  dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
-                  children: [
-                    for (final bill in filtered)
-                      KeyedSubtree(
-                        key: ValueKey('bill_${bill.id}'),
-                        child: _card(context, bill),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   /// Overdue, due soon (within [BillVisuals.dueSoonDays]), later and paid,
-  /// each in due-date order. Empty sections are left out.
+  /// each in due-date order. Empty sections are left out. Titled like the
+  /// filter chips that show each one on its own.
+  /// The All view (blueprint): overdue first, then the unpaid bills by
+  /// whether they hold money back (linked to a budget, so set aside) or
+  /// not, then the paid ones.
   List<_BillSection> _sections(List<BillEntity> bills) {
-    final now = DateTime.now();
     List<BillEntity> sorted(Iterable<BillEntity> list) =>
         list.toList()..sort((a, b) => a.dueDate.compareTo(b.dueDate));
     final overdue = sorted(bills.where((b) => b.status == BillStatus.overdue));
-    final soon = sorted(bills.where((b) => BillVisuals.isDueSoon(b, now)));
-    final later = sorted(
-      bills.where(
-        (b) =>
-            !b.isPaid &&
-            b.status != BillStatus.overdue &&
-            !BillVisuals.isDueSoon(b, now),
-      ),
+    final open = bills.where(
+      (b) => !b.isPaid && b.status != BillStatus.overdue,
     );
+    final setAside = sorted(open.where((b) => b.budgetId != null));
+    final notLinked = sorted(open.where((b) => b.budgetId == null));
     final paid = bills.where((b) => b.isPaid).toList()
       ..sort(
         (a, b) => (b.paidDate ?? b.dueDate).compareTo(a.paidDate ?? a.dueDate),
       );
+    String count(List<BillEntity> list) =>
+        '${list.length} ${list.length == 1 ? 'bill' : 'bills'}';
     return [
       if (overdue.isNotEmpty)
-        _BillSection('Overdue', overdue, _summary(overdue)),
-      if (soon.isNotEmpty) _BillSection('Due soon', soon, _summary(soon)),
-      if (later.isNotEmpty) _BillSection('Later', later, _summary(later)),
-      if (paid.isNotEmpty) _BillSection('Paid', paid, _count(paid.length)),
+        _BillSection(
+          BillFilter.overdue.label,
+          overdue,
+          BillVisuals.groupSummary(overdue),
+        ),
+      if (setAside.isNotEmpty)
+        _BillSection(
+          'Set aside',
+          setAside,
+          '${BillVisuals.groupSummary(setAside)} held back',
+        ),
+      if (notLinked.isNotEmpty)
+        _BillSection(
+          'Not linked',
+          notLinked,
+          '${count(notLinked)} · nothing held back',
+        ),
+      if (paid.isNotEmpty)
+        _BillSection(
+          BillFilter.paid.label,
+          paid,
+          BillVisuals.groupSummary(paid),
+        ),
     ];
-  }
-
-  static String _count(int n) => '$n ${n == 1 ? 'bill' : 'bills'}';
-
-  /// "2 bills · ₹2,499" or, across currencies, "3 bills · ₹2,499 · OMR 12":
-  /// one total per currency, never added together.
-  static String _summary(List<BillEntity> bills, {bool unpaidOnly = true}) {
-    final counted = unpaidOnly ? bills.where((b) => !b.isPaid) : bills;
-    final totals = BillVisuals.totalsByCurrency(counted);
-    return [
-      _count(bills.length),
-      for (final MapEntry(key: code, value: amount) in totals.entries)
-        AppMoney.format(amount, currency: code),
-    ].join(' · ');
   }
 
   Widget _card(BuildContext context, BillEntity bill) {
@@ -374,15 +418,15 @@ class _BillsListScreenState extends State<BillsListScreen> {
         'Nothing overdue',
         'Every bill is paid or still ahead of its due date.',
       ),
-      BillFilter.dueToday => (
+      BillFilter.dueSoon => (
         Icons.event_available_rounded,
-        'Nothing due today',
-        'No unpaid bills are due today.',
+        'Nothing due soon',
+        'No unpaid bills are due today or in the next 6 days.',
       ),
-      BillFilter.upcoming => (
+      BillFilter.later => (
         Icons.event_available_rounded,
-        'Nothing coming up',
-        'No unpaid bills are due after today.',
+        'Nothing due later',
+        'No unpaid bills are due more than 6 days from now.',
       ),
       BillFilter.paid => (
         Icons.receipt_long_outlined,
@@ -427,6 +471,7 @@ class _BillsSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Shimmer(
+      semanticsLabel: 'Loading bills',
       child: ListView(
         physics: const NeverScrollableScrollPhysics(),
         padding: AppSpacing.pagePadding,

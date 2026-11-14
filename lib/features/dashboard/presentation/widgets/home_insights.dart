@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_section.dart';
 import '../../domain/entities/smart_insight_entity.dart';
@@ -91,7 +92,7 @@ class InsightRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Semantics(
       container: true,
-      label: insight.message,
+      label: CurrencyFormatter.forSpeech(insight.message),
       excludeSemantics: true,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),

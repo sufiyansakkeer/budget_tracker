@@ -22,6 +22,11 @@
 
     <dimen name="widget_dot">8dp</dimen>
     <dimen name="widget_track">6dp</dimen>
+    <!-- Today's ring: large layout, narrow tall layout. -->
+    <dimen name="widget_ring_large">92dp</dimen>
+    <dimen name="widget_ring_compact">76dp</dimen>
+    <!-- Room inside the ring for its centre text. -->
+    <dimen name="widget_ring_inset">14dp</dimen>
     <dimen name="widget_track_thin">4dp</dimen>
     <dimen name="widget_hairline">1dp</dimen>
     <dimen name="widget_icon">20dp</dimen>

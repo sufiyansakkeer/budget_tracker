@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_motion.dart';
 import '../constants/app_spacing.dart';
+import '../currency/currency_formatter.dart';
 
 /// A thin tick drawn across an [AppTrack], e.g. "today" on a budget period
 /// or the day free money runs out.
@@ -19,7 +20,8 @@ class TrackMarker {
 /// It never picks a colour from a ratio (an 80%-used threshold): the caller
 /// passes the colour of the status the bar shows, so a bar can never
 /// disagree with the chip beside it. The fill animates from its previous
-/// value (instant under reduced motion).
+/// value (instant under reduced motion). It fills from the start edge, so
+/// in a right-to-left layout it fills, and places markers, from the right.
 class AppTrack extends StatelessWidget {
   /// 0–1; values outside are clamped.
   final double value;
@@ -28,7 +30,8 @@ class AppTrack extends StatelessWidget {
   final double height;
   final List<TrackMarker> markers;
 
-  /// Spoken as "label, value", e.g. "Spent today, 66%".
+  /// Spoken as "label, value", e.g. "Spent today, 66%"; money in either
+  /// keeps its currency ([CurrencyFormatter.forSpeech]).
   final String? semanticLabel;
   final String? semanticValue;
 
@@ -53,14 +56,19 @@ class AppTrack extends StatelessWidget {
     final clamped = value.isFinite ? value.clamp(0.0, 1.0) : 0.0;
     final overhang = markers.isEmpty ? 0.0 : _markerOverhang;
     final track = trackColor ?? theme.colorScheme.surfaceContainerHighest;
+    final direction = Directionality.maybeOf(context) ?? TextDirection.ltr;
     final duration = AppMotion.respectReducedMotion(
       context,
       AppMotion.emphasized,
     );
 
     return Semantics(
-      label: semanticLabel,
-      value: semanticValue ?? '${(clamped * 100).round()}%',
+      label: semanticLabel == null
+          ? null
+          : CurrencyFormatter.forSpeech(semanticLabel!),
+      value: CurrencyFormatter.forSpeech(
+        semanticValue ?? '${(clamped * 100).round()}%',
+      ),
       child: ExcludeSemantics(
         child: SizedBox(
           height: height + overhang * 2,
@@ -70,9 +78,9 @@ class AppTrack extends StatelessWidget {
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(
-                    left: 0,
-                    right: 0,
+                  PositionedDirectional(
+                    start: 0,
+                    end: 0,
                     top: overhang,
                     height: height,
                     child: DecoratedBox(
@@ -82,8 +90,9 @@ class AppTrack extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Positioned(
-                    left: 0,
+                  Positioned.directional(
+                    textDirection: direction,
+                    start: 0,
                     top: overhang,
                     height: height,
                     child: TweenAnimationBuilder<double>(
@@ -105,8 +114,9 @@ class AppTrack extends StatelessWidget {
                     ),
                   ),
                   for (final m in markers)
-                    Positioned(
-                      left:
+                    Positioned.directional(
+                      textDirection: direction,
+                      start:
                           (width * m.position.clamp(0.0, 1.0) -
                                   _markerWidth / 2)
                               .clamp(0.0, width - _markerWidth),

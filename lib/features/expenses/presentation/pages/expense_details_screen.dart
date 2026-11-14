@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
@@ -13,6 +12,8 @@ import '../../../../core/feedback/app_haptics.dart';
 import '../../../../core/theme/app_tone.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/app_page_body.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/app_state_switcher.dart';
 import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -24,13 +25,19 @@ import '../../../pay_later/domain/entities/purchase_change_impact.dart';
 import '../../../pay_later/presentation/widgets/purchase_impact_dialog.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
+import '../../../budget/domain/entities/safe_to_spend/day_target.dart';
+import '../../../dashboard/domain/usecases/get_day_targets_usecase.dart';
+import '../../../dashboard/presentation/widgets/target_ring.dart';
 import '../bloc/expense_bloc.dart';
 import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
 import '../widgets/category_visuals.dart';
 import '../widgets/expense_undo.dart';
 import '../widgets/move_expense_sheet.dart';
+import '../widgets/paid_bill.dart';
+import '../widgets/receipt_photo.dart';
 import '../../../../core/navigation/push_unique.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// One expense on one surface: what it was and the amount, then its facts
 /// (budget, date, time, category, note, tags) and the receipt. Below it,
@@ -52,17 +59,48 @@ class ExpenseDetailsScreen extends StatefulWidget {
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   late final ManageBudgetUseCase _manageBudget = getIt<ManageBudgetUseCase>();
   List<BudgetEntity> _budgets = const [];
+
+  /// The budgets have been read (or couldn't be). The expense waits for
+  /// them, so its amount never shows in a stand-in currency first.
+  bool _budgetsKnown = false;
   bool _deleting = false;
 
   /// The expense couldn't be read (as opposed to no longer existing).
   bool _openFailed = false;
 
-  /// Name of the budget a move is heading to, for its confirmation.
-  String? _movingTo;
+  /// The budget a move is heading to and the expense as it was, for
+  /// "Moved to … · Undo".
+  ({String name, ExpenseEntity original})? _moving;
+
+  /// The bill the expense paid ([ExpenseEntity.billId]) and its title once
+  /// read, for "Paid bill".
+  String? _billId;
+  String? _billTitle;
 
   /// The Pay later tab the expense is on and how much is paid on it; null
   /// when on no tab (or not known).
   ({PayLaterTab tab, double paid})? _tabInfo;
+
+  /// The target of the day the expense was spent (blueprint: "45% of that
+  /// day's ₹867.62 target"); null when it can't be worked out.
+  DayTarget? _dayTarget;
+  String? _dayTargetFor;
+
+  /// Best effort, once per expense: the budget's target that day.
+  Future<void> _loadDayTarget(ExpenseEntity expense) async {
+    _dayTargetFor = expense.id;
+    if (expense.billId != null || !getIt.isRegistered<GetDayTargetsUseCase>()) {
+      return;
+    }
+    try {
+      final targets = await getIt<GetDayTargetsUseCase>()(expense.budgetId);
+      final d = expense.date;
+      final target = targets[DateTime(d.year, d.month, d.day)];
+      if (mounted) setState(() => _dayTarget = target);
+    } catch (e) {
+      debugPrint('[error] Reading the day\'s target of an expense: $e');
+    }
+  }
 
   @override
   void initState() {
@@ -93,10 +131,14 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     try {
       final budgets = await _manageBudget.getAll();
       if (!mounted) return;
-      setState(() => _budgets = budgets);
+      setState(() {
+        _budgets = budgets;
+        _budgetsKnown = true;
+      });
     } catch (e) {
       // Budgets are supplementary here; the expense still renders.
       debugPrint('[error] Loading budgets for an expense: $e');
+      if (mounted) setState(() => _budgetsKnown = true);
     }
   }
 
@@ -128,11 +170,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       debugPrint('[error] Checking payments before deleting an expense: $e');
       if (!mounted) return;
       setState(() => _deleting = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text(PurchaseImpactDialog.deleteCheckFailed)),
-        );
+      AppSnack.show(context, PurchaseImpactDialog.deleteCheckFailed);
       return;
     }
     if (!mounted) return;
@@ -154,14 +192,27 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     bloc.add(ExpenseDelete(expense.id, undoable: undoable));
   }
 
+  /// Reads the title of the bill [expense] paid, once per bill.
+  void _loadBillTitle(ExpenseEntity? expense) {
+    final id = expense?.billId;
+    if (id == _billId) return;
+    _billId = id;
+    _billTitle = null;
+    if (expense == null || id == null) return;
+    PaidBill.titleOf(expense).then((title) {
+      if (mounted && _billId == id) setState(() => _billTitle = title);
+    });
+  }
+
   Future<void> _moveToAnotherBudget(ExpenseEntity expense) async {
     final selected = await MoveExpenseSheet.show(
       context,
       expense: expense,
       budgets: _budgets,
+      billTitle: _billTitle,
     );
     if (selected == null || !mounted) return;
-    _movingTo = selected.name;
+    _moving = (name: selected.name, original: expense);
     context.read<ExpenseBloc>().add(
       ExpenseUpdate(
         expense.copyWith(budgetId: selected.id, updatedAt: DateTime.now()),
@@ -178,6 +229,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   }
 
   void _onState(BuildContext context, ExpenseState state) {
+    _loadBillTitle(state.expense);
     final messenger = ScaffoldMessenger.of(context);
     if (state.status == ExpenseBlocStatus.success) {
       context.read<ExpenseBloc>().add(const ExpenseClearMessage());
@@ -188,41 +240,42 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         if (deleted != null) {
           ExpenseUndo.offer(messenger, deleted, link: link);
         } else {
-          messenger
-            ..hideCurrentSnackBar()
-            ..showSnackBar(const SnackBar(content: Text('Expense deleted')));
+          AppSnack.showOn(messenger, 'Expense deleted');
         }
         return;
       }
-      if (state.lastAction == ExpenseAction.updated && _movingTo != null) {
-        final name = _movingTo;
-        _movingTo = null;
+      if (state.lastAction == ExpenseAction.updated && _moving != null) {
+        final (:name, :original) = _moving!;
+        _moving = null;
         AppHaptics.confirm();
-        messenger
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text('Moved to $name')));
+        final bloc = context.read<ExpenseBloc>();
+        // The stored row: a move unlinks a bill payment from its bill.
+        bloc.add(ExpenseLoadById(original.id));
+        ExpenseUndo.offerMoved(
+          messenger,
+          original,
+          to: name,
+          onUndone: () {
+            if (mounted) bloc.add(ExpenseLoadById(original.id));
+          },
+        );
       }
     } else if (state.status == ExpenseBlocStatus.error) {
       // A failed read shows the error view with a retry, not "not found"
-      // and a toast.
+      // and a toast. A missing expense says so once, in the empty state.
       final openFailed =
           state.expense == null &&
           state.message == ExpenseBloc.openFailedMessage;
       setState(() {
         _deleting = false;
-        _movingTo = null;
+        _moving = null;
         _openFailed = openFailed;
       });
-      if (!openFailed) {
-        messenger
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                state.message ?? "Couldn't finish that. Try again.",
-              ),
-            ),
-          );
+      if (state.expense != null) {
+        AppSnack.showOn(
+          messenger,
+          state.message ?? "Couldn't finish that. Try again.",
+        );
       }
       context.read<ExpenseBloc>().add(const ExpenseClearMessage());
     }
@@ -261,7 +314,17 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         builder: (context, state) {
           final Widget child;
           final expense = state.expense;
-          if (state.status == ExpenseBlocStatus.loading && expense == null) {
+          if (expense != null && _dayTargetFor != expense.id) {
+            // After this frame: the read sets state when it lands.
+            final loaded = expense;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _dayTargetFor != loaded.id) {
+                _loadDayTarget(loaded);
+              }
+            });
+          }
+          if ((state.status == ExpenseBlocStatus.loading && expense == null) ||
+              (expense != null && !_budgetsKnown)) {
             child = const FormSkeleton(key: ValueKey('loading'), rows: 4);
           } else if (expense == null && _openFailed) {
             child = ErrorState(
@@ -291,7 +354,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               expense: expense,
               category: _categoryFor(state.categories, expense.categoryId),
               budget: _budgetFor(expense),
+              billTitle: expense.billId == null ? null : _billTitle,
               tabInfo: _tabInfo,
+              dayTarget: _dayTarget,
               onOpenTab: (tabId) async {
                 await context.pushUnique('${AppRouter.payLaterPath}/$tabId');
                 // A payment made there changes "paid X of Y" here.
@@ -321,7 +386,11 @@ class _Details extends StatelessWidget {
   final ExpenseEntity expense;
   final ExpenseCategory? category;
   final BudgetEntity? budget;
+
+  /// The bill the expense paid; null when none (or not known).
+  final String? billTitle;
   final ({PayLaterTab tab, double paid})? tabInfo;
+  final DayTarget? dayTarget;
   final ValueChanged<String> onOpenTab;
   final bool canMove;
   final bool busy;
@@ -334,7 +403,9 @@ class _Details extends StatelessWidget {
     required this.expense,
     required this.category,
     required this.budget,
+    required this.billTitle,
     required this.tabInfo,
+    this.dayTarget,
     required this.onOpenTab,
     required this.canMove,
     required this.busy,
@@ -361,174 +432,256 @@ class _Details extends StatelessWidget {
     );
     final critical = context.tone(AppTone.critical).accent;
 
-    return ListView(
-      padding: AppSpacing.pagePadding,
-      children: [
-        AppSurface(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.mlg,
-            AppSpacing.mlg,
-            AppSpacing.mlg,
-            AppSpacing.sm,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  IconTile(icon: icon, color: color),
-                  const SizedBox(width: AppSpacing.smd),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          hasNote ? note : categoryName,
-                          style: theme.textTheme.titleMedium,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        // The category sits under a note; without one the title is
-                        // the category. The date is a fact below.
-                        if (hasNote) ...[
-                          const SizedBox(height: AppSpacing.xxs),
-                          Text(categoryName, style: muted),
+    return AppPageBody(
+      builder: (context, padding) => ListView(
+        padding: padding,
+        children: [
+          AppSurface(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.mlg,
+              AppSpacing.mlg,
+              AppSpacing.mlg,
+              AppSpacing.sm,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    IconTile(icon: icon, color: color),
+                    const SizedBox(width: AppSpacing.smd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hasNote ? note : categoryName,
+                            style: theme.textTheme.titleMedium,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          // The category sits under a note; without one the title is
+                          // the category. The date is a fact below.
+                          if (hasNote) ...[
+                            const SizedBox(height: AppSpacing.xxs),
+                            Text(categoryName, style: muted),
+                          ],
                         ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppMoney(
+                  amount: expense.amount,
+                  currency: budget?.currency,
+                  role: MoneyRole.display,
+                  split: true,
+                ),
+                if (dayTarget case final target? when target.target > 0) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      MiniTargetRing(
+                        spent: expense.amount,
+                        target: target.target,
+                        size: 30,
+                      ),
+                      const SizedBox(width: AppSpacing.smd),
+                      Expanded(
+                        child: Text(
+                          '${(expense.amount / target.target * 100).round()}% '
+                          "of that day's "
+                          '${AppMoney.format(target.target, currency: budget?.currency, floored: true)} '
+                          'target',
+                          style: muted?.copyWith(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                _Fact(label: 'Budget', value: budget?.name ?? 'Unknown budget'),
+                if (billTitle != null)
+                  _Fact(label: 'Paid bill', value: billTitle),
+                if (tabInfo case final info?)
+                  _TabFact(
+                    tab: info.tab,
+                    paid: info.paid,
+                    amount: expense.amount,
+                    onTap: () => onOpenTab(info.tab.id),
+                  ),
+                _Fact(label: 'Date', value: AppDates.fullDay(expense.date)),
+                _Fact(
+                  label: 'Time',
+                  value: AppDates.time(context, expense.time),
+                ),
+                // A short note is already the title; only a long one, which
+                // the title may cut short, is repeated here in full.
+                if (hasNote && note.length > _titleNoteLength)
+                  _Fact(label: 'Note', value: note),
+                if (expense.tags.isNotEmpty)
+                  _Fact(
+                    label: 'Tags',
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (final tag in expense.tags)
+                          // Blueprint .chip.neu.
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainer,
+                              borderRadius: AppSpacing.borderRadiusFull,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                '#$tag',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
+                if (receiptPath != null) ...[
+                  Divider(color: theme.colorScheme.outlineVariant),
+                  const SizedBox(height: AppSpacing.sm),
+                  Semantics(
+                    header: true,
+                    child: Text('Receipt', style: theme.textTheme.titleSmall),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _Receipt(path: receiptPath),
+                  const SizedBox(height: AppSpacing.sm),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppMoney(
-                amount: expense.amount,
-                currency: budget?.currency,
-                role: MoneyRole.display,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Divider(color: theme.colorScheme.outlineVariant),
-              _Fact(label: 'Budget', value: budget?.name ?? 'Unknown budget'),
-              if (tabInfo case final info?)
-                _TabFact(
-                  tab: info.tab,
-                  paid: info.paid,
-                  amount: expense.amount,
-                  onTap: () => onOpenTab(info.tab.id),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Blueprint: Duplicate and Move side by side, outlined; Delete on
+          // its own line in the error colour.
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('duplicateExpenseButton'),
+                  onPressed: busy ? null : onDuplicate,
+                  icon: const Icon(Icons.copy_rounded),
+                  label: const Text('Duplicate'),
                 ),
-              _Fact(
-                label: 'Date',
-                value: DateFormat('EEE, d MMM yyyy').format(expense.date),
               ),
-              _Fact(label: 'Time', value: DateFormat.jm().format(expense.time)),
-              // A short note is already the title; only a long one, which
-              // the title may cut short, is repeated here in full.
-              if (hasNote && note.length > _titleNoteLength)
-                _Fact(label: 'Note', value: note),
-              if (expense.tags.isNotEmpty)
-                _Fact(
-                  label: 'Tags',
-                  child: Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: AppSpacing.xs,
-                    children: [
-                      for (final tag in expense.tags)
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHigh,
-                            borderRadius: AppSpacing.borderRadiusXs,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                              vertical: AppSpacing.xxs,
-                            ),
-                            child: Text(
-                              '#$tag',
-                              style: theme.textTheme.labelMedium,
-                            ),
-                          ),
-                        ),
-                    ],
+              if (canMove) ...[
+                const SizedBox(width: AppSpacing.smd),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('moveExpenseBudgetButton'),
+                    onPressed: busy ? null : onMove,
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    label: const Text('Move'),
                   ),
                 ),
-              if (receiptPath != null) ...[
-                Divider(color: theme.colorScheme.outlineVariant),
-                const SizedBox(height: AppSpacing.sm),
-                Text('Receipt', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.sm),
-                if (File(receiptPath).existsSync())
-                  ClipRRect(
-                    borderRadius: AppSpacing.borderRadiusMd,
-                    child: Image.file(
-                      File(receiptPath),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, _, _) =>
-                          const Text('Receipt unavailable'),
-                    ),
-                  )
-                else
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.error_outline_rounded,
-                        size: AppSizes.iconSm,
-                        color: critical,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        child: Text(
-                          'Receipt file is missing',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: critical,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: AppSpacing.sm),
               ],
             ],
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Actions sit on the page, quietest first.
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.xs,
-          children: [
-            TextButton.icon(
-              key: const Key('duplicateExpenseButton'),
-              onPressed: busy ? null : onDuplicate,
-              icon: const Icon(Icons.copy_rounded),
-              label: const Text('Duplicate'),
-            ),
-            if (canMove)
-              TextButton.icon(
-                key: const Key('moveExpenseBudgetButton'),
-                onPressed: busy ? null : onMove,
-                icon: const Icon(Icons.swap_horiz_rounded),
-                label: const Text('Move to another budget'),
-              ),
-            TextButton.icon(
-              key: const Key('deleteExpenseButton'),
-              onPressed: busy ? null : onDelete,
-              style: TextButton.styleFrom(foregroundColor: critical),
-              icon: const Icon(Icons.delete_outline_rounded),
-              label: const Text('Delete expense'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          'Added ${DateFormat('d MMM yyyy, h:mm a').format(expense.createdAt)}'
-          '${expense.updatedAt.difference(expense.createdAt).inMinutes > 0 ? ' · Edited ${DateFormat('d MMM yyyy, h:mm a').format(expense.updatedAt)}' : ''}',
-          style: muted,
-        ),
-        const SizedBox(height: AppSpacing.md),
-      ],
+          const SizedBox(height: AppSpacing.smd),
+          OutlinedButton.icon(
+            key: const Key('deleteExpenseButton'),
+            onPressed: busy ? null : onDelete,
+            style: OutlinedButton.styleFrom(foregroundColor: critical),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Delete expense'),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Added ${AppDates.dateTime(context, expense.createdAt)}'
+            '${expense.updatedAt.difference(expense.createdAt).inMinutes > 0 ? ' · Edited ${AppDates.dateTime(context, expense.updatedAt)}' : ''}',
+            style: muted,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+      ),
     );
+  }
+}
+
+/// The receipt, once its file is known to exist. Checked once per path off
+/// the build: a sync check ran on every rebuild.
+class _Receipt extends StatefulWidget {
+  final String path;
+
+  const _Receipt({required this.path});
+
+  @override
+  State<_Receipt> createState() => _ReceiptState();
+}
+
+class _ReceiptState extends State<_Receipt> {
+  /// Null while checking.
+  bool? _exists;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  @override
+  void didUpdateWidget(covariant _Receipt oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) _check();
+  }
+
+  Future<void> _check() async {
+    final path = widget.path;
+    bool exists;
+    try {
+      exists = await File(path).exists();
+    } catch (_) {
+      exists = false;
+    }
+    if (mounted && path == widget.path) setState(() => _exists = exists);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final critical = context.tone(AppTone.critical).accent;
+    return switch (_exists) {
+      null => const SizedBox.shrink(),
+      true => ClipRRect(
+        borderRadius: AppSpacing.borderRadiusMd,
+        child: ReceiptPhoto(
+          path: widget.path,
+          errorBuilder: (_, _, _) => const Text('Receipt unavailable'),
+        ),
+      ),
+      false => Row(
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            size: AppSizes.iconSm,
+            color: critical,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'Receipt file is missing',
+              style: theme.textTheme.bodyMedium?.copyWith(color: critical),
+            ),
+          ),
+        ],
+      ),
+    };
   }
 }
 
@@ -563,7 +716,10 @@ class _TabFact extends StatelessWidget {
             Expanded(
               child: Text(
                 'On ${tab.name} · paid $paidText of $total',
-                style: theme.textTheme.bodyLarge,
+                textAlign: TextAlign.end,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             Icon(
@@ -578,8 +734,8 @@ class _TabFact extends StatelessWidget {
   }
 }
 
-/// One fact: the label on the left, the value beside it; stacked when the
-/// text is too large to share a line.
+/// One fact (blueprint .kv): the label in secondary ink, the value bold at
+/// the right, a hairline above.
 class _Fact extends StatelessWidget {
   final String label;
   final String? value;
@@ -596,29 +752,48 @@ class _Fact extends StatelessWidget {
         color: theme.colorScheme.onSurfaceVariant,
       ),
     );
+    final stacked = AppSizes.isLargeText(context);
     final valueWidget =
-        child ?? Text(value ?? '', style: theme.textTheme.bodyLarge);
-    final stacked = MediaQuery.textScalerOf(context).scale(14) > 20;
+        child ??
+        Text(
+          value ?? '',
+          textAlign: stacked ? TextAlign.start : TextAlign.end,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        );
     return MergeSemantics(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        child: stacked
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  labelText,
-                  const SizedBox(height: AppSpacing.xxs),
-                  valueWidget,
-                ],
-              )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: 96, child: labelText),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(child: valueWidget),
-                ],
-              ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.smd),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    labelText,
+                    const SizedBox(height: AppSpacing.xxs),
+                    valueWidget,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    labelText,
+                    const SizedBox(width: AppSpacing.smd),
+                    Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: valueWidget,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }

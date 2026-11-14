@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/app_spacing.dart';
+import '../../../../../core/currency/currency_formatter.dart';
 import '../../../../../core/currency/money_input.dart';
+import '../../../../../core/widgets/app_money.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_history_filter.dart';
 import 'quick_filter_chips.dart';
+import '../../../../../core/dates/date_range_format.dart';
 
 /// Displays the currently active filters as removable chips.
 class ActiveFilterChips extends StatelessWidget {
@@ -13,17 +15,25 @@ class ActiveFilterChips extends StatelessWidget {
   final List<ExpenseCategory> categories;
   final ValueChanged<ExpenseHistoryFilter> onChanged;
 
+  /// The currency the amount bounds are in; null when the view mixes
+  /// currencies, where they are plain numbers.
+  final String? currency;
+
   const ActiveFilterChips({
     super.key,
     required this.filter,
     required this.categories,
     required this.onChanged,
+    this.currency,
   });
+
+  String _amount(double value) => currency == null
+      ? MoneyInput.forInput(value)
+      : AppMoney.format(value, currency: currency);
 
   @override
   Widget build(BuildContext context) {
     final chips = <Widget>[];
-    final dateFmt = DateFormat('d MMM');
 
     if (filter.categoryId != null) {
       final match = categories.where((c) => c.id == filter.categoryId);
@@ -46,10 +56,10 @@ class ActiveFilterChips extends StatelessWidget {
         ),
       );
     } else if (filter.dateFrom != null && filter.dateTo != null) {
-      // A custom range reads as one chip: "12 Mar – 15 Mar".
+      // A custom range reads as one chip: "12 – 15 Mar".
       chips.add(
         _chip(
-          label: formatFilterDateRange(filter.dateFrom!, filter.dateTo!),
+          label: AppDates.span(filter.dateFrom!, filter.dateTo!),
           onDeleted: () =>
               onChanged(filter.copyWithDateRange(from: null, to: null)),
         ),
@@ -58,7 +68,7 @@ class ActiveFilterChips extends StatelessWidget {
       if (filter.dateFrom != null) {
         chips.add(
           _chip(
-            label: 'From ${dateFmt.format(filter.dateFrom!)}',
+            label: 'From ${AppDates.day(filter.dateFrom!)}',
             onDeleted: () => onChanged(filter.copyWithDateFrom(null)),
           ),
         );
@@ -66,7 +76,7 @@ class ActiveFilterChips extends StatelessWidget {
       if (filter.dateTo != null) {
         chips.add(
           _chip(
-            label: 'To ${dateFmt.format(filter.dateTo!)}',
+            label: 'To ${AppDates.day(filter.dateTo!)}',
             onDeleted: () => onChanged(filter.copyWithDateTo(null)),
           ),
         );
@@ -76,7 +86,7 @@ class ActiveFilterChips extends StatelessWidget {
     if (filter.minAmount != null) {
       chips.add(
         _chip(
-          label: 'Min ${MoneyInput.forInput(filter.minAmount!)}',
+          label: 'Min ${_amount(filter.minAmount!)}',
           onDeleted: () => onChanged(filter.copyWithMinAmount(null)),
         ),
       );
@@ -85,7 +95,7 @@ class ActiveFilterChips extends StatelessWidget {
     if (filter.maxAmount != null) {
       chips.add(
         _chip(
-          label: 'Max ${MoneyInput.forInput(filter.maxAmount!)}',
+          label: 'Max ${_amount(filter.maxAmount!)}',
           onDeleted: () => onChanged(filter.copyWithMaxAmount(null)),
         ),
       );
@@ -96,6 +106,15 @@ class ActiveFilterChips extends StatelessWidget {
         _chip(
           label: '#$tag',
           onDeleted: () => onChanged(filter.copyWithoutTag(tag)),
+        ),
+      );
+    }
+
+    if (filter.kind != ExpenseKind.all) {
+      chips.add(
+        _chip(
+          label: '${filter.kind.label} only',
+          onDeleted: () => onChanged(filter.copyWithKind(ExpenseKind.all)),
         ),
       );
     }
@@ -132,20 +151,9 @@ class ActiveFilterChips extends StatelessWidget {
       label: Text(label),
       onDeleted: onDeleted,
       deleteIconColor: null,
-      deleteButtonTooltipMessage: 'Remove $label filter',
+      deleteButtonTooltipMessage: CurrencyFormatter.forSpeech(
+        'Remove $label filter',
+      ),
     );
   }
-}
-
-/// Compact label for a date range: "12 Mar" for a single day, "12 Mar – 15
-/// Mar" within one year, and years only when the range spans two.
-String formatFilterDateRange(DateTime from, DateTime to) {
-  final sameDay =
-      from.year == to.year && from.month == to.month && from.day == to.day;
-  if (sameDay) return DateFormat('d MMM').format(from);
-  if (from.year == to.year) {
-    return '${DateFormat('d MMM').format(from)} – ${DateFormat('d MMM').format(to)}';
-  }
-  final fmt = DateFormat('d MMM yyyy');
-  return '${fmt.format(from)} – ${fmt.format(to)}';
 }

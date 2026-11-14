@@ -84,7 +84,7 @@ class RateInfo extends StatelessWidget {
             switchInCurve: AppMotion.enter,
             switchOutCurve: AppMotion.exit,
             layoutBuilder: (current, previous) => Stack(
-              alignment: Alignment.topLeft,
+              alignment: AlignmentDirectional.topStart,
               children: [...previous, if (current != null) current],
             ),
             child: Column(
@@ -111,7 +111,7 @@ class RateInfo extends StatelessWidget {
                 ),
                 if (!isIdentity) ...[
                   Text(
-                    ConverterCopy.fetchedLabel(lookup, now),
+                    ConverterCopy.fetchedLabel(context, lookup, now),
                     style: secondary,
                   ),
                   if (lookup.derived)
@@ -125,7 +125,7 @@ class RateInfo extends StatelessWidget {
             Text(ConverterCopy.disclaimer, style: secondary),
             const SizedBox(height: AppSpacing.sm),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: OutlinedButton.icon(
                 key: const Key('converterRefreshButton'),
                 onPressed: isRefreshing ? null : onRefresh,

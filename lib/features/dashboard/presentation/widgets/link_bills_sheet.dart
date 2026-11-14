@@ -4,6 +4,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/events/refresh_bus.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../bills/domain/entities/bill_entity.dart';
 import '../../../bills/domain/entities/bill_failure.dart';
 import '../../../bills/domain/usecases/link_bills_to_budget_usecase.dart';
@@ -47,7 +48,9 @@ abstract final class LinkBillsSheet {
       }
     } catch (e) {
       debugPrint('[error] Loading bills to link: $e');
-      if (context.mounted) _snack(context, "Couldn't load your bills.");
+      if (context.mounted) {
+        _snack(context, "Couldn't load your bills. Try again.");
+      }
       return;
     }
     if (!context.mounted) return;
@@ -81,9 +84,7 @@ abstract final class LinkBillsSheet {
   }
 
   static void _snack(BuildContext context, String text) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(text)));
+    AppSnack.show(context, text);
   }
 }
 

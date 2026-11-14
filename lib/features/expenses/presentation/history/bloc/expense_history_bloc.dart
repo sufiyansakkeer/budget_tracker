@@ -4,7 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../budget/domain/entities/safe_to_spend/day_target.dart';
+
 import '../../../../../core/domain/entities/budget_entity.dart';
+import '../../../domain/entities/activity_extra.dart';
 import '../../../domain/entities/expense_category.dart';
 import '../../../domain/entities/expense_entity.dart';
 import '../../../domain/entities/expense_failure.dart';
@@ -45,6 +48,15 @@ class ExpenseHistoryBloc
   final BudgetRepository budgetRepository;
   final GroupExpensesUseCase groupExpensesUseCase;
 
+  /// The active budget's target per day (`GetDayTargetsUseCase`), for the
+  /// day headers; null leaves them without rings.
+  final Future<Map<DateTime, DayTarget>> Function(String budgetId)? dayTargets;
+
+  /// Tab payments, budget starts/ends and tab names for the budgets on
+  /// screen (`GetActivityExtrasUseCase`); null leaves Activity expenses only.
+  final Future<ActivityExtras> Function(List<BudgetEntity> budgets)?
+  activityExtras;
+
   /// Debounce window for search input.
   static const Duration searchDebounce = Duration(milliseconds: 300);
 
@@ -68,6 +80,8 @@ class ExpenseHistoryBloc
     required this.pageExpensesUseCase,
     required this.budgetRepository,
     this.groupExpensesUseCase = const GroupExpensesUseCase(),
+    this.dayTargets,
+    this.activityExtras,
   }) : super(const ExpenseHistoryState()) {
     on<ExpenseHistoryLoad>(_onLoad);
     on<ExpenseHistoryRefresh>(_onRefresh);
@@ -310,6 +324,10 @@ class ExpenseHistoryBloc
       return;
     }
 
+    final extras = await _extrasFor([
+      for (final id in state.selectedBudgetIds) ?state.budgetMap[id],
+    ]);
+
     emit(
       state.copyWith(
         status: ExpenseHistoryStatus.loaded,
@@ -320,7 +338,7 @@ class ExpenseHistoryBloc
       ),
     );
 
-    _recompute(emit);
+    _recompute(emit, extras: extras);
   }
 
   Future<void> _onExitCombinedView(
@@ -405,6 +423,8 @@ class ExpenseHistoryBloc
     String? budgetName;
     String? budgetCurrency;
     List<ExpenseEntity> expenses = const [];
+    Map<DateTime, DayTarget> targets = const {};
+    var extras = ActivityExtras.empty;
 
     final categoriesResult = await getCategoriesUseCase();
     List<ExpenseCategory> categories = const [];
@@ -431,6 +451,9 @@ class ExpenseHistoryBloc
         case ExpenseError(:final failure):
           errorMessage ??= failure.shown(loadFailedMessage);
       }
+      extras = await _extrasFor([
+        for (final id in state.selectedBudgetIds) ?state.budgetMap[id],
+      ]);
     } else {
       // Single-budget mode — scope to the active budget.
       BudgetEntity? activeBudget;
@@ -447,6 +470,10 @@ class ExpenseHistoryBloc
       budgetName = activeBudget?.name;
       budgetCurrency = activeBudget?.currency;
 
+      if (errorMessage == null && activeBudget != null) {
+        targets = await _dayTargetsFor(activeBudget.id);
+        extras = await _extrasFor([activeBudget]);
+      }
       if (errorMessage == null) {
         final expensesResult = await getExpensesUseCase(budgetId: budgetId);
         switch (expensesResult) {
@@ -486,7 +513,33 @@ class ExpenseHistoryBloc
       // No active budget any more (deleted): drop the old name.
       clearBudgetScope: isCombined || budgetId == null,
       keepLoaded: showLoading,
+      dayTargets: targets,
+      extras: extras,
     );
+  }
+
+  /// Best effort: without them Activity shows expenses only.
+  Future<ActivityExtras> _extrasFor(List<BudgetEntity> budgets) async {
+    final read = activityExtras;
+    if (read == null || budgets.isEmpty) return ActivityExtras.empty;
+    try {
+      return await read(budgets);
+    } catch (e) {
+      debugPrint('[error] Reading tab payments and budget dates: $e');
+      return ActivityExtras.empty;
+    }
+  }
+
+  /// Best effort: without them the day headers show totals only.
+  Future<Map<DateTime, DayTarget>> _dayTargetsFor(String budgetId) async {
+    final read = dayTargets;
+    if (read == null) return const {};
+    try {
+      return await read(budgetId);
+    } catch (e) {
+      debugPrint('[error] Reading day targets: $e');
+      return const {};
+    }
   }
 
   /// Recomputes the visible list, summary, and first page based on the current
@@ -503,7 +556,10 @@ class ExpenseHistoryBloc
     String? budgetCurrency,
     bool clearBudgetScope = false,
     bool keepLoaded = false,
+    Map<DateTime, DayTarget>? dayTargets,
+    ActivityExtras? extras,
   }) {
+    final nextExtras = extras ?? state.extras;
     final nextQuery = query ?? state.query;
     final nextFilter = filter ?? state.filter;
     final nextSort = sort ?? state.sort;
@@ -516,7 +572,11 @@ class ExpenseHistoryBloc
       categories: nextCategories,
       query: nextQuery,
     );
-    visible = filterExpensesUseCase(expenses: visible, filter: nextFilter);
+    visible = filterExpensesUseCase(
+      expenses: visible,
+      filter: nextFilter,
+      tabPurchaseIds: nextExtras.tabNameByExpense.keys.toSet(),
+    );
     visible = sortExpensesUseCase(
       expenses: visible,
       categories: nextCategories,
@@ -566,6 +626,8 @@ class ExpenseHistoryBloc
         loadedCount: page.offset,
         hasMore: page.hasMore,
         summary: summary,
+        dayTargets: dayTargets,
+        extras: nextExtras,
         clearError: true,
       ),
     );

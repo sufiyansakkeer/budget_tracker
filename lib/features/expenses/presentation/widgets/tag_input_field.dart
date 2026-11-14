@@ -5,7 +5,9 @@ import '../../../../core/theme/app_colors_extension.dart';
 import '../../domain/validators/expense_validator.dart';
 import '../../../../core/theme/contrast.dart';
 
-/// Allows adding/removing multiple tags as chips.
+/// Allows adding/removing multiple tags as chips. A tag is added with +
+/// or the keyboard's Done; a form that saves calls
+/// [TagInputFieldState.commitPending] so a tag still being typed is kept.
 class TagInputField extends StatefulWidget {
   final List<String> initialTags;
   final ValueChanged<List<String>> onTagsChanged;
@@ -17,10 +19,10 @@ class TagInputField extends StatefulWidget {
   });
 
   @override
-  State<TagInputField> createState() => _TagInputFieldState();
+  State<TagInputField> createState() => TagInputFieldState();
 }
 
-class _TagInputFieldState extends State<TagInputField> {
+class TagInputFieldState extends State<TagInputField> {
   late final List<String> _tags = List.of(widget.initialTags);
   final TextEditingController _controller = TextEditingController();
   String? _error;
@@ -31,19 +33,35 @@ class _TagInputFieldState extends State<TagInputField> {
     super.dispose();
   }
 
-  void _addTag() {
+  /// Adds the text still in the field as a tag, as + would. Returns why
+  /// it couldn't be added (it is then shown on the field), or null. Text
+  /// that is already a tag is simply cleared: nothing is lost.
+  String? commitPending() {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) return null;
+    if (_tags.contains(text)) {
+      setState(() {
+        _controller.clear();
+        _error = null;
+      });
+      return null;
+    }
+    return _addTag();
+  }
+
+  String? _addTag() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return null;
 
     if (_tags.length >= ExpenseValidator.maxTags) {
-      setState(() {
-        _error = 'You can add up to ${ExpenseValidator.maxTags} tags';
-      });
-      return;
+      final error = 'You can add up to ${ExpenseValidator.maxTags} tags';
+      setState(() => _error = error);
+      return error;
     }
     if (_tags.contains(text)) {
-      setState(() => _error = '"$text" is already added');
-      return;
+      final error = '"$text" is already added';
+      setState(() => _error = error);
+      return error;
     }
 
     setState(() {
@@ -52,6 +70,7 @@ class _TagInputFieldState extends State<TagInputField> {
       _error = null;
     });
     widget.onTagsChanged(List.unmodifiable(_tags));
+    return null;
   }
 
   void _removeTag(String tag) {
@@ -74,7 +93,7 @@ class _TagInputFieldState extends State<TagInputField> {
           textInputAction: TextInputAction.done,
           textCapitalization: TextCapitalization.words,
           decoration: InputDecoration(
-            labelText: 'Tags',
+            labelText: 'Tags (optional)',
             hintText: 'e.g. Office, Family',
             prefixIcon: const Icon(Icons.sell_outlined),
             suffixIcon: IconButton(

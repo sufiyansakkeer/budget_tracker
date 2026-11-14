@@ -55,27 +55,23 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     on<ReportsPeriodChanged>(_onPeriodChanged);
     on<ReportsFilterChanged>(_onFilterChanged);
 
-    // Auto-refresh when expenses change so reports stay in sync.
-    _refreshSubscription = RefreshBuses.expenses.changes.listen((_) {
-      if (!isClosed) {
-        add(const ReportsRefresh());
-      }
+    // Auto-refresh when expenses change so reports stay in sync. Buses
+    // notified together (an import, a restore) reload once.
+    final refresh = RefreshCoalescer(() {
+      if (!isClosed) add(const ReportsRefresh());
     });
+    _refreshSubscription = RefreshBuses.expenses.changes.listen(
+      (_) => refresh(),
+    );
 
     // Reload when the active budget is switched so reports are scoped to the
     // newly active budget.
-    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen((_) {
-      if (!isClosed) {
-        add(const ReportsRefresh());
-      }
-    });
+    _budgetSwitchSubscription = RefreshBuses.budgets.changes.listen(
+      (_) => refresh(),
+    );
 
     // Periods such as "This week" end today, so a new day moves them.
-    _dayChangeSubscription = RefreshBuses.day.changes.listen((_) {
-      if (!isClosed) {
-        add(const ReportsRefresh());
-      }
-    });
+    _dayChangeSubscription = RefreshBuses.day.changes.listen((_) => refresh());
   }
 
   @override
@@ -205,12 +201,20 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
         return;
       }
       if (resolved == null) {
+        // The budget the report was about is gone, so its report is
+        // dropped rather than left under a stale notice (UX-086).
         emit(
           state.copyWith(
             status: ReportsStatus.error,
             errorMessage: noBudgetMessage,
             followsBudget: false,
             clearBudget: true,
+            // Any reload (a budget chosen, a new day) starts from the
+            // calendar month, not the lost budget's dates.
+            period: ReportPeriod.thisMonth,
+            clearData: true,
+            clearActiveBudget: true,
+            isEmpty: false,
           ),
         );
         return;
@@ -226,23 +230,36 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
       );
     }
 
+    // Read alongside the report: the screen names the budget the report
+    // is limited to.
+    final activeBudget = state.followsBudget
+        ? Future.value(state.budget)
+        : _activeBudget();
     final result = await getReportDataUseCase(
       period: state.period,
       filter: state.filter,
       customStart: state.customStart,
       customEnd: state.customEnd,
+      referenceDate: clock(),
     );
+    final active = await activeBudget;
     if (token != _loadToken) return;
 
     switch (result) {
       case ReportError(:final failure):
+        // A failed refresh keeps the last report on screen, unless the
+        // active budget changed since: that report is another budget's and
+        // would read as this one's under its name (UX-086).
+        final otherBudget =
+            state.data != null && active?.id != state.activeBudget?.id;
         emit(
           state.copyWith(
             status: ReportsStatus.error,
             errorMessage: failure.message,
-            data: null,
-            insights: null,
             isEmpty: false,
+            clearData: otherBudget,
+            activeBudget: active,
+            clearActiveBudget: active == null,
           ),
         );
       case ReportSuccess(:final data):
@@ -254,8 +271,21 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
             insights: insights,
             isEmpty: data.isEmpty,
             clearError: true,
+            activeBudget: active,
+            clearActiveBudget: active == null,
           ),
         );
+    }
+  }
+
+  /// The active budget, or null when there is none or it can't be read:
+  /// the report loads without it.
+  Future<BudgetEntity?> _activeBudget() async {
+    try {
+      return await budgetRepository?.getActiveBudget();
+    } catch (e) {
+      debugPrint('[error] Reading the active budget for reports: $e');
+      return null;
     }
   }
 }

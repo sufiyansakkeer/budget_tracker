@@ -17,8 +17,8 @@ their logic:
 the calculator's inputs from the database. Every surface that shows a daily
 amount reads the entity it produces: the dashboard hero, "Other budgets
 today", the morning notification, the home-screen widget and the onboarding
-preview ("Today's Safe Spending starts at …", the draft budget on its first
-day).
+preview ("Today's Safe Spending", the draft budget on today or on its start
+day, whichever is later).
 
 The morning notification is scheduled once per morning for the next 7
 mornings, each computed for the day it fires (`referenceDate` = that day), so
@@ -389,9 +389,11 @@ Days Needed = minForecastDays − Completed Days     when Completed Days < minFo
 Has Any Expense = Discretionary To Date > 0
 ```
 
-Under the "Forecast" heading the dashboard shows "Ready after *n* more days
-of spending" when Days Needed > 0. Otherwise it shows "Ready after your first
-expense in this budget."
+Under the "Forecast" heading the dashboard shows "Ready in *n* more days."
+("Ready tomorrow." for 1) when Days Needed > 0; these are calendar days, not
+days with spending. With no discretionary spending yet it says "Needs your
+first expense and *n* more days." When Days Needed = 0 it shows "Ready after
+your first expense in this budget."
 
 ### Example
 
@@ -431,6 +433,40 @@ Overspend per later day                 = Over Today ÷ (Remaining Days − 1)
 
 Fields: `SafeToSpendEntity.tomorrowIfNoMoreSpending` and
 `overTodayPerRemainingDay`.
+
+## Preview before saving (informational)
+
+`SafeToSpendCalculator.preview(input, draftToday: x)` is `calculate` with
+x added to both Period Spending and Today's Spending, in money units. A
+form calls it to show what saving would do before the user saves. x is the
+change in today's discretionary spending, so editing an expense down passes
+a negative x.
+
+- Today's Safe Spending does not move: x is added to Raw Spendable's
+  spending and added back as today's discretionary, as for a saved expense.
+- Remaining Today, Over Today, Status and Tomorrow move exactly as they would
+  after saving.
+- Outside the running period an expense today is not this budget's, so the
+  result equals `calculate(input)`.
+
+## Per-day targets (informational)
+
+`SafeToSpendCalculator.targetSeries(entity, spentByDay)` gives one
+`DayTarget` (date, target, spent, result = target − spent) per day from the
+start of the period to today, for a running budget only.
+
+```
+Target(d) = max(0, (Raw Spendable today + discretionary spending from d to today) ÷ Remaining Days(d))
+```
+
+- **Today's set-asides for every day.** Bills, kept-aside money and the
+  savings goal are not stored per day, so past days use today's. A bill paid
+  last week therefore reads as if it had been set aside from the start. No
+  schema change is needed.
+- **Today's entry** uses `todayDiscretionary` from the entity, not the map,
+  and equals `dailySafeToSpend` exactly (same single division).
+- `spentByDay` is discretionary spending (no set-aside bill payments). A time
+  of day in a key is ignored, and a missing day spent nothing.
 
 ## Spending pace (informational)
 
@@ -502,7 +538,7 @@ These are different states, and both the entity and the UI keep them apart:
 | No bills due | `commitments` empty, `commitmentsAvailable == true`, B = 0 | "No bills due this period" with ₹0 |
 | Kept aside / savings goal not set | `reservedAmount == null` / `savingsTarget == null` | "Not set" |
 | Kept aside / savings goal set to 0 | `0.0` | ₹0 |
-| Forecast not ready | `forecast.isReliable == false` with `daysNeeded` | "Ready after *n* more days of spending" |
+| Forecast not ready | `forecast.isReliable == false` with `daysNeeded` | "Ready in *n* more days." (calendar days) |
 | Budget not running | `forecast == null`, daily figures 0 | The not-started or ended card, not "₹0 today" |
 
 The app has no savings ledger. `savingsContributionsTracked` is always

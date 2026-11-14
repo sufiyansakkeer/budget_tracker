@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monivo/core/files/file_delivery_service.dart';
@@ -10,8 +11,10 @@ import 'package:monivo/features/reports/domain/entities/report_data.dart';
 import 'package:monivo/features/reports/domain/entities/report_failure.dart';
 import 'package:monivo/features/reports/domain/entities/report_period.dart';
 import 'package:monivo/features/reports/domain/services/analytics_service.dart';
+import 'package:monivo/features/reports/domain/services/report_filter_text.dart';
 import 'package:monivo/features/reports/domain/usecases/export_csv_usecase.dart';
 import 'package:monivo/features/reports/domain/usecases/export_pdf_usecase.dart';
+import 'package:monivo/features/reports/presentation/widgets/report_export.dart';
 
 /// A report export said "ready to share" even when the share sheet was
 /// closed without choosing an app.
@@ -37,7 +40,9 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
-  ReportData report() => const AnalyticsService().buildReportData(
+  ReportData report({
+    ExpenseHistoryFilter filter = const ExpenseHistoryFilter(),
+  }) => const AnalyticsService().buildReportData(
     range: ReportRange(
       start: DateTime(2026, 9, 1),
       end: DateTime(2026, 9, 30),
@@ -57,7 +62,7 @@ void main() {
         ),
     ],
     categories: defaultCategories,
-    filter: const ExpenseHistoryFilter(),
+    filter: filter,
     currency: 'OMR',
   );
 
@@ -83,6 +88,17 @@ void main() {
     expect(delivery.extension, 'pdf');
   });
 
+  test('UX-019: both reports anchor the share sheet', () async {
+    const origin = Rect.fromLTWH(300, 40, 48, 48);
+    final csv = _Delivery(FileDeliveryOutcome.shared);
+    await ExportCsvUseCase(delivery: csv)(report(), shareOrigin: origin);
+    expect(csv.shareOrigin, origin);
+
+    final pdf = _Delivery(FileDeliveryOutcome.shared);
+    await ExportPdfUseCase(delivery: pdf)(report(), shareOrigin: origin);
+    expect(pdf.shareOrigin, origin);
+  });
+
   test('CSV amounts are written at the currency precision', () async {
     final delivery = _Delivery(FileDeliveryOutcome.shared);
     await ExportCsvUseCase(delivery: delivery)(report());
@@ -93,13 +109,128 @@ void main() {
     expect(csv, contains('2026-09-10,0.100,'));
     expect(csv, isNot(contains('0000000')));
   });
+
+  group('UX-089: the files say what they cover', () {
+    test('the CSV names the budget and the currency', () async {
+      final delivery = _Delivery(FileDeliveryOutcome.shared);
+      await ExportCsvUseCase(delivery: delivery)(
+        report(),
+        budgetName: 'Household',
+      );
+      final lines = (await delivery.file!.readAsString()).split(
+        RegExp(r'\r?\n'),
+      );
+      expect(lines, containsAllInOrder(['Budget,Household', 'Currency,OMR']));
+      expect(lines, contains(startsWith('Date,Amount (OMR),Category')));
+    });
+
+    test('both files are named by their dates', () async {
+      final csv = _Delivery(FileDeliveryOutcome.shared);
+      await ExportCsvUseCase(delivery: csv)(report());
+      expect(csv.fileName, 'monivo-report-2026-09-01-to-2026-09-30.csv');
+      expect(csv.file!.path, endsWith(csv.fileName!));
+
+      final pdf = _Delivery(FileDeliveryOutcome.shared);
+      await ExportPdfUseCase(delivery: pdf)(report());
+      expect(pdf.fileName, 'monivo-report-2026-09-01-to-2026-09-30.pdf');
+    });
+
+    test('the PDF names the budget under its title', () {
+      expect(
+        ExportPdfUseCase.subtitle(report(), budgetName: 'Household'),
+        'Household · 01/09/2026 — 30/09/2026',
+      );
+      expect(ExportPdfUseCase.subtitle(report()), '01/09/2026 — 30/09/2026');
+    });
+  });
+
+  group('UX-089: the message follows the share outcome', () {
+    for (final (outcome, message) in [
+      (FileDeliveryOutcome.shared, 'CSV report shared.'),
+      (FileDeliveryOutcome.saved, 'CSV report saved.'),
+      (FileDeliveryOutcome.handedOff, 'CSV report sent to the share sheet.'),
+      (FileDeliveryOutcome.cancelled, 'CSV report not shared.'),
+    ]) {
+      testWidgets('$outcome: "$message"', (tester) async {
+        final data = report();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => ReportExport.run(
+                    context,
+                    data,
+                    csv: true,
+                    budgetName: 'Household',
+                    exportCsv: _Csv(outcome),
+                  ),
+                  child: const Text('Export'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Export'));
+        await tester.pumpAndSettle();
+        expect(find.text(message), findsOneWidget);
+      });
+    }
+  });
+
+  group('UX-053: a filtered export says so', () {
+    const food = ExpenseHistoryFilter(
+      categoryId: 'food',
+      minAmount: 0.05,
+      tags: ['work'],
+      receiptOnly: true,
+    );
+
+    test('the CSV names the filter under its title', () async {
+      final delivery = _Delivery(FileDeliveryOutcome.shared);
+      await ExportCsvUseCase(delivery: delivery)(report(filter: food));
+      final lines = (await delivery.file!.readAsString()).split(
+        RegExp(r'\r?\n'),
+      );
+      expect(lines[1], 'Filtered: Food · Min 0.050 · #work · Has receipt');
+    });
+
+    test('an unfiltered CSV has no such line', () async {
+      final delivery = _Delivery(FileDeliveryOutcome.shared);
+      await ExportCsvUseCase(delivery: delivery)(report());
+      expect(await delivery.file!.readAsString(), isNot(contains('Filtered')));
+    });
+
+    test('the PDF names it too', () {
+      expect(
+        ReportFilterText.line(report(filter: food), (v) => 'OMR $v'),
+        'Filtered: Food · Min OMR 0.05 · #work · Has receipt',
+      );
+      expect(ReportFilterText.line(report(), (v) => '$v'), isNull);
+    });
+  });
+}
+
+class _Csv extends ExportCsvUseCase {
+  final FileDeliveryOutcome outcome;
+
+  const _Csv(this.outcome);
+
+  @override
+  Future<ReportResult<FileDeliveryOutcome>> call(
+    ReportData data, {
+    Rect? shareOrigin,
+    String? budgetName,
+  }) async => ReportSuccess(outcome);
 }
 
 class _Delivery extends FileDeliveryService {
   final FileDeliveryOutcome outcome;
   File? file;
+  String? fileName;
   String? extension;
   FileDestination? destination;
+  Rect? shareOrigin;
 
   _Delivery(this.outcome);
 
@@ -111,8 +242,11 @@ class _Delivery extends FileDeliveryService {
     required String extension,
     required FileDestination destination,
     String? shareText,
+    Rect? shareOrigin,
   }) async {
+    this.shareOrigin = shareOrigin;
     this.file = file;
+    this.fileName = fileName;
     this.extension = extension;
     this.destination = destination;
     return outcome;

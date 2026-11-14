@@ -82,6 +82,17 @@ class AppMoney extends StatelessWidget {
     bool showPlus = false,
   }) => _Formatted.of(amount, currency, floored, showPlus).text;
 
+  /// What a screen reader says for the figure [format] draws: "OMR 1.500"
+  /// where the Omani rial sign is drawn, which speech engines skip. Labels
+  /// that compose money with words pass through [CurrencyFormatter.forSpeech]
+  /// instead.
+  static String spoken(
+    double amount, {
+    required String? currency,
+    bool floored = false,
+    bool showPlus = false,
+  }) => _Formatted.of(amount, currency, floored, showPlus).spoken;
+
   /// The figure cut into the pieces [split] sets at different sizes, plus
   /// what a screen reader says, for surfaces outside Flutter that typeset it
   /// themselves (the home-screen widget). Same rounding as [format].
@@ -117,10 +128,12 @@ class AppMoney extends StatelessWidget {
       context,
       AppMotion.standard,
     );
-    final alignment = switch (textAlign) {
-      TextAlign.end || TextAlign.right => Alignment.centerRight,
+    final AlignmentGeometry alignment = switch (textAlign) {
+      TextAlign.end => AlignmentDirectional.centerEnd,
+      TextAlign.right => Alignment.centerRight,
       TextAlign.center => Alignment.center,
-      _ => Alignment.centerLeft,
+      TextAlign.left => Alignment.centerLeft,
+      _ => AlignmentDirectional.centerStart,
     };
 
     return Semantics(

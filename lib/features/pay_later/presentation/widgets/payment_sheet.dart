@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_spacing.dart';
-import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/currency/money_input.dart';
 import '../../../../core/currency/money_math.dart';
 import '../../../../core/dates/calendar_dates.dart';
 import '../../../../core/events/refresh_bus.dart';
+import '../../../../core/widgets/app_amount_field.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_disclosure.dart';
 import '../../../../core/widgets/app_money.dart';
+import '../../../../core/widgets/primary_button.dart';
 import '../../../expenses/domain/entities/expense_category.dart';
-import '../../../expenses/presentation/widgets/expense_amount_field.dart';
 import '../../domain/entities/pay_later_failure.dart';
 import '../../domain/entities/tab_ledger.dart';
 import '../../domain/entities/tab_payment.dart';
@@ -335,11 +335,11 @@ class _PaymentSheetState extends State<PaymentSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: AppSpacing.xs),
-                ExpenseAmountField(
+                AppAmountField(
                   key: const Key('paymentAmountField'),
+                  hero: true,
                   controller: _amount,
-                  currencySymbol: CurrencyFormatter.symbolFor(_currency),
-                  maxDecimals: MoneyInput.maxDecimals(_currency),
+                  currency: _currency,
                   autofocus: !_isEdit && !widget.settleAll,
                   errorText: _amountError,
                   onChanged: (_) => setState(() => _saveError = null),
@@ -408,16 +408,18 @@ class _PaymentSheetState extends State<PaymentSheet> {
             AppSpacing.lg,
             AppSpacing.md,
           ),
-          child: FilledButton(
-            key: const Key('paymentSaveButton'),
-            onPressed: _saving ? null : _save,
-            child: Text(
-              _isEdit
-                  ? 'Save changes'
-                  : widget.settleAll
-                  ? 'Settle all'
-                  : 'Record payment',
-            ),
+          child: PrimaryButton(
+            buttonKey: const Key('paymentSaveButton'),
+            onPressed: _save,
+            isLoading: _saving,
+            icon: _isEdit || widget.settleAll
+                ? Icons.check_rounded
+                : Icons.add_rounded,
+            label: _isEdit
+                ? 'Save changes'
+                : widget.settleAll
+                ? 'Settle all'
+                : 'Record payment',
           ),
         ),
       ],

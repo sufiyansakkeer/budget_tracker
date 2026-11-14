@@ -51,6 +51,13 @@ class AppLockPreferenceChanged extends AppLockEvent {
   List<Object?> get props => [enabled];
 }
 
+/// The user came back to the app after leaving it: prompts at once when the
+/// app is locked, so the lock screen is never a dead end with an Unlock
+/// button to find.
+class AppReturned extends AppLockEvent {
+  const AppReturned();
+}
+
 /// Re-read the stored app-lock setting (dispatched on resume).
 class AppLockSyncRequested extends AppLockEvent {
   const AppLockSyncRequested();

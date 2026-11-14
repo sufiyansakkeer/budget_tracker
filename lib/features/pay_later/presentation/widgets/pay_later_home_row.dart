@@ -80,7 +80,7 @@ class _PayLaterSection extends StatelessWidget {
         child: const Text('See all'),
       ),
       child: AppGroupedList(
-        dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+        dividerIndent: AppSizes.avatarSm + AppSpacing.md,
         children: [
           if (owing.isEmpty)
             AppListRow(

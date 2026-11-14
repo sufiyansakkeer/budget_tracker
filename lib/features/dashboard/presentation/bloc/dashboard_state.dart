@@ -33,6 +33,9 @@ class DashboardLoaded extends DashboardState {
   /// reason rather than because none are due.
   final bool upcomingBillsUnavailable;
 
+  /// Any bill exists, paid ones included, so Home offers "See all".
+  final bool hasBills;
+
   /// Per-budget daily spending limits — one entry per active budget.
   ///
   /// This is the primary data source for the "Today's Safe Spending"
@@ -59,6 +62,7 @@ class DashboardLoaded extends DashboardState {
     required this.insights,
     this.upcomingBills = const [],
     this.upcomingBillsUnavailable = false,
+    this.hasBills = false,
     this.budgetDailyLimits = const [],
     this.activeBudgetId,
     this.activeBudgetArchived = false,
@@ -93,6 +97,7 @@ class DashboardLoaded extends DashboardState {
     insights,
     upcomingBills,
     upcomingBillsUnavailable,
+    hasBills,
     budgetDailyLimits,
     activeBudgetId,
     activeBudgetArchived,
@@ -113,6 +118,9 @@ class DashboardNotRunning extends DashboardState {
   /// The bills could not be read (see [DashboardLoaded.upcomingBillsUnavailable]).
   final bool upcomingBillsUnavailable;
 
+  /// Any bill exists (see [DashboardLoaded.hasBills]).
+  final bool hasBills;
+
   /// Daily limits of the other budgets that are running today.
   final List<BudgetDailyLimitEntity> otherBudgetLimits;
 
@@ -122,6 +130,7 @@ class DashboardNotRunning extends DashboardState {
     this.recentExpenses = const [],
     this.upcomingBills = const [],
     this.upcomingBillsUnavailable = false,
+    this.hasBills = false,
     this.otherBudgetLimits = const [],
   });
 
@@ -132,6 +141,7 @@ class DashboardNotRunning extends DashboardState {
     recentExpenses,
     upcomingBills,
     upcomingBillsUnavailable,
+    hasBills,
     otherBudgetLimits,
   ];
 }

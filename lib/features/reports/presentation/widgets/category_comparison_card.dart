@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_motion.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/theme/app_colors_extension.dart';
-import '../../../../core/widgets/animated_amount.dart';
+import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../expenses/domain/entities/expense_category.dart';
@@ -14,6 +13,7 @@ import '../../domain/entities/category_comparison.dart';
 import '../../domain/entities/report_period.dart';
 import 'chart_card.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import 'report_copy.dart';
 
 /// Which categories moved most versus the previous period.
 ///
@@ -48,14 +48,13 @@ class CategoryComparisonCard extends StatelessWidget {
     final days = range.dayCount;
     final previousStart = range.start.addDays(-days);
     final previousEnd = range.start.addDays(-1);
-    final fmt = DateFormat('d MMM');
     final s = CurrencyFormatter.symbolFor(currency);
 
     return ChartCard(
       title: 'Categories vs previous period',
       caption:
-          'Compared with ${fmt.format(previousStart)} – '
-          '${fmt.format(previousEnd)} ($days ${days == 1 ? 'day' : 'days'})',
+          'Compared with ${ReportCopy.span(previousStart, previousEnd)} '
+          '($days ${days == 1 ? 'day' : 'days'})',
       info: InfoContent(
         title: 'Categories vs previous period',
         whatIsThis:
@@ -116,7 +115,10 @@ class _ComparisonRow extends StatelessWidget {
     final colors = context.appColors;
     final color = CategoryVisuals.adaptiveColor(context, item.colorHex);
     final diff = item.difference;
-    final flat = diff.abs() < 0.5;
+    // At the currency's precision (UX-087): "Same" only when the change
+    // shows as nothing. A fixed 0.5 hid 400 fils of change in OMR.
+    final change = AppMoney.format(diff.abs(), currency: currency);
+    final flat = change == AppMoney.format(0, currency: currency);
 
     final Color deltaColor;
     final IconData deltaIcon;
@@ -136,25 +138,21 @@ class _ComparisonRow extends StatelessWidget {
           ? Icons.arrow_upward_rounded
           : Icons.arrow_downward_rounded;
       final pct = item.percentageChange;
-      final amount = CurrencyFormatter.format(
-        diff.abs(),
-        code: currency,
-        decimalDigits: 0,
-      );
       deltaText = pct == null
-          ? '${up ? '+' : '−'}$amount'
-          : '${up ? '+' : '−'}$amount · ${pct.abs().toStringAsFixed(0)}%';
+          ? '${up ? '+' : '−'}$change'
+          : '${up ? '+' : '−'}$change · ${pct.abs().toStringAsFixed(0)}%';
     }
 
     return Semantics(
-      label:
-          '${item.categoryName}: ${CurrencyFormatter.format(item.currentAmount, code: currency, decimalDigits: 0)} this period, '
-          '${item.isNew
-              ? 'new'
-              : flat
-              ? 'unchanged'
-              : (diff > 0 ? 'up' : 'down')} '
-          '${flat || item.isNew ? '' : CurrencyFormatter.format(diff.abs(), code: currency, decimalDigits: 0)}',
+      label: CurrencyFormatter.forSpeech(
+        '${item.categoryName}: ${AppMoney.format(item.currentAmount, currency: currency)} this period, '
+        '${item.isNew
+            ? 'new'
+            : flat
+            ? 'unchanged'
+            : (diff > 0 ? 'up' : 'down')} '
+        '${flat || item.isNew ? '' : change}',
+      ),
       child: ExcludeSemantics(
         child: Row(
           children: [
@@ -178,17 +176,14 @@ class _ComparisonRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: AnimatedAmount(
-                      amount: item.currentAmount,
-                      currency: currency,
-                      decimalDigits: 0,
-                      textAlign: TextAlign.end,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
+                  // Exact, and cross-faded rather than counted through
+                  // amounts that were never spent (UX-087).
+                  AppMoney(
+                    amount: item.currentAmount,
+                    currency: currency,
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                   AnimatedSwitcher(

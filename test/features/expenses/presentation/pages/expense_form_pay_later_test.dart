@@ -221,6 +221,24 @@ void main() {
     expect(prefill.isEmpty, isFalse);
   });
 
+  test('the add sheet\'s "On a tab" asks for Pay later (blueprint)', () {
+    final prefill = ExpensePrefill.fromQuery({'payLater': '1'});
+    expect(prefill.payLater, isTrue);
+    expect(prefill.isEmpty, isFalse);
+    expect(ExpensePrefill.fromQuery({}).payLater, isFalse);
+  });
+
+  testWidgets('"On a tab" opens the form on Pay later', (tester) async {
+    getTabs.tabs.add(cafeteria);
+    await pumpForm(
+      tester,
+      prefill: ExpensePrefill.fromQuery({'payLater': '1'}),
+    );
+
+    expect(paidChoice(tester).selected, {true});
+    expect(find.byKey(const Key('tabSelector')), findsOneWidget);
+  });
+
   testWidgets('Now is selected by default and saves a plain ExpenseCreate', (
     tester,
   ) async {

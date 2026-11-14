@@ -15,7 +15,10 @@ class FormFieldError extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       child: Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.sm, left: AppSpacing.xs),
+        padding: const EdgeInsetsDirectional.only(
+          top: AppSpacing.sm,
+          start: AppSpacing.xs,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

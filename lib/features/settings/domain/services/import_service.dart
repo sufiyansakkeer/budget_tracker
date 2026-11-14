@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
@@ -11,6 +10,7 @@ import '../../../../core/database/default_categories.dart';
 import '../../../budget/domain/usecases/recalculate_remaining_amounts_usecase.dart';
 import '../entities/import_report.dart';
 import 'data_codec.dart';
+import 'json_off_main.dart';
 
 /// Handles importing data into the application from CSV or JSON files.
 ///
@@ -295,7 +295,8 @@ class ImportService {
     final raw = await file.readAsString();
     final Map<String, Object?> payload;
     try {
-      final decoded = jsonDecode(raw);
+      // Decoded off the UI isolate: a full export can be large.
+      final decoded = await JsonOffMain.decode(raw);
       if (decoded is! Map<String, Object?>) {
         throw const FormatException('Invalid JSON format.');
       }

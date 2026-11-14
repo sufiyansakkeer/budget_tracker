@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monivo/core/widgets/app_money.dart';
+import 'package:monivo/features/budget/domain/entities/safe_to_spend/safe_to_spend_input.dart';
+import 'package:monivo/features/dashboard/domain/usecases/get_safe_to_spend_usecase.dart';
 import 'package:go_router/go_router.dart';
 import 'package:monivo/core/currency/currency_formatter.dart';
 import 'package:monivo/core/di/injection.dart';
@@ -18,6 +22,9 @@ import 'package:monivo/features/budget/domain/usecases/manage_budget_usecase.dar
 import '../../../../helpers/bill_ui_fakes.dart';
 import '../../../../helpers/safe_to_spend_fakes.dart';
 import '../../../../helpers/pay_later_fakes.dart';
+import 'package:monivo/core/dates/date_range_format.dart';
+import 'package:monivo/features/bills/presentation/pages/bill_widgets.dart';
+import 'package:monivo/features/settings/presentation/widgets/currency_selector.dart';
 
 // Fixed dates far from any real "today": 2020 has ended, 2099 has not.
 BudgetEntity budget(
@@ -98,6 +105,7 @@ void main() {
     WidgetTester tester, {
     List<BudgetEntity>? budgets,
     String? billId,
+    bool use24h = false,
   }) async {
     getIt.registerSingleton<ManageBudgetUseCase>(
       ManageBudgetUseCase(
@@ -125,7 +133,14 @@ void main() {
       ],
     );
     await tester.pumpWidget(
-      MaterialApp.router(theme: AppTheme.lightTheme, routerConfig: router),
+      MaterialApp.router(
+        theme: AppTheme.lightTheme,
+        routerConfig: router,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: use24h),
+          child: child!,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -170,13 +185,26 @@ void main() {
     bills.store['rent'] = linkedBill().copyWith(dueDate: DateTime(2020, 1, 6));
     await pumpForm(tester, billId: 'rent');
 
-    final due = find.text('Mon, 6 Jan 2020');
+    final due = find.text(AppDates.fullDay(DateTime(2020, 1, 6)));
     await tester.ensureVisible(due);
     await tester.tap(due);
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
     expect(find.byType(DatePickerDialog), findsOneWidget);
+  });
+
+  testWidgets('UX-093: the default due time follows the 24-hour setting', (
+    tester,
+  ) async {
+    await pumpForm(tester, use24h: true);
+
+    final context = tester.element(find.byType(BillFormScreen));
+    final shown = BillVisuals.defaultDueTime.format(context);
+    expect(shown, isNot(contains('AM')));
+    final field = find.text(shown, skipOffstage: false);
+    expect(field, findsOneWidget);
+    expect(find.text('9:00 AM', skipOffstage: false), findsNothing);
   });
 
   testWidgets('an empty repeat interval is not saved silently', (tester) async {
@@ -252,6 +280,39 @@ void main() {
     final saved = bills.store.values.single;
     expect(saved.budgetId, 'running');
     expect(saved.currency, 'OMR');
+  });
+
+  testWidgets('linking a new bill shows what it does to the daily target '
+      '(blueprint)', (tester) async {
+    getIt.registerSingleton<GetSafeToSpendUseCase>(_ThirtyDays());
+    await pumpForm(tester);
+
+    await pick(tester, 'Household ·');
+    await enter(tester, 'Amount', '300');
+    await tester.pump();
+
+    // 3,000 over 30 days is 100 a day; holding 300 back leaves 90.
+    String omr(double v) => AppMoney.format(v, currency: 'OMR', floored: true);
+    expect(find.text('Daily target'), findsOneWidget);
+    expect(find.text(omr(100)), findsOneWidget);
+    expect(find.text(omr(90)), findsOneWidget);
+    expect(
+      find.text(
+        "Linking holds ${AppMoney.format(300, currency: 'OMR')} back until "
+        "it's paid.",
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a bill linked to no budget shows no effect line', (
+    tester,
+  ) async {
+    getIt.registerSingleton<GetSafeToSpendUseCase>(_ThirtyDays());
+    await pumpForm(tester);
+    await enter(tester, 'Amount', '300');
+    await tester.pump();
+    expect(find.text('Daily target'), findsNothing);
   });
 
   testWidgets('editing keeps a link to an ended budget, labelled ended', (
@@ -336,8 +397,12 @@ void main() {
     await pumpForm(tester);
     expect(find.text('Repeat this bill', skipOffstage: false), findsNothing);
     expect(
-      // New bills default to a reminder one day before.
-      find.textContaining('One-time · 1 day before', skipOffstage: false),
+      // New bills default to due today with a reminder one day before,
+      // which has already passed (UX-032).
+      find.textContaining(
+        'One-time · Reminder time passed',
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
 
@@ -362,4 +427,123 @@ void main() {
     expect(saved.currency, 'OMR');
     expect(saved.amount, 12.125);
   });
+
+  group('UX-067 · repeat, clear and currency', () {
+    Finder interval() => find.byKey(const Key('billIntervalField'));
+
+    testWidgets('the repeat interval is labelled and checked as typed', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      bills.store['rent'] = linkedBill().copyWith(
+        isRecurring: true,
+        recurrenceType: RecurrenceType.monthly,
+        recurrenceInterval: 2,
+      );
+      await pumpForm(tester, billId: 'rent');
+      await tester.ensureVisible(interval());
+
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Repeat every … months')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.descendant(of: interval(), matching: find.byType(TextField)),
+        '0',
+      );
+      await tester.pump();
+      expect(find.text('Enter how often it repeats, 1 or more.'), findsOne);
+      handle.dispose();
+    });
+
+    testWidgets('the time field speaks its error and offers Clear', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      bills.store['rent'] = linkedBill().copyWith(
+        dueTime: DateTime(2026, 8, 5, 18, 30),
+      );
+      await pumpForm(tester, billId: 'rent');
+
+      final time = find.bySemanticsLabel(RegExp(r'^Time, 6:30'));
+      expect(time, findsOneWidget);
+      final node = tester.getSemantics(time);
+      final clear = CustomSemanticsAction.getIdentifier(
+        const CustomSemanticsAction(label: 'Clear'),
+      );
+      expect(node.getSemanticsData().customSemanticsActionIds, [clear]);
+
+      node.owner!.performAction(node.id, SemanticsAction.customAction, clear);
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp(r'^Time, 9:00 AM')), findsOne);
+      handle.dispose();
+    });
+
+    testWidgets('a bill not linked to a budget can choose its currency', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+
+      final currency = find.byKey(const Key('billCurrencyPicker'));
+      expect(currency, findsOneWidget);
+      await tester.ensureVisible(currency);
+      await tester.tap(currency);
+      await tester.pumpAndSettle();
+      // The app's currency picker (UX-110), a sheet that scrolls.
+      final omr = find.widgetWithText(CurrencyListTile, 'OMR');
+      await tester.ensureVisible(omr);
+      await tester.pumpAndSettle();
+      await tester.tap(omr);
+      await tester.pumpAndSettle();
+
+      final amountField = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'Amount', skipOffstage: false),
+      );
+      expect(
+        amountField.decoration!.prefixText,
+        '${CurrencyFormatter.symbolFor('OMR')} ',
+      );
+      await enter(tester, 'Bill name', 'Visa');
+      await enter(tester, 'Amount', '12.125');
+      await save(tester, 'Add bill');
+      expect(bills.store.values.single.currency, 'OMR');
+    });
+
+    testWidgets('a linked bill takes its budget\'s currency, no picker', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await pick(tester, 'Household ·');
+
+      expect(find.byKey(const Key('billCurrencyPicker')), findsNothing);
+    });
+  });
+}
+
+/// 3,000 OMR over 30 days from today, nothing spent: 100 a day.
+class _ThirtyDays implements GetSafeToSpendUseCase {
+  @override
+  Future<SafeToSpendInput?> inputFor({
+    required String budgetId,
+    DateTime? referenceDate,
+  }) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return SafeToSpendInput(
+      budgetId: budgetId,
+      budgetName: 'Household',
+      currency: 'OMR',
+      startDate: today,
+      endDate: DateTime(today.year, today.month, today.day + 29),
+      today: today,
+      budgetAmount: 3000,
+      periodSpent: 0,
+      todaySpent: 0,
+      commitments: const [],
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

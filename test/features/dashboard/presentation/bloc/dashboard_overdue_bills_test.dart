@@ -77,4 +77,27 @@ void main() {
 
     expect(loaded.upcomingBills.map((b) => b.id), ['late', 'soon']);
   });
+
+  test('UX-037: Home knows bills exist when none is coming up', () async {
+    await app.addBudget(
+      id: 'aug',
+      name: 'August',
+      amount: 22000,
+      startDate: DateTime(2026, 8, 1),
+      endDate: DateTime(2026, 8, 31),
+    );
+    await app.billRepository.createBill(
+      bill('paid', DateTime(2026, 8, 3), paid: true),
+    );
+
+    final bloc = app.dashboardBloc(clock: () => now);
+    addTearDown(bloc.close);
+    bloc.add(const DashboardLoadData());
+    final loaded =
+        await bloc.stream.firstWhere((s) => s is DashboardLoaded)
+            as DashboardLoaded;
+
+    expect(loaded.upcomingBills, isEmpty);
+    expect(loaded.hasBills, isTrue);
+  });
 }

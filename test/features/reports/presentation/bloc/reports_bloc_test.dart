@@ -1,3 +1,6 @@
+import 'package:monivo/core/domain/entities/budget_entity.dart';
+import 'package:monivo/core/events/refresh_bus.dart';
+import 'package:monivo/features/budget/domain/repository/budget_repository.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_category.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_entity.dart';
 import 'package:monivo/features/expenses/domain/entities/expense_history_filter.dart';
@@ -53,6 +56,26 @@ class _SlowFirstReports implements GetReportDataUseCase {
     if (period == ReportPeriod.thisYear) {
       await Future<void>.delayed(const Duration(milliseconds: 80));
     }
+    return ReportSuccess(buildEmptyData(period));
+  }
+}
+
+/// Counts loads; answers at once.
+class _CountingReports implements GetReportDataUseCase {
+  int calls = 0;
+
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<ReportDataResult> call({
+    required ReportPeriod period,
+    ExpenseHistoryFilter filter = const ExpenseHistoryFilter(),
+    DateTime? referenceDate,
+    DateTime? customStart,
+    DateTime? customEnd,
+  }) async {
+    calls++;
     return ReportSuccess(buildEmptyData(period));
   }
 }
@@ -268,4 +291,64 @@ void main() {
     expect(bloc.state.period, ReportPeriod.thisWeek);
     expect(bloc.state.data?.range.period, ReportPeriod.thisWeek);
   });
+
+  test('UX-065: buses notified together (an import) reload the report '
+      'once', () async {
+    final reports = _CountingReports();
+    final bloc = ReportsBloc(
+      getReportDataUseCase: reports,
+      insightGenerator: const ReportInsightGenerator(),
+    );
+    addTearDown(bloc.close);
+    bloc.add(const ReportsLoad());
+    await pumpEventQueue();
+    reports.calls = 0;
+
+    RefreshBuses.budgets.notifyChanged();
+    RefreshBuses.expenses.notifyChanged();
+    await pumpEventQueue();
+
+    expect(reports.calls, 1);
+  });
+
+  test('UX-048: "This Budget" then a quick "This Month" ends on This Month, '
+      'not on the budget\'s custom range', () async {
+    final bloc = ReportsBloc(
+      getReportDataUseCase: _CountingReports(),
+      insightGenerator: const ReportInsightGenerator(),
+      budgetRepository: _SlowBudgets(),
+      clock: () => DateTime(2026, 8, 10),
+    );
+    addTearDown(bloc.close);
+
+    bloc.add(const ReportsBudgetPeriodSelected());
+    bloc.add(const ReportsPeriodChanged(ReportPeriod.thisMonth));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    expect(bloc.state.followsBudget, isFalse);
+    expect(bloc.state.period, ReportPeriod.thisMonth);
+    expect(bloc.state.data?.range.period, ReportPeriod.thisMonth);
+  });
+}
+
+/// An active budget that takes a while to read.
+class _SlowBudgets implements BudgetRepository {
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<BudgetEntity?> getActiveBudget() async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    return BudgetEntity(
+      id: 'aug',
+      name: 'August',
+      monthlyAmount: 1000,
+      remainingAmount: 1000,
+      currency: 'USD',
+      startDate: DateTime(2026, 8, 1),
+      endDate: DateTime(2026, 8, 31),
+      createdAt: DateTime(2026, 8, 1),
+      updatedAt: DateTime(2026, 8, 1),
+    );
+  }
 }

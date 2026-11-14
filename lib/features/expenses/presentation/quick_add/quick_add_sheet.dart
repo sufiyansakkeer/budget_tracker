@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -17,7 +20,13 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/app_notice.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/loading_skeleton.dart';
+import '../../../../core/widgets/primary_button.dart';
+import '../../../budget/domain/entities/safe_to_spend/safe_to_spend_entity.dart';
+import '../../../budget/domain/services/budget_calculation_service.dart';
+import '../../../budget/domain/services/safe_to_spend_calculator.dart';
+import '../../../budget/presentation/start_next_period.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/validators/expense_validator.dart';
@@ -26,9 +35,15 @@ import '../bloc/expense_event.dart';
 import '../bloc/expense_state.dart';
 import '../widgets/category_visuals.dart';
 import '../widgets/expense_date_rules.dart';
+import '../widgets/expense_undo.dart';
 import '../widgets/form_field_error.dart';
+import '../widgets/today_impact.dart';
+import '../../../dashboard/presentation/widgets/safe_to_spend_copy.dart';
+import '../../../dashboard/presentation/widgets/target_ring.dart';
 import 'amount_entry.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../../../../core/dates/date_range_format.dart';
+import '../../../../core/constants/app_copy.dart';
 
 enum _Day { today, yesterday, other }
 
@@ -39,7 +54,11 @@ enum _Day { today, yesterday, other }
 ///
 /// The expense goes to the active budget. Nothing is checked while typing;
 /// tapping Add checks the amount, the category and that the day falls in
-/// the budget's period, and says what is missing.
+/// the budget's period, and says what is missing. A budget that has ended or
+/// not started yet is said up front.
+///
+/// Once an amount or a category is entered, Back, a scrim tap or a swipe
+/// down asks before throwing it away, as the full form does.
 class QuickAddSheet extends StatefulWidget {
   const QuickAddSheet({super.key});
 
@@ -47,17 +66,42 @@ class QuickAddSheet extends StatefulWidget {
   @visibleForTesting
   static DateTime Function() clock = DateTime.now;
 
-  /// Opens the sheet over [context]. If the person asks for the full form
-  /// (or to create a budget), that screen opens once the sheet has closed.
+  /// How long the amount must stay unchanged before a screen reader is
+  /// told it, so typing "250" says "Amount, ₹250" once, not after each key.
+  @visibleForTesting
+  static const amountAnnounceDelay = Duration(milliseconds: 700);
+
+  /// Whether a sheet is open, so a second tap (or the home-screen widget)
+  /// never stacks another.
+  static bool _open = false;
+
+  /// Opens the sheet over [context] unless one is already open. If the
+  /// person asks for the full form (or to create a budget), that screen
+  /// opens once the sheet has closed.
   static Future<void> show(BuildContext context) async {
-    final route = await AppBottomSheet.show<String>(
-      context: context,
-      builder: (_) => BlocProvider(
-        create: (_) => getIt<ExpenseBloc>(),
-        child: const QuickAddSheet(),
-      ),
-    );
-    if (route != null && context.mounted) context.pushUnique(route);
+    if (_open) return;
+    _open = true;
+    final String? route;
+    try {
+      route = await AppBottomSheet.show<String>(
+        context: context,
+        // The sheet draws its own, so a swipe on it can ask first.
+        showDragHandle: false,
+        builder: (_) => BlocProvider(
+          create: (_) => getIt<ExpenseBloc>(),
+          child: const QuickAddSheet(),
+        ),
+      );
+    } finally {
+      _open = false;
+    }
+    if (route == null || !context.mounted) return;
+    final nextAfter = Uri.parse(route).queryParameters['next'];
+    if (nextAfter != null) {
+      unawaited(StartNextPeriod.open(context, nextAfter));
+    } else {
+      context.pushUnique(route);
+    }
   }
 
   @override
@@ -78,16 +122,41 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
 
   DateTime get _today => DateTime(_now.year, _now.month, _now.day);
 
+  static final _calculator = SafeToSpendCalculator(BudgetCalculationService());
+
+  /// Today's figures before and as if the amount were already saved, for
+  /// an expense today in a running budget; null otherwise.
+  (SafeToSpendEntity, SafeToSpendEntity)? _preview(ExpenseState state) {
+    final input = state.quickAddInput;
+    if (input == null || _day != _Day.today) return null;
+    final before = _calculator.preview(input, draftToday: 0);
+    if (!before.isRunning) return null;
+    return (before, _calculator.preview(input, draftToday: _entry.value));
+  }
+
+  /// Leaving now would lose what was entered.
+  bool get _hasInput => !_entry.isEmpty || _categoryId != null;
+
   DateTime get _date => switch (_day) {
     _Day.today => _today,
     _Day.yesterday => DateTime(_now.year, _now.month, _now.day - 1),
     _Day.other => _otherDate,
   };
 
+  /// Says the amount once typing pauses; see
+  /// [QuickAddSheet.amountAnnounceDelay].
+  Timer? _announceTimer;
+
   @override
   void initState() {
     super.initState();
     context.read<ExpenseBloc>().add(ExpenseLoadQuickAdd(now: _now));
+  }
+
+  @override
+  void dispose() {
+    _announceTimer?.cancel();
+    super.dispose();
   }
 
   void _onKey(AmountPadKey key) {
@@ -98,6 +167,27 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         BackspaceKey() => _entry.backspace(),
       };
       _amountError = null;
+    });
+    _announceAmountSoon();
+  }
+
+  /// The amount is not a live region (that spoke on every key, on top of
+  /// the key itself); with a screen reader on, it is announced once the
+  /// keys stop.
+  void _announceAmountSoon() {
+    _announceTimer?.cancel();
+    if (!MediaQuery.accessibleNavigationOf(context)) return;
+    _announceTimer = Timer(QuickAddSheet.amountAnnounceDelay, () {
+      if (!mounted) return;
+      final currency = context
+          .read<ExpenseBloc>()
+          .state
+          .quickAddBudget
+          ?.currency;
+      SemanticsService.announce(
+        _AmountDisplay.spokenFor(_entry, currency),
+        Directionality.of(context),
+      );
     });
   }
 
@@ -170,12 +260,14 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     final budget = state.quickAddBudget;
     if (budget == null) return;
     final amountError = _entry.value <= 0
-        ? 'Enter an amount.'
+        ? ValidationCopy.amountEmpty
         : ExpenseValidator.validateAmount(
             _entry.normalized,
             currency: budget.currency,
           );
-    final categoryError = _categoryId == null ? 'Choose a category.' : null;
+    final categoryError = _categoryId == null
+        ? ValidationCopy.categoryMissing
+        : null;
     final dateError = ExpenseDateRules.outsideBudget(_date, budget);
     setState(() {
       _amountError = amountError;
@@ -216,20 +308,32 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     },
   ).toString();
 
+  /// The full form's question, so both ways of adding ask alike.
+  Future<void> _requestClose() async {
+    final discard = await ConfirmationDialog.show(
+      context: context,
+      title: 'Discard this expense?',
+      message: "What you entered hasn't been saved.",
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      icon: Icons.edit_off_outlined,
+      isDestructive: true,
+    );
+    if (discard && mounted) Navigator.of(context).pop();
+  }
+
   void _onState(BuildContext context, ExpenseState state) {
     if (state.status == ExpenseBlocStatus.success &&
         state.lastAction == ExpenseAction.created) {
       AppHaptics.confirm();
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Expense added'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+      ExpenseUndo.offerAdded(
+        messenger,
+        state.expense!,
+        currency: state.quickAddBudget?.currency,
+        after: state.afterAdd,
+      );
     } else if (state.status == ExpenseBlocStatus.error &&
         state.message != null) {
       setState(() => _saveError = state.message);
@@ -237,8 +341,75 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     }
   }
 
+  bool _startsLater(BudgetEntity budget) => _today.isBefore(
+    DateTime(
+      budget.startDate.year,
+      budget.startDate.month,
+      budget.startDate.day,
+    ),
+  );
+
+  /// Up front when the budget isn't running today: an ended one (until a
+  /// day in its period is picked) and one not started yet.
+  Widget? _periodNotice(BudgetEntity budget) {
+    if (_startsLater(budget)) {
+      return AppNotice(
+        tone: AppTone.caution,
+        icon: Icons.event_outlined,
+        title:
+            'Your ${budget.name} budget starts on '
+            '${AppDates.day(budget.startDate)}',
+        message: 'You can add expenses to it from that day.',
+      );
+    }
+    if (budget.isActiveOn(_today) || budget.isActiveOn(_date)) return null;
+    return AppNotice(
+      tone: AppTone.caution,
+      icon: Icons.event_busy_outlined,
+      title:
+          'Your ${budget.name} budget ended on '
+          '${AppDates.day(budget.endDate)}',
+      message: 'Start the next one, or add this to a day before it ended.',
+      action: Wrap(
+        spacing: AppSpacing.sm,
+        children: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(StartNextPeriod.location(budget.id)),
+            child: const Text('Start next budget'),
+          ),
+          TextButton(
+            onPressed: () => _pickOtherDay(budget),
+            child: Text('Add to ${budget.name}'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_hasInput,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: _SwipeGuard(
+        active: _hasInput,
+        onSwipeDown: () => Navigator.of(context).maybePop(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _SheetHandle(),
+            Flexible(child: _buildContent(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     return BlocConsumer<ExpenseBloc, ExpenseState>(
       listenWhen: (a, b) =>
           a.status != b.status || a.quickAddBudget != b.quickAddBudget,
@@ -254,34 +425,63 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         final failed = state.quickAddLoad == QuickAddLoad.failed;
         final noBudget = loaded && budget == null;
         final currency = budget?.currency;
+        final notice = loaded && budget != null ? _periodNotice(budget) : null;
+        final notStarted = budget != null && _startsLater(budget);
+        final preview = _preview(state);
 
         return SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppSheetHeader(
-                title: 'Add expense',
-                subtitle: !loaded
-                    ? ' '
-                    : budget == null
-                    ? 'No budget yet'
-                    : 'To ${budget.name} · until '
-                          '${DateFormat('d MMM').format(budget.endDate)}',
-              ),
+              if (preview == null)
+                AppSheetHeader(
+                  title: 'Add expense',
+                  subtitle: !loaded
+                      ? ' '
+                      : budget == null
+                      ? 'No budget yet'
+                      : 'To ${budget.name} · until '
+                            '${AppDates.day(budget.endDate)}',
+                )
+              else
+                _RingHeader(
+                  before: preview.$1,
+                  after: preview.$2,
+                  draft: _entry.value,
+                  subtitle: budget == null
+                      ? ''
+                      : 'To ${budget.name} · until '
+                            '${AppDates.day(budget.endDate)}',
+                  amount: _AmountDisplay(
+                    entry: _entry,
+                    currency: currency,
+                    hasError: _amountError != null,
+                    start: true,
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _AmountDisplay(
-                      entry: _entry,
-                      currency: currency,
-                      hasError: _amountError != null,
-                    ),
+                    if (notice != null) ...[
+                      notice,
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                    if (preview == null)
+                      _AmountDisplay(
+                        entry: _entry,
+                        currency: currency,
+                        hasError: _amountError != null,
+                      ),
                     if (_amountError != null)
                       Center(child: _CenteredError(message: _amountError!)),
+                    if (preview != null) ...[
+                      const SizedBox(height: AppSpacing.smd),
+                      TodayImpact(before: preview.$1, after: preview.$2),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     if (failed)
                       AppNotice(
@@ -335,10 +535,13 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                     AppAmountPad(
                       showDecimal: _entry.allowsDecimal,
                       onKey: _onKey,
-                      onClear: () => setState(() {
-                        _entry = _entry.clear();
-                        _amountError = null;
-                      }),
+                      onClear: () {
+                        setState(() {
+                          _entry = _entry.clear();
+                          _amountError = null;
+                        });
+                        _announceAmountSoon();
+                      },
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     if (_saveError != null)
@@ -348,10 +551,10 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                       ),
                     _Actions(
                       busy: state.isBusy,
-                      canAdd: budget != null,
-                      addLabel: state.isBusy
-                          ? 'Adding…'
-                          : _entry.value > 0
+                      canAdd: budget != null && !notStarted,
+                      // No amount in a stand-in currency before the
+                      // budget is known.
+                      addLabel: _entry.value > 0 && currency != null
                           ? 'Add ${AppMoney.format(_entry.value, currency: currency)}'
                           : 'Add expense',
                       onAdd: () => _save(state),
@@ -366,6 +569,69 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The sheet's drag handle, drawn here rather than by the route so a swipe
+/// on it goes through [_SwipeGuard] too. Same size and colour as the
+/// theme's.
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final size = theme.bottomSheetTheme.dragHandleSize ?? const Size(32, 4);
+    return Semantics(
+      label: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      container: true,
+      button: true,
+      onTap: () => Navigator.of(context).maybePop(),
+      child: SizedBox(
+        height: kMinInteractiveDimension,
+        child: Center(
+          child: Container(
+            width: size.width,
+            height: size.height,
+            decoration: BoxDecoration(
+              color:
+                  theme.bottomSheetTheme.dragHandleColor ??
+                  theme.colorScheme.onSurfaceVariant,
+              borderRadius: BorderRadius.circular(size.height / 2),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// While [active], takes vertical drags from the sheet, whose own drag
+/// closes it without asking; a swipe down calls [onSwipeDown] instead.
+/// Otherwise the sheet drags as usual.
+class _SwipeGuard extends StatelessWidget {
+  final bool active;
+  final VoidCallback onSwipeDown;
+  final Widget child;
+
+  const _SwipeGuard({
+    required this.active,
+    required this.onSwipeDown,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Always present, so turning it on never rebuilds the sheet.
+    return GestureDetector(
+      onVerticalDragUpdate: active ? (_) {} : null,
+      onVerticalDragEnd: active
+          ? (details) {
+              if ((details.primaryVelocity ?? 0) > 300) onSwipeDown();
+            }
+          : null,
+      child: child,
     );
   }
 }
@@ -389,17 +655,20 @@ class _Actions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final add = FilledButton(
-      key: const Key('quickAddSave'),
-      onPressed: busy || !canAdd ? null : onAdd,
-      child: Text(addLabel, textAlign: TextAlign.center),
+    final add = PrimaryButton(
+      buttonKey: const Key('quickAddSave'),
+      onPressed: canAdd ? onAdd : null,
+      isLoading: busy,
+      icon: Icons.add_rounded,
+      label: addLabel,
     );
-    final more = TextButton(
+    // Blueprint: an outlined "More details" beside the filled Add.
+    final more = OutlinedButton(
       key: const Key('quickAddMoreDetails'),
       onPressed: busy ? null : onMoreDetails,
       child: const Text('More details', textAlign: TextAlign.center),
     );
-    if (MediaQuery.textScalerOf(context).scale(14) > 20) {
+    if (AppSizes.isLargeText(context)) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -411,10 +680,33 @@ class _Actions extends StatelessWidget {
     }
     return Row(
       children: [
-        more,
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: add),
+        Expanded(flex: 2, child: more),
+        const SizedBox(width: AppSpacing.smd),
+        Expanded(flex: 3, child: add),
       ],
+    );
+  }
+}
+
+/// Blueprint .chips: one row that scrolls sideways, to the screen edge.
+class _ChipRow extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ChipRow({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.sm),
+            children[i],
+          ],
+        ],
+      ),
     );
   }
 }
@@ -423,17 +715,27 @@ bool _isSameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
 /// The amount as typed, large and centred, with the currency symbol small
-/// and muted beside it. Read aloud as it changes.
+/// and muted beside it, once the budget (and so its currency) is known.
+/// Announced when typing pauses, by the sheet.
 class _AmountDisplay extends StatelessWidget {
   final AmountEntry entry;
   final String? currency;
   final bool hasError;
 
+  /// Left-aligned under the ring header's title (blueprint), else centred.
+  final bool start;
+
   const _AmountDisplay({
     required this.entry,
     required this.currency,
     required this.hasError,
+    this.start = false,
   });
+
+  /// "Amount, empty" or "Amount, OMR 1.500".
+  static String spokenFor(AmountEntry entry, String? currency) => entry.isEmpty
+      ? 'Amount, empty'
+      : 'Amount, ${AppMoney.spoken(entry.value, currency: currency)}';
 
   @override
   Widget build(BuildContext context) {
@@ -445,31 +747,35 @@ class _AmountDisplay extends StatelessWidget {
         : empty
         ? theme.colorScheme.onSurfaceVariant
         : theme.colorScheme.onSurface;
-    final spoken = empty
-        ? 'Amount, empty'
-        : 'Amount, ${AppMoney.format(entry.value, currency: currency)}';
     return Semantics(
       key: const Key('quickAddAmount'),
-      liveRegion: true,
-      label: spoken,
+      label: spokenFor(entry, currency),
       excludeSemantics: true,
       child: SizedBox(
         height: 72,
-        child: Center(
+        child: Align(
+          alignment: start
+              ? AlignmentDirectional.centerStart
+              : AlignmentDirectional.center,
           child: FittedBox(
             fit: BoxFit.scaleDown,
+            alignment: start
+                ? AlignmentDirectional.centerStart
+                : AlignmentDirectional.center,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(
-                  CurrencyFormatter.symbolFor(currency),
-                  style: typography.moneyTitle.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                if (currency != null) ...[
+                  Text(
+                    CurrencyFormatter.symbolFor(currency),
+                    style: typography.moneyTitle.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
                 Text(
                   entry.display,
                   style: typography.moneyHero.copyWith(color: color),
@@ -527,6 +833,7 @@ class _CategoryChoice extends StatelessWidget {
     final theme = Theme.of(context);
     if (!loaded) {
       return Shimmer(
+        semanticsLabel: 'Loading categories',
         child: Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
@@ -546,9 +853,7 @@ class _CategoryChoice extends StatelessWidget {
     return Semantics(
       container: true,
       label: 'Category',
-      child: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
+      child: _ChipRow(
         children: [
           for (final c in shown)
             ChoiceChip(
@@ -596,9 +901,7 @@ class _DayChoice extends StatelessWidget {
     return Semantics(
       container: true,
       label: 'Day',
-      child: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
+      child: _ChipRow(
         children: [
           ChoiceChip(
             key: const Key('quickDate_today'),
@@ -618,9 +921,7 @@ class _DayChoice extends StatelessWidget {
             showCheckmark: false,
             avatar: const Icon(Icons.calendar_today_outlined),
             label: Text(
-              day == _Day.other
-                  ? DateFormat('EEE d MMM').format(otherDate)
-                  : 'Other day',
+              day == _Day.other ? AppDates.weekday(otherDate) : 'Other day',
             ),
             onSelected: (_) => onOther(),
           ),
@@ -662,7 +963,7 @@ class _AllCategoriesSheet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               children: [
                 AppGroupedList(
-                  dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+                  dividerIndent: AppSizes.avatarSm + AppSpacing.md,
                   children: [
                     for (final c in shown)
                       AppListRow(
@@ -686,6 +987,82 @@ class _AllCategoriesSheet extends StatelessWidget {
                       ),
                   ],
                 ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The sheet's head with a preview ring (blueprint): the ring with the
+/// amount as a faint arc, its centre what is left (or "+₹92" over, amber),
+/// then the title, the budget and the amount.
+class _RingHeader extends StatelessWidget {
+  final SafeToSpendEntity before;
+  final SafeToSpendEntity after;
+  final double draft;
+  final String subtitle;
+  final Widget amount;
+
+  const _RingHeader({
+    required this.before,
+    required this.after,
+    required this.draft,
+    required this.subtitle,
+    required this.amount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final over = after.overToday > 0;
+    final centre = over
+        ? '+${SafeToSpendCopy.amount(after.overToday, after.currency)}'
+        : SafeToSpendCopy.safeAmount(after.remainingToday, after.currency);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        0,
+      ),
+      child: Row(
+        children: [
+          TargetRing(
+            key: const Key('quickAddRing'),
+            spent: before.todayDiscretionary,
+            target: before.dailySafeToSpend,
+            draft: draft > 0 ? draft : 0,
+            diameter: 96,
+            stroke: 10,
+            semanticsLabel: '',
+            child: Text(
+              centre,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: over ? context.tone(AppTone.caution).accent : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text('Add expense', style: theme.textTheme.titleLarge),
+                ),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                amount,
               ],
             ),
           ),

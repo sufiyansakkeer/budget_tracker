@@ -313,7 +313,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration {
@@ -464,6 +464,11 @@ class AppDatabase extends _$AppDatabase {
             'ON pay_later_allocations (expense_id)',
           );
         }
+        if (from < 10) {
+          // UX-088: six built-in categories get new default colours. Data
+          // only, no schema change.
+          await _recolourDefaultCategories();
+        }
       },
       beforeOpen: (details) async {
         developer.log(
@@ -526,6 +531,28 @@ class AppDatabase extends _$AppDatabase {
           ),
       ], mode: InsertMode.insertOrIgnore);
     });
+  }
+
+  /// Moves the built-in categories listed in [v9DefaultCategoryColours] to
+  /// their v10 colour, but only while a row is still built-in (`is_system`)
+  /// and still has exactly the colour v9 shipped. A colour the user picked,
+  /// and every category the user made, stays as it is. Idempotent: once
+  /// recoloured, a row no longer matches.
+  Future<void> _recolourDefaultCategories() async {
+    final current = {for (final c in defaultCategoryRows) c.id: c.colorHex};
+    for (final MapEntry(key: id, value: oldHex)
+        in v9DefaultCategoryColours.entries) {
+      await customUpdate(
+        'UPDATE categories SET color_hex = ? '
+        'WHERE id = ? AND is_system = 1 AND color_hex = ?',
+        variables: [
+          Variable.withString(current[id]!),
+          Variable.withString(id),
+          Variable.withString(oldHex),
+        ],
+        updates: {categories},
+      );
+    }
   }
 
   /// Points expenses at a real budget/category when their reference is

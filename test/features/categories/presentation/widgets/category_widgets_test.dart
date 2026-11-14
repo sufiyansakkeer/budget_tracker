@@ -55,6 +55,15 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    testWidgets('UX-066: icon choices are announced by name', (tester) async {
+      await openSheet(tester);
+
+      final semantics = tester.getSemantics(
+        find.byKey(const Key('categoryIcon_local_grocery_store')),
+      );
+      expect(semantics.label, 'Groceries');
+    });
+
     testWidgets('shows inline error for an empty name', (tester) async {
       await openSheet(tester);
       await tapSave(tester);
@@ -117,6 +126,94 @@ void main() {
       await tapSave(tester);
       expect(result()!.id, 'food');
       expect(result()!.name, 'Food');
+    });
+
+    group('closing without saving', () {
+      // The sheet's own handle: dragging it down always moves the sheet,
+      // even when the content scrolls.
+      Finder handle() => find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == '_DragHandle',
+      );
+
+      Future<void> swipeDown(WidgetTester tester) async {
+        await tester.fling(handle(), const Offset(0, 400), 2000);
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> typeName(WidgetTester tester, String name) async {
+        await tester.enterText(
+          find.byKey(const Key('categoryNameField')),
+          name,
+        );
+        await tester.pump();
+      }
+
+      testWidgets('an untouched sheet swipes away at once', (tester) async {
+        await openSheet(tester);
+        await swipeDown(tester);
+        expect(find.byType(CategoryFormSheet), findsNothing);
+        expect(find.text('Discard this category?'), findsNothing);
+      });
+
+      testWidgets('a swipe with a name typed asks first; keep editing '
+          'brings the sheet back as it was', (tester) async {
+        final result = await openSheet(tester);
+        await typeName(tester, 'Gym');
+
+        await swipeDown(tester);
+        expect(find.text('Discard this category?'), findsOneWidget);
+        expect(
+          find.text("What you entered hasn't been saved."),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Keep editing'));
+        await tester.pumpAndSettle();
+        expect(find.byType(CategoryFormSheet), findsOneWidget);
+        expect(
+          find.widgetWithText(TextField, 'Gym').hitTestable(),
+          findsOneWidget,
+        );
+
+        await swipeDown(tester);
+        await tester.tap(find.text('Discard'));
+        await tester.pumpAndSettle();
+        expect(find.byType(CategoryFormSheet), findsNothing);
+        expect(result(), isNull);
+      });
+
+      testWidgets('back and a tap outside ask too', (tester) async {
+        await openSheet(tester);
+        await typeName(tester, 'Gym');
+
+        expect(await tester.binding.handlePopRoute(), isTrue);
+        await tester.pumpAndSettle();
+        expect(find.text('Discard this category?'), findsOneWidget);
+        await tester.tap(find.text('Keep editing'));
+        await tester.pumpAndSettle();
+
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        expect(find.text('Discard this category?'), findsOneWidget);
+      });
+
+      testWidgets('an unchanged edit closes at once; a changed one asks', (
+        tester,
+      ) async {
+        await openSheet(tester, category: cat('food', name: 'Food'));
+        await swipeDown(tester);
+        expect(find.byType(CategoryFormSheet), findsNothing);
+
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        final color = find.byKey(const Key('categoryColor_#10AC84'));
+        await tester.ensureVisible(color);
+        await tester.tap(color);
+        await tester.pumpAndSettle();
+        await swipeDown(tester);
+        expect(find.text('Discard changes?'), findsOneWidget);
+        expect(find.text("Your changes haven't been saved."), findsOneWidget);
+      });
     });
   });
 
@@ -200,6 +297,69 @@ void main() {
 
       expect(find.text('Coffee'), findsNothing);
       expect(find.text('Category deleted'), findsOneWidget);
+    });
+
+    group('UX-066 · a category in use', () {
+      setUp(() {
+        repo.usage['custom'] = 3;
+        repo.store['gone'] = cat(
+          'gone',
+          name: 'Gone',
+          isSystem: false,
+          isArchived: true,
+        );
+        repo.usage['gone'] = 1;
+      });
+
+      testWidgets('its row says how many expenses use it', (tester) async {
+        await tester.pumpWidget(harness());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Custom · Used by 3 expenses'), findsOneWidget);
+        expect(find.text('Custom · Archived · Used by 1 expense'), findsOne);
+      });
+
+      testWidgets('delete offers to archive instead, and never fails', (
+        tester,
+      ) async {
+        await tester.pumpWidget(harness());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('category_menu_custom')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+        expect(find.text('Delete category?'), findsNothing);
+        expect(find.text('Archive "Coffee" instead?'), findsOneWidget);
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Archive'));
+        await tester.pumpAndSettle();
+        expect(repo.store['custom']!.isArchived, isTrue);
+        expect(find.text('"Coffee" archived'), findsOneWidget);
+      });
+
+      testWidgets('an archived one in use offers no delete', (tester) async {
+        await tester.pumpWidget(harness());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('category_menu_gone')));
+        await tester.pumpAndSettle();
+        expect(find.text('Restore'), findsOneWidget);
+        expect(find.text('Delete'), findsNothing);
+      });
+
+      testWidgets('an error uses the default snackbar', (tester) async {
+        await tester.pumpWidget(harness());
+        await tester.pumpAndSettle();
+        repo.failNext = true;
+        await tester.tap(find.byKey(const Key('category_menu_food')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Archive'));
+        await tester.pumpAndSettle();
+
+        final bar = tester.widget<SnackBar>(find.byType(SnackBar));
+        expect(bar.backgroundColor, isNull);
+      });
     });
 
     testWidgets('FAB opens the new-category sheet', (tester) async {

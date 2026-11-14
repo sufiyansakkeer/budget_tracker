@@ -12,6 +12,57 @@ class CategoryVisuals {
 
   static const IconData _fallback = Icons.category_rounded;
 
+  /// What a screen reader calls a catalog icon: "Groceries", not
+  /// "local grocery store".
+  static String iconLabel(String iconName) =>
+      _iconLabels[iconName] ?? iconName.replaceAll('_', ' ');
+
+  static const Map<String, String> _iconLabels = {
+    'restaurant': 'Restaurant',
+    'fastfood': 'Fast food',
+    'local_cafe': 'Café',
+    'local_grocery_store': 'Groceries',
+    'shopping_cart': 'Shopping cart',
+    'shopping_bag': 'Shopping bag',
+    'checkroom': 'Clothes',
+    'local_gas_station': 'Fuel',
+    'directions_car': 'Car',
+    'directions_bus': 'Bus',
+    'train': 'Train',
+    'flight': 'Flights',
+    'hotel': 'Hotel',
+    'home': 'Home',
+    'electric_bolt': 'Electricity',
+    'water_drop': 'Water',
+    'wifi': 'Internet',
+    'phone_android': 'Phone',
+    'laptop': 'Laptop',
+    'subscriptions': 'Subscriptions',
+    'movie': 'Movies',
+    'music_note': 'Music',
+    'sports_esports': 'Games',
+    'fitness_center': 'Fitness',
+    'spa': 'Spa',
+    'favorite': 'Heart',
+    'local_hospital': 'Hospital',
+    'medication': 'Medicine',
+    'school': 'Education',
+    'child_care': 'Childcare',
+    'pets': 'Pets',
+    'card_giftcard': 'Gifts',
+    'celebration': 'Celebration',
+    'volunteer_activism': 'Charity',
+    'construction': 'Repairs',
+    'cleaning_services': 'Cleaning',
+    'payments': 'Payments',
+    'receipt_long': 'Receipt',
+    'account_balance_wallet': 'Wallet',
+    'savings': 'Savings',
+    'work': 'Work',
+    'help_outline': 'Other',
+    'category': 'General',
+  };
+
   static const Map<String, IconData> _icons = {
     'restaurant': Icons.restaurant_rounded,
     'fastfood': Icons.fastfood_rounded,

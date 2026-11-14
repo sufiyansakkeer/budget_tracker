@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/currency/currency_formatter.dart';
-import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_money.dart';
 import '../../../../core/widgets/info_content.dart';
 import '../../../../core/widgets/info_icon.dart';
 import '../../domain/entities/budget_list_summary_entity.dart';
+import '../../../../core/constants/app_copy.dart';
 
 /// The remaining amount across all budgets running today, one figure per
-/// currency, as a quiet footer under the list.
+/// currency: the list's one display figure, at its top (blueprint).
 ///
 /// A reference figure only: budgets themselves are never merged.
 class BudgetListSummaryCard extends StatelessWidget {
@@ -31,19 +31,19 @@ class BudgetListSummaryCard extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    // A quiet footer, not a card: the figure is for reference and must
-    // never look like a pooled budget.
+    // On the page, not a card: the figure is for reference and must never
+    // look like a pooled budget.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Divider(color: theme.colorScheme.outlineVariant),
-        const SizedBox(height: AppSpacing.xs),
         Row(
           children: [
             Flexible(
               child: Text(
                 'Total remaining',
-                style: context.appTypography.eyebrow.copyWith(
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 maxLines: 1,
@@ -59,7 +59,7 @@ class BudgetListSummaryCard extends StatelessWidget {
           runSpacing: AppSpacing.xxs,
           children: [
             for (final MapEntry(key: code, value: amount) in totals.entries)
-              AppMoney(amount: amount, currency: code, role: MoneyRole.title),
+              AppMoney(amount: amount, currency: code, role: MoneyRole.display),
           ],
         ),
         const SizedBox(height: AppSpacing.xxs),
@@ -72,18 +72,18 @@ class BudgetListSummaryCard extends StatelessWidget {
   }
 
   static InfoContent _info(String s) => InfoContent(
-    title: 'Total remaining',
+    title: 'Total remaining budget',
     whatIsThis:
         'A reference number: the remaining amount of every budget running '
         'today, added together. It does not merge your budgets.',
     howIsItCalculated:
         'For each budget running today:\n'
-        '  Remaining = Budget amount − Total spent\n\n'
+        '  ${AppTerms.remainingBudget} = Budget amount − Total spent\n\n'
         'Then those amounts are added together.',
     example:
         'Budget A: ${s}10,000 − ${s}5,000 = ${s}5,000\n'
         'Budget B: ${s}8,000 − ${s}5,000 = ${s}3,000\n\n'
-        'Total remaining: ${s}8,000',
+        'Total remaining budget: ${s}8,000',
     additionalNotes:
         '• Includes budgets that are not archived and whose period includes '
         'today\n'

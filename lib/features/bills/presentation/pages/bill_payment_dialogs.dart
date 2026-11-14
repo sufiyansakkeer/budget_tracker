@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/currency/currency_formatter.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/domain/entities/budget_entity.dart';
+import '../../../../core/widgets/app_snack.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../dashboard/domain/services/bill_occurrence_enumerator.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
@@ -15,6 +15,8 @@ import '../../domain/usecases/mark_bill_unpaid_usecase.dart';
 import '../../domain/usecases/pay_bill_usecase.dart';
 import '../bloc/bill_bloc.dart';
 import '../bloc/bill_event.dart';
+import '../bloc/bill_state.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// Confirmations for paying and un-paying a bill, shared by the bills list
 /// and bill details so both say exactly what will happen to the budget.
@@ -24,10 +26,10 @@ import '../bloc/bill_event.dart';
 class BillPaymentDialogs {
   BillPaymentDialogs._();
 
-  /// "Mark paid & record expense": names the budget the expense will go to
-  /// and records payment, bill update and expense in one step. When no
-  /// budget can take the payment (none running in the bill's currency), it
-  /// says so instead of asking.
+  /// "Mark paid & record expense": names the budget the expense will go to,
+  /// says what that does to today's amount, and records payment, bill update
+  /// and expense in one step. When no budget can take the payment (none
+  /// running in the bill's currency), it says so instead of asking.
   static Future<void> payWithExpense(
     BuildContext context,
     BillEntity bill,
@@ -35,17 +37,15 @@ class BillPaymentDialogs {
     final bloc = context.read<BillBloc>();
     final messenger = ScaffoldMessenger.of(context);
 
-    String? budgetName;
+    BudgetEntity? budget;
     try {
       final target = await getIt<PayBillUseCase>().targetBudgetFor(bill.id);
       switch (target) {
         case BillSuccess(:final data):
-          budgetName = data.name;
+          budget = data;
         case BillError(:final failure):
           if (failure.type == BillErrorType.invalidInput) {
-            messenger
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(failure.message)));
+            AppSnack.showOn(messenger, failure.message);
             return;
           }
       }
@@ -57,14 +57,28 @@ class BillPaymentDialogs {
 
     final amount = CurrencyFormatter.format(bill.amount, code: bill.currency);
     final where =
-        budgetName ?? 'the budget it is paid from, or your active budget';
+        budget?.name ?? 'the budget it is paid from, or your active budget';
+    // The payment is committed spending only when the budget it goes to set
+    // this occurrence aside (PayBillUseCase's rule); otherwise it is plain
+    // spending today. Unknown budget: no claim either way.
+    final effect = budget == null
+        ? ''
+        : BillOccurrenceEnumerator.setsAsideCurrentOccurrence(
+            bill,
+            budget,
+            DateTime.now(),
+          )
+        ? " $amount was already set aside, so Today's Safe Spending "
+              "doesn't change."
+        : " ${budget.name} didn't set it aside, so it counts as today's "
+              'spending.';
     final confirmed = await ConfirmationDialog.show(
       context: context,
       title: 'Mark paid & record expense?',
       message:
           '"${bill.title}" will be marked paid and an expense of $amount '
-          'will be recorded in $where.${_nextOccurrence(bill)}',
-      confirmLabel: 'Confirm',
+          'will be recorded in $where.$effect${_nextOccurrence(bill)}',
+      confirmLabel: 'Pay & record',
       icon: Icons.receipt_long_rounded,
     );
     if (confirmed) bloc.add(BillPayWithExpense(bill.id));
@@ -172,7 +186,7 @@ class BillPaymentDialogs {
           ? e.note!.trim()
           : 'Bill: ${bill.title}';
       final amount = CurrencyFormatter.format(e.amount, code: bill.currency);
-      final date = DateFormat('d MMM yyyy').format(e.date);
+      final date = AppDates.dayWithYear(e.date);
       return '$title and the expense "$note" ($amount, $date) recorded for '
           'it will be deleted.';
     }
@@ -180,6 +194,74 @@ class BillPaymentDialogs {
     final amount = CurrencyFormatter.format(total, code: bill.currency);
     return '$title and the ${expenses.length} expenses recorded for it '
         '($amount) will be deleted.';
+  }
+
+  /// "Bill marked as paid · Undo" (or "Bill deleted · Undo"): held long
+  /// enough to tap Undo, which puts the bill and its payment history back
+  /// as they were and deletes the expense the change recorded (see
+  /// [BillUndo]). No confirmation, because it only takes back what was just
+  /// done.
+  ///
+  /// The SnackBar can outlive the screen that showed it (bill details pops
+  /// after a delete), so when [bloc] has closed the undo runs on a
+  /// short-lived one from [undoBlocFactory] and its outcome is shown on
+  /// [messenger].
+  static SnackBar undoSnackBar({
+    required String message,
+    required BillBloc bloc,
+    required BillUndo undo,
+    required ScaffoldMessengerState messenger,
+  }) => AppSnack.bar(
+    message,
+    key: undo.deleted
+        ? const Key('billDeletedUndoSnackBar')
+        : const Key('billPaidUndoSnackBar'),
+    actionKey: undo.deleted
+        ? const Key('billDeletedUndoAction')
+        : const Key('billPaidUndoAction'),
+    actionLabel: 'Undo',
+    onAction: () => _undo(bloc, undo, messenger),
+  );
+
+  /// Builds the bloc an undo runs on once the screen's own has closed;
+  /// replaced in tests.
+  @visibleForTesting
+  static BillBloc Function() undoBlocFactory = () => getIt<BillBloc>();
+
+  static Future<void> _undo(
+    BillBloc bloc,
+    BillUndo undo,
+    ScaffoldMessengerState messenger,
+  ) async {
+    if (!bloc.isClosed) {
+      // The screen's listener shows the outcome. A bloc whose close has
+      // started (its screen just popped) still says it isn't closed but
+      // refuses events.
+      try {
+        bloc.add(BillUndoRequested(undo));
+        return;
+      } on StateError catch (e) {
+        debugPrint('[BillUndo] Screen bloc closing, using a new one: $e');
+      }
+    }
+    final temporary = undoBlocFactory();
+    final done = temporary.stream.firstWhere(
+      (s) =>
+          s.status == BillBlocStatus.success ||
+          s.status == BillBlocStatus.error,
+    );
+    temporary.add(BillUndoRequested(undo));
+    try {
+      final outcome = await done.timeout(const Duration(seconds: 10));
+      final shown = outcome.message;
+      if (shown != null && messenger.mounted) {
+        AppSnack.showOn(messenger, shown);
+      }
+    } catch (e) {
+      // Only the bloc needs closing.
+      debugPrint('[error] Waiting for a bill undo to finish: $e');
+    }
+    await temporary.close();
   }
 
   static String _nextOccurrence(BillEntity bill) => bill.repeats

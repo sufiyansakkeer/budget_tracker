@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_spacing.dart';
+import '../currency/currency_formatter.dart';
 
 /// How far a surface sits from the page.
 enum SurfaceLevel {
@@ -17,7 +18,7 @@ enum SurfaceLevel {
 /// screen can set one element apart and leave the rest on the page.
 ///
 /// With [onTap] the surface is one button for screen readers, labelled
-/// [semanticLabel] when given.
+/// [semanticLabel] when given, its money spoken with the currency.
 class AppSurface extends StatelessWidget {
   final Widget child;
   final SurfaceLevel level;
@@ -83,7 +84,9 @@ class AppSurface extends StatelessWidget {
     if (onTap == null) return surface;
     return Semantics(
       button: true,
-      label: semanticLabel,
+      label: semanticLabel == null
+          ? null
+          : CurrencyFormatter.forSpeech(semanticLabel!),
       onTap: onTap,
       excludeSemantics: semanticLabel != null,
       child: surface,

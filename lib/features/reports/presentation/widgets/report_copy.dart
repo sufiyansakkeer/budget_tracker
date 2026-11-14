@@ -1,8 +1,7 @@
-import 'package:intl/intl.dart';
-
 import '../../../../core/theme/app_tone.dart';
 import '../../domain/entities/report_data.dart';
 import '../../../../core/dates/calendar_dates.dart';
+import '../../../../core/dates/date_range_format.dart';
 
 /// A comparison sentence and the tone it is read in.
 typedef ReportComparison = ({String text, AppTone tone});
@@ -10,8 +9,6 @@ typedef ReportComparison = ({String text, AppTone tone});
 /// Wording for the Reports screen, built only from figures the report
 /// already carries.
 abstract final class ReportCopy {
-  static final DateFormat _day = DateFormat('d MMM');
-
   static const List<String> weekdays = [
     'Monday',
     'Tuesday',
@@ -41,7 +38,7 @@ abstract final class ReportCopy {
     final previousStart = range.start.addDays(-days);
     final before =
         'the ${days == 1 ? 'day' : '$days days'} before '
-        '(${_span(previousStart, previousEnd)})';
+        '(${span(previousStart, previousEnd)})';
     if (growth.abs() < 0.02) {
       return (text: 'About the same as $before', tone: AppTone.neutral);
     }
@@ -51,12 +48,9 @@ abstract final class ReportCopy {
         : (text: '$pct% less than $before', tone: AppTone.positive);
   }
 
-  /// "22 – 30 Sep", "28 Sep – 4 Oct", or one day ("30 Sep").
-  static String _span(DateTime start, DateTime end) {
-    if (start == end) return _day.format(start);
-    if (start.year == end.year && start.month == end.month) {
-      return '${start.day} – ${_day.format(end)}';
-    }
-    return '${_day.format(start)} – ${_day.format(end)}';
-  }
+  /// "22 – 30 Sep", "28 Sep – 4 Oct", or one day ("30 Sep"). Inside a
+  /// report the period line states the year, so a year shows only when the
+  /// span crosses one ("29 Dec 2025 – 4 Jan 2026").
+  static String span(DateTime start, DateTime end) =>
+      AppDates.span(start, end, now: end);
 }

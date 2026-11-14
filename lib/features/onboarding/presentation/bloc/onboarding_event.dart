@@ -77,3 +77,19 @@ class OnboardingEndDateChangedEvent extends OnboardingEvent {
 class OnboardingSubmittedEvent extends OnboardingEvent {
   const OnboardingSubmittedEvent();
 }
+
+/// A backup was restored from Welcome: it brought its own budgets, so
+/// onboarding ends without making one.
+class OnboardingRestoredEvent extends OnboardingEvent {
+  const OnboardingRestoredEvent();
+}
+
+/// "A day" or "In total" for the amount (blueprint).
+class OnboardingAmountModeChangedEvent extends OnboardingEvent {
+  final bool byDay;
+
+  const OnboardingAmountModeChangedEvent(this.byDay);
+
+  @override
+  List<Object?> get props => [byDay];
+}

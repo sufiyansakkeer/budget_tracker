@@ -94,14 +94,14 @@ class DataFormatSheet extends StatelessWidget {
           AppSheetHeader(title: title, subtitle: subtitle),
           Padding(
             // Lined up with the sheet's title; the sheet is the surface.
-            padding: const EdgeInsets.fromLTRB(
+            padding: const EdgeInsetsDirectional.fromSTEB(
               AppSpacing.lg,
               0,
               AppSpacing.md,
               AppSpacing.md,
             ),
             child: AppGroupedList(
-              dividerIndent: AppSizes.avatarSm + AppSpacing.smd,
+              dividerIndent: AppSizes.avatarSm + AppSpacing.md,
               children: [
                 for (final MapEntry(key: format, value: option)
                     in options.entries)
